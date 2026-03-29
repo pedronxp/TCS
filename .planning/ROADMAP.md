@@ -79,6 +79,24 @@
 - `inspecoes/[id].tsx` funciona offline (fallback SQLite implementado)
 - Wizard com feedback visual em cada ação
 
+**Plans:** 14 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — onboarding.tsx: swipe habilitado + hierarquia visual + Button
+- [ ] 03-02-PLAN.md — (auth)/index.tsx: ícone shield + título Defesa Civil + Button
+- [ ] 03-03-PLAN.md — login.tsx: banner de erro + email.trim() + Button
+- [ ] 03-04-PLAN.md — register.tsx: formatação token XXXX-XXXX-XXXX + select restrito + força de senha
+- [ ] 03-05-PLAN.md — forgot-password.tsx: layout consistente + estado de sucesso + Button
+- [ ] 03-06-PLAN.md — dashboard.tsx: useMemo data/hora + Card KPIs + ErrorState
+- [ ] 03-07-PLAN.md — perfil.tsx: count:exact queries + Badge role + Ver Introdução + ErrorState
+- [ ] 03-08-PLAN.md — inspecoes/index.tsx: EmptyState + LoadingState + ErrorState + Card
+- [ ] 03-09-PLAN.md — wizard.tsx: stepRef fix (BUG-M9) + foto_url (BUG-A6) + fade + feedback
+- [ ] 03-10-PLAN.md — [id].tsx: fallback SQLite (BUG-C4) + badge offline + ErrorState
+- [ ] 03-11-PLAN.md — dados-iniciais.tsx: validação CEP (BUG-UX-05) + máscara XXXXX-XXX
+- [ ] 03-12-PLAN.md — selecao-formulario.tsx: Card + Badge tipo + 3 estados async
+- [ ] 03-13-PLAN.md — risco.tsx + resultado.tsx + foto.tsx: header consistente + Button + EmptyState
+- [ ] 03-14-PLAN.md — laudo.tsx: header consistente + Button + LoadingState (sem mudança funcional)
+
 ---
 
 ## Phase 4: UI Redesign — Admin + Supervisor + Master
