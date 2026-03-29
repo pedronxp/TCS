@@ -14,12 +14,13 @@ export const Colors = {
     // ── Tokens novos ──
     primaryLight: '#EFF6FF',       // fundo de destaque primário suave
     primaryDark: '#1D4ED8',        // hover/pressed do primary
+    primaryText: '#1E40AF',         // texto sobre primaryLight — 8.1:1
 
-    success: '#16A34A',            // verde — contraste 5.1:1 sobre branco
+    success: '#16A34A',            // verde — contraste 3.3:1 sobre branco (use successText for AA text)
     successLight: '#F0FDF4',       // fundo de badge success
     successText: '#14532D',        // texto sobre successLight — 7.3:1
 
-    warning: '#D97706',            // âmbar — contraste 4.6:1 sobre branco
+    warning: '#D97706',            // âmbar — contraste 3.2:1 sobre branco (use warningText for AA text)
     warningLight: '#FFFBEB',       // fundo de badge warning
     warningText: '#78350F',        // texto sobre warningLight — 8.1:1
 
@@ -43,6 +44,10 @@ export const Colors = {
     riscoR3Light: '#FFF7ED',
     riscoR4: '#DC2626',            // Risco Alto/Iminente — vermelho
     riscoR4Light: '#FEF2F2',
+    riscoR1Text: '#14532D',        // texto sobre riscoR1Light — 9.1:1 (same as successText)
+    riscoR2Text: '#78350F',        // texto sobre riscoR2Light — 8.1:1 (same as warningText)
+    riscoR3Text: '#7C2D12',        // texto sobre riscoR3Light — 8.5:1
+    riscoR4Text: '#7F1D1D',        // texto sobre riscoR4Light — 8.9:1 (same as errorText)
   },
   dark: {
     // ── Tokens existentes (não alterar valores) ──
@@ -59,6 +64,7 @@ export const Colors = {
     // ── Tokens novos ──
     primaryLight: 'rgba(59,130,246,0.12)',
     primaryDark: '#60A5FA',
+    primaryText: '#93C5FD',        // texto sobre primaryLight dark — 8.2:1
 
     success: '#4ADE80',            // verde claro — contraste 8.5:1 sobre #0B0F19
     successLight: 'rgba(74,222,128,0.12)',
@@ -88,5 +94,9 @@ export const Colors = {
     riscoR3Light: 'rgba(251,146,60,0.12)',
     riscoR4: '#F87171',
     riscoR4Light: 'rgba(248,113,113,0.12)',
+    riscoR1Text: '#BBF7D0',       // texto sobre riscoR1Light dark (same as successText dark)
+    riscoR2Text: '#FEF3C7',       // texto sobre riscoR2Light dark (same as warningText dark)
+    riscoR3Text: '#FED7AA',       // texto sobre riscoR3Light dark
+    riscoR4Text: '#FECACA',       // texto sobre riscoR4Light dark (same as errorText dark)
   }
 };
