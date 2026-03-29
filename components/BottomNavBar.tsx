@@ -46,20 +46,23 @@ const NAVBAR_VISIBLE_PATHS = [
   '/admin/relatorios', '/admin/estatisticas',
 ];
 
-function BottomNavBarComponent() {
+interface BottomNavBarInnerProps {
+  role: string;
+  pathname: string;
+}
+
+const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname }: BottomNavBarInnerProps) {
   const { theme } = useTheme();
-  const { profile } = useAuth();
-  const pathname = usePathname();
 
   const shouldShow = NAVBAR_VISIBLE_PATHS.some(p => {
     const norm = pathname.replace(/\/+$/, '');
     return norm === p || norm.endsWith(p);
   });
 
-  if (!shouldShow || !profile) return null;
+  if (!shouldShow) return null;
 
   let tabs: NavTab[];
-  switch (profile.role) {
+  switch (role) {
     case 'master_admin': tabs = TABS_MASTER; break;
     case 'admin':        tabs = TABS_ADMIN; break;
     case 'supervisor':   tabs = TABS_SUPERVISOR; break;
@@ -113,7 +116,7 @@ function BottomNavBarComponent() {
       })}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -164,4 +167,11 @@ const styles = StyleSheet.create({
   },
 });
 
-export const BottomNavBar = React.memo(BottomNavBarComponent);
+export function BottomNavBar() {
+  const { profile } = useAuth();
+  const pathname = usePathname();
+
+  if (!profile) return null;
+
+  return <BottomNavBarInner role={profile.role} pathname={pathname} />;
+}
