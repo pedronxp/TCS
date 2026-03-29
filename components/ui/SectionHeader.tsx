@@ -38,7 +38,7 @@ export const SectionHeader = React.memo(function SectionHeader({
 
       {action && onAction ? (
         <TouchableOpacity onPress={onAction} activeOpacity={0.7}>
-          <Text style={[styles.action, { color: theme.primary }]}>
+          <Text style={[styles.action, { color: theme.primaryDark }]}>
             {action}
           </Text>
         </TouchableOpacity>

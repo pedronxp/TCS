@@ -54,21 +54,21 @@ function getBadgeColors(
   theme: ReturnType<typeof useTheme>['theme']
 ): { bg: string; text: string } {
   switch (variant) {
-    // Risco
-    case 'R1': return { bg: theme.riscoR1Light, text: theme.riscoR1 };
-    case 'R2': return { bg: theme.riscoR2Light, text: theme.riscoR2 };
-    case 'R3': return { bg: theme.riscoR3Light, text: theme.riscoR3 };
-    case 'R4': return { bg: theme.riscoR4Light, text: theme.riscoR4 };
+    // Risco — use *Text tokens for WCAG AA compliance
+    case 'R1': return { bg: theme.riscoR1Light, text: theme.riscoR1Text };
+    case 'R2': return { bg: theme.riscoR2Light, text: theme.riscoR2Text };
+    case 'R3': return { bg: theme.riscoR3Light, text: theme.riscoR3Text };
+    case 'R4': return { bg: theme.riscoR4Light, text: theme.riscoR4Text };
     // Estados
-    case 'success': return { bg: theme.successLight, text: theme.success };
-    case 'warning': return { bg: theme.warningLight, text: theme.warning };
-    case 'error':   return { bg: theme.errorLight,   text: theme.error   };
-    case 'info':    return { bg: theme.primaryLight,  text: theme.primary };
+    case 'success': return { bg: theme.successLight, text: theme.successText };
+    case 'warning': return { bg: theme.warningLight, text: theme.warningText };
+    case 'error':   return { bg: theme.errorLight,   text: theme.errorText   };
+    case 'info':    return { bg: theme.primaryLight,  text: theme.primaryText };
     // Roles
-    case 'agente':       return { bg: theme.primaryLight,  text: theme.primary };
-    case 'supervisor':   return { bg: theme.warningLight,  text: theme.warning };
-    case 'admin':        return { bg: theme.errorLight,    text: theme.error   };
-    case 'master_admin': return { bg: theme.successLight,  text: theme.success };
+    case 'agente':       return { bg: theme.primaryLight,  text: theme.primaryText };
+    case 'supervisor':   return { bg: theme.warningLight,  text: theme.warningText };
+    case 'admin':        return { bg: theme.errorLight,    text: theme.errorText   };
+    case 'master_admin': return { bg: theme.successLight,  text: theme.successText };
     // Default
     default:
       return { bg: theme.surfaceVariant, text: theme.textSecondary };
