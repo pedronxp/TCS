@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: — Build Estável + UI Redesign + Qualidade
 status: verifying
-stopped_at: Completed 02-design-system-01-PLAN.md
-last_updated: "2026-03-29T16:27:42.610Z"
+stopped_at: Completed 02-design-system-gap-01-PLAN.md
+last_updated: "2026-03-29T20:21:13.903Z"
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 1
-  completed_plans: 2
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 4
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 02 (design-system) — EXECUTING
-Plan: 1 of 1
+Phase: 02 (design-system-gap-closure) — EXECUTING
+Plan: 2 of 2
 **Phase 01:** Correções de Build e Dependências
 **Status:** Phase complete — ready for verification
 
@@ -41,6 +41,9 @@ Plan: 1 of 1
 - [Phase 02-design-system]: No external UI library — all components built from react-native primitives and existing @expo/vector-icons
 - [Phase 02-design-system]: BottomNavBar memoized without custom comparator — zero-props component relies entirely on hook changes
 - [Phase 02-design-system]: ThemeContext unchanged — typeof Colors.light inference auto-propagates new tokens to all consumers
+- [Phase 02-design-system-gap-02]: BottomNavBarInner receives role+pathname as props — React.memo skips re-renders when AuthContext changes without role change
+- [Phase 02-design-system-gap-01]: primaryText (#1E40AF) separate from primaryDark (#1D4ED8) — different surfaces, both AA compliant
+- [Phase 02-design-system-gap-01]: *Text token suffix convention established: text-on-*Light backgrounds always use dedicated *Text high-contrast token
 
 ## Performance Metrics
 
@@ -48,8 +51,10 @@ Plan: 1 of 1
 |-------|------|-------------|-------|-------|
 | 01-correcoes-build | 01 | 559 | 3 | 3 |
 | Phase 02-design-system P01 | 756 | 7 tasks | 12 files |
+| Phase 02-design-system Pgap-02 | 120 | 1 tasks | 1 files |
+| Phase 02-design-system Pgap-01 | 600 | 2 tasks | 3 files |
 
 ## Last Session
 
-- **Stopped at:** Completed 02-design-system-01-PLAN.md
+- **Stopped at:** Completed 02-design-system-gap-01-PLAN.md
 - **Timestamp:** 2026-03-29T16:05:05Z
