@@ -129,6 +129,14 @@ Plans:
 - Notificação push ao criar atribuição no supervisor
 - TTL de 24h no cache de risco-config
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Dashboards ErrorStates em Admin, Supervisor e Master
+- [ ] 04-02-PLAN.md — Funcionalidades Pendentes (Push, TTL Risco Config, CSV)
+- [ ] 04-03-PLAN.md — Otimização Master Municipios e Hierarquia Visual de Admin (Tokens, Usuarios, Estatísticas)
+- [ ] 04-04-PLAN.md — Hierarquia Visual Supervisor (Equipe, Agente) e Editores (Admin)
+
 ---
 
 ## Phase 5: Segurança + Dívida Técnica
