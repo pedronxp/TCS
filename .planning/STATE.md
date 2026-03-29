@@ -2,8 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: — Build Estável + UI Redesign + Qualidade
-status: verifying
-last_updated: "2026-03-29T16:06:07.716Z"
+status: planning
+stopped_at: Completed 01-correcoes-build-01-PLAN.md
+last_updated: "2026-03-29T16:10:40.147Z"
 progress:
   total_phases: 5
   completed_phases: 0
@@ -15,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 01 (correcoes-build) — EXECUTING
-Plan: 1 of 1
+Phase: 02
+Plan: Not started
 **Phase 01:** Correções de Build e Dependências
-**Status:** Phase complete — ready for verification
+**Status:** Ready to plan
 
 ## Phase Progress
 
