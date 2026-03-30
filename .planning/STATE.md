@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: — Build Estável + UI Redesign + Qualidade
 status: executing
-stopped_at: Completed 03-10-PLAN.md
-last_updated: "2026-03-30T22:16:38.307Z"
+stopped_at: Completed 03-14-PLAN.md
+last_updated: "2026-03-30T22:30:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 1
@@ -46,6 +46,8 @@ Plan: 2 of 14
 - [Phase 02-design-system-gap-01]: *Text token suffix convention established: text-on-*Light backgrounds always use dedicated *Text high-contrast token
 - [Phase 03-ui-auth-agente]: getVistoriaById already existed in utils/database.ts — no modification needed for plan 03-10
 - [Phase 03-ui-auth-agente]: Supabase-first + SQLite fallback pattern established for offline-first detail screens
+- [Phase 03-ui-auth-agente]: stepRef.current used in auto-save setTimeout callback to avoid stale closure over step state
+- [Phase 03-ui-auth-agente]: foto_url extracted from first foto-type question response; falls back to null if none answered
 
 ## Performance Metrics
 
@@ -55,9 +57,14 @@ Plan: 2 of 14
 | Phase 02-design-system P01 | 756 | 7 tasks | 12 files |
 | Phase 02-design-system Pgap-02 | 120 | 1 tasks | 1 files |
 | Phase 02-design-system Pgap-01 | 600 | 2 tasks | 3 files |
-| Phase 03-ui-auth-agente P10 | 600 | 1 tasks | 1 files |
+| Phase 03-ui-auth-agente P09 | 180 | 1 tasks | 1 files |
+| Phase 03-ui-auth-agente P10 | 600 | 1 tasks | 2 files |
+| Phase 03-ui-auth-agente P11 | 300 | 1 tasks | 1 files |
+| Phase 03-ui-auth-agente P12 | 180 | 1 tasks | 1 files |
+| Phase 03-ui-auth-agente P13 | 300 | 2 tasks | 3 files |
+| Phase 03-ui-auth-agente P14 | 180 | 1 tasks | 1 files |
 
 ## Last Session
 
-- **Stopped at:** Completed 03-10-PLAN.md
+- **Stopped at:** Completed 03-14-PLAN.md
 - **Timestamp:** 2026-03-29T23:15:00Z

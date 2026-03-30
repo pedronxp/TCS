@@ -90,12 +90,12 @@ Plans:
 - [x] 03-06-PLAN.md — dashboard.tsx: useMemo data/hora + Card KPIs + ErrorState
 - [x] 03-07-PLAN.md — perfil.tsx: count:exact queries + Badge role + Ver Introdução + ErrorState
 - [x] 03-08-PLAN.md — inspecoes/index.tsx: EmptyState + LoadingState + ErrorState + Card
-- [ ] 03-09-PLAN.md — wizard.tsx: stepRef fix (BUG-M9) + foto_url (BUG-A6) + fade + feedback
+- [x] 03-09-PLAN.md — wizard.tsx: stepRef fix (BUG-M9) + foto_url (BUG-A6) + fade + feedback
 - [x] 03-10-PLAN.md — [id].tsx: fallback SQLite (BUG-C4) + badge offline + ErrorState
-- [ ] 03-11-PLAN.md — dados-iniciais.tsx: validação CEP (BUG-UX-05) + máscara XXXXX-XXX
-- [ ] 03-12-PLAN.md — selecao-formulario.tsx: Card + Badge tipo + 3 estados async
-- [ ] 03-13-PLAN.md — risco.tsx + resultado.tsx + foto.tsx: header consistente + Button + EmptyState
-- [ ] 03-14-PLAN.md — laudo.tsx: header consistente + Button + LoadingState (sem mudança funcional)
+- [x] 03-11-PLAN.md — dados-iniciais.tsx: validação CEP (BUG-UX-05) + máscara XXXXX-XXX
+- [x] 03-12-PLAN.md — selecao-formulario.tsx: Card + Badge tipo + 3 estados async
+- [x] 03-13-PLAN.md — risco.tsx + resultado.tsx + foto.tsx: header consistente + Button + EmptyState
+- [x] 03-14-PLAN.md — laudo.tsx: header consistente + Button + LoadingState (sem mudança funcional)
 
 ---
 
