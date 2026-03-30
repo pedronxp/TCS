@@ -11,6 +11,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { updateFotosUrls } from '../../../utils/database';
+import { EmptyState, Button } from '../../../components/ui';
 
 const MAX_FOTOS = 8;
 const QUALIDADE = 0.72;   // 72% JPEG — spec AGENTS.md
@@ -254,6 +255,17 @@ export default function FotoScreen() {
           Registre evidências fotográficas da edificação, pontos críticos e irregularidades estruturais.
           {'\n'}Fotos comprimidas em JPEG 72% / 480p para otimização de armazenamento.
         </Text>
+
+        {fotos.length === 0 && (
+          <EmptyState
+            icon="camera"
+            title="Nenhuma foto registrada"
+            description="Tire uma foto para documentar a vistoria."
+            actionLabel="Tirar Foto"
+            onAction={tirarFoto}
+            style={{ flex: 0, paddingVertical: 40 }}
+          />
+        )}
 
         <View style={styles.grid}>
           {fotos.map((foto) => (
