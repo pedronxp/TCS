@@ -116,13 +116,16 @@ export default function DadosIniciaisScreen() {
   };
 
   /** Busca endereço pelo CEP via ViaCEP */
-  const buscarCep = async () => {
-    const digits = form.cep.replace(/\D/g, '');
-    if (digits.length !== 8) return;
-    setBuscandoCep(true);
+  const buscarCep = async (cepOverride?: string) => {
+    const cepLimpo = (cepOverride ?? form.cep).replace(/\D/g, '');
+    if (cepLimpo.length !== 8) {
+      setErroCep('CEP deve ter 8 dígitos.');
+      return;
+    }
     setErroCep(null);
+    setBuscandoCep(true);
     try {
-      const resp = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
       const json = await resp.json();
       if (json.erro) {
         setErroCep('CEP não encontrado');
@@ -140,11 +143,12 @@ export default function DadosIniciaisScreen() {
     }
   };
 
-  const handleCepChange = (text: string) => {
-    const digits = text.replace(/\D/g, '');
-    setForm(f => ({ ...f, cep: digits }));
+  const handleCepChange = (t: string) => {
+    const limpo = t.replace(/\D/g, '').substring(0, 8);
+    const formatado = limpo.length > 5 ? `${limpo.slice(0, 5)}-${limpo.slice(5)}` : limpo;
+    setForm(f => ({ ...f, cep: formatado }));
     setErroCep(null);
-    if (digits.length === 8) buscarCep();
+    if (limpo.length === 8) buscarCep(formatado);
   };
 
   const avancar = () => {
@@ -242,14 +246,24 @@ export default function DadosIniciaisScreen() {
             <TextInput
               ref={cepRef}
               style={[inputStyle, erroCep ? { borderColor: '#EF4444' } : null]}
-              placeholder="CEP (somente números)"
+              placeholder="CEP (ex: 12345-678)"
               placeholderTextColor={theme.textSecondary}
               keyboardType="numeric"
-              maxLength={8}
+              maxLength={9}
               value={form.cep}
               onChangeText={handleCepChange}
             />
-            {erroCep && <Text style={styles.errorText}>{erroCep}</Text>}
+            {erroCep !== null && erroCep.length > 0 && (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center',
+                backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
+                borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12,
+                padding: 12, gap: 8, marginTop: 8,
+              }}>
+                <Feather name="alert-circle" size={16} color="#EF4444" />
+                <Text style={{ color: '#EF4444', fontSize: 14, flex: 1 }}>{erroCep}</Text>
+              </View>
+            )}
           </View>
           <TouchableOpacity
             style={[styles.cepButton, { backgroundColor: theme.iconBackground, borderColor: theme.primary }]}
@@ -332,9 +346,9 @@ const styles = StyleSheet.create({
   coordValue: { fontSize: 15, fontWeight: '700', marginTop: 2 },
   accuracy: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
   row: { flexDirection: 'row', gap: 12, alignItems: 'flex-end' },
-  input: { height: 52, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 15, fontWeight: '500' },
-  readonlyField: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
-  cepButton: { flex: 2, height: 52, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
+  input: { height: 60, borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, fontSize: 15, fontWeight: '500' },
+  readonlyField: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
+  cepButton: { flex: 2, height: 60, borderRadius: 16, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
   cepButtonText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.8 },
   errorText: { color: '#EF4444', fontSize: 12, marginTop: 4 },
   footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'row', gap: 12 },
