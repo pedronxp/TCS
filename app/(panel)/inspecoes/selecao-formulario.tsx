@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
@@ -7,6 +7,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
+import { Card, Badge, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
 
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
@@ -55,6 +56,14 @@ interface FormularioItem {
   isBuiltin: boolean;
 }
 
+const getFormIcon = (item: FormularioItem): string => {
+  const nome = (item.titulo || '').toLowerCase();
+  if (nome.includes('agua') || nome.includes('água') || nome.includes('enchente') || nome.includes('inundacao') || nome.includes('inundação')) return 'droplet';
+  if (nome.includes('geo') || nome.includes('desliz') || nome.includes('talude')) return 'map-pin';
+  if (nome.includes('estrutur') || nome.includes('constru')) return 'home';
+  return 'file-text';
+};
+
 export default function SelecaoFormularioScreen() {
   const { theme } = useTheme();
   const { profile } = useAuth();
@@ -64,6 +73,7 @@ export default function SelecaoFormularioScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fromCache, setFromCache] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDynamicForms();
@@ -71,6 +81,7 @@ export default function SelecaoFormularioScreen() {
 
   /** Busca formulários personalizados — online: Supabase + atualiza cache; offline: SQLite cache */
   const fetchDynamicForms = async () => {
+    setFormError(null);
     try {
       if (isOnlineReal) {
         const { data } = await supabase
@@ -120,6 +131,7 @@ export default function SelecaoFormularioScreen() {
         setFromCache(customs.length > 0);
       }
     } catch (e) {
+      setFormError('Erro ao carregar formulários.');
       // Fallback to cache on any error
       try {
         const cached = getFormulariosCache(profile?.municipio || undefined);
@@ -166,12 +178,6 @@ export default function SelecaoFormularioScreen() {
     });
   };
 
-  // ─── All forms: built-in first, then Supabase custom ──────────────────────
-  const allForms: FormularioItem[] = [
-    ...FORMULARIOS_BUILTIN,
-    ...dynamicForms,
-  ];
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
@@ -199,53 +205,75 @@ export default function SelecaoFormularioScreen() {
         {FORMULARIOS_BUILTIN.map(f => {
           const sel = selected === f.id;
           return (
-            <TouchableOpacity
-              key={f.id}
-              style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: sel ? theme.primary : theme.cardBorder }]}
-              onPress={() => setSelected(f.id)}
-            >
-              <View style={[styles.iconBadge, { backgroundColor: theme.iconBackground }]}>
-                <Feather name={f.icon} size={22} color={theme.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{f.titulo}</Text>
-                <Text style={[styles.cardSub, { color: theme.textSecondary }]}>{f.descricao}</Text>
-              </View>
-              {sel && <Feather name="check-circle" size={22} color={theme.primary} />}
+            <TouchableOpacity key={f.id} onPress={() => setSelected(f.id)}>
+              <Card style={{ marginBottom: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? theme.primary : theme.cardBorder }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: theme.iconBackground, alignItems: 'center', justifyContent: 'center' }}>
+                    <Feather name={f.icon} size={22} color={theme.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
+                    <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
+                      <Badge variant="success">Built-in</Badge>
+                      {sel
+                        ? <Feather name="check-circle" size={16} color={theme.primary} />
+                        : <Feather name="chevron-right" size={16} color={theme.muted} />
+                      }
+                    </View>
+                  </View>
+                </View>
+              </Card>
             </TouchableOpacity>
           );
         })}
 
+        {/* Async states for custom forms */}
+        {loading && <LoadingState />}
+        {formError !== null && !loading && (
+          <ErrorState message={formError} onRetry={fetchDynamicForms} />
+        )}
+        {!loading && !formError && dynamicForms.length === 0 && (
+          <EmptyState
+            icon="file-text"
+            title="Nenhum formulário disponível"
+            description="Aguarde a liberação de formulários pelo administrador."
+          />
+        )}
+
         {/* Supabase custom forms */}
-        {loading ? (
-          <ActivityIndicator color={theme.primary} style={{ marginTop: 16 }} />
-        ) : dynamicForms.length > 0 ? (
+        {!loading && !formError && dynamicForms.length > 0 && (
           <>
             <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: 24 }]}>
               <Feather name={fromCache ? 'database' : 'cloud'} size={12} /> FORMULÁRIOS PERSONALIZADOS{fromCache ? ' (CACHE)' : ''}
             </Text>
             {dynamicForms.map(f => {
               const sel = selected === f.id;
-              const isPublished = f.status === 'publicado';
               return (
-                <TouchableOpacity
-                  key={f.id}
-                  style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: sel ? theme.primary : theme.cardBorder }]}
-                  onPress={() => setSelected(f.id)}
-                >
-                  <View style={[styles.iconBadge, { backgroundColor: isPublished ? 'rgba(16,185,129,0.1)' : theme.iconBackground }]}>
-                    <Feather name="file-text" size={22} color={isPublished ? '#10B981' : theme.textSecondary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>{f.titulo}</Text>
-                    <Text style={[styles.cardSub, { color: theme.textSecondary }]}>{f.descricao}</Text>
-                  </View>
-                  {sel && <Feather name="check-circle" size={22} color={theme.primary} />}
+                <TouchableOpacity key={f.id} onPress={() => setSelected(f.id)}>
+                  <Card style={{ marginBottom: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? theme.primary : theme.cardBorder }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: theme.iconBackground, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name={getFormIcon(f) as any} size={22} color={theme.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
+                        <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao || ''}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
+                          <Badge variant="warning">Personalizado</Badge>
+                          {sel
+                            ? <Feather name="check-circle" size={16} color={theme.primary} />
+                            : <Feather name="chevron-right" size={16} color={theme.muted} />
+                          }
+                        </View>
+                      </View>
+                    </View>
+                  </Card>
                 </TouchableOpacity>
               );
             })}
           </>
-        ) : null}
+        )}
       </ScrollView>
 
       {/* Footer */}
@@ -276,10 +304,6 @@ const styles = StyleSheet.create({
   progressFill: { height: 3 },
   scroll: { padding: 20, paddingBottom: 120 },
   sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
-  card: { borderRadius: 14, borderWidth: 1.5, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 12 },
-  iconBadge: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  cardTitle: { fontSize: 16, fontWeight: '600' },
-  cardSub: { fontSize: 12, marginTop: 2 },
   footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'row', gap: 12 },
   cancelBtn: { flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
   cancelText: { fontSize: 13, fontWeight: '800', letterSpacing: 1 },
