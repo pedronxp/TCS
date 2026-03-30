@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert
+  Alert
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
 import { getVistoriaById } from '../../../utils/database';
+import { Button, LoadingState } from '../../../components/ui';
 
 function escapeHtml(str: string): string {
   return String(str)
@@ -298,8 +299,8 @@ export default function ResultadoScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState />
       </View>
     );
   }
@@ -356,65 +357,41 @@ export default function ResultadoScreen() {
 
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Exportar Laudo</Text>
 
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.primary }]}
+        <Button
+          variant="primary"
+          label={gerando ? 'Gerando PDF...' : 'Baixar PDF'}
           onPress={gerarPdf}
+          loading={gerando}
           disabled={gerando}
-        >
-          <View style={[styles.exportIcon, { backgroundColor: theme.primary }]}>
-            {gerando
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <Feather name="download" size={22} color="#FFF" />
-            }
-          </View>
-          <View style={styles.exportTextWrap}>
-            <Text style={[styles.exportTitle, { color: theme.text }]}>
-              {gerando ? 'Gerando PDF...' : 'Baixar PDF'}
-            </Text>
-            <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
-              Laudo formatado com dados técnicos
-            </Text>
-          </View>
-        </TouchableOpacity>
+          iconLeft={<Feather name="download" size={20} color="#FFF" />}
+          style={{ marginBottom: 12 }}
+        />
 
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
+        <Button
+          variant="secondary"
+          label="Imprimir"
           onPress={imprimir}
           disabled={gerando}
-        >
-          <View style={[styles.exportIcon, { backgroundColor: theme.iconBackground }]}>
-            <Feather name="printer" size={22} color={theme.textSecondary} />
-          </View>
-          <View style={styles.exportTextWrap}>
-            <Text style={[styles.exportTitle, { color: theme.text }]}>Imprimir Laudo</Text>
-            <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>Enviar para impressora</Text>
-          </View>
-        </TouchableOpacity>
+          iconLeft={<Feather name="printer" size={20} color={theme.primary} />}
+          style={{ marginBottom: 12 }}
+        />
 
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
+        <Button
+          variant="secondary"
+          label="Compartilhar"
           onPress={gerarPdf}
           disabled={gerando}
-        >
-          <View style={[styles.exportIcon, { backgroundColor: theme.iconBackground }]}>
-            <Feather name="share-2" size={22} color={theme.textSecondary} />
-          </View>
-          <View style={styles.exportTextWrap}>
-            <Text style={[styles.exportTitle, { color: theme.text }]}>Compartilhar</Text>
-            <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
-              Enviar via WhatsApp, e-mail, etc.
-            </Text>
-          </View>
-        </TouchableOpacity>
+          iconLeft={<Feather name="share-2" size={20} color={theme.primary} />}
+          style={{ marginBottom: 12 }}
+        />
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+        <Button
+          variant="primary"
+          label="Voltar ao Início"
           onPress={() => router.replace('/(panel)/dashboard')}
-        >
-          <Text style={styles.primaryBtnText}>Voltar ao Início</Text>
-        </TouchableOpacity>
+        />
       </View>
     </View>
   );
@@ -459,20 +436,5 @@ const styles = StyleSheet.create({
     fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 16,
   },
-  exportBtn: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
-    borderRadius: 16, borderWidth: 1, marginBottom: 12,
-  },
-  exportIcon: {
-    width: 48, height: 48, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center', marginRight: 16,
-  },
-  exportTextWrap: { flex: 1 },
-  exportTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
-  exportDesc: { fontSize: 13 },
   footer: { padding: 24, paddingBottom: 40, borderTopWidth: 1 },
-  primaryBtn: {
-    height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
-  },
-  primaryBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
 });
