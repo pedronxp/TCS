@@ -6,6 +6,8 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { getVistoriaById } from '../../../utils/database';
+import { Badge, ErrorState } from '../../../components/ui';
 
 function riscoLabel(nivel: string) {
   if (nivel === 'r4') return 'CRÍTICO';
@@ -32,38 +34,79 @@ export default function VistoriaDetalhesScreen() {
   const { initReport } = useReport();
   const [loading, setLoading] = useState(true);
   const [vistoria, setVistoria] = useState<any>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => { if (id) fetchDetalhes(); }, [id]);
 
+  function populateReport(data: any) {
+    let respostas: Record<string, string> = {};
+    try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
+    initReport({
+      vistoriaId: data.id,
+      protocolo: (data.id || '').slice(0, 8).toUpperCase(),
+      endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
+      municipio: data.municipio || '',
+      agenteNome: data.agenteNome || '',
+      dataVistoria: data.dataVistoria || '',
+      formularioId: data.formularioId || 'Padrão',
+      nivelRisco: data.nivelRisco || 'r1',
+      pontuacaoTotal: data.pontuacaoTotal ?? 0,
+      respostas,
+      condutaRecomendada: '',
+      observacoesTecnicas: '',
+      cargo: 'Agente de Defesa Civil',
+    });
+  }
+
   const fetchDetalhes = async () => {
     try {
+      // 1. Tentar Supabase primeiro
       const { data, error } = await supabase
         .from('vistorias')
         .select('*')
         .eq('id', id)
         .single();
-      if (error) throw error;
-      setVistoria(data);
-      // Popula o ReportContext para edição inline no relatorio.tsx
-      let respostas: Record<string, string> = {};
-      try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
-      initReport({
-        vistoriaId: data.id,
-        protocolo: (data.id || '').slice(0, 8).toUpperCase(),
-        endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
-        municipio: data.municipio || '',
-        agenteNome: data.agenteNome || '',
-        dataVistoria: data.dataVistoria || '',
-        formularioId: data.formularioId || 'Padrão',
-        nivelRisco: data.nivelRisco || 'r1',
-        pontuacaoTotal: data.pontuacaoTotal ?? 0,
-        respostas,
-        condutaRecomendada: '',
-        observacoesTecnicas: '',
-        cargo: 'Agente de Defesa Civil',
-      });
+
+      if (!error && data) {
+        setVistoria(data);
+        populateReport(data);
+        return;
+      }
+
+      // 2. Fallback SQLite — vistoria pode estar offline/não sincronizada
+      const local = getVistoriaById(id);
+      if (local) {
+        const normalizado = {
+          id: local.id,
+          agenteUid: local.agente_uid,
+          agenteNome: local.agente_nome,
+          municipio: local.municipio,
+          enderecoRua: local.endereco_rua,
+          enderecoNumero: local.endereco_numero,
+          enderecoBairro: local.endereco_bairro,
+          enderecoCep: local.endereco_cep,
+          responsavelNome: local.responsavel_nome,
+          latitude: local.latitude,
+          longitude: local.longitude,
+          dataVistoria: local.data_vistoria,
+          formularioId: local.formulario_id,
+          nivelRisco: local.nivel_risco,
+          pontuacaoTotal: local.pontuacao_total,
+          fotoUrl: local.foto_url,
+          respostasJson: local.respostas_json,
+          status: 'Pendente de sincronização',
+        };
+        setVistoria(normalizado);
+        populateReport(normalizado);
+        return;
+      }
+
+      // 3. Não encontrado em nenhum lugar
+      throw new Error('Vistoria não encontrada localmente nem no servidor.');
+
     } catch (e) {
       logger.error('vistoria', 'Erro ao buscar vistoria', { erro: String(e) });
+      setFetchError(String(e));
     } finally {
       setLoading(false);
     }
@@ -74,6 +117,15 @@ export default function VistoriaDetalhesScreen() {
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
       </View>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <ErrorState
+        message={fetchError}
+        onRetry={fetchDetalhes}
+      />
     );
   }
 
@@ -101,6 +153,11 @@ export default function VistoriaDetalhesScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>Vistoria #{id?.toString().slice(0, 6)}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{vistoria.status || 'Registrado'}</Text>
+          {vistoria?.status === 'Pendente de sincronização' && (
+            <Badge variant="warning">
+              Pendente de sincronização
+            </Badge>
+          )}
         </View>
         <TouchableOpacity
           style={[styles.laudoBtn, { backgroundColor: theme.primary }]}
