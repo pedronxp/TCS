@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Modal, Alert
+  Modal, Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
+import { Card, Badge, Button } from '../../../components/ui';
 import { supabase } from '../../../utils/supabase';
 import { insertVistoria, markSincronizado, getVistoriaById } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
@@ -88,6 +89,16 @@ export default function ResultadoRiscoScreen() {
 
   const config = RISCO_CONFIG[nivel?.toLowerCase() || 'r1'] || RISCO_CONFIG.r1;
   const pontosNum = parseInt(pontos || '0', 10);
+
+  // Normaliza nivel para variante do Badge (R1/R2/R3/R4)
+  const nivelBadgeVariant = (() => {
+    const n = nivel?.toLowerCase() || 'r1';
+    if (n === 'r1' || n === 'baixo') return 'R1';
+    if (n === 'r2' || n === 'medio') return 'R2';
+    if (n === 'r3' || n === 'alto') return 'R3';
+    if (n === 'r4' || n === 'critico' || n === 'iminente') return 'R4';
+    return 'R1';
+  })() as 'R1' | 'R2' | 'R3' | 'R4';
 
   const parsedRespostas: Record<string, any> = (() => {
     try { return JSON.parse(respostas || '{}'); } catch { return {}; }
@@ -182,60 +193,60 @@ export default function ResultadoRiscoScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Hero Card de Risco */}
-        <View style={[styles.heroCard, { backgroundColor: config.color }]}>
-          <View style={styles.emojiWrap}>
-            <Text style={styles.emoji}>{config.emoji}</Text>
+        <Card style={styles.heroCard as any}>
+          <View style={[styles.heroCardInner, { backgroundColor: config.color }]}>
+            <View style={styles.emojiWrap}>
+              <Text style={styles.emoji}>{config.emoji}</Text>
+            </View>
+            <Badge
+              label={`RISCO ${config.label}`}
+              variant={nivelBadgeVariant}
+              size="md"
+            />
+            <View style={styles.pontosBadge}>
+              <Text style={styles.pontosValue}>{pontosNum}</Text>
+              <Text style={styles.pontosSuffix}> pts</Text>
+            </View>
+            {endereco ? (
+              <Text style={styles.enderecoHero} numberOfLines={2}>{endereco}</Text>
+            ) : null}
           </View>
-          <Text style={styles.riscoLabel}>RISCO {config.label}</Text>
-          <View style={styles.pontosBadge}>
-            <Text style={styles.pontosValue}>{pontosNum}</Text>
-            <Text style={styles.pontosSuffix}> pts</Text>
-          </View>
-          {endereco ? (
-            <Text style={styles.enderecoHero} numberOfLines={2}>{endereco}</Text>
-          ) : null}
-        </View>
+        </Card>
 
         {/* Conduta Recomendada */}
-        <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <Card style={{ marginBottom: 16 }}>
           <View style={styles.cardHeader}>
             <Feather name="info" size={18} color={config.color} />
             <Text style={[styles.cardTitle, { color: theme.text }]}>Conduta Recomendada</Text>
           </View>
           <Text style={[styles.conduta, { color: theme.textSecondary }]}>{config.conduta}</Text>
-        </View>
+        </Card>
 
         {/* Ações */}
-        <TouchableOpacity
-          style={[styles.outlineBtn, { borderColor: theme.border, backgroundColor: theme.surfaceHighlight }]}
+        <Button
+          variant="ghost"
+          label="Comprovante de Respostas"
           onPress={() => setShowRespostas(true)}
-        >
-          <Feather name="list" size={20} color={theme.primary} />
-          <Text style={[styles.outlineBtnText, { color: theme.text }]}>Comprovante de Respostas</Text>
-        </TouchableOpacity>
+          iconLeft={<Feather name="list" size={20} color={theme.primary} />}
+          style={{ marginBottom: 12 }}
+        />
 
-        <TouchableOpacity
-          style={[styles.outlineBtn, { borderColor: theme.border, backgroundColor: theme.surfaceHighlight }]}
+        <Button
+          variant="ghost"
+          label="Gerar PDF / Laudo"
           onPress={() => router.push(`/(panel)/inspecoes/resultado?id=${id}`)}
-        >
-          <Feather name="file-text" size={20} color={theme.primary} />
-          <Text style={[styles.outlineBtnText, { color: theme.text }]}>Gerar PDF / Laudo</Text>
-        </TouchableOpacity>
+          iconLeft={<Feather name="file-text" size={20} color={theme.primary} />}
+          style={{ marginBottom: 12 }}
+        />
 
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: saving ? theme.textSecondary : theme.primary }]}
+        <Button
+          variant="primary"
+          label={saving ? 'Processando...' : 'Salvar Relatório'}
           onPress={handleSalvar}
+          loading={saving}
           disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Feather name="upload-cloud" size={20} color="#FFF" />
-          )}
-          <Text style={styles.primaryBtnText}>
-            {saving ? 'Processando...' : 'Salvar Relatório'}
-          </Text>
-        </TouchableOpacity>
+          style={{ marginTop: 8 }}
+        />
       </ScrollView>
 
       {/* Modal: Comprovante de Respostas */}
@@ -281,7 +292,12 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 24, paddingBottom: 60 },
 
   heroCard: {
-    borderRadius: 24, padding: 32, alignItems: 'center', marginBottom: 24,
+    marginBottom: 24,
+    overflow: 'hidden',
+    padding: 0,
+  },
+  heroCardInner: {
+    borderRadius: 24, padding: 32, alignItems: 'center',
   },
   emojiWrap: {
     width: 80, height: 80, borderRadius: 40,
@@ -289,10 +305,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: 20,
   },
   emoji: { fontSize: 40 },
-  riscoLabel: {
-    color: '#FFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5,
-    marginBottom: 12,
-  },
   pontosBadge: {
     flexDirection: 'row', alignItems: 'baseline',
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -307,22 +319,9 @@ const styles = StyleSheet.create({
     fontWeight: '500', marginTop: 4,
   },
 
-  card: { borderRadius: 16, borderWidth: 1, padding: 20, marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   cardTitle: { fontSize: 16, fontWeight: '700' },
   conduta: { fontSize: 14, lineHeight: 22, fontWeight: '500' },
-
-  outlineBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 18, borderRadius: 16, borderWidth: 1, marginBottom: 12,
-  },
-  outlineBtnText: { fontSize: 15, fontWeight: '600', flex: 1 },
-
-  primaryBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 12, height: 60, borderRadius: 16, marginTop: 8,
-  },
-  primaryBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
   modalContainer: { flex: 1 },
   modalHeader: {
