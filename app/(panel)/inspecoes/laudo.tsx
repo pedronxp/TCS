@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, Share
+  ActivityIndicator, Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -11,6 +11,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { Button, LoadingState } from '../../../components/ui';
 
 function escapeHtml(str: unknown): string {
   return String(str ?? '')
@@ -185,17 +186,14 @@ ${respostasHtml ? `
           <Text style={[styles.title, { color: theme.text }]}>Laudo Técnico</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Relatório de vistoria</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.pdfBtn, { backgroundColor: gerando ? theme.textSecondary : theme.primary }]}
+        <Button
+          variant="primary"
+          loading={gerando}
           onPress={gerarPDF}
           disabled={gerando}
         >
-          {gerando
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <Feather name="download" size={18} color="#FFF" />
-          }
-          <Text style={styles.pdfBtnText}>{gerando ? '...' : 'PDF'}</Text>
-        </TouchableOpacity>
+          PDF
+        </Button>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -256,14 +254,15 @@ ${respostasHtml ? `
           } catch { return null; }
         })()}
 
-        <TouchableOpacity
-          style={[styles.shareBtn, { backgroundColor: theme.primary }]}
+        {gerando && <LoadingState />}
+        <Button
+          variant="primary"
+          loading={gerando}
           onPress={gerarPDF}
           disabled={gerando}
         >
-          <Feather name="file-text" size={20} color="#FFF" />
-          <Text style={styles.shareBtnText}>Gerar e Compartilhar PDF</Text>
-        </TouchableOpacity>
+          Gerar Laudo PDF
+        </Button>
       </ScrollView>
     </View>
   );
@@ -278,11 +277,6 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 20, fontWeight: '700' },
   subtitle: { fontSize: 12, marginTop: 2 },
-  pdfBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
-  },
-  pdfBtnText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
   scroll: { padding: 20, paddingBottom: 60 },
   nivelCard: {
     flexDirection: 'row', alignItems: 'center', gap: 16,
@@ -300,9 +294,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', padding: 14 },
   rowLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   rowValue: { fontSize: 15, fontWeight: '600' },
-  shareBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 12, height: 60, borderRadius: 18, marginTop: 8,
-  },
-  shareBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });
