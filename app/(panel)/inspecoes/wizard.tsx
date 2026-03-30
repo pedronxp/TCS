@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image, Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -57,12 +57,18 @@ export default function WizardAvaliacaoScreen() {
 
   const [perguntas, setPerguntas] = useState<PerguntaModel[]>([]);
   const [step, setStep] = useState(0); // índice da pergunta atual
+  const stepRef = useRef(step);
   const [respostas, setRespostas] = useState<Respostas>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [limites, setLimites] = useState<{max: number; nivel: string}[]>([]);
   const draftKey = `@draft_wizard_${params.formularioId}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
 
   useEffect(() => {
     fetchPerguntas();
@@ -101,7 +107,7 @@ export default function WizardAvaliacaoScreen() {
       const updated = { ...r, [perguntaId]: valor };
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = setTimeout(() => {
-        AsyncStorage.setItem(draftKey, JSON.stringify({ respostas: updated, step })).catch(() => null);
+        AsyncStorage.setItem(draftKey, JSON.stringify({ respostas: updated, step: stepRef.current })).catch(() => null);
       }, 800);
       return updated;
     });
@@ -247,6 +253,13 @@ export default function WizardAvaliacaoScreen() {
     }
   };
 
+  const animateToStep = (newStep: number) => {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 100, useNativeDriver: true }).start(() => {
+      setStep(newStep);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    });
+  };
+
   const finalizar = async () => {
     // Verifica obrigatórias
     const pendente = perguntas.find(p => p.obrigatoria && !respostas[p.id]);
@@ -268,6 +281,10 @@ export default function WizardAvaliacaoScreen() {
       // UUID via crypto (Hermes suporta desde RN 0.73+)
       const id = generateUUID();
 
+      // Extrair foto_url das respostas (primeira pergunta do tipo 'foto' respondida)
+      const perguntaFoto = perguntas.find(p => p.tipo === 'foto' && respostas[p.id]);
+      const fotoUri = perguntaFoto ? respostas[perguntaFoto.id] : null;
+
       const vistoriaLocal = {
         id,
         agente_uid: session.user.id,
@@ -286,7 +303,7 @@ export default function WizardAvaliacaoScreen() {
         respostas_json: JSON.stringify(respostas),
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
-        foto_url: null,
+        foto_url: fotoUri,
         criado_em: agora,
       };
 
@@ -355,7 +372,7 @@ export default function WizardAvaliacaoScreen() {
       Alert.alert('Resposta obrigatória', 'Responda esta pergunta para continuar.');
       return;
     }
-    if (step < totalPerguntas - 1) setStep(s => s + 1);
+    if (step < totalPerguntas - 1) animateToStep(step + 1);
     else finalizar();
   };
 
@@ -372,7 +389,7 @@ export default function WizardAvaliacaoScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => step > 0 ? setStep(s => s - 1) : router.back()}>
+        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => step > 0 ? animateToStep(step - 1) : router.back()}>
           <Feather name={step > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -388,7 +405,7 @@ export default function WizardAvaliacaoScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {perguntaAtual && (
-          <>
+          <Animated.View style={{ opacity: fadeAnim }}>
             {/* Image example */}
             {perguntaAtual.imagemExemplo && (
               <Image source={{ uri: perguntaAtual.imagemExemplo }} style={styles.exampleImage} resizeMode="cover" />
@@ -477,7 +494,7 @@ export default function WizardAvaliacaoScreen() {
                 )}
               </View>
             )}
-          </>
+          </Animated.View>
         )}
 
         {totalPerguntas === 0 && !loading && (
@@ -493,7 +510,7 @@ export default function WizardAvaliacaoScreen() {
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
         {step > 0 && (
-          <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(s => s - 1)}>
+          <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => animateToStep(step - 1)}>
             <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
           </TouchableOpacity>
         )}
@@ -502,12 +519,17 @@ export default function WizardAvaliacaoScreen() {
           onPress={avancar}
           disabled={salvando}
         >
-          {salvando
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <>
-                <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
-                <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
-              </>}
+          {salvando ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: '#fff' }}>Salvando...</Text>
+              <ActivityIndicator color="#fff" size="small" />
+            </View>
+          ) : (
+            <>
+              <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
+              <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -520,8 +542,8 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   title: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
-  progressTrack: { height: 3 },
-  progressFill: { height: 3 },
+  progressTrack: { height: 4 },
+  progressFill: { height: 4 },
   scroll: { padding: 20, paddingBottom: 120 },
   groupLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginBottom: 8 },
   groupText: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
