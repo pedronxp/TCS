@@ -51,7 +51,7 @@ interface BottomNavBarInnerProps {
   pathname: string;
 }
 
-const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname }: BottomNavBarInnerProps) {
+export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname }: BottomNavBarInnerProps) {
   const { theme } = useTheme();
 
   const shouldShow = NAVBAR_VISIBLE_PATHS.some(p => {

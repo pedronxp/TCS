@@ -1,0 +1,288 @@
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  ActivityIndicator, Switch, Alert, TextInput
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
+import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
+import { supabase } from '../../../utils/supabase';
+import { logger } from '../../../utils/logger';
+import { registrarAuditoria } from '../../../utils/auditLogger';
+
+const ROLE_LABELS: Record<string, string> = {
+  agent: 'Agente', supervisor: 'Supervisor',
+  admin: 'Admin', master_admin: 'Master',
+};
+
+const PAGE_SIZE = 20;
+type Filtro = 'todos' | 'ativos' | 'pendentes';
+
+export default function UsuariosScreen() {
+  const { theme } = useTheme();
+  const { profile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [busca, setBusca] = useState('');
+  const [toggling, setToggling] = useState<string | null>(null);
+  const meRef = useRef<any>(null);
+
+  const loadUsers = async (append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      if (!meRef.current) {
+        const { data: me } = await supabase
+          .from('users').select('municipio, role').eq('uid', session.user.id).single();
+        if (!me) return;
+        meRef.current = me;
+      }
+      const me = meRef.current;
+
+      let query = supabase
+        .from('users')
+        .select('uid, name, email, role, "isApproved", "createdAt"')
+        .neq('role', 'master_admin')
+        .order('name')
+        .range(append ? users.length : 0, (append ? users.length : 0) + PAGE_SIZE - 1);
+
+      if (me.role !== 'master_admin') {
+        query = query.eq('municipio', me.municipio);
+      }
+
+      const { data } = await query;
+      const page = data || [];
+      setUsers(prev => append ? [...prev, ...page] : page);
+      setHasMore(page.length === PAGE_SIZE);
+    } catch (e) {
+      logger.error('system', 'Erro ao carregar usuários', { erro: String(e) });
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  useFocusEffect(useCallback(() => { meRef.current = null; loadUsers(); }, []));
+
+  const toggleAprovacao = (user: any) => {
+    const acao = user.isApproved ? 'bloquear' : 'liberar';
+    Alert.alert(
+      `${acao.charAt(0).toUpperCase() + acao.slice(1)} acesso?`,
+      `Deseja ${acao} o acesso de ${user.name}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: acao.charAt(0).toUpperCase() + acao.slice(1),
+          style: user.isApproved ? 'destructive' : 'default',
+          onPress: async () => {
+            setToggling(user.uid);
+            try {
+              await supabase
+                .from('users')
+                .update({ isApproved: !user.isApproved })
+                .eq('uid', user.uid);
+              setUsers(prev => prev.map(u =>
+                u.uid === user.uid ? { ...u, isApproved: !u.isApproved } : u
+              ));
+              registrarAuditoria({
+                acao: user.isApproved ? 'usuario_bloqueado' : 'usuario_aprovado',
+                adminUid: profile?.uid ?? '',
+                adminNome: profile?.name ?? '',
+                municipio: profile?.municipio ?? '',
+                alvoId: user.uid,
+                alvoNome: user.name,
+              });
+            } catch (e) {
+              Alert.alert('Erro', 'Não foi possível atualizar o acesso.');
+            } finally {
+              setToggling(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const filtrados = users.filter(u => {
+    const matchFiltro =
+      filtro === 'todos' ||
+      (filtro === 'ativos' && u.isApproved) ||
+      (filtro === 'pendentes' && !u.isApproved);
+    const matchBusca = !busca ||
+      u.name?.toLowerCase().includes(busca.toLowerCase()) ||
+      u.email?.toLowerCase().includes(busca.toLowerCase());
+    return matchFiltro && matchBusca;
+  });
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+          onPress={() => router.back()}
+        >
+          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: theme.text }]}>Usuários</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            {filtrados.length} de {users.length}
+          </Text>
+        </View>
+      </View>
+
+      {/* Busca */}
+      <View style={[styles.searchBar, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+        <View style={[styles.searchInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <Feather name="search" size={16} color={theme.textSecondary} />
+          <TextInput
+            style={[styles.searchText, { color: theme.text }]}
+            value={busca}
+            onChangeText={setBusca}
+            placeholder="Buscar usuário..."
+            placeholderTextColor={theme.textSecondary}
+          />
+        </View>
+      </View>
+
+      {/* Filtros */}
+      <View style={[styles.filterBar, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+        {([
+          { key: 'todos', label: 'Todos' },
+          { key: 'ativos', label: 'Ativos' },
+          { key: 'pendentes', label: 'Pendentes' },
+        ] as const).map(f => (
+          <TouchableOpacity
+            key={f.key}
+            style={[
+              styles.chip,
+              filtro === f.key
+                ? { backgroundColor: theme.primary }
+                : { backgroundColor: theme.iconBackground, borderColor: theme.border, borderWidth: 1 },
+            ]}
+            onPress={() => setFiltro(f.key)}
+          >
+            <Text style={{ color: filtro === f.key ? '#FFF' : theme.textSecondary, fontSize: 13, fontWeight: '600' }}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {filtrados.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhum usuário encontrado.</Text>
+          </View>
+        ) : (
+          <>
+            {filtrados.map(u => (
+              <View key={u.uid} style={[styles.userCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                <View style={[styles.avatar, { backgroundColor: u.isApproved ? theme.primary : theme.textSecondary }]}>
+                  <Text style={styles.avatarText}>{u.name?.[0]?.toUpperCase() || '?'}</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <View style={styles.nameRow}>
+                    <Text style={[styles.userName, { color: theme.text }]}>{u.name}</Text>
+                    <View style={[styles.roleBadge, { backgroundColor: theme.iconBackground }]}>
+                      <Text style={[styles.roleText, { color: theme.primary }]}>
+                        {ROLE_LABELS[u.role] || u.role}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.userEmail, { color: theme.textSecondary }]}>{u.email}</Text>
+                  <Text style={[styles.userStatus, { color: u.isApproved ? '#10B981' : '#F59E0B' }]}>
+                    {u.isApproved ? 'Acesso liberado' : 'Aguardando aprovação'}
+                  </Text>
+                </View>
+                {toggling === u.uid ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <Switch
+                    value={u.isApproved}
+                    onValueChange={() => toggleAprovacao(u)}
+                    trackColor={{ false: theme.border, true: `${theme.primary}80` }}
+                    thumbColor={u.isApproved ? theme.primary : theme.textSecondary}
+                  />
+                )}
+              </View>
+            ))}
+            {hasMore && (
+              <TouchableOpacity
+                style={[styles.loadMoreBtn, { borderColor: theme.border }]}
+                onPress={() => loadUsers(true)}
+                disabled={loadingMore}
+              >
+                {loadingMore
+                  ? <ActivityIndicator size="small" color={theme.primary} />
+                  : <Text style={[styles.loadMoreText, { color: theme.primary }]}>Carregar mais</Text>}
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
+  },
+  backButton: {
+    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 12, borderWidth: 1, marginRight: 16,
+  },
+  title: { fontSize: 22, fontWeight: '700' },
+  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  searchBar: { padding: 14, borderBottomWidth: 1 },
+  searchInput: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, height: 44,
+  },
+  searchText: { flex: 1, fontSize: 15 },
+  filterBar: {
+    flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  scrollContent: { padding: 20, paddingBottom: 60 },
+  userCard: {
+    flexDirection: 'row', alignItems: 'center', borderRadius: 16,
+    borderWidth: 1, padding: 16, marginBottom: 12,
+  },
+  avatar: {
+    width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center',
+  },
+  avatarText: { color: '#FFF', fontWeight: '800', fontSize: 20 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  userName: { fontSize: 16, fontWeight: '700', flex: 1 },
+  roleBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  roleText: { fontSize: 10, fontWeight: '700' },
+  userEmail: { fontSize: 12, marginBottom: 2 },
+  userStatus: { fontSize: 12, fontWeight: '600' },
+  emptyCard: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: 'center' },
+  emptyText: { fontSize: 14, fontWeight: '600' },
+  loadMoreBtn: {
+    borderRadius: 14, borderWidth: 1, padding: 16,
+    alignItems: 'center', marginTop: 4,
+  },
+  loadMoreText: { fontSize: 14, fontWeight: '700' },
+});

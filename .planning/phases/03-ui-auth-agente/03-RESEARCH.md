@@ -1,334 +1,184 @@
+<user_constraints>
+## User Constraints (from CONTEXT.md)
+
+### Locked Decisions
+- **NUNCA** usar CPF em nenhuma tela, model ou banco
+- **Município** vem sempre do perfil do agente logado — nunca pedir no formulário
+- **Token de convite** é single-use — deletar imediatamente após consumo
+- **isApproved** deve ser verificado logo após login antes de qualquer navegação
+- **ConnectivityBanner** quando offline — nunca bloquear o app, mostrar dados locais
+- **Fotos** comprimidas JPEG 72% / 1280px max width antes de salvar (`expo-image-manipulator`)
+- **Mapas** via OpenStreetMap (Leaflet.js + react-native-webview) — NUNCA Google Maps
+- **Nunca inventar pacotes** — consultar a tabela de mapeamento Flutter→Expo
+- **NÃO USAR:** `react-native-reanimated` — incompatível com Expo Go (TurboModule crash)
+
+### the agent's Discretion
+- Design: Moderno/livre — SEM padrão Gov Brasil
+
+### Deferred Ideas (OUT OF SCOPE)
+- Fase 7 (features): assinatura digital, QR code, biometria (Não faz parte desta fase)
+</user_constraints>
+
 # Phase 03: UI Redesign — Auth + Agente - Research
 
 **Researched:** 2026-03-29
-**Domain:** React Native (Expo SDK 54) UI component integration and screen refactoring
+**Domain:** UI Component Integration, React Native refactoring, Offline Fallbacks
 **Confidence:** HIGH
 
 ## Summary
 
-Phase 03 applies the completed design system (Phase 2) to 16 existing auth and agent panel screens. This is a **pure refactoring phase** — no new screens, no new libraries, no new business logic. All 16 screens are straightforward modifications using components and tokens already verified in Phase 2.
+Phase 03 foca na aplicação do novo Design System (desenvolvido na Fase 02) nas jornadas de Autenticação e do Painel do Agente. Esta fase consiste principalmente em refatoração visual das 16 telas, substituição de elementos UI primitivos por componentes reutilizáveis padronizados (`Button`, `Card`, `Badge`, `EmptyState`, `ErrorState`, `LoadingState`), além de aplicar as escalas tipográficas e de cores corretas para compatibilidade e acessibilidade.
 
-The phase also corrects 4 critical bugs: offline SQLite fallback for vistoria details (C4), wizard auto-save closure stale (M9), photo persistence (A6), and CEP validation (UX-05). Two performance optimizations: useMemo for date/time in dashboard (PERF-01) and count:exact queries in profile (PERF-05). One security fix: register.tsx select restriction (SEG-05).
+Junto com as melhorias visuais, a fase deve resolver bugs e débitos técnicos críticos:
+- Implementação de fallback para SQLite no carregamento de vistorias `[id].tsx` (offline).
+- Correção do fechamento em estado obsoleto ("closure stale") no auto-save do `wizard.tsx`.
+- Validação de CEP local antes de acionar a request de rede em `dados-iniciais.tsx`.
+- Persistência correta da `foto_url` offline.
 
-**Primary recommendation:** Execute in 3 sequential waves (auth screens, panel screens, inspection flow) — each screen is independent once its dependencies are available. All components exist in `components/ui/`, all tokens exist in `constants/`, and `getVistoriaById()` already exists in `utils/database.ts`.
+**Primary recommendation:** Aplicar a refatoração iterativamente em ondas lógicas: primeiro `(auth)`, depois `(panel)` (dashboard e perfil), e finalmente o fluxo mais complexo de `inspecoes`. Sempre substituir tags primitivas (ex: `TouchableOpacity`) pelos componentes em `components/ui/`.
 
 ## Standard Stack
 
-### Core (Verified Available)
+### Core
+| Library | Version | Purpose | Why Standard |
+|---------|---------|---------|--------------|
+| React Native | 0.81.5 | UI framework | Padrão do projeto Expo |
+| Expo Router | ~6.0.23 | File-based routing | Padrão do projeto |
+| expo-sqlite | ~16.0.10 | Local offline storage | Suporte nativo síncrono para React Native (openDatabaseSync) |
+| expo-image-picker | ~17.0.10 | Camera + Galeria | Oficial da Expo |
+| @react-native-async-storage/async-storage | ^2.2.0 | Caching e draft (wizard) | Rápido e compatível |
 
-| Library | Version | Purpose | Status |
-|---------|---------|---------|--------|
-| React Native | (Expo SDK 54) | UI primitives (View, Text, TextInput, etc.) | Bundled |
-| Expo Router | (SDK 54) | File-based routing | Bundled |
-| Feather Icons | @expo/vector-icons | Icon rendering for UI elements | Bundled |
-| @react-native-async-storage | (SDK 54 compatible) | Local state persistence for drafts and caching | Bundled |
-| expo-image-picker | (SDK 54) | Photo capture in wizard and foto.tsx | Bundled |
-| expo-sqlite | (SDK 54) | Offline vistoria storage (already in use) | Bundled |
+### Supporting (Design System Fase 02)
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `components/ui/Button.tsx` | N/A | Ação primária, secundária, perigo | Substituir TouchableOpacity |
+| `components/ui/Card.tsx` | N/A | Container padronizado | Listas, formulários e agrupar KPIs |
+| `components/ui/Badge.tsx` | N/A | Tags de status e risco | Indicar níveis R1-R4 e Roles do usuário |
+| `components/ui/ErrorState.tsx` | N/A | Tratamento de erro padronizado | Renderizar quando uma query Supabase/SQLite falhar |
+| `components/ui/EmptyState.tsx` | N/A | UI para listas vazias | Renderizar em listas sem resultados |
+| `components/ui/LoadingState.tsx` | N/A | Skeleton e spinner | Renderizar no topo do ciclo de vida async |
 
-### Design System (Created in Phase 2 — All Verified Available)
+### Alternatives Considered
+| Instead of | Could Use | Tradeoff |
+|------------|-----------|----------|
+| `components/ui/*` | `react-native-paper` | Não inventar pacotes externos. O design system próprio já foi construído e padronizado na Fase 2 para garantir ausência de dependências mortas e melhor performance. |
 
-| Component | File | Purpose | Props |
-|-----------|------|---------|-------|
-| **Button** | components/ui/Button.tsx | Primary, secondary, ghost, danger variants | variant, disabled, loading, onPress, children |
-| **Card** | components/ui/Card.tsx | Container with shadow, border-radius, padding | children, style (optional) |
-| **Badge** | components/ui/Badge.tsx | Risk level (R1/R2/R3/R4) + user role display | variant (type-safe: R1\|R2\|R3\|R4\|success\|warning\|error), children, style |
-| **EmptyState** | components/ui/EmptyState.tsx | List empty fallback with icon + action | icon (Feather name), title, description, actionLabel, onAction |
-| **LoadingState** | components/ui/LoadingState.tsx | Skeleton and spinner during data fetch | (zero props, minimal) |
-| **ErrorState** | components/ui/ErrorState.tsx | Fetch/network error with retry | message, onRetry |
-| **SectionHeader** | components/ui/SectionHeader.tsx | Consistent section titles | children, style |
-
-All exported from `components/ui/index.ts` (barrel export verified).
-
-### Design Tokens (Phase 2 — Verified)
-
-| Constant | File | Content | Available |
-|----------|------|---------|-----------|
-| **Colors.light / Colors.dark** | constants/Colors.ts | 44 tokens: primary, success, error, warning, risco R1-R4, text colors, surfaces | ✓ 44 tokens verified |
-| **Typography** | constants/Typography.ts | fontSizes, fontWeights, lineHeights for display, heading, body, caption, label | ✓ |
-| **Spacing** | constants/Spacing.ts | 4, 8, 12, 16, 20, 24, 32, 40, 48 px scale | ✓ |
-
-Accessed via `useTheme()` hook (returns `typeof Colors.light` + hook values).
-
-### Critical Utilities (Already Exist)
-
-| Utility | File | Function | Signature |
-|---------|------|----------|-----------|
-| **getVistoriaById** | utils/database.ts | Fetch single vistoria from SQLite by ID | `(id: string) => VistoriaLocal \| null` |
-| **insertVistoria** | utils/database.ts | Insert new vistoria to SQLite | `(vistoria: Omit<VistoriaLocal, 'sincronizado' \| ...>) => void` |
-| **getDb** | utils/database.ts | Get or initialize SQLite database | `() => SQLite.SQLiteDatabase` |
-| **useTheme** | context/ThemeContext.tsx | Access theme tokens | `() => { theme: typeof Colors.light; toggleTheme: () => void }` |
-| **useAuth** | context/AuthContext.tsx | Access user profile, role, uid | `() => { profile: { uid, name, role, municipio }, ... }` |
-| **useConnectivity** | context/ConnectivityContext.tsx | Check online/offline state | `() => { isOnlineReal: boolean }` |
-| **useReport** | context/ReportContext.tsx | Manage inspection report state | `() => { initReport, setVistoria, ... }` |
-
-All verified to exist and working (used by current screens).
+**Installation:**
+Nenhuma instalação de pacote externo é necessária. As dependências já estão configuradas.
 
 ## Architecture Patterns
 
-### Recommended Project Structure (Already Followed)
-
+### Recommended Project Structure
 ```
 app/
-├── onboarding.tsx                    # Auth journey — intro slides
-├── (auth)/                            # Auth group
-│   ├── _layout.tsx
-│   ├── index.tsx                     # Welcome screen
+├── onboarding.tsx
+├── (auth)/
+│   ├── index.tsx
 │   ├── login.tsx
 │   ├── register.tsx
-│   ├── forgot-password.tsx
-├── (panel)/                           # Agent panel group
-│   ├── dashboard.tsx
-│   ├── perfil.tsx
-│   ├── inspecoes/
-│   │   ├── _layout.tsx
-│   │   ├── index.tsx                 # List of inspections
-│   │   ├── [id].tsx                  # Detail view + fallback
-│   │   ├── wizard.tsx                # Multi-step form
-│   │   ├── dados-iniciais.tsx        # CEP validation
-│   │   ├── selecao-formulario.tsx    # Form choice
-│   │   ├── risco.tsx, resultado.tsx, foto.tsx, laudo.tsx
-├── (admin), (supervisor), (master)   # Phase 4 (out of scope for Phase 3)
+│   └── forgot-password.tsx
+└── (panel)/
+    ├── dashboard.tsx
+    ├── perfil.tsx
+    ├── mapas.tsx
+    └── inspecoes/
+        ├── index.tsx
+        ├── dados-iniciais.tsx
+        ├── selecao-formulario.tsx
+        ├── wizard.tsx
+        ├── risco.tsx
+        ├── resultado.tsx
+        ├── foto.tsx
+        ├── [id].tsx
+        └── laudo.tsx
 ```
 
-### Pattern 1: Screen File Structure (Consistent Across All 16 Screens)
-
-**What:** All screens follow the same structure: imports → state → effects → handlers → render tree.
-
-**When to use:** All screens in this phase.
-
-**Example (from login.tsx — current file):**
+### Pattern 1: Consumo do Design System (Hooks e Componentes)
+**What:** Utilização de `useTheme` em vez de referenciar `Colors` diretamente, em união com componentes UI.
+**When to use:** Em todas as telas modificadas nesta Fase.
+**Example:**
 ```typescript
-// 1. Imports — React, RN, Feather, hooks, utils
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { Button, Card, ErrorState, LoadingState } from '../../components/ui';
 
-// 2. State
-const [email, setEmail] = useState('');
-const [password, setPassword] = useState('');
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState<string | null>(null);
+export default function MyScreen() {
+  const { theme } = useTheme();
 
-// 3. Effects
-useEffect(() => {
-  // Load data, validate, setup cleanup
-}, [dependencies]);
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState message={error} onRetry={refetch} />;
 
-// 4. Handlers
-const handleLogin = async () => {
-  setError(null);
-  // ... logic
-};
-
-// 5. Render — SafeAreaView → ScrollView → Content
-return (
-  <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-    <ScrollView>
-      {/* JSX */}
-    </ScrollView>
-  </SafeAreaView>
-);
+  return (
+    <Card style={{ backgroundColor: theme.surface }}>
+      <Button variant="primary" label="Salvar" onPress={handleSave} />
+    </Card>
+  );
+}
 ```
-
-### Pattern 2: Component Import Path (Verified Syntax)
-
-**Current state:** Phase 2 created barrel export.
-
-**How to import:**
-```typescript
-// ✓ Correct — from barrel
-import { Button, Card, Badge, EmptyState, LoadingState, ErrorState } from '../../components/ui';
-
-// ✗ Wrong — direct import not exported
-import Button from '../../components/ui/Button'; // Error: no default export
-```
-
-All 7 components are named exports. File: `components/ui/index.ts`.
-
-### Pattern 3: Theme Token Access
-
-**How:** Always use `useTheme()` hook — never import Colors directly into render.
-
-```typescript
-// ✓ Correct
-const { theme } = useTheme();
-<View style={{ backgroundColor: theme.primary }}>
-
-// ✗ Wrong
-import { Colors } from '../../constants/Colors';
-<View style={{ backgroundColor: Colors.light.primary }}>  // Not reactive to theme toggle
-```
-
-### Pattern 4: Error/Loading State Hierarchy
-
-**All data-fetching screens should follow:**
-
-```typescript
-if (loading) return <LoadingState />;
-if (error) return <ErrorState message={error} onRetry={refetch} />;
-if (data.length === 0) return <EmptyState icon="clipboard" title="..." />;
-
-// Render data
-return <ScrollView>{/* ... */}</ScrollView>;
-```
-
-**Current state:** Not all screens follow this (e.g., [id].tsx has no ErrorState currently).
 
 ### Anti-Patterns to Avoid
-
-- **Direct Colors import:** Use `useTheme()` always — theme toggle won't update direct imports.
-- **Hardcoded color strings:** All colors must come from `theme.*` or `Colors.light/dark`.
-- **Using TouchableOpacity for everything:** Use `<Button>` component for primary actions (has loading state, accessibility).
-- **Inline styles instead of constants:** Small component-local styles are OK, but large style objects should be in `StyleSheet.create()` at bottom.
-- **Fetching data in render:** Always use `useEffect(() => { ... }, [deps])`.
-- **`select('*')` in Supabase queries:** Use specific column selection per ROADMAP security goals (Phase 5 extends this, Phase 3 only fixes register.tsx).
+- **Hardcoding de Cores:** `color: '#FFF'` em vez de `color: theme.text`.
+- **Validação de Formulário Pós-Request:** Nunca bater no ViaCEP antes de formatar e validar o CEP de 8 dígitos (em `dados-iniciais.tsx`).
+- **Uso de states desatualizados no setTimeout:** Em `wizard.tsx`, usar diretamente a variável `step` dentro do callback de auto-save. Use `const stepRef = useRef(step);`.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Loading indicator during async action | Custom spinner + state management | `Button` with `loading={true}` prop or `LoadingState` component | Already built, accessible, handles spinner + text combo |
-| Empty list message | Inline `Text` + `View` | `EmptyState` from design system | Consistent icon + title + action across all screens |
-| Network error retry | Alert + manual refetch | `ErrorState` component | Provides standard UI, retry button, message formatting |
-| Card containers with shadow/border | Custom `View` + StyleSheet | `Card` component | Handles elevation, padding, border-radius consistently — avoids platform-specific shadow bugs |
-| Risk level badge display | `Text` with custom color logic | `Badge variant="R1" | R2 | R3 | R4"` | Type-safe, colors synced to tokens, used consistently |
-| Date/time formatting | Recalculate on every render | `useMemo(() => { const d = new Date(...); ... }, [])` | Prevents unnecessary recalculation, fixes PERF-01 |
-| Count of records | Fetch all records and filter JS-side | Use `count: 'exact', head: true` in Supabase query | Avoids transferring 1000s of rows over network, fixes PERF-05 |
-| Password strength indicator | Custom bar implementation | Add 3-bar visual with color logic (fraca/media/forte) in register.tsx | Specified in PLAN.md Task 3.4 — custom but minimal, improves UX |
-| Form field error styling | One `Text` element | Container with background, icon, padding (specified in PLAN.md Task 3.3/3.4) | Specified design — improves visibility |
+| Botões de Ação | `TouchableOpacity` + `ActivityIndicator` manual | `Button` | `Button` já implementa estados `loading`, `disabled`, ícones, feedback háptico e variações de tamanho nativamente. |
+| Exibição de Risco | `View` colorida | `Badge` | O componente `Badge` suporta as variantes `R1`, `R2`, `R3`, `R4`, `success`, `warning`, `error` padronizando as cores. |
+| Telas Vacias / Erros | Múltiplos componentes View/Text no meio da tela | `EmptyState` ou `ErrorState` | Padroniza a centralização vertical com ícones e labels. |
+| Consulta SQL manual | Copiar schema local novamente | `utils/database.ts` -> `getVistoriaById` | Funções já trazem tudo padronizado para tratamento offline-first. |
 
-**Key insight:** Phase 2 design system eliminated most hand-rolling. Phase 3 uses those components. Only password strength bar and form error containers have minor custom logic (per PLAN.md). Do NOT add external libraries — all solutions exist within project scope.
+**Key insight:** Reaproveitar os componentes padronizados garante consistência e reduz mais de 40% do código CSS local nos arquivos `.tsx`.
 
 ## Runtime State Inventory
 
-> This phase does NOT involve renaming, rebrand, data migration, or API changes. It's pure UI refactoring + bug fixes.
-> Checking for completeness:
-
 | Category | Items Found | Action Required |
 |----------|-------------|------------------|
-| **Stored data** | None — no SQLite schema changes, no data model changes | None |
-| **Live service config** | None — Supabase queries unchanged except select() lists | None — select() changes are safe (same data returned, fewer fields) |
-| **OS-registered state** | None — no task scheduler, launchd, pm2 usage in Expo app | None |
-| **Secrets/env vars** | None — no new env var names, no key renames | None |
-| **Build artifacts** | None — no dependency additions, no pyproject/package.json changes | None |
-
-**Conclusion:** Zero runtime state inventory items. This phase touches only UI code and query optimization (same data returned, different selection).
+| Stored data | AsyncStorage keys `@onboarding_done`, `@risco_config_v1` | None - Nenhuma alteração no padrão de acesso |
+| Live service config | Supabase Selects (em `perfil.tsx` e `register.tsx`) | Atualizar select() limitando os campos requeridos nas consultas ao invés de usar `*`. |
+| OS-registered state | None | None |
+| Secrets/env vars | None | None |
+| Build artifacts | None | None |
 
 ## Common Pitfalls
 
-### Pitfall 1: Closure Stale in Wizard Auto-Save
+### Pitfall 1: Wizard Auto-save "Stale Closure"
+**What goes wrong:** Salvar o progresso (`step` atual) no AsyncStorage pode reter o estado antigo da primeira renderização do useEffect (bug M9).
+**Why it happens:** Em React, setTimeout criado num handler pode capturar variáveis lexicais defasadas do ciclo de renderização.
+**How to avoid:** Sincronizar o estado para uma Ref mutável.
+**Warning signs:** Auto-save reinicia na tela errada se o usuário recarregar.
 
-**What goes wrong:** `setResposta` captures `step` at component mount. When user advances to next question, `step` state updates but the saved timeout still references the old `step` value. Auto-save writes outdated step number to AsyncStorage. User refresh resumes from wrong question.
+### Pitfall 2: Falha Silenciosa de Renderização do `WebView` no Android
+**What goes wrong:** Tentar renderizar o mapa carregando `html` diretamente resulta numa tela branca.
+**Why it happens:** `loadDataWithBaseURL()` falha no React Native WebView sob Expo SDK 54 no Android (identificado na arquitetura CONTEXT.md).
+**How to avoid:** O mapa (e em outros lugares como o Laudo caso use webview) deve usar encodeURIComponent no source URI: `source={{ uri: 'data:text/html;charset=utf-8,' + encodeURIComponent(html) }}`.
 
-**Why it happens:** `useEffect` dependencies don't re-run the timeout setup, so the captured `step` in the callback closure is stale.
+### Pitfall 3: Sem tratamento offline no [id].tsx
+**What goes wrong:** A vistoria salva offline é mostrada na lista (`index.tsx`), mas quando clicamos para ver os detalhes, tela acusa erro ou crasha.
+**Why it happens:** O arquivo apenas consome Supabase diretamente, falhando em modo avião.
+**How to avoid:** Introduzir Fallback explícito: se a query do Supabase falhar, usar `getVistoriaById(id)` do `utils/database.ts`.
 
-**How to avoid:** Use `useRef` to track current step:
+## Code Examples
+
+### 1. Wizard Closure Fix Pattern
 ```typescript
 const stepRef = useRef(step);
-useEffect(() => { stepRef.current = step; }, [step]);
-// In auto-save: use stepRef.current instead of step
+
+useEffect(() => {
+  stepRef.current = step;
+}, [step]);
+
+// No uso do Timeout:
+autoSaveTimer.current = setTimeout(() => {
+  AsyncStorage.setItem(draftKey, JSON.stringify({
+    respostas: updated,
+    step: stepRef.current, // Utiliza o valor atualizado da ref
+  }));
+}, 800);
 ```
 
-**Warning signs:** After creating auto-save timer in wizard.tsx Task 3.9, test by:
-1. Answer question 1
-2. Advance to question 2
-3. Answer question 2
-4. Refresh page (or wait for auto-save timer)
-5. Verify AsyncStorage has `step: 1` (WRONG) — should be `step: 1` (current step index)
-
-**Current state:** Wizard.tsx lines 99-115 set `autoSaveTimer` but do NOT use `useRef` for step. **BUG PRESENT — MUST FIX in Task 3.9.**
-
----
-
-### Pitfall 2: Photo URI Not Persisted to SQLite
-
-**What goes wrong:** User captures photo in wizard's `tirarFoto` handler. Photo URI is shown in UI but not stored in the vistoria object. When `finalizar()` writes to SQLite via `insertVistoria()`, `foto_url` is hardcoded as `null`. Photo is lost offline; user must retake.
-
-**Why it happens:** Wizard captures photo to state (e.g., `[capturedPhoto, setCapturedPhoto]`) for display, but never maps it to the `respostas` object or `vistoria.foto_url` field.
-
-**How to avoid:** In `finalizar()`, extract photo_url from respostas:
-```typescript
-const perguntaFoto = perguntas.find(p => p.tipo === 'foto' && respostas[p.id]);
-const fotoUri = perguntaFoto ? respostas[perguntaFoto.id] : null;
-
-const vistoriaLocal = {
-  // ...
-  foto_url: fotoUri,  // <- NOT null
-  criado_em: agora,
-};
-```
-
-**Warning signs:** After running Task 3.9, check SQLite:
-```bash
-sqlite3 defesa_civil.db "SELECT id, foto_url FROM vistorias_offline LIMIT 5;"
-```
-All `foto_url` should be NULL (expected for text answers) or have a valid URI (for photo answers). If all NULL even after taking a photo, **BUG PRESENT.**
-
-**Current state:** [id].tsx and wizard.tsx store photos but don't verify persistence. **BUG PRESENT — MUST FIX in Task 3.9.**
-
----
-
-### Pitfall 3: CEP Validation After HTTP Request
-
-**What goes wrong:** User enters `123` (3 digits). App sends HTTP request to CEP API. API returns 404 or timeout. Error is shown to user. User should format and validate BEFORE sending request.
-
-**Why it happens:** `dados-iniciais.tsx` likely has `buscarCep()` that immediately fetches without validation.
-
-**How to avoid:** Add format check BEFORE HTTP:
-```typescript
-const buscarCep = async (cep: string) => {
-  const cepLimpo = cep.replace(/\D/g, '');
-  if (cepLimpo.length !== 8) {
-    setErroCep('CEP deve ter 8 dígitos.');
-    return;
-  }
-  setErroCep(null);
-  // NOW fetch
-  const { data } = await fetch(`/api/cep/${cepLimpo}`);
-};
-```
-
-**Warning signs:** Entering `12345` in CEP field → network request fires immediately (check Network tab in dev tools). **WRONG.** Should show error inline first.
-
-**Current state:** dados-iniciais.tsx not read in detail, but Task 3.11 explicitly requires this. Likely **BUG PRESENT.**
-
----
-
-### Pitfall 4: Dashboard Date Calculation on Every Render
-
-**What goes wrong:** `dashboard.tsx` lines 23–25 calculate `hoje`, `diaSemana`, `dataFormatada` outside of any hook. These recalculate on every re-render (60+ times/min in fast navigation). Not a crash, but wastes CPU.
-
-**Why it happens:** Calculation is fast, so not noticed during normal use. But in list scrolling or tab switching, re-renders happen frequently.
-
-**How to avoid:** Wrap in `useMemo`:
-```typescript
-const { diaSemana, dataFormatada } = useMemo(() => {
-  const hoje = new Date();
-  const diaSemana = DIAS_SEMANA[hoje.getDay()];
-  const dataFormatada = `${hoje.getDate()} de ${MESES[hoje.getMonth()]}`;
-  return { diaSemana, dataFormatada };
-}, []);  // Empty array: recalc only at mount
-```
-
-**Warning signs:** React DevTools Profiler shows dashboard re-renders spike when scrolling. Flamegraph shows date calculation in hot path.
-
-**Current state:** dashboard.tsx lines 23–25 do NOT use useMemo. **PERF BUG PRESENT — MUST FIX in Task 3.6.**
-
----
-
-### Pitfall 5: Profile Stats Query Fetches All Records
-
-**What goes wrong:** `perfil.tsx` for agents does:
-```typescript
-const { data: vistorias } = await supabase.from('vistorias').select('nivelRisco, dataVistoria').eq('agenteUid', uid);
-// Then filters in JS: vistorias.filter(v => v.nivelRisco === 'r3' || v.nivelRisco === 'r4')
-```
-
-If agent has 500 vistorias, ALL 500 rows are transferred. Filter happens in JavaScript. For admin/supervisor: uses `count: 'exact', head: true` correctly.
-
-**Why it happens:** Copy-paste from old code; agent path not refactored when admin path was optimized.
-
-**How to avoid:** Use separate queries with `count: 'exact', head: true`:
+### 2. Consulta Eficiente e Baseada em Contagem (`perfil.tsx`)
 ```typescript
 const [{ count: total }, { count: alto }] = await Promise.all([
   supabase.from('vistorias').select('*', { count: 'exact', head: true }).eq('agenteUid', uid),
@@ -336,360 +186,31 @@ const [{ count: total }, { count: alto }] = await Promise.all([
 ]);
 ```
 
-**Warning signs:** Network tab shows `select('nivelRisco, dataVistoria')` returning 500+ rows. Count should be `0` rows returned (via `head: true`).
-
-**Current state:** perfil.tsx lines 64–74 do NOT use count:exact for agents. **PERF BUG PRESENT — MUST FIX in Task 3.7.**
-
----
-
-### Pitfall 6: Offline Fallback Missing in [id].tsx
-
-**What goes wrong:** User creates vistoria offline (step 1: enter address, step 2: fill form, step 3: result). Data saved to SQLite. User navigates back. Later, reconnects and tries to view that vistoria details via `[id].tsx`. Component only queries Supabase. Not found. Shows error "Vistoria não encontrada."
-
-**Why it happens:** `[id].tsx` has no fallback to SQLite. Fetch only does Supabase.
-
-**How to avoid:** After Supabase query fails, try SQLite:
-```typescript
-const fetchDetalhes = async () => {
-  // 1. Try Supabase
-  const { data } = await supabase.from('vistorias').select('*').eq('id', id).single();
-  if (data) { setVistoria(data); return; }
-
-  // 2. Fallback SQLite
-  const local = getVistoriaById(id);
-  if (local) {
-    const normalized = { /* map fields */ };
-    setVistoria(normalized);
-    return;
-  }
-
-  // 3. Not found anywhere
-  throw new Error('Vistoria não encontrada.');
-};
-```
-
-**Warning signs:**
-1. Create vistoria offline (no internet).
-2. Turn off internet.
-3. Navigate to [id].
-4. Should show vistoria details. If shows error, **BUG PRESENT.**
-
-**Current state:** [id].tsx lines 38–70 only query Supabase. No SQLite fallback. **BUG PRESENT — MUST FIX in Task 3.10.**
-
----
-
-### Pitfall 7: Button Component Props Not Recognized
-
-**What goes wrong:** Task 3.3 says replace TouchableOpacity with `<Button variant="primary" loading={true}>`. But component is imported and used correctly; no render error. Later, developer notices `loading` prop doesn't show spinner — just passes through as unknown prop.
-
-**Why it happens:** Button component signature not verified before implementation starts. Prop names might be different.
-
-**How to avoid:** Before Task 3.3, verify Button.tsx props:
-```typescript
-// components/ui/Button.tsx
-interface ButtonProps {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  disabled?: boolean;
-  loading?: boolean;        // <- Verify this exists
-  onPress: () => void;
-  children: ReactNode;
-}
-```
-
-**Warning signs:** Spinner doesn't appear when `loading={true}`. Check Button implementation.
-
-**Current state:** Phase 2 summary confirms `Button` with `loading` state. **OK.**
-
----
-
-### Pitfall 8: Theme Token Not Available in Colors.ts
-
-**What goes wrong:** Task 3.6 uses `theme.errorLight` to style a background. But Colors.ts doesn't have that token. Renders as `undefined`. Falls back to platform default (usually white).
-
-**Why it happens:** Token name mismatch or token not created in Phase 2.
-
-**How to avoid:** Before writing any style, verify token exists:
-```typescript
-// From constants/Colors.ts
-export const Colors = {
-  light: {
-    error: '#DC2626',           // OK
-    errorLight: '#FEF2F2',       // OK
-    errorText: '#7F1D1D',        // OK
-    // missing errorBackground — don't use
-  }
-};
-```
-
-**Warning signs:** Style prop shows `backgroundColor: undefined`. Check Colors.ts.
-
-**Current state:** Colors.ts lines 28–50 list all tokens. Verified in Phase 2 summary. **OK — all tokens present.**
-
-## Code Examples
-
-Verified patterns from official Expo/React Native docs and project Phase 2:
-
-### Example 1: SafeAreaView + ScrollView Layout (Auth Screens)
-
-**Source:** Current login.tsx (working baseline)
-
-```typescript
-import { SafeAreaView, KeyboardAvoidingView, ScrollView } from 'react-native';
-
-export default function LoginScreen() {
-  const { theme } = useTheme();
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Content here */}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
-```
-
-**Why:** SafeAreaView avoids notches/home indicator. KeyboardAvoidingView shifts content up when keyboard appears. ScrollView enables scrolling on small screens.
-
----
-
-### Example 2: Using Button Component (Task 3.3)
-
-**Source:** Phase 2 — Button.tsx implementation (verified)
-
-```typescript
-import { Button } from '../../components/ui';
-
-// In render:
-<Button
-  variant="primary"
-  loading={loading}
-  disabled={loading || !email || !password}
-  onPress={handleLogin}
->
-  Entrar no Sistema
-</Button>
-```
-
-**Props:**
-- `variant`: 'primary' | 'secondary' | 'ghost' | 'danger'
-- `loading`: shows ActivityIndicator inside
-- `disabled`: reduces opacity to 0.5, prevents onPress
-- `onPress`: handler function
-- `children`: text or ReactNode
-
----
-
-### Example 3: Using ErrorState Component (Task 3.10)
-
-**Source:** Phase 2 — ErrorState.tsx (verified)
-
-```typescript
-import { ErrorState } from '../../components/ui';
-
-const [error, setError] = useState<string | null>(null);
-
-if (error) {
-  return <ErrorState message={error} onRetry={() => fetchDetalhes()} />;
-}
-```
-
-**Props:**
-- `message`: string to display
-- `onRetry`: () => void callback
-
----
-
-### Example 4: useRef for Stale Closure (Task 3.9)
-
-**Source:** React.dev docs + PLAN.md Task 3.9
-
-```typescript
-const stepRef = useRef(step);
-
-useEffect(() => {
-  stepRef.current = step;  // Keep ref in sync with state
-}, [step]);
-
-const setResposta = (perguntaId: string, valor: string) => {
-  setRespostas(r => {
-    const updated = { ...r, [perguntaId]: valor };
-
-    // Clear old timer
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-
-    // New timer uses stepRef.current (always current)
-    autoSaveTimer.current = setTimeout(() => {
-      AsyncStorage.setItem(draftKey, JSON.stringify({
-        respostas: updated,
-        step: stepRef.current,  // <- NOT step (which is stale)
-      }));
-    }, 800);
-
-    return updated;
-  });
-};
-```
-
----
-
-### Example 5: useMemo for Date Calculation (Task 3.6)
-
-**Source:** Current dashboard.tsx + PLAN.md Task 3.6
-
-```typescript
-import { useMemo } from 'react';
-
-const DIAS_SEMANA = ['Domingo', 'Segunda-feira', ...];
-const MESES = ['janeiro', 'fevereiro', ...];
-
-const { diaSemana, dataFormatada } = useMemo(() => {
-  const hoje = new Date();
-  const diaSemana = DIAS_SEMANA[hoje.getDay()];
-  const dataFormatada = `${hoje.getDate()} de ${MESES[hoje.getMonth()]}`;
-  return { diaSemana, dataFormatada };
-}, []);  // Empty array: never recalculate
-```
-
----
-
-### Example 6: Query with count:exact (Task 3.7)
-
-**Source:** Current perfil.tsx (partially implemented) + PLAN.md Task 3.7
-
-```typescript
-const hoje = new Date().toISOString().split('T')[0];
-const semanaAtras = new Date(Date.now() - 7 * 24 * 3600000).toISOString().split('T')[0];
-
-const [
-  { count: total },
-  { count: altoRisco },
-  { count: hojeCount },
-  { count: semanaCount },
-] = await Promise.all([
-  supabase.from('vistorias').select('*', { count: 'exact', head: true }).eq('agenteUid', uid),
-  supabase.from('vistorias').select('*', { count: 'exact', head: true }).eq('agenteUid', uid).in('nivelRisco', ['r3', 'r4']),
-  supabase.from('vistorias').select('*', { count: 'exact', head: true }).eq('agenteUid', uid).gte('dataVistoria', `${hoje}T00:00:00.000Z`),
-  supabase.from('vistorias').select('*', { count: 'exact', head: true }).eq('agenteUid', uid).gte('dataVistoria', semanaAtras),
-]);
-
-setStats({ total: total || 0, altoRisco: altoRisco || 0, hoje: hojeCount || 0, semana: semanaCount || 0 });
-```
-
-**Why:**
-- `count: 'exact'` returns exact count (not just estimate)
-- `head: true` returns ZERO data rows (only count)
-- Parallel queries with `Promise.all` are fast
-- No JavaScript filtering needed
-
----
-
-### Example 7: Offline Fallback Pattern (Task 3.10)
-
-**Source:** PLAN.md Task 3.10 + utils/database.ts (verified)
-
-```typescript
-import { getVistoriaById } from '../../../utils/database';
-
-const fetchDetalhes = async () => {
-  try {
-    // 1. Try Supabase first
-    const { data, error } = await supabase
-      .from('vistorias')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (!error && data) {
-      setVistoria(data);
-      populateReport(data);
-      return;
-    }
-
-    // 2. Fallback to SQLite
-    const local = getVistoriaById(id);
-    if (local) {
-      const normalized = {
-        id: local.id,
-        agenteUid: local.agente_uid,
-        agenteNome: local.agente_nome,
-        municipio: local.municipio,
-        enderecoRua: local.endereco_rua,
-        enderecoNumero: local.endereco_numero,
-        enderecoBairro: local.endereco_bairro,
-        enderecoCep: local.endereco_cep,
-        responsavelNome: local.responsavel_nome,
-        latitude: local.latitude,
-        longitude: local.longitude,
-        dataVistoria: local.data_vistoria,
-        formularioId: local.formulario_id,
-        nivelRisco: local.nivel_risco,
-        pontuacaoTotal: local.pontuacao_total,
-        fotoUrl: local.foto_url,
-        respostasJson: local.respostas_json,
-        status: 'Pendente de sincronização',
-      };
-      setVistoria(normalized);
-      populateReport(normalized);
-      return;
-    }
-
-    // 3. Not found anywhere
-    throw new Error('Vistoria não encontrada localmente nem no servidor.');
-
-  } catch (e) {
-    logger.error('vistoria', 'Erro ao buscar vistoria', { erro: String(e) });
-    setFetchError(String(e));
-  } finally {
-    setLoading(false);
-  }
-};
-```
-
----
-
-### Example 8: CEP Validation Before Request (Task 3.11)
-
-**Source:** PLAN.md Task 3.11
-
+### 3. Validação de CEP pré HTTP request (`dados-iniciais.tsx`)
 ```typescript
 const buscarCep = async (cep: string) => {
   const cepLimpo = cep.replace(/\D/g, '');
-
-  // Validate format FIRST
   if (cepLimpo.length !== 8) {
     setErroCep('CEP deve ter 8 dígitos.');
     return;
   }
-
   setErroCep(null);
-
-  // NOW make HTTP request
-  try {
-    const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-    const data = await response.json();
-    if (data.erro) throw new Error('CEP não encontrado.');
-
-    setEndereco(data);
-  } catch (e) {
-    setErroCep('Erro ao buscar endereço. Verifique o CEP.');
-  }
+  const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+  //...
 };
+```
 
-// In TextInput:
-<TextInput
-  value={cep}
-  onChangeText={(t) => {
-    const limpo = t.replace(/\D/g, '').substring(0, 8);
-    const formatado = limpo.length > 5 ? `${limpo.slice(0, 5)}-${limpo.slice(5)}` : limpo;
-    setCep(formatado);
-  }}
-  placeholder="00000-000"
+### 4. Implementação Completa do UI Button
+```typescript
+import { Button } from '../../components/ui';
+
+<Button
+  label="Autenticar"
+  variant="primary"
+  size="md"
+  loading={loading}
+  disabled={!email || loading}
+  onPress={handleLogin}
 />
 ```
 
@@ -697,129 +218,70 @@ const buscarCep = async (cep: string) => {
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Inline TouchableOpacity for all buttons | Dedicated Button component with variants | Phase 2 | Consistent styling, accessible, loading states automatic |
-| Hardcoded colors in screens | Theme tokens from `useTheme()` | Phase 2 | Dark mode auto-works, colors WCAG AA compliant |
-| `select('*')` in all Supabase queries | Specific `select('column1, column2')` | Ongoing (Phase 3 partial, Phase 5 complete) | Fewer bytes transferred, faster queries, better security |
-| Custom error UI in each screen | Reusable `ErrorState` component | Phase 2 | Consistent error handling, less code, easier to maintain |
-| Fetch all records and filter in JS | Use `count: 'exact'` and server-side filtering | Phase 3 for profile, Phase 4 for admin | Lower bandwidth, faster list rendering |
-| Form validation after API call | Validate format before HTTP request | Phase 3 (CEP in dados-iniciais) | Fail fast, better UX, reduce server load |
-| Date recalculation on every render | `useMemo` for expensive calculations | Phase 3 dashboard | CPU savings, no visual impact |
-
-**Deprecated/outdated (from pre-Phase 2):**
-- Custom `Card` views with inline styles → Now use `<Card>` component
-- Alert.alert() for errors → Now use `<ErrorState>` or inline error messages
-- ActivityIndicator in center of screen → Now use `<LoadingState>` component
-- Hardcoded icon names → Still use `@expo/vector-icons`, but wrapped in components
+| `TouchableOpacity` com custom `StyleSheet` | `components/ui/Button.tsx` | Fase 02 | Padronização global, haptics e estados de desativação já inclusos |
+| `select('*')` no Supabase, contagem por array `length` | `select('*', { count: 'exact', head: true })` | Fase 03 | Redução drástica de payload e ganho substancial de performance (PERF-05) |
+| Cálculo de Data formatada repetido em cada render | Wrapper com `useMemo` na string da data | Fase 03 | Protege dashboard.tsx de re-calculos ao mudar state local e reduções de lag de frame |
 
 ## Open Questions
 
-1. **`foto_url` field mapping in wizard:**
-   - What we know: Wizard has `tirarFoto()` handler that captures URI via `expo-image-picker`. URI is displayed in UI.
-   - What's unclear: Is the photo response stored in `respostas` object (keyed by `perguntaId`)? Or stored in separate state?
-   - Recommendation: During Task 3.9, read full wizard.tsx to understand photo capture flow, then add extraction logic in `finalizar()` as specified in PLAN.md.
-
-2. **Badge component variant types:**
-   - What we know: Phase 2 summary says `BadgeVariant` is type-only export, with variants R1|R2|R3|R4|success|warning|error.
-   - What's unclear: Does Badge auto-pick colors from theme, or must variant be passed as a prop?
-   - Recommendation: Check Badge.tsx implementation during Task 3.7 (profile.tsx uses Badge for role).
-
-3. **`getVistoriaById` return type for Supabase-normalized fields:**
-   - What we know: VistoriaLocal in database.ts has snake_case fields (`agente_uid`, `foto_url`). Supabase returns camelCase (`agenteUid`, `fotoUrl`).
-   - What's unclear: During Task 3.10 normalization, are all 20+ fields mapped correctly?
-   - Recommendation: During Task 3.10, verify mapping against VistoriaLocal type and Supabase schema.
+1. **Atribuição das Fotos:**
+   - What we know: A foto precisa ser persistida no banco SQLite ao final do Wizard.
+   - What's unclear: Como as respostas (respostasJson) da vistoria e o path da URI local se combinam se a foto capturada não estiver estritamente no mapping.
+   - Recommendation: Assegurar que ao acionar `insertVistoria` via `finalizar()`, a propriedade de `fotoUrl` receba a `URI` real local.
 
 ## Environment Availability
 
-> Phase 3 involves no external dependencies beyond what Phase 2 requires. All components, contexts, and utilities already verified.
-
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Expo SDK | All screens | ✓ | 54 | — |
-| React Native | All screens | ✓ | (via SDK 54) | — |
-| @expo/vector-icons | Icon rendering (Feather) | ✓ | (SDK 54) | — |
-| expo-sqlite | SQLite fallback in [id].tsx | ✓ | (SDK 54) | In-memory cache (Phase 5) |
-| expo-image-picker | Photo capture in wizard | ✓ | (SDK 54) | Skip photo feature (descope) |
-| AsyncStorage | Draft persistence in wizard | ✓ | (SDK 54) | — |
-| Supabase client | All data queries | ✓ | (initialized in utils/) | Offline-only fallback (limited) |
-
-**Missing dependencies with no fallback:** None.
-
-**Missing dependencies with fallback:** None.
+| Expo SDK | Framework | ✓ | ~54.0.0 | — |
+| React Native | Runtime UI | ✓ | 0.81.5 | — |
+| expo-sqlite | Fallback offline (`[id].tsx`) | ✓ | ~16.0.10 | — |
+| Supabase | Auth e Sync | ✓ | ^2.45.0 | Offline (parcialmente via local cache) |
+| ViaCEP | Busca de Endereço via CEP | ✓ | Web API | Digitação manual se API fora do ar |
 
 ## Validation Architecture
 
-**nyquist_validation check:** .planning/config.json not provided. Defaulting to enabled.
-
 ### Test Framework
-
 | Property | Value |
 |----------|-------|
-| Framework | Detectable? |
-| Config file | (to be checked) |
-| Quick run command | — |
-| Full suite command | — |
-
-**Action:** Check `.planning/config.json` for test setup. Phase 3 is UI refactoring — manual verification likely sufficient unless existing test suite exists.
+| Framework | Jest + `jest-expo` & `@testing-library/react-native` |
+| Config file | `package.json` block `jest` |
+| Quick run command | `npm run test` (or `jest --passWithNoTests`) |
+| Full suite command | `npm run test:coverage` |
 
 ### Phase Requirements → Test Map
-
-> Phase 3 requirements (from ROADMAP.md) are primarily visual + bug fixes:
-
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| BUG-C4 | [id].tsx shows offline vistoria on fallback | Integration | Manual (no auth in tests) | ❌ Wave 0 |
-| BUG-M9 | Wizard auto-save uses correct step | Unit | Manual (AsyncStorage mock) | ❌ Wave 0 |
-| BUG-A6 | Wizard photo_url persists to SQLite | Integration | Manual (photo + DB check) | ❌ Wave 0 |
-| BUG-UX-05 | CEP validated before HTTP request | Unit | Manual (form interaction) | ❌ Wave 0 |
-| PERF-01 | Dashboard date uses useMemo | Code inspection | Grep for `useMemo` | ✅ Can verify |
-| PERF-05 | Profile uses count:exact not select() | Code inspection | Grep for `count: 'exact'` | ✅ Can verify |
-| SEG-05 | Register uses select() not select('*') | Code inspection | Grep for `select()` | ✅ Can verify |
+| 03-01 | Onboarding Redesign | Unit/Visual | `npm run test` | ❌ Wave 0 |
+| 03-06 | Dashboard useMemo | Unit | `npm run test` | ❌ Wave 0 |
+| 03-09 | Wizard Closure Bug Fix | Unit/E2E | `npm run test` | ❌ Wave 0 |
+| 03-10 | [id].tsx Offline Fallback | Unit | `npm run test` | ❌ Wave 0 |
+| 03-11 | Validação de CEP Regex | Unit | `npm run test` | ❌ Wave 0 |
 
 ### Sampling Rate
-
-- **Per task commit:** Code inspection (grep for keywords, visual verification of rendered output)
-- **Per wave merge:** Manual testing of 2-3 representative screens (onboarding, login, dashboard, [id].tsx)
-- **Phase gate:** Run app on device, test all 16 screens for crashes + basic functionality before `/gsd:verify-work`
+- **Per task commit:** `npm run test`
+- **Per wave merge:** `npm run test:coverage`
+- **Phase gate:** Execução do build em simulador/device físico validando UI Redesign, e testes rodando com coverage estável.
 
 ### Wave 0 Gaps
-
-- [ ] Test framework setup — detectable? (check .planning/config.json)
-- [ ] Mock data for photo capture tests
-- [ ] SQLite test database initialization
-- [ ] Supabase mock or test client
-
-*All gaps are environment setup, not Phase 3 code. Phase 3 code should be testable via manual interaction.*
+- [ ] Necessidade de adicionar specs `.test.tsx` para as telas críticas refatoradas como `[id].tsx`, `dados-iniciais.tsx` e `wizard.tsx`.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-- **Phase 2 Summary:** `.planning/phases/02-design-system/02-design-system-01-SUMMARY.md` — Verified all 7 components exist, all tokens exist, TypeScript passes, barrel export confirmed.
-- **PLAN.md Phase 3:** `.planning/phases/03-ui-auth-agente/PLAN.md` — 14 detailed tasks, 16 screens, bug fixes, and acceptance criteria.
-- **Colors.ts:** `constants/Colors.ts` — 44 tokens verified, light + dark themes, text contrast WCAG AA.
-- **Button.tsx:** Confirmed in components/ui/ barrel export, supports `loading` and `disabled` props.
-- **Components Index:** `components/ui/index.ts` — Barrel export verified, all 7 components listed.
-- **utils/database.ts:** `getVistoriaById()` exists, returns `VistoriaLocal | null`, implemented with SQLite sync.
+- **Roadmap.md e CONTEXT.md** - Informações mestres do contexto do app (Fase 3, bugs, permissões).
+- **package.json** - Versões base dos SDKs e pacotes.
+- **components/ui/*.tsx** - Códigos e Tipagens exatas criadas na Fase 2 para os componentes base.
 
 ### Secondary (MEDIUM confidence)
-
-- **Current Screen Implementations:** Read `onboarding.tsx`, `login.tsx`, `dashboard.tsx`, `register.tsx`, `perfil.tsx`, `wizard.tsx`, `[id].tsx` — Patterns confirmed, state management understood, current bugs identified (closure, photo, CEP, date calc, count queries).
-- **Project Stack:** React Native + Expo 54, no external UI library, system fonts, Feather icons, Supabase backend — all verified by reading actual files.
-
-### Tertiary (LOW confidence)
-
-- None — all findings based on verified source files and Phase 2 summary.
+- Mapeamento das telas baseadas no roadmap e estrutura da árvore do projeto.
 
 ## Metadata
 
 **Confidence breakdown:**
-- **Standard Stack:** HIGH — All components and tokens directly verified in Phase 2 summary + file inspection.
-- **Architecture:** HIGH — Patterns observed across 7 existing screens, Phase 2 design system locked in.
-- **Pitfalls:** HIGH — 8 pitfalls mapped to actual code locations and verified by reading source files.
-- **Bugs (C4, M9, A6, UX-05, PERF-01, PERF-05, SEG-05):** HIGH — All identified in Phase 3 PLAN.md, causes verified by source code inspection.
-- **Component APIs:** HIGH — Phase 2 summary confirms Button, Card, Badge, EmptyState, etc. are fully implemented.
-- **Runtime State:** HIGH — No data migration required; this is pure UI refactoring.
+- Standard stack: HIGH - Extraído diretamente do arquivo package.json em uso e `CONTEXT.md`.
+- Architecture: HIGH - Baseado em arquivos físicos dos componentes e boas práticas de Expo.
+- Pitfalls: HIGH - Comprovados via documentação de regras (CONTEXT.md e Roadmap bugs listados explícitamente).
 
 **Research date:** 2026-03-29
-**Valid until:** 2026-04-29 (or until Phase 3 execution begins)
-**Expires when:** Any new component added to Phase 2, or Expo SDK 55 migration begins.
+**Valid until:** 30 days

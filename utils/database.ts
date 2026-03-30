@@ -1,0 +1,327 @@
+import * as SQLite from 'expo-sqlite';
+
+const DB_NAME = 'defesa_civil.db';
+const DB_VERSION = 5;
+
+let db: SQLite.SQLiteDatabase | null = null;
+
+// ─── Abertura e migrations ─────────────────────────────────────────────────
+
+export function getDb(): SQLite.SQLiteDatabase {
+  if (!db) {
+    db = SQLite.openDatabaseSync(DB_NAME);
+    runMigrations(db);
+  }
+  return db;
+}
+
+function runMigrations(database: SQLite.SQLiteDatabase) {
+  // Tabela de controle de versão
+  database.runSync(`
+    CREATE TABLE IF NOT EXISTS db_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  const row = database.getFirstSync<{ value: string }>(
+    `SELECT value FROM db_meta WHERE key = 'version'`
+  );
+  const currentVersion = row ? parseInt(row.value) : 0;
+
+  // Todas as migrations rodam dentro de uma única transação atômica
+  // para garantir que DB nunca fique em estado corrompido
+  database.withTransactionSync(() => {
+    if (currentVersion < 1) {
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS vistorias_offline (
+          id TEXT PRIMARY KEY,
+          agente_uid TEXT NOT NULL,
+          agente_nome TEXT,
+          municipio TEXT,
+          endereco_rua TEXT,
+          endereco_numero TEXT,
+          endereco_bairro TEXT,
+          endereco_cep TEXT,
+          responsavel_nome TEXT,
+          latitude REAL,
+          longitude REAL,
+          data_vistoria TEXT,
+          formulario_id TEXT,
+          formulario_versao INTEGER,
+          respostas_json TEXT,
+          nivel_risco TEXT,
+          pontuacao_total INTEGER,
+          foto_url TEXT,
+          sincronizado INTEGER DEFAULT 0,
+          erro_sync TEXT,
+          criado_em TEXT NOT NULL
+        )
+      `);
+    }
+
+    if (currentVersion < 2) {
+      // Adiciona coluna de URLs de evidências fotográficas (array JSON)
+      try {
+        database.runSync(
+          `ALTER TABLE vistorias_offline ADD COLUMN fotos_urls TEXT`
+        );
+      } catch {
+        // Coluna já existe (pode acontecer em instâncias que rodaram v2 parcialmente)
+      }
+    }
+
+    if (currentVersion < 3) {
+      // Contador de tentativas de sync (evita retry infinito em erros permanentes)
+      try {
+        database.runSync(
+          `ALTER TABLE vistorias_offline ADD COLUMN tentativas_sync INTEGER DEFAULT 0`
+        );
+      } catch { /* já existe */ }
+
+      // Tabela de logs estruturados (persistidos offline)
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          level TEXT NOT NULL,
+          category TEXT NOT NULL,
+          message TEXT NOT NULL,
+          data TEXT,
+          criado_em TEXT NOT NULL
+        )
+      `);
+    }
+
+    if (currentVersion < 4) {
+      // Índices para melhorar performance das queries mais frequentes
+      database.runSync(`CREATE INDEX IF NOT EXISTS idx_vistorias_agente ON vistorias_offline (agente_uid)`);
+      database.runSync(`CREATE INDEX IF NOT EXISTS idx_vistorias_municipio ON vistorias_offline (municipio)`);
+      database.runSync(`CREATE INDEX IF NOT EXISTS idx_vistorias_sincronizado ON vistorias_offline (sincronizado)`);
+      database.runSync(`CREATE INDEX IF NOT EXISTS idx_vistorias_data ON vistorias_offline (data_vistoria DESC)`);
+      database.runSync(`CREATE INDEX IF NOT EXISTS idx_vistorias_nivel ON vistorias_offline (nivel_risco)`);
+      database.runSync(`CREATE INDEX IF NOT EXISTS idx_logs_level_data ON logs (level, criado_em DESC)`);
+    }
+
+    if (currentVersion < 5) {
+      // Cache local de formulários personalizados para uso offline
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS formularios_cache (
+          id TEXT PRIMARY KEY,
+          titulo TEXT NOT NULL,
+          descricao TEXT,
+          versao INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          perguntas_json TEXT NOT NULL,
+          municipio TEXT,
+          atualizado_em TEXT NOT NULL,
+          cached_at TEXT NOT NULL
+        )
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_formularios_municipio ON formularios_cache (municipio)
+      `);
+    }
+
+    database.runSync(
+      `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
+      [String(DB_VERSION)]
+    );
+  });
+}
+
+// ─── Tipos ─────────────────────────────────────────────────────────────────
+
+export interface VistoriaLocal {
+  id: string;
+  agente_uid: string;
+  agente_nome: string;
+  municipio: string;
+  endereco_rua: string;
+  endereco_numero: string;
+  endereco_bairro: string;
+  endereco_cep: string | null;
+  responsavel_nome: string | null;
+  latitude: number;
+  longitude: number;
+  data_vistoria: string;
+  formulario_id: string;
+  formulario_versao: number;
+  respostas_json: string;
+  nivel_risco: string;
+  pontuacao_total: number;
+  foto_url: string | null;
+  fotos_urls: string | null;    // JSON array de URLs (["url1","url2"])
+  sincronizado: number;         // 0 = pendente, 1 = sincronizado
+  erro_sync: string | null;
+  tentativas_sync: number;      // contador de tentativas falhas
+  criado_em: string;
+}
+
+// ─── CRUD ──────────────────────────────────────────────────────────────────
+
+export function insertVistoria(
+  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync'>
+): void {
+  const database = getDb();
+  database.runSync(
+    `INSERT OR REPLACE INTO vistorias_offline (
+      id, agente_uid, agente_nome, municipio,
+      endereco_rua, endereco_numero, endereco_bairro, endereco_cep,
+      responsavel_nome, latitude, longitude, data_vistoria,
+      formulario_id, formulario_versao, respostas_json,
+      nivel_risco, pontuacao_total, foto_url, fotos_urls,
+      sincronizado, criado_em
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
+    [
+      vistoria.id,
+      vistoria.agente_uid,
+      vistoria.agente_nome,
+      vistoria.municipio,
+      vistoria.endereco_rua,
+      vistoria.endereco_numero,
+      vistoria.endereco_bairro,
+      vistoria.endereco_cep ?? null,
+      vistoria.responsavel_nome ?? null,
+      vistoria.latitude,
+      vistoria.longitude,
+      vistoria.data_vistoria,
+      vistoria.formulario_id,
+      vistoria.formulario_versao,
+      vistoria.respostas_json,
+      vistoria.nivel_risco,
+      vistoria.pontuacao_total,
+      vistoria.foto_url ?? null,
+      null, // fotos_urls — preenchido separadamente pela FotoScreen
+      vistoria.criado_em,
+    ]
+  );
+}
+
+export function updateFotosUrls(id: string, urls: string[]): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET fotos_urls = ? WHERE id = ?`,
+    [JSON.stringify(urls), id]
+  );
+}
+
+export function markSincronizado(id: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET sincronizado = 1, erro_sync = NULL WHERE id = ?`,
+    [id]
+  );
+}
+
+export function markErroSync(id: string, erro: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET erro_sync = ? WHERE id = ?`,
+    [erro, id]
+  );
+}
+
+export function getVistoriasNaoSincronizadas(): VistoriaLocal[] {
+  const database = getDb();
+  return database.getAllSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline WHERE sincronizado = 0 ORDER BY criado_em ASC`
+  );
+}
+
+export function getVistoriasByAgente(agenteUid: string): VistoriaLocal[] {
+  const database = getDb();
+  return database.getAllSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline WHERE agente_uid = ? ORDER BY criado_em DESC LIMIT 50`,
+    [agenteUid]
+  );
+}
+
+export function getVistoriasByMunicipio(municipio: string): VistoriaLocal[] {
+  const database = getDb();
+  return database.getAllSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline WHERE municipio = ? ORDER BY criado_em DESC LIMIT 50`,
+    [municipio]
+  );
+}
+
+export function getVistoriaById(id: string): VistoriaLocal | null {
+  const database = getDb();
+  return database.getFirstSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline WHERE id = ?`,
+    [id]
+  ) ?? null;
+}
+
+export function incrementTentativasSync(id: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET tentativas_sync = COALESCE(tentativas_sync, 0) + 1 WHERE id = ?`,
+    [id]
+  );
+}
+
+export function resetTentativasSync(id: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET tentativas_sync = 0, erro_sync = NULL WHERE id = ?`,
+    [id]
+  );
+}
+
+export function countPendentes(): number {
+  const database = getDb();
+  const row = database.getFirstSync<{ total: number }>(
+    `SELECT COUNT(*) as total FROM vistorias_offline WHERE sincronizado = 0`
+  );
+  return row?.total ?? 0;
+}
+
+// ─── Formulários cache ──────────────────────────────────────────────────────
+
+export interface FormularioCache {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  versao: number;
+  status: string;
+  perguntas_json: string;
+  municipio: string | null;
+  atualizado_em: string;
+  cached_at: string;
+}
+
+export function upsertFormulariosCache(forms: Omit<FormularioCache, 'cached_at'>[]): void {
+  const database = getDb();
+  const now = new Date().toISOString();
+  database.withTransactionSync(() => {
+    for (const f of forms) {
+      database.runSync(
+        `INSERT OR REPLACE INTO formularios_cache
+          (id, titulo, descricao, versao, status, perguntas_json, municipio, atualizado_em, cached_at)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [f.id, f.titulo, f.descricao ?? null, f.versao, f.status, f.perguntas_json, f.municipio ?? null, f.atualizado_em, now]
+      );
+    }
+  });
+}
+
+export function getFormulariosCache(municipio?: string): FormularioCache[] {
+  const database = getDb();
+  if (municipio) {
+    return database.getAllSync<FormularioCache>(
+      `SELECT * FROM formularios_cache WHERE municipio = ? OR municipio IS NULL ORDER BY atualizado_em DESC`,
+      [municipio]
+    );
+  }
+  return database.getAllSync<FormularioCache>(
+    `SELECT * FROM formularios_cache ORDER BY atualizado_em DESC`
+  );
+}
+
+export function getFormularioCacheById(id: string): FormularioCache | null {
+  const database = getDb();
+  return database.getFirstSync<FormularioCache>(
+    `SELECT * FROM formularios_cache WHERE id = ?`,
+    [id]
+  ) ?? null;
+}
