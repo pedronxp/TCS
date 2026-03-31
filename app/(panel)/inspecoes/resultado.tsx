@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert
+  ActivityIndicator, Alert, Share
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -12,23 +12,8 @@ import { useAuth } from '../../../context/AuthContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
 import { getVistoriaById } from '../../../utils/database';
-
-function escapeHtml(str: string): string {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-const RISCO_LABELS: Record<string, string> = {
-  r1: 'BAIXO', r2: 'MÉDIO', r3: 'ALTO', r4: 'CRÍTICO',
-};
-
-const RISCO_CORES: Record<string, string> = {
-  r1: '#10B981', r2: '#F59E0B', r3: '#EF4444', r4: '#DC2626',
-};
+import { buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
+import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 
 /** Normaliza dados de qualquer fonte (Supabase camelCase ou SQLite snake_case) */
 function normalizar(v: any): any {
@@ -46,129 +31,6 @@ function normalizar(v: any): any {
   };
 }
 
-function gerarHtmlLaudo(v: ReturnType<typeof normalizar>, agenteNome: string): string {
-  const nivel = v?.nivelRisco || 'r1';
-  const cor = RISCO_CORES[nivel] || '#10B981';
-  const label = RISCO_LABELS[nivel] || 'BAIXO';
-  const data = v?.dataVistoria
-    ? new Date(v.dataVistoria).toLocaleDateString('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
-    : '—';
-
-  let respostasHtml = '';
-  try {
-    const respostas = JSON.parse(v?.respostasJson || '{}');
-    respostasHtml = Object.entries(respostas)
-      .map(([k, val]) => {
-        const safeKey = escapeHtml(k);
-        const safeVal = escapeHtml(Array.isArray(val) ? (val as string[]).join(', ') : String(val));
-        return `<tr><td class="label">${safeKey}</td><td>${safeVal}</td></tr>`;
-      }).join('');
-  } catch { /* sem respostas */ }
-
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8"/>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1A202C; background: #fff; padding: 40px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 2px solid #E2E8F0; padding-bottom: 24px; }
-  .logo-title { font-size: 20px; font-weight: 900; color: #1A365D; letter-spacing: -0.5px; }
-  .logo-sub { font-size: 11px; color: #718096; font-weight: 600; letter-spacing: 1px; margin-top: 2px; }
-  .doc-title { font-size: 12px; font-weight: 700; color: #718096; letter-spacing: 1px; text-align: right; }
-  .doc-num { font-size: 18px; font-weight: 900; color: #1A365D; margin-top: 4px; text-align: right; }
-  .risco-badge { background: ${cor}; color: white; padding: 20px 32px; border-radius: 16px; text-align: center; margin-bottom: 32px; }
-  .risco-badge-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; opacity: 0.85; }
-  .risco-badge-value { font-size: 36px; font-weight: 900; letter-spacing: -1px; margin: 8px 0; }
-  .risco-badge-pts { font-size: 14px; opacity: 0.8; }
-  .section { margin-bottom: 32px; }
-  .section-title { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: #718096; text-transform: uppercase; border-bottom: 1px solid #E2E8F0; padding-bottom: 8px; margin-bottom: 16px; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .info-item label { font-size: 10px; font-weight: 700; color: #A0AEC0; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
-  .info-item span { font-size: 14px; font-weight: 600; color: #1A202C; }
-  table { width: 100%; border-collapse: collapse; }
-  table th { font-size: 10px; font-weight: 800; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; padding: 10px 12px; background: #F7FAFC; border-bottom: 2px solid #E2E8F0; }
-  table td { font-size: 13px; padding: 10px 12px; border-bottom: 1px solid #EDF2F7; }
-  table td.label { font-weight: 700; color: #4A5568; width: 40%; }
-  .conduta { background: ${cor}15; border-left: 4px solid ${cor}; padding: 16px 20px; border-radius: 0 12px 12px 0; font-size: 13px; line-height: 1.6; color: #2D3748; }
-  .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; }
-  .footer-left { font-size: 10px; color: #A0AEC0; }
-  .assinatura { border: 1px solid #E2E8F0; border-radius: 8px; padding: 20px 32px; text-align: center; }
-  .assinatura-linha { border-top: 1px solid #A0AEC0; width: 200px; margin: 0 auto 8px; }
-  .assinatura-nome { font-size: 12px; font-weight: 700; }
-  .assinatura-cargo { font-size: 10px; color: #718096; }
-</style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="logo-title">DEFESA CIVIL</div>
-      <div class="logo-sub">LAUDO TÉCNICO DE VISTORIA</div>
-    </div>
-    <div>
-      <div class="doc-title">PROTOCOLO</div>
-      <div class="doc-num">#${(v?.id || '000000').toString().slice(0, 8).toUpperCase()}</div>
-    </div>
-  </div>
-
-  <div class="risco-badge">
-    <div class="risco-badge-label">NÍVEL DE RISCO ESTRUTURAL</div>
-    <div class="risco-badge-value">RISCO ${label}</div>
-    <div class="risco-badge-pts">${v?.pontuacaoTotal ?? 0} pontos acumulados</div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Dados da Vistoria</div>
-    <div class="info-grid">
-      <div class="info-item"><label>Endereço</label><span>${escapeHtml(v?.endereco || '—')}</span></div>
-      <div class="info-item"><label>Município</label><span>${escapeHtml(v?.municipio || '—')}</span></div>
-      <div class="info-item"><label>Data e Hora</label><span>${escapeHtml(data)}</span></div>
-      <div class="info-item"><label>Agente Responsável</label><span>${escapeHtml(agenteNome)}</span></div>
-      <div class="info-item"><label>Formulário</label><span>${escapeHtml(v?.formularioId || 'Padrão')}</span></div>
-    </div>
-  </div>
-
-  ${respostasHtml ? `
-  <div class="section">
-    <div class="section-title">Respostas do Formulário</div>
-    <table>
-      <thead><tr><th>Parâmetro</th><th>Resposta</th></tr></thead>
-      <tbody>${respostasHtml}</tbody>
-    </table>
-  </div>` : ''}
-
-  <div class="section">
-    <div class="section-title">Conduta Recomendada</div>
-    <div class="conduta">${getConduta(nivel)}</div>
-  </div>
-
-  <div class="footer">
-    <div class="footer-left">
-      Gerado automaticamente pelo Sistema de Vistoria Defesa Civil<br/>
-      ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-    </div>
-    <div class="assinatura">
-      <div class="assinatura-linha"></div>
-      <div class="assinatura-nome">${escapeHtml(agenteNome)}</div>
-      <div class="assinatura-cargo">Agente de Defesa Civil</div>
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-function getConduta(nivel: string): string {
-  const map: Record<string, string> = {
-    r1: 'A estrutura apresenta condições adequadas. Recomenda-se monitoramento preventivo periódico e manutenção de rotina.',
-    r2: 'Foram identificadas irregularidades. Recomenda-se laudo técnico complementar e medidas de reforço estrutural em curto prazo.',
-    r3: 'ATENÇÃO: Risco elevado detectado. Recomenda-se interdição preventiva imediata e evacuação até laudo estrutural por engenheiro habilitado.',
-    r4: 'EMERGÊNCIA: Risco crítico à vida. Evacuar imediatamente. Acionar defesa civil municipal e corpo de bombeiros. Interdição obrigatória.',
-  };
-  return map[nivel] || map.r1;
-}
 
 export default function ResultadoScreen() {
   const { id, nivelRisco: nivelParam, pontuacao: pontuacaoParam } = useLocalSearchParams<{
@@ -259,11 +121,22 @@ export default function ResultadoScreen() {
     }
   };
 
+  const buildDados = (): LaudoData => ({
+    id: vistoria?.id || '',
+    nivelRisco: vistoria?.nivelRisco || 'r1',
+    pontuacaoTotal: vistoria?.pontuacaoTotal ?? 0,
+    endereco: vistoria?.endereco || '—',
+    municipio: vistoria?.municipio || '—',
+    dataVistoria: vistoria?.dataVistoria || null,
+    agenteNome: vistoria?.agenteNome || profile?.name || '—',
+    formularioId: vistoria?.formularioId || 'Padrão',
+    respostasJson: vistoria?.respostasJson || '{}',
+  });
+
   const gerarPdf = async () => {
     setGerando(true);
     try {
-      const agenteNome = vistoria?.agenteNome || profile?.name || '—';
-      const html = gerarHtmlLaudo(vistoria, agenteNome);
+      const html = buildLaudoHtml(buildDados());
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
       const disponivel = await Sharing.isAvailableAsync();
@@ -286,11 +159,37 @@ export default function ResultadoScreen() {
   const imprimir = async () => {
     setGerando(true);
     try {
-      const agenteNome = vistoria?.agenteNome || profile?.name || '—';
-      const html = gerarHtmlLaudo(vistoria, agenteNome);
+      const html = buildLaudoHtml(buildDados());
       await Print.printAsync({ html });
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const compartilhar = async () => {
+    setGerando(true);
+    try {
+      const html = buildLaudoHtml(buildDados());
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Laudo ${(vistoria?.id || '').slice(0, 8).toUpperCase()} — Defesa Civil`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        // Fallback: compartilhar texto com link (iOS sem Files.app)
+        await Share.share({
+          message: `Laudo Técnico Defesa Civil — ${vistoria?.endereco || 'Endereço não informado'}\nNível de Risco: ${riscoLabel(vistoria?.nivelRisco || 'r1')}\nArquivo: ${uri}`,
+          title: 'Laudo Técnico — Defesa Civil',
+        });
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível compartilhar o laudo.');
     } finally {
       setGerando(false);
     }
@@ -305,8 +204,8 @@ export default function ResultadoScreen() {
   }
 
   const nivel = vistoria?.nivelRisco || nivelParam || 'r1';
-  const cor = RISCO_CORES[nivel] || '#10B981';
-  const label = RISCO_LABELS[nivel] || 'BAIXO';
+  const cor = riscoColor(nivel);
+  const label = riscoLabel(nivel);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -393,7 +292,7 @@ export default function ResultadoScreen() {
 
         <TouchableOpacity
           style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
-          onPress={gerarPdf}
+          onPress={compartilhar}
           disabled={gerando}
         >
           <View style={[styles.exportIcon, { backgroundColor: theme.iconBackground }]}>
