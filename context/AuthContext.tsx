@@ -60,7 +60,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     Promise.race([supabase.auth.getSession(), getSessionTimeout])
-      .then(async ({ data: { session } }: any) => {
+      .then(async (result: any) => {
+        if (result.error) {
+          console.warn('Auth session error:', result.error.message);
+          if (result.error.message?.includes('Refresh Token')) {
+            await supabase.auth.signOut().catch(() => {});
+          }
+          return;
+        }
+        const session = result?.data?.session;
         if (session) {
           const userProfile = await fetchProfile(session.user.id);
           if (userProfile?.isApproved) {
@@ -68,12 +76,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(userProfile);
           } else {
             // Conta não aprovada ou perfil não encontrado — deslogar silenciosamente
-            await supabase.auth.signOut();
+            await supabase.auth.signOut().catch(() => {});
           }
         }
       })
-      .catch(() => {
-        // Sessão corrompida/erro de rede/timeout — tratar como não autenticado
+      .catch((err) => {
+        console.warn('Auth init catch:', err);
+        supabase.auth.signOut().catch(() => {});
       })
       .finally(() => {
         clearTimeout(safetyTimer);

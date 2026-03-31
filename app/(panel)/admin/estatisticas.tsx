@@ -8,6 +8,9 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { LoadingState } from '../../../components/ui/LoadingState';
+import { ErrorState } from '../../../components/ui/ErrorState';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 type Periodo = '7d' | '30d' | '90d';
 
@@ -38,6 +41,7 @@ export default function EstatisticasScreen() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<Periodo>('30d');
   const [municipio, setMunicipio] = useState('');
   const [vistorias, setVistorias] = useState<any[]>([]);
@@ -68,8 +72,10 @@ export default function EstatisticasScreen() {
 
       const { data } = await query;
       setVistorias(data || []);
-    } catch (e) {
+      setErro(null);
+    } catch (e: any) {
       logger.error('system', 'Erro estatísticas', { erro: String(e) });
+      setErro('Não foi possível carregar as estatísticas.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -111,8 +117,22 @@ export default function EstatisticasScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState />
+      </View>
+    );
+  }
+
+  if (erro) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
+          <ErrorState
+            title="Falha ao Carregar"
+            message={erro}
+            onRetry={() => carregar(false)}
+          />
+        </View>
       </View>
     );
   }
@@ -223,9 +243,11 @@ export default function EstatisticasScreen() {
         {/* Ranking agentes */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Top Agentes</Text>
         {rankingAgentes.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Sem dados no período.</Text>
-          </View>
+          <EmptyState
+            icon="bar-chart-2"
+            title="Sem dados"
+            description="Não houve vistorias no período selecionado."
+          />
         ) : (
           rankingAgentes.map((a, i) => (
             <View key={a.nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
@@ -295,6 +317,4 @@ const styles = StyleSheet.create({
   rankAvatarText: { fontSize: 16, fontWeight: '800' },
   rankName: { flex: 1, fontSize: 15, fontWeight: '700' },
   rankCount: { fontSize: 13, fontWeight: '700' },
-  emptyCard: { borderRadius: 14, borderWidth: 1, padding: 30, alignItems: 'center' },
-  emptyText: { fontSize: 14, fontWeight: '600' },
 });

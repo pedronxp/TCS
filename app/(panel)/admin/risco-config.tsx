@@ -11,6 +11,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 
 const STORAGE_KEY = '@risco_config_v1';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 
 const DEFAULT_CONFIG = [
   { nivel: 'r1', label: 'Baixo Risco', cor: '#10B981', descricao: 'Monitoramento preventivo', minPontos: 0, maxPontos: 24 },
@@ -32,7 +33,19 @@ export default function RiscoConfigScreen() {
 
   const loadConfig = async () => {
     try {
-      // 1. Tenta carregar do Supabase (config compartilhada entre admins)
+      // 1. Checar cache local com TTL de 24h
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const { config: cachedConfig, timestamp } = JSON.parse(stored) as { config: typeof DEFAULT_CONFIG; timestamp: number };
+        const isRecente = Date.now() - (timestamp || 0) < CACHE_TTL_MS;
+        if (isRecente && Array.isArray(cachedConfig)) {
+          setConfig(cachedConfig);
+          setSyncStatus('local');
+          return; // Cache válido — pula o Supabase
+        }
+      }
+
+      // 2. Cache expirado ou inexistente — busca do Supabase
       if (profile?.municipio) {
         const { data } = await supabase
           .from('risk_configs')
@@ -41,17 +54,13 @@ export default function RiscoConfigScreen() {
           .single();
         if (data?.configuracao) {
           setConfig(data.configuracao as typeof DEFAULT_CONFIG);
-          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data.configuracao));
+          // Salva com timestamp para TTL
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ config: data.configuracao, timestamp: Date.now() }));
           setSyncStatus('cloud');
           return;
         }
       }
-      // 2. Fallback para AsyncStorage local
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setConfig(JSON.parse(stored));
-        setSyncStatus('local');
-      }
+      // 3. Fallback para config padrão
     } catch {
       // usa default
     } finally {
@@ -68,8 +77,8 @@ export default function RiscoConfigScreen() {
     }
     setSalvando(true);
     try {
-      // Salvar localmente sempre
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      // Salvar localmente sempre (com timestamp para TTL)
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ config, timestamp: Date.now() }));
 
       // Salvar no Supabase se tiver municipio
       if (profile?.municipio) {

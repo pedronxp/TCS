@@ -12,6 +12,7 @@ import {
 } from '../utils/database';
 import { notificarSincronizacao } from './NotificationService';
 import { logger } from '../utils/logger';
+import { uploadImageFromLocalUri } from './StorageService';
 
 const MAX_TENTATIVAS_SYNC = 5;
 const BATCH_SIZE = 20; // Máximo de vistorias por request ao Supabase
@@ -56,7 +57,29 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
     // Processar em lotes para reduzir número de requests
     for (let i = 0; i < elegiveis.length; i += BATCH_SIZE) {
       const lote = elegiveis.slice(i, i + BATCH_SIZE);
-      const payloads = lote.map(buildSupabasePayload);
+
+      // --- Passo Intermediário: Processar uploads de fotos ---
+      const loteProntoParaSync: typeof lote = [];
+      for (let v of lote) {
+        try {
+            v = await processarImagensVistoria(v);
+            loteProntoParaSync.push(v);
+        } catch (err: any) {
+            // Se falhou o upload de fotos de uma vistoria específica, incrementa tentativas de sync 
+            const tentativaAtual = (v.tentativas_sync ?? 0) + 1;
+            incrementTentativasSync(v.id);
+            markErroSync(v.id, `Erro Upload Imagem: ${err.message ?? 'Desconhecido'}`);
+            falha++;
+            logger.error('sync', `Falha Mídia individual (tentativa ${tentativaAtual}/${MAX_TENTATIVAS_SYNC})`, {
+                id: v.id, erro: err.message,
+            });
+            // Omitir do lote pronto para evitar upsert no Supabase
+        }
+      }
+
+      const payloads = loteProntoParaSync.map(buildSupabasePayload);
+
+      if (payloads.length === 0) continue;
 
       try {
         const { error } = await supabase.from('vistorias').upsert(payloads);
@@ -190,4 +213,65 @@ export function stopAppStateSyncListener(): void {
   }
   appStateListener?.remove();
   appStateListener = null;
+}
+
+// --- Funções Auxiliares para Upload de Fotos Offline ---
+
+/**
+ * Escaneia as fotos da vistoria (fotoUrl e fotosUrls do SQLite). 
+ * Se contiver URLs locais (file://), faz o upload via Storage e atualiza as strings na vistoria local,
+ * persistindo as novas URLs no banco SQLite para que o upload não repita em caso de falha futura.
+ */
+async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal> {
+  const db = getDb();
+  let sofreuAlteracao = false;
+
+  const ano = new Date(v.data_vistoria).getFullYear();
+  const folderPath = `${ano}/${v.municipio || 'indefinido'}/${v.id}`;
+
+  // Processa foto principal (thumb)
+  if (v.foto_url && v.foto_url.startsWith('file://')) {
+    const remotePath = `${folderPath}/thumb_${Date.now()}.jpg`;
+    v.foto_url = await uploadImageFromLocalUri(v.foto_url, remotePath);
+    sofreuAlteracao = true;
+  }
+
+  // Processa fotos de evidência
+  if (v.fotos_urls) {
+    try {
+      let arrayFotos: string[] = JSON.parse(v.fotos_urls);
+      const novasFotos: string[] = [];
+      let mudeiFotos = false;
+
+      for (let i = 0; i < arrayFotos.length; i++) {
+        const fotoLocal = arrayFotos[i];
+        if (fotoLocal.startsWith('file://')) {
+          const remotePath = `${folderPath}/evidencia_${i}_${Date.now()}.jpg`;
+          const publicUrl = await uploadImageFromLocalUri(fotoLocal, remotePath);
+          novasFotos.push(publicUrl);
+          mudeiFotos = true;
+        } else {
+          novasFotos.push(fotoLocal);
+        }
+      }
+
+      if (mudeiFotos) {
+        v.fotos_urls = JSON.stringify(novasFotos);
+        sofreuAlteracao = true;
+      }
+    } catch {
+      // JSON parse error, ignoramos e mantemos o arquivo original.
+    }
+  }
+
+  // Se fizemos upload de pelo menos uma foto com sucesso, atualizamos a vistoria_offline SQLite.
+  // Isso evita que, se outra requisição de fotos falhar e a thread morrer, percamos as URLs das fotos que já subiram, causando duplicação no Storage.
+  if (sofreuAlteracao) {
+    db.runSync(
+      `UPDATE vistorias_offline SET foto_url = ?, fotos_urls = ? WHERE id = ?`,
+      [v.foto_url, v.fotos_urls, v.id]
+    );
+  }
+
+  return v;
 }

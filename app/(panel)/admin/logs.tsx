@@ -4,6 +4,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../../context/ThemeContext';
 import { getLogs, clearLogs, countLogsByLevel, LogEntry, LogLevel } from '../../../utils/logger';
 import { supabase } from '../../../utils/supabase';
@@ -116,6 +118,35 @@ export default function LogsScreen() {
     ]);
   };
 
+  const exportarCSV = async () => {
+    if (auditLogs.length === 0) {
+      Alert.alert('Sem dados', 'Não há logs de auditoria para exportar.');
+      return;
+    }
+    try {
+      const cabecalho = 'id,acao,ator_nome,alvo_tipo,criado_em,municipio';
+      const linhas = auditLogs.map(l => [
+        l.id ?? '',
+        l.acao ?? '',
+        (l.ator_nome ?? '').replace(/,/g, ';'),
+        l.alvo_tipo ?? '',
+        l.criado_em ?? '',
+        l.detalhes?.municipio ?? '',
+      ].join(','));
+      const csvContent = [cabecalho, ...linhas].join('\n');
+      const fileName = `auditoria_${new Date().toISOString().split('T')[0]}.csv`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(filePath, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, { mimeType: 'text/csv', dialogTitle: 'Exportar Auditoria' });
+      } else {
+        Alert.alert('Exportado', `Arquivo salvo em:\n${filePath}`);
+      }
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível exportar o CSV.');
+    }
+  };
+
   const formatDate = (iso: string) => {
     const d = new Date(iso);
     return d.toLocaleString('pt-BR', {
@@ -193,12 +224,19 @@ export default function LogsScreen() {
             }
           </Text>
         </View>
-        {activeTab === 'sistema' && (
+        {activeTab === 'sistema' ? (
           <TouchableOpacity
             style={[styles.clearBtn, { borderColor: theme.border }]}
             onPress={handleClear}
           >
             <Feather name="trash-2" size={18} color="#EF4444" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.clearBtn, { borderColor: theme.border }]}
+            onPress={exportarCSV}
+          >
+            <Feather name="download" size={18} color={theme.primary} />
           </TouchableOpacity>
         )}
       </View>

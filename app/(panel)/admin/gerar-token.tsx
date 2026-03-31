@@ -11,6 +11,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import { Button } from '../../../components/ui/Button';
 
 const ROLES_LIST = [
   { key: 'agent', label: 'Agente', desc: 'Realiza vistorias em campo', icon: 'clipboard' as const },
@@ -198,17 +199,16 @@ export default function GerarTokenScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.gerarBtn, { backgroundColor: gerando ? theme.textSecondary : theme.primary }]}
+        <Button
+          label={gerando ? 'Gerando...' : 'Gerar Token de Acesso'}
+          variant="primary"
+          size="lg"
           onPress={gerarToken}
+          loading={gerando}
           disabled={gerando}
-        >
-          {gerando
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <Feather name="key" size={20} color="#FFF" />
-          }
-          <Text style={styles.gerarBtnText}>{gerando ? 'Gerando...' : 'Gerar Token de Acesso'}</Text>
-        </TouchableOpacity>
+          iconLeft={!gerando ? <Feather name="key" size={20} color="#FFF" /> : undefined}
+          style={{ marginTop: 4 }}
+        />
       </ScrollView>
 
       {/* Modal: Token gerado */}
@@ -236,19 +236,18 @@ export default function GerarTokenScreen() {
               Expira em: {formatarExpiracao(horasSelecionadas)}
             </Text>
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+              <Button
+                label="Compartilhar"
                 onPress={compartilhar}
-              >
-                <Feather name="share-2" size={18} color="#FFF" />
-                <Text style={styles.modalBtnText}>Compartilhar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtnOutline, { borderColor: theme.border }]}
+                variant="primary"
+                iconLeft={<Feather name="share-2" size={18} color="#FFF" />}
+                style={{ marginBottom: 12 }}
+              />
+              <Button
+                label="Fechar"
                 onPress={() => { setShowModal(false); router.back(); }}
-              >
-                <Text style={[styles.modalBtnOutlineText, { color: theme.text }]}>Fechar</Text>
-              </TouchableOpacity>
+                variant="ghost"
+              />
             </View>
           </View>
         </View>
@@ -288,11 +287,6 @@ const styles = StyleSheet.create({
   },
   infoTitle: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
   infoText: { fontSize: 13, lineHeight: 20 },
-  gerarBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 12, height: 60, borderRadius: 16,
-  },
-  gerarBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', alignItems: 'center', padding: 24,
@@ -320,15 +314,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   duracaoText: { fontSize: 14, fontWeight: '700' },
-  modalActions: { width: '100%', gap: 12 },
-  modalBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, height: 54, borderRadius: 14,
-  },
-  modalBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-  modalBtnOutline: {
-    height: 54, borderRadius: 14, borderWidth: 1,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  modalBtnOutlineText: { fontSize: 15, fontWeight: '700' },
+  modalActions: { width: '100%' },
 });

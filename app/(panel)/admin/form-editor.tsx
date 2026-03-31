@@ -10,6 +10,10 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import { LoadingState } from '../../../components/ui/LoadingState';
+import { ErrorState } from '../../../components/ui/ErrorState';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { Button } from '../../../components/ui/Button';
 
 export default function FormEditorScreen() {
   const { theme } = useTheme();
@@ -22,9 +26,11 @@ export default function FormEditorScreen() {
   const [novaDescricao, setNovaDescricao] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   const carregar = async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
+    setErro(null);
     try {
       let query = supabase
         .from('formularios')
@@ -39,6 +45,7 @@ export default function FormEditorScreen() {
       setFormularios(data || []);
     } catch (e) {
       logger.error('form', 'Erro form editor', { erro: String(e) });
+      setErro('Ocorreu um erro ao carregar os formulários.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -182,11 +189,11 @@ export default function FormEditorScreen() {
   };
 
   if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
+    return <LoadingState message="Carregando formulários..." />;
+  }
+
+  if (erro) {
+    return <ErrorState message={erro} onRetry={() => carregar(true)} />;
   }
 
   return (
@@ -227,14 +234,14 @@ export default function FormEditorScreen() {
             placeholder="Descrição (opcional)"
             placeholderTextColor={theme.textSecondary}
           />
-          <TouchableOpacity
-            style={[styles.createBtn, { backgroundColor: salvando ? theme.textSecondary : theme.primary }]}
+          <Button
+            label="Criar Formulário"
+            iconLeft={<Feather name="check" size={18} color="#FFF" />}
+            variant="primary"
+            loading={salvando}
             onPress={criarFormulario}
-            disabled={salvando}
-          >
-            {salvando ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="check" size={18} color="#FFF" />}
-            <Text style={styles.createBtnText}>{salvando ? 'Criando...' : 'Criar Formulário'}</Text>
-          </TouchableOpacity>
+            style={{ marginTop: 4 }}
+          />
         </View>
       )}
 
@@ -243,11 +250,13 @@ export default function FormEditorScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         {formularios.length === 0 ? (
-          <View style={[styles.empty, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Feather name="file-plus" size={40} color={theme.textSecondary} style={{ marginBottom: 12 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhum formulário</Text>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Crie um formulário personalizado para vistorias.</Text>
-          </View>
+          <EmptyState
+            icon="edit"
+            title="Nenhum formulário"
+            description="Crie o primeiro formulário preenchendo o painel acima."
+            actionLabel={!showCreate ? "Novo Formulário" : undefined}
+            onAction={!showCreate ? () => setShowCreate(true) : undefined}
+          />
         ) : (
           formularios.map(f => {
             const isPublicado = f.status === 'publicado';

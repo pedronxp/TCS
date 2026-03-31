@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -53,6 +54,7 @@ interface BottomNavBarInnerProps {
 
 export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname }: BottomNavBarInnerProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const shouldShow = NAVBAR_VISIBLE_PATHS.some(p => {
     const norm = pathname.replace(/\/+$/, '');
@@ -78,6 +80,7 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
     <View style={[styles.container, {
       backgroundColor: theme.surfaceHighlight,
       borderTopColor: theme.border,
+      paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 20) : Math.max(insets.bottom, 12),
     }]}>
       {tabs.map(tab => {
         const active = isActive(tab);
@@ -126,7 +129,6 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     borderTopWidth: 1,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     paddingTop: 0,
     paddingHorizontal: 4,
     shadowColor: '#000',

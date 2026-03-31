@@ -10,6 +10,10 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import { NotificationProvider, useNotifications } from '../context/NotificationContext';
 import { ReportProvider } from '../context/ReportContext';
 import { ConnectivityBanner } from '../components/ConnectivityBanner';
+import { LogBox } from 'react-native';
+
+// Silencia erros internos do Expo Go no Android
+LogBox.ignoreLogs(['Unable to activate keep awake']);
 
 async function requestPermissions() {
   try {

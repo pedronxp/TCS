@@ -10,6 +10,10 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import { LoadingState } from '../../../components/ui/LoadingState';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { ErrorState } from '../../../components/ui/ErrorState';
+import { Badge } from '../../../components/ui/Badge';
 
 const ROLE_LABELS: Record<string, string> = {
   agent: 'Agente', supervisor: 'Supervisor',
@@ -24,6 +28,7 @@ export default function UsuariosScreen() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>('todos');
@@ -60,8 +65,10 @@ export default function UsuariosScreen() {
       const page = data || [];
       setUsers(prev => append ? [...prev, ...page] : page);
       setHasMore(page.length === PAGE_SIZE);
-    } catch (e) {
+      setErro(null);
+    } catch (e: any) {
       logger.error('system', 'Erro ao carregar usuários', { erro: String(e) });
+      setErro('Não foi possível carregar a lista de usuários.');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -122,8 +129,22 @@ export default function UsuariosScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState />
+      </View>
+    );
+  }
+
+  if (erro) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
+          <ErrorState
+            title="Falha ao Carregar"
+            message={erro}
+            onRetry={() => loadUsers()}
+          />
+        </View>
       </View>
     );
   }
@@ -186,24 +207,22 @@ export default function UsuariosScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {filtrados.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhum usuário encontrado.</Text>
-          </View>
+          <EmptyState
+            icon="users"
+            title="Nenhum usuário"
+            description="Não foram encontrados usuários com os filtros selecionados."
+          />
         ) : (
           <>
             {filtrados.map(u => (
-              <View key={u.uid} style={[styles.userCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+              <View key={u.uid} style={[styles.userCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder, borderRadius: 16, borderWidth: 1 }]}>
                 <View style={[styles.avatar, { backgroundColor: u.isApproved ? theme.primary : theme.textSecondary }]}>
                   <Text style={styles.avatarText}>{u.name?.[0]?.toUpperCase() || '?'}</Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: 14 }}>
                   <View style={styles.nameRow}>
                     <Text style={[styles.userName, { color: theme.text }]}>{u.name}</Text>
-                    <View style={[styles.roleBadge, { backgroundColor: theme.iconBackground }]}>
-                      <Text style={[styles.roleText, { color: theme.primary }]}>
-                        {ROLE_LABELS[u.role] || u.role}
-                      </Text>
-                    </View>
+                    <Badge label={ROLE_LABELS[u.role] || u.role} variant="neutral" />
                   </View>
                   <Text style={[styles.userEmail, { color: theme.textSecondary }]}>{u.email}</Text>
                   <Text style={[styles.userStatus, { color: u.isApproved ? '#10B981' : '#F59E0B' }]}>

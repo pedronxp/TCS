@@ -37,11 +37,13 @@ export default function AdminDashboardScreen() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [erro, setErro] = useState(false);
   const [kpis, setKpis] = useState<KPI[]>([]);
   const [atividade, setAtividade] = useState<any[]>([]);
 
   const carregar = async (showRefresh = false) => {
     if (!profile) return;
+    setErro(false);
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
@@ -67,6 +69,7 @@ export default function AdminDashboardScreen() {
       setAtividade(vistoriasRes.data || []);
     } catch (e) {
       logger.error('system', 'Erro admin dashboard', { erro: String(e) });
+      setErro(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -121,17 +124,25 @@ export default function AdminDashboardScreen() {
       >
         {/* KPI Grid */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Métricas do Município</Text>
-        <View style={styles.kpiGrid}>
-          {kpis.map((k) => (
-            <View key={k.label} style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-              <View style={[styles.kpiIcon, { backgroundColor: `${k.color}15` }]}>
-                <Feather name={k.icon as any} size={20} color={k.color} />
+        {erro && kpis.length === 0 ? (
+          <ErrorState
+            title="Erro ao carregar métricas"
+            message="Não foi possível buscar os dados do município. Puxe para atualizar."
+            onRetry={() => carregar()}
+          />
+        ) : (
+          <View style={styles.kpiGrid}>
+            {kpis.map((k) => (
+              <View key={k.label} style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                <View style={[styles.kpiIcon, { backgroundColor: `${k.color}15` }]}>
+                  <Feather name={k.icon as any} size={20} color={k.color} />
+                </View>
+                <Text style={[styles.kpiValue, { color: theme.text }]}>{k.value}</Text>
+                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
               </View>
-              <Text style={[styles.kpiValue, { color: theme.text }]}>{k.value}</Text>
-              <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
 
         {/* Menu de módulos */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Módulos de Gestão</Text>
@@ -152,7 +163,13 @@ export default function AdminDashboardScreen() {
 
         {/* Atividade recente */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Atividade Recente</Text>
-        {atividade.length === 0 ? (
+        {erro && atividade.length === 0 ? (
+          <ErrorState
+            title="Erro ao carregar atividades"
+            message="Não foi possível listar as atividades recentes. Puxe para atualizar."
+            onRetry={() => carregar()}
+          />
+        ) : atividade.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma atividade registrada.</Text>
           </View>

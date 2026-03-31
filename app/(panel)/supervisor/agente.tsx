@@ -8,6 +8,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { LoadingState } from '../../../components/ui/LoadingState';
+import { ErrorState } from '../../../components/ui/ErrorState';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 type FiltroRisco = 'todos' | 'alto' | 'medio' | 'baixo';
 
@@ -37,12 +40,14 @@ export default function AgenteVistoriasScreen() {
   const [agente, setAgente] = useState<any>(null);
   const [vistorias, setVistorias] = useState<any[]>([]);
   const [filtro, setFiltro] = useState<FiltroRisco>('todos');
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => { loadData(); }, [uid]);
 
   const loadData = async () => {
     if (!uid) return;
     setLoading(true);
+    setErro(null);
     try {
       const [agenteRes, vistoriasRes] = await Promise.all([
         supabase.from('users').select('name, email, municipio').eq('uid', uid).single(),
@@ -56,6 +61,7 @@ export default function AgenteVistoriasScreen() {
       setVistorias(vistoriasRes.data || []);
     } catch (e) {
       logger.error('system', 'Erro ao carregar agente', { erro: String(e) });
+      setErro('Ocorreu um erro ao carregar os detalhes do agente.');
     } finally {
       setLoading(false);
     }
@@ -74,11 +80,11 @@ export default function AgenteVistoriasScreen() {
   const baixo = vistorias.filter(v => v.nivelRisco === 'r1' || v.nivelRisco === 'baixo').length;
 
   if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
+    return <LoadingState message="Carregando dados..." />;
+  }
+
+  if (erro) {
+    return <ErrorState message={erro} onRetry={loadData} />;
   }
 
   return (
@@ -143,9 +149,13 @@ export default function AgenteVistoriasScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {filtradas.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma vistoria encontrada.</Text>
-          </View>
+          <EmptyState
+            icon="clipboard"
+            title="Sem atribuições"
+            description="Este agente não tem atribuições registradas ou compatíveis com o filtro."
+            actionLabel={filtro !== 'todos' ? 'Limpar filtros' : undefined}
+            onAction={filtro !== 'todos' ? () => setFiltro('todos') : undefined}
+          />
         ) : (
           filtradas.map(v => {
             const cor = riscoColor(v.nivelRisco);

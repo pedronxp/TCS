@@ -59,7 +59,9 @@ export async function getExpoPushToken(): Promise<string | null> {
   if (!Device.isDevice) return null;
 
   // Expo Go SDK 53+ removeu push remoto — só funciona em APK/dev build
-  if (Constants.appOwnership === 'expo') return null;
+  if (Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient') {
+    return null;
+  }
 
   try {
     const rawId =

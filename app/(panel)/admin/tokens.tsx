@@ -9,6 +9,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { LoadingState } from '../../../components/ui/LoadingState';
+import { ErrorState } from '../../../components/ui/ErrorState';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { Badge } from '../../../components/ui/Badge';
 
 const ROLE_LABELS: Record<string, string> = {
   agent: 'Agente', supervisor: 'Supervisor', admin: 'Administrador',
@@ -33,6 +37,7 @@ export default function TokensScreen() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [erro, setErro] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [limpando, setLimpando] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -66,8 +71,10 @@ export default function TokensScreen() {
 
       const { data } = await query;
       setTokens(data || []);
-    } catch (e) {
+      setErro(null);
+    } catch (e: any) {
       logger.error('token', 'Erro ao carregar tokens', { erro: String(e) });
+      setErro('Não foi possível carregar a lista de tokens. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -155,8 +162,22 @@ export default function TokensScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState />
+      </View>
+    );
+  }
+
+  if (erro) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
+          <ErrorState
+            title="Falha ao Carregar"
+            message={erro}
+            onRetry={loadTokens}
+          />
+        </View>
       </View>
     );
   }
@@ -191,18 +212,16 @@ export default function TokensScreen() {
 
         {/* Info */}
         <View style={styles.tokenInfo}>
-          <View style={styles.infoItem}>
-            <Feather name="shield" size={14} color={theme.textSecondary} />
-            <Text style={[styles.infoText, { color: theme.textSecondary }]}>{role}</Text>
-          </View>
+          <Badge label={role} variant={t.role} size="sm" />
           <View style={styles.infoItem}>
             <Feather name="map-pin" size={14} color={theme.textSecondary} />
             <Text style={[styles.infoText, { color: theme.textSecondary }]}>{t.municipio}</Text>
           </View>
-          <View style={styles.infoItem}>
-            <Feather name="clock" size={14} color={tempoCor} />
-            <Text style={[styles.infoText, { color: tempoCor, fontWeight: '700' }]}>{tempoTexto}</Text>
-          </View>
+          <Badge 
+            label={tempoTexto} 
+            variant={isExpirado ? 'error' : (tempoCor === '#F59E0B' ? 'warning' : 'success')} 
+            size="sm" 
+          />
         </View>
 
         {!isExpirado && (
@@ -255,19 +274,13 @@ export default function TokensScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {tokens.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Feather name="key" size={40} color={theme.textSecondary} style={{ marginBottom: 16 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhum token ativo</Text>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              Gere um token de convite para permitir que novos usuários criem conta.
-            </Text>
-            <TouchableOpacity
-              style={[styles.emptyBtn, { backgroundColor: theme.primary }]}
-              onPress={() => router.push('/(panel)/admin/gerar-token')}
-            >
-              <Text style={styles.emptyBtnText}>Gerar Token</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="key"
+            title="Nenhum token ativo"
+            description="Gere um token de convite para permitir que novos usuários criem conta."
+            actionLabel="Gerar Token"
+            onAction={() => router.push('/(panel)/admin/gerar-token')}
+          />
         ) : (
           <>
             {/* Tokens ativos */}

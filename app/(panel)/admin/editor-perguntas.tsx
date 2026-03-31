@@ -19,6 +19,9 @@ import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
+import { LoadingState } from '../../../components/ui/LoadingState';
+import { ErrorState } from '../../../components/ui/ErrorState';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -91,6 +94,7 @@ export default function EditorPerguntasScreen() {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [classificacao, setClassificacao] = useState<any>(null);
   const [tipoCalculo, setTipoCalculo] = useState<string>('soma_total');
+  const [erro, setErro] = useState<string | null>(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -100,6 +104,7 @@ export default function EditorPerguntasScreen() {
 
   const carregarFormulario = async () => {
     setLoading(true);
+    setErro(null);
     try {
       const { data, error } = await supabase
         .from('formularios')
@@ -134,7 +139,7 @@ export default function EditorPerguntasScreen() {
       setTipoCalculo((data as any)?.tipoCalculo ?? 'soma_total');
     } catch (e: any) {
       logger.error('form', 'Erro ao carregar perguntas', { erro: String(e) });
-      Alert.alert('Erro', 'Não foi possível carregar as perguntas.');
+      setErro('Não foi possível carregar as perguntas.');
     } finally {
       setLoading(false);
     }
@@ -358,8 +363,9 @@ export default function EditorPerguntasScreen() {
           styles.card,
           {
             backgroundColor: theme.surfaceHighlight,
-            borderColor: isEditing ? theme.primary : theme.border,
+            borderColor: isEditing ? theme.primary : theme.cardBorder,
             borderWidth: isEditing ? 2 : 1,
+            borderRadius: 14,
           },
         ]}
       >
@@ -648,14 +654,11 @@ export default function EditorPerguntasScreen() {
   // ─── Loading ──────────────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-          Carregando perguntas...
-        </Text>
-      </View>
-    );
+    return <LoadingState message="Carregando perguntas..." />;
+  }
+
+  if (erro) {
+    return <ErrorState message={erro} onRetry={carregarFormulario} />;
   }
 
   // ─── Main render ──────────────────────────────────────────────────────────
@@ -724,13 +727,13 @@ export default function EditorPerguntasScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {perguntas.length === 0 && (
-          <View style={[styles.emptyState, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-            <Feather name="help-circle" size={44} color={theme.textSecondary} style={{ marginBottom: 12 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhuma pergunta</Text>
-            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-              Toque em "+ Adicionar Pergunta" para começar a construir o formulário.
-            </Text>
-          </View>
+          <EmptyState
+            icon="list"
+            title="Nenhuma pergunta"
+            description="Adicione perguntas ao formulário."
+            actionLabel="Adicionar Pergunta"
+            onAction={adicionarPergunta}
+          />
         )}
 
         {perguntas.map((p, idx) => renderPerguntaCard(p, idx))}

@@ -1,0 +1,78 @@
+﻿{
+  "milestones": [
+    {
+      "heading": "Milestone: v1.1.0 ÔÇö Build Est├ível + UI Redesign + Qualidade",
+      "version": "v1.1.0"
+    }
+  ],
+  "phases": [
+    {
+      "number": "1",
+      "name": "Corre├º├Áes de Build e Depend├¬ncias",
+      "goal": "Garantir que o projeto compila sem erros e todas as depend├¬ncias est├úo alinhadas ao SDK 54.",
+      "depends_on": null,
+      "plan_count": 1,
+      "summary_count": 1,
+      "has_context": false,
+      "has_research": false,
+      "disk_status": "complete",
+      "roadmap_complete": false
+    },
+    {
+      "number": "2",
+      "name": "Design System ÔÇö Base Visual",
+      "goal": "Criar funda├º├úo de design consistente (cores, tipografia, espa├ºamento, componentes base) que ser├í usada por todas as telas nas fases seguintes.",
+      "depends_on": null,
+      "plan_count": 3,
+      "summary_count": 3,
+      "has_context": false,
+      "has_research": false,
+      "disk_status": "complete",
+      "roadmap_complete": false
+    },
+    {
+      "number": "3",
+      "name": "UI Redesign ÔÇö Auth + Agente",
+      "goal": "Aplicar o novo design system em todas as telas da jornada de autentica├º├úo e do painel do agente (telas mais usadas).",
+      "depends_on": null,
+      "plan_count": 14,
+      "summary_count": 14,
+      "has_context": false,
+      "has_research": true,
+      "disk_status": "complete",
+      "roadmap_complete": false
+    },
+    {
+      "number": "4",
+      "name": "UI Redesign ÔÇö Admin + Supervisor + Master",
+      "goal": "Aplicar o design system nas telas administrativas, com estados de erro/vazio implementados em todas as telas que hoje falham silenciosamente.",
+      "depends_on": null,
+      "plan_count": 4,
+      "summary_count": 2,
+      "has_context": false,
+      "has_research": true,
+      "disk_status": "partial",
+      "roadmap_complete": false
+    },
+    {
+      "number": "5",
+      "name": "Seguran├ºa + D├¡vida T├®cnica",
+      "goal": "Corrigir vulnerabilidades de seguran├ºa identificadas e eliminar duplica├º├úo de c├│digo com extra├º├úo para utils compartilhados.",
+      "depends_on": null,
+      "plan_count": 1,
+      "summary_count": 0,
+      "has_context": false,
+      "has_research": false,
+      "disk_status": "planned",
+      "roadmap_complete": false
+    }
+  ],
+  "phase_count": 5,
+  "completed_phases": 3,
+  "total_plans": 23,
+  "total_summaries": 20,
+  "progress_percent": 87,
+  "current_phase": "4",
+  "next_phase": null,
+  "missing_phase_details": null
+}

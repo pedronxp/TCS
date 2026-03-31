@@ -8,6 +8,33 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { ErrorState } from '../../../components/ui/ErrorState';
+
+/*
+  SQL to create the RPC in Supabase:
+  CREATE OR REPLACE FUNCTION get_municipios_stats()
+  RETURNS TABLE (
+    municipio TEXT,
+    total_vistorias BIGINT,
+    alto_risco BIGINT,
+    total_agentes BIGINT
+  ) AS $$
+  BEGIN
+    RETURN QUERY
+    WITH VStats AS (
+      SELECT v.municipio as mun, COUNT(*) as tv, SUM(CASE WHEN v."nivelRisco" IN ('r3', 'r4', 'alto') THEN 1 ELSE 0 END) as ar
+      FROM vistorias v WHERE v.municipio IS NOT NULL GROUP BY v.municipio
+    ),
+    UStats AS (
+      SELECT u.municipio as mun, COUNT(*) as ta FROM users u 
+      WHERE u.role = 'agent' AND u."isApproved" = true AND u.municipio IS NOT NULL GROUP BY u.municipio
+    ),
+    AllMuns AS (SELECT mun FROM VStats UNION SELECT mun FROM UStats)
+    SELECT m.mun as municipio, COALESCE(v.tv, 0) as total_vistorias, COALESCE(v.ar, 0) as alto_risco, COALESCE(u.ta, 0) as total_agentes
+    FROM AllMuns m LEFT JOIN VStats v ON m.mun = v.mun LEFT JOIN UStats u ON m.mun = u.mun;
+  END;
+  $$ LANGUAGE plpgsql;
+*/
 
 interface MunicipioData {
   nome: string;
@@ -21,6 +48,7 @@ export default function MunicipiosScreen() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const [municipios, setMunicipios] = useState<MunicipioData[]>([]);
   const [busca, setBusca] = useState('');
   const [expandedMun, setExpandedMun] = useState<string | null>(null);
@@ -33,15 +61,17 @@ export default function MunicipiosScreen() {
   const carregar = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
+    setErro(null);
     try {
-      const [vistoriasRes, usuariosRes, municipiosRes] = await Promise.all([
-        supabase.from('vistorias').select('municipio, nivelRisco'),
-        supabase.from('users').select('municipio, role').eq('role', 'agent').eq('isApproved', true),
+      const [statsRes, municipiosRes] = await Promise.all([
+        supabase.rpc('get_municipios_stats'),
         supabase.from('municipios').select('nome, dominios_email'),
       ]);
 
-      const vistorias = vistoriasRes.data || [];
-      const usuarios = usuariosRes.data || [];
+      if (statsRes.error) throw statsRes.error;
+      if (municipiosRes.error) throw municipiosRes.error;
+
+      const stats = statsRes.data || [];
       const munConfigs: Record<string, string[] | null> = {};
       (municipiosRes.data || []).forEach((m: any) => {
         munConfigs[m.nome] = m.dominios_email;
@@ -54,24 +84,26 @@ export default function MunicipiosScreen() {
         mapa[nome] = { nome, totalVistorias: 0, altoRisco: 0, agentes: 0, dominiosEmail: munConfigs[nome] };
       });
 
-      vistorias.forEach((v: any) => {
-        if (!v.municipio) return;
-        if (!mapa[v.municipio]) mapa[v.municipio] = { nome: v.municipio, totalVistorias: 0, altoRisco: 0, agentes: 0, dominiosEmail: munConfigs[v.municipio] ?? null };
-        mapa[v.municipio].totalVistorias++;
-        if (v.nivelRisco === 'r3' || v.nivelRisco === 'r4' || v.nivelRisco === 'alto') {
-          mapa[v.municipio].altoRisco++;
+      stats.forEach((s: any) => {
+        if (!s.municipio) return;
+        if (!mapa[s.municipio]) {
+          mapa[s.municipio] = { 
+            nome: s.municipio, 
+            totalVistorias: 0, 
+            altoRisco: 0, 
+            agentes: 0, 
+            dominiosEmail: munConfigs[s.municipio] ?? null 
+          };
         }
-      });
-
-      usuarios.forEach((u: any) => {
-        if (!u.municipio) return;
-        if (!mapa[u.municipio]) mapa[u.municipio] = { nome: u.municipio, totalVistorias: 0, altoRisco: 0, agentes: 0, dominiosEmail: munConfigs[u.municipio] ?? null };
-        mapa[u.municipio].agentes++;
+        mapa[s.municipio].totalVistorias += Number(s.total_vistorias || 0);
+        mapa[s.municipio].altoRisco += Number(s.alto_risco || 0);
+        mapa[s.municipio].agentes += Number(s.total_agentes || 0);
       });
 
       setMunicipios(Object.values(mapa).sort((a, b) => b.totalVistorias - a.totalVistorias));
-    } catch (e) {
+    } catch (e: any) {
       logger.error('system', 'Erro municípios', { erro: String(e) });
+      setErro('Não foi possível carregar os dados dos municípios.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -165,6 +197,20 @@ export default function MunicipiosScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
+
+  if (erro) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
+          <ErrorState
+            title="Falha ao Carregar"
+            message={erro}
+            onRetry={() => carregar(true)}
+          />
+        </View>
       </View>
     );
   }

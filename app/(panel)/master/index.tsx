@@ -9,12 +9,15 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { ErrorState } from '../../../components/ui/ErrorState';
+import { LoadingState } from '../../../components/ui/LoadingState';
 
 export default function MasterDashboardScreen() {
   const { theme } = useTheme();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [erro, setErro] = useState(false);
   const [stats, setStats] = useState({
     totalVistorias: 0, altoRisco: 0,
     totalUsuarios: 0, totalMunicipios: 0,
@@ -22,6 +25,7 @@ export default function MasterDashboardScreen() {
   const [municipios, setMunicipios] = useState<{ nome: string; count: number }[]>([]);
 
   const carregar = async (showRefresh = false) => {
+    setErro(false);
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
@@ -44,6 +48,7 @@ export default function MasterDashboardScreen() {
       }
     } catch (e) {
       logger.error('system', 'Erro master dashboard', { erro: String(e) });
+      setErro(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,11 +58,7 @@ export default function MasterDashboardScreen() {
   useFocusEffect(useCallback(() => { carregar(); }, []));
 
   if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
+    return <LoadingState message="Carregando painel principal..." />;
   }
 
   const MENU = [
@@ -98,6 +99,13 @@ export default function MasterDashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {erro && !loading && stats.totalVistorias === 0 && (
+          <ErrorState
+            title="Erro ao carregar dados"
+            message="Não foi possível buscar as estatísticas globais. Puxe para atualizar."
+            onRetry={() => carregar()}
+          />
+        )}
         {/* KPIs globais */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Visão Global</Text>
         <View style={styles.kpiGrid}>

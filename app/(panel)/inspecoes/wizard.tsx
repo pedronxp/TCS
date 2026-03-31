@@ -281,9 +281,10 @@ export default function WizardAvaliacaoScreen() {
       // UUID via crypto (Hermes suporta desde RN 0.73+)
       const id = generateUUID();
 
-      // Extrair foto_url das respostas (primeira pergunta do tipo 'foto' respondida)
-      const perguntaFoto = perguntas.find(p => p.tipo === 'foto' && respostas[p.id]);
-      const fotoUri = perguntaFoto ? respostas[perguntaFoto.id] : null;
+      // Extrair todas as fotos (principal e secundárias)
+      const perguntasFotos = perguntas.filter(p => p.tipo === 'foto' && respostas[p.id]);
+      const fotoUri = perguntasFotos.length > 0 ? respostas[perguntasFotos[0].id] : null;
+      const fotosUrlsArray = perguntasFotos.map(p => respostas[p.id]);
 
       const vistoriaLocal = {
         id,
@@ -304,6 +305,7 @@ export default function WizardAvaliacaoScreen() {
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
         foto_url: fotoUri,
+        fotos_urls: JSON.stringify(fotosUrlsArray),
         criado_em: agora,
       };
 
@@ -320,34 +322,13 @@ export default function WizardAvaliacaoScreen() {
         nivel
       ).catch(() => null);
 
-      // 2. Tentar sync imediato se online
+      // 2. Tentar sync imediato usando o serviço centralizado (que já faz o upload do Storage)
       if (isConnected) {
-        const { error } = await supabase.from('vistorias').upsert({
-          id,
-          agenteUid: vistoriaLocal.agente_uid,
-          agenteNome: vistoriaLocal.agente_nome,
-          municipio: vistoriaLocal.municipio,
-          enderecoRua: vistoriaLocal.endereco_rua,
-          enderecoNumero: vistoriaLocal.endereco_numero,
-          enderecoBairro: vistoriaLocal.endereco_bairro,
-          enderecoCep: vistoriaLocal.endereco_cep,
-          responsavelNome: vistoriaLocal.responsavel_nome,
-          latitude: vistoriaLocal.latitude,
-          longitude: vistoriaLocal.longitude,
-          dataVistoria: vistoriaLocal.data_vistoria,
-          formularioId: vistoriaLocal.formulario_id,
-          formularioVersao: vistoriaLocal.formulario_versao,
-          respostasJson: vistoriaLocal.respostas_json,
-          nivelRisco: nivel,
-          pontuacaoTotal: pontuacao,
-          endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
+        // Chamada assíncrona não-bloqueante importada do SyncService
+        import('../../../services/SyncService').then(({ syncPendentes }) => {
+          syncPendentes().catch(() => null);
         });
-        if (!error) {
-          markSincronizado(id);
-          logger.info('sync', `Vistoria sincronizada imediatamente após salvar`, { id });
-        } else {
-          logger.warn('sync', `Falha no sync imediato — ficará pendente`, { id, erro: error.message });
-        }
+        logger.info('sync', `Upload em background agendado para a vistoria`, { id });
       } else {
         logger.info('vistoria', `Offline — vistoria ficará pendente de sync`, { id });
       }

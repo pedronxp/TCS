@@ -9,6 +9,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { ErrorState } from '../../../components/ui/ErrorState';
 
 interface Atribuicao {
   id: string;
@@ -44,12 +45,14 @@ export default function SupervisorDashboardScreen() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [erro, setErro] = useState(false);
   const [vistorias, setVistorias] = useState<any[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
   const [agentesAtivos, setAgentesAtivos] = useState(0);
 
   const carregar = async (showRefresh = false) => {
     if (!profile) return;
+    setErro(false);
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
@@ -78,6 +81,7 @@ export default function SupervisorDashboardScreen() {
       setAtribuicoes(atribuicoesRes.data || []);
     } catch (e) {
       logger.error('system', 'Erro supervisor dashboard', { erro: String(e) });
+      setErro(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -147,6 +151,13 @@ export default function SupervisorDashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {erro && !loading && (
+          <ErrorState
+            title="Erro ao carregar dados"
+            message="Falha ao buscar vistorias e atribuições. Puxe para atualizar."
+            onRetry={() => carregar()}
+          />
+        )}
         {/* Alerta alto risco */}
         {altoRisco > 0 && (
           <TouchableOpacity

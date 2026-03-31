@@ -382,7 +382,7 @@ export default function MapasScreen() {
         <WebView
           key={`${mapStyle}-${filter}-${filtroPeriodo}-${showHeatmap}`}
           ref={webviewRef}
-          source={{ html, baseUrl: 'https://localhost' }}
+          source={{ html, baseUrl: '' }}
           style={[StyleSheet.absoluteFillObject, { backgroundColor: mapStyle === 'escuro' ? '#0B0F19' : '#E8EDF2' }]}
           javaScriptEnabled
           domStorageEnabled
