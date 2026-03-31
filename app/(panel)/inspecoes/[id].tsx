@@ -4,64 +4,98 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
+import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
-
-function riscoLabel(nivel: string) {
-  if (nivel === 'r4') return 'CRÍTICO';
-  if (nivel === 'r3') return 'ALTO';
-  if (nivel === 'r2') return 'MÉDIO';
-  return 'BAIXO';
-}
-function riscoColor(nivel: string) {
-  if (nivel === 'r4' || nivel === 'r3') return '#EF4444';
-  if (nivel === 'r2') return '#F59E0B';
-  return '#10B981';
-}
-function formatarData(dt: string | null) {
-  if (!dt) return '—';
-  return new Date(dt).toLocaleDateString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
+import { getVistoriaById } from '../../../utils/database';
+import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarData } from '../../../utils/htmlUtils';
+import { VistoriaNormalizada } from '../../../types/vistoria';
 
 export default function VistoriaDetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
   const { initReport } = useReport();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [vistoria, setVistoria] = useState<any>(null);
+  const [vistoria, setVistoria] = useState<VistoriaNormalizada | null>(null);
 
   useEffect(() => { if (id) fetchDetalhes(); }, [id]);
 
+  const populateReport = (data: any) => {
+    let respostas: Record<string, string> = {};
+    try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
+    initReport({
+      vistoriaId: data.id,
+      protocolo: (data.id || '').slice(0, 8).toUpperCase(),
+      endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
+      municipio: data.municipio || '',
+      agenteNome: data.agenteNome || '',
+      dataVistoria: data.dataVistoria || '',
+      formularioId: data.formularioId || 'Padrão',
+      nivelRisco: data.nivelRisco || 'r1',
+      pontuacaoTotal: data.pontuacaoTotal ?? 0,
+      respostas,
+      condutaRecomendada: '',
+      observacoesTecnicas: '',
+      cargo: 'Agente de Defesa Civil',
+    });
+  };
+
   const fetchDetalhes = async () => {
     try {
-      const { data, error } = await supabase
+      // Construir query com filtros de segurança por role
+      let query = supabase
         .from('vistorias')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (error) throw error;
-      setVistoria(data);
-      // Popula o ReportContext para edição inline no relatorio.tsx
-      let respostas: Record<string, string> = {};
-      try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
-      initReport({
-        vistoriaId: data.id,
-        protocolo: (data.id || '').slice(0, 8).toUpperCase(),
-        endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
-        municipio: data.municipio || '',
-        agenteNome: data.agenteNome || '',
-        dataVistoria: data.dataVistoria || '',
-        formularioId: data.formularioId || 'Padrão',
-        nivelRisco: data.nivelRisco || 'r1',
-        pontuacaoTotal: data.pontuacaoTotal ?? 0,
-        respostas,
-        condutaRecomendada: '',
-        observacoesTecnicas: '',
-        cargo: 'Agente de Defesa Civil',
-      });
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status')
+        .eq('id', id as string);
+
+      // Agentes só veem suas próprias vistorias
+      if (profile?.role === 'agent') {
+        query = query.eq('agenteUid', profile.uid);
+      }
+      // Admin e supervisor só veem vistorias do seu município
+      if (profile?.role !== 'master_admin' && profile?.municipio) {
+        query = query.eq('municipio', profile.municipio);
+      }
+
+      const { data, error } = await query.single();
+
+      if (!error && data) {
+        setVistoria(data);
+        populateReport(data);
+        return;
+      }
+
+      // Fallback: SQLite local (vistorias não sincronizadas)
+      const local = getVistoriaById(id as string);
+      if (local) {
+        // Verificar se pertence ao agente atual (segurança offline)
+        if (profile?.role === 'agent' && local.agente_uid !== profile.uid) {
+          logger.warn('vistoria', 'Acesso negado — vistoria de outro agente (SQLite)');
+          return;
+        }
+        setVistoria({
+          id: local.id,
+          nivelRisco: local.nivel_risco,
+          pontuacaoTotal: local.pontuacao_total,
+          endereco: `${local.endereco_rua}, ${local.endereco_numero} — ${local.endereco_bairro}`,
+          enderecoRua: local.endereco_rua,
+          enderecoNumero: local.endereco_numero,
+          enderecoBairro: local.endereco_bairro,
+          municipio: local.municipio,
+          dataVistoria: local.data_vistoria,
+          agenteNome: local.agente_nome,
+          agenteUid: local.agente_uid,
+          responsavelNome: local.responsavel_nome,
+          respostasJson: local.respostas_json,
+          formularioId: local.formulario_id,
+          status: 'Pendente Sync',
+        });
+        return;
+      }
+
+      logger.warn('vistoria', 'Vistoria não encontrada — Supabase e SQLite');
     } catch (e) {
       logger.error('vistoria', 'Erro ao buscar vistoria', { erro: String(e) });
     } finally {
