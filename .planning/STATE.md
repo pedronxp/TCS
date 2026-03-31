@@ -1,62 +1,43 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1.0
-milestone_name: — Build Estável + UI Redesign + Qualidade
-status: executing
-stopped_at: Completed 05-seguranca-divida-tecnica/05-PLAN.md
-last_updated: "2026-03-31T05:16:24.974Z"
+milestone_name: Build Estável + UI Redesign + Qualidade
+status: complete
+stopped_at: Milestone v1.1.0 arquivado
+last_updated: "2026-03-31T10:00:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 21
-  completed_plans: 13
+  completed_phases: 5
+  total_plans: 23
+  completed_plans: 23
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 03 (ui-auth-agente) — EXECUTING
-Plan: 2 of 14
-**Phase 01:** Correções de Build e Dependências
-**Status:** Ready to execute
+**Milestone v1.1.0: CONCLUÍDO** — 2026-03-31
+
+Todas as 5 fases executadas. App com build estável, design system completo, todas as telas padronizadas.
 
 ## Phase Progress
 
 | Phase | Name | Plans | Status |
 |-------|------|-------|--------|
-| 01 | Correções de Build | 1 | Verifying |
-| 02 | Design System | 1 | Pending |
-| 03 | UI Auth + Agente | 1 | Pending |
-| 04 | UI Admin + Supervisor + Master | 1 | Pending |
-| 05 | Segurança + Dívida Técnica | 1 | Pending |
+| 01 | Correções de Build | 1/1 | ✅ Completa |
+| 02 | Design System | 3/3 | ✅ Completa |
+| 03 | UI Auth + Agente | 14/14 | ✅ Completa |
+| 04 | UI Admin + Supervisor + Master | 4/4 | ✅ Completa |
+| 05 | Segurança + Dívida Técnica | 1/1 | ✅ Completa |
 
-## Decisions
+## Project Reference
 
-| Phase | Decision |
-|-------|----------|
-| 01-correcoes-build | Versões SDK 54 obtidas do manifesto oficial (npx expo install --check) por serem mais precisas que a tabela do plano |
-| 01-correcoes-build | 15 permissões Android restantes (plano dizia 16 por contagem incorreta original de 18 itens) |
+Ver: .planning/PROJECT.md (atualizado 2026-03-31)
 
-- [Phase 02-design-system]: No external UI library — all components built from react-native primitives and existing @expo/vector-icons
-- [Phase 02-design-system]: BottomNavBar memoized without custom comparator — zero-props component relies entirely on hook changes
-- [Phase 02-design-system]: ThemeContext unchanged — typeof Colors.light inference auto-propagates new tokens to all consumers
-- [Phase 02-design-system-gap-02]: BottomNavBarInner receives role+pathname as props — React.memo skips re-renders when AuthContext changes without role change
-- [Phase 02-design-system-gap-01]: primaryText (#1E40AF) separate from primaryDark (#1D4ED8) — different surfaces, both AA compliant
-- [Phase 02-design-system-gap-01]: *Text token suffix convention established: text-on-*Light backgrounds always use dedicated *Text high-contrast token
-- [Phase 05-seguranca-divida-tecnica]: laudoPdfBuilder.ts uses resultado.tsx design as canonical; SyncService uses dynamic import for NotificationService guarded by Constants.appOwnership to prevent Expo Go crash
+**Core value:** App offline-first para vistorias técnicas de risco estrutural em campo
+**Focus atual:** Planejamento do próximo milestone
 
-## Performance Metrics
+## Session Continuity
 
-| Phase | Plan | Duration (s) | Tasks | Files |
-|-------|------|-------------|-------|-------|
-| 01-correcoes-build | 01 | 559 | 3 | 3 |
-| Phase 02-design-system P01 | 756 | 7 tasks | 12 files |
-| Phase 02-design-system Pgap-02 | 120 | 1 tasks | 1 files |
-| Phase 02-design-system Pgap-01 | 600 | 2 tasks | 3 files |
-| Phase 05-seguranca-divida-tecnica P05 | 1800 | 12 tasks | 22 files |
-
-## Last Session
-
-- **Stopped at:** Completed 05-seguranca-divida-tecnica/05-PLAN.md
-- **Timestamp:** 2026-03-29T23:15:00Z
+Last session: 2026-03-31
+Stopped at: Milestone v1.1.0 arquivado — próximo passo: /gsd:new-milestone

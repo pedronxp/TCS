@@ -23,9 +23,44 @@ Aplicativo mobile para agentes da Defesa Civil realizarem vistorias técnicas de
 - Verificar `isApproved` após login antes de navegar
 - Hierarquia: master_admin > admin > supervisor > agent
 
-## Status Atual
-PDR Fases 0–5 concluídas (~99%). App funcional com todas as telas implementadas.
-**Fase 01 completa (2026-03-29):** Dependências alinhadas ao SDK 54, canary removido, Jest config corrigida, permissões Android enxutas.
+## Estado Atual (v1.1.0 — 2026-03-31)
+
+App com build estável, design system completo e todas as telas implementadas e padronizadas.
+
+- ✓ Build Android compila sem erros (SDK 54)
+- ✓ Design System: Colors (WCAG AA), Typography, Spacing, 7 componentes UI
+- ✓ Todas as telas redesenhadas com design system
+- ✓ Segurança: SecureStore, logs sanitizados, utils consolidados
+- ✓ Tema automático baseado no dispositivo (sem dialog)
+- ✓ ~18.989 linhas TS/TSX
+
+## Requisitos Validados (v1.1.0)
+
+- ✓ Build Android sem erros — v1.1.0
+- ✓ Dependências alinhadas ao SDK 54 — v1.1.0
+- ✓ Design system com contraste WCAG AA — v1.1.0
+- ✓ Componentes UI reutilizáveis (Button, Card, Badge, etc.) — v1.1.0
+- ✓ Telas Auth + Agente redesenhadas — v1.1.0
+- ✓ Telas Admin/Supervisor/Master padronizadas — v1.1.0
+- ✓ Fallback offline SQLite na tela de detalhe de vistoria — v1.1.0
+- ✓ Logs sanitizados (sem dados sensíveis) — v1.1.0
+- ✓ Utils consolidados (riscoUtils, htmlUtils, laudoPdfBuilder) — v1.1.0
+
+## Decisões Chave
+
+| Decisão | Racional | Resultado |
+|---------|----------|-----------|
+| Versões SDK obtidas do `npx expo install --check` | Mais preciso que tabela manual | ✓ Bom |
+| Sem lib UI externa — primitives + @expo/vector-icons | Sem lock-in, controle total | ✓ Bom |
+| BottomNavBar memoizado sem comparator customizado | Zero-props component | ✓ Bom |
+| ThemeContext sem dialog — padrão 'system' automático | Menos fricção no onboarding | ✓ Bom |
+| Dynamic import NotificationService no SyncService | Evita crash no Expo Go | ✓ Bom |
+| laudoPdfBuilder.ts usa resultado.tsx como canônico | Consistência visual | ✓ Bom |
+| Button aceita children como fallback para label | API mais ergonômica | ✓ Bom |
+| RPC get_municipios_stats opcional (warn, não throw) | Tela funciona sem RPC | ✓ Bom |
 
 ## applicationId
 `br.gov.defesacivil.app`
+
+---
+*Última atualização: 2026-03-31 após milestone v1.1.0*
