@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
+import { logger } from '../utils/logger';
 
 // Configuração do handler de notificações (deve ficar no topo do módulo)
 Notifications.setNotificationHandler({
@@ -75,7 +76,7 @@ export async function getExpoPushToken(): Promise<string | null> {
 
     return tokenData.data;
   } catch (e) {
-    console.log('Erro ao obter push token:', e);
+    logger.warn('notifications', 'Erro ao obter push token', { erro: String(e) });
     return null;
   }
 }
@@ -98,7 +99,7 @@ export async function registrarPushToken(): Promise<void> {
       .update({ fcmToken: token })
       .eq('uid', session.user.id);
   } catch (e) {
-    console.log('Erro ao registrar push token:', e);
+    logger.warn('notifications', 'Erro ao registrar push token', { erro: String(e) });
   }
 }
 
