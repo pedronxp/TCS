@@ -2,6 +2,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { supabase } from '../utils/supabase';
 import {
   getVistoriasNaoSincronizadas,
@@ -11,8 +12,19 @@ import {
   VistoriaLocal,
   getDb,
 } from '../utils/database';
-import { notificarSincronizacao } from './NotificationService';
 import { logger } from '../utils/logger';
+
+/**
+ * Wrapper de notificação — importação dinâmica para evitar crash do expo-notifications
+ * no Expo Go (onde push remoto não é suportado no SDK 53+).
+ */
+async function notificarSincronizacao(count: number): Promise<void> {
+  if (Constants.appOwnership === 'expo') return;
+  try {
+    const { notificarSincronizacao: notify } = await import('./NotificationService');
+    await notify(count);
+  } catch { /* não crítico */ }
+}
 
 const MAX_TENTATIVAS_SYNC = 5;
 const BATCH_SIZE = 20; // Máximo de vistorias por request ao Supabase

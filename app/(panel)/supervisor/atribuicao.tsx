@@ -9,6 +9,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
+import { notificarNovaAtribuicao } from '../../../services/NotificationService';
 
 const PRIORIDADES = [
   { key: 'baixa', label: 'Baixa', color: '#3B82F6' },

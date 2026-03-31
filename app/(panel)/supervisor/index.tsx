@@ -45,7 +45,7 @@ export default function SupervisorDashboardScreen() {
       const [vistoriasRes, agentesRes, atribuicoesRes] = await Promise.all([
         supabase
           .from('vistorias')
-          .select('id, nivelRisco, endereco, dataVistoria, agenteNome')
+          .select('id, nivelRisco, pontuacaoTotal, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
           .eq('municipio', profile.municipio)
           .order('dataVistoria', { ascending: false })
           .limit(20),
@@ -83,7 +83,7 @@ export default function SupervisorDashboardScreen() {
   // Ranking de agentes (mês atual)
   const agora = new Date();
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
-  const vistoriasMes = vistorias.filter(v => v.dataVistoria >= inicioMes);
+  const vistoriasMes = vistorias.filter(v => (v.dataVistoria ?? '') >= inicioMes);
   const contagem: Record<string, number> = {};
   vistoriasMes.forEach(v => {
     const nome = v.agenteNome || '?';
