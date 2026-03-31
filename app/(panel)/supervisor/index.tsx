@@ -9,6 +9,9 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { riscoColor } from '../../../utils/riscoUtils';
+import { tempoRelativo } from '../../../utils/htmlUtils';
+import { VistoriaNormalizada } from '../../../types/vistoria';
 
 interface Atribuicao {
   id: string;
@@ -24,27 +27,13 @@ function prioridadeColor(p: string) {
   return '#3B82F6';
 }
 
-function riscoColor(nivel: string) {
-  if (nivel === 'r3' || nivel === 'r4' || nivel === 'alto') return '#EF4444';
-  if (nivel === 'r2' || nivel === 'medio') return '#F59E0B';
-  return '#10B981';
-}
-
-function tempoRelativo(dt: string | null) {
-  if (!dt) return '';
-  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
-  if (diff < 3600) return `há ${Math.floor(diff / 60)}min`;
-  if (diff < 86400) return `há ${Math.floor(diff / 3600)}h`;
-  if (diff < 172800) return 'ontem';
-  return `há ${Math.floor(diff / 86400)}d`;
-}
 
 export default function SupervisorDashboardScreen() {
   const { theme } = useTheme();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [vistorias, setVistorias] = useState<any[]>([]);
+  const [vistorias, setVistorias] = useState<VistoriaNormalizada[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
   const [agentesAtivos, setAgentesAtivos] = useState(0);
 

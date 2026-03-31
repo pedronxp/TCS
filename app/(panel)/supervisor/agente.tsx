@@ -8,27 +8,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { riscoColor, riscoLabel } from '../../../utils/riscoUtils';
+import { formatarData } from '../../../utils/htmlUtils';
 
 type FiltroRisco = 'todos' | 'alto' | 'medio' | 'baixo';
 
-function riscoColor(nivel: string) {
-  if (nivel === 'r3' || nivel === 'r4' || nivel === 'alto') return '#EF4444';
-  if (nivel === 'r2' || nivel === 'medio') return '#F59E0B';
-  return '#10B981';
-}
-
-function riscoLabel(nivel: string) {
-  if (nivel === 'r3' || nivel === 'alto') return 'ALTO';
-  if (nivel === 'r4') return 'CRÍTICO';
-  if (nivel === 'r2' || nivel === 'medio') return 'MÉDIO';
-  return 'BAIXO';
-}
-
-function formatarData(dt: string | null) {
-  if (!dt) return '—';
-  const d = new Date(dt);
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
 
 export default function AgenteVistoriasScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();

@@ -8,6 +8,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { getLogs, clearLogs, countLogsByLevel, LogEntry, LogLevel } from '../../../utils/logger';
 import { supabase } from '../../../utils/supabase';
 import { useAuth } from '../../../context/AuthContext';
+import { tempoRelativo } from '../../../utils/htmlUtils';
 
 const LEVEL_CONFIG: Record<LogLevel, { color: string; bg: string; icon: string; label: string }> = {
   info:  { color: '#3B82F6', bg: 'rgba(59,130,246,0.1)',  icon: 'info',           label: 'Info' },
@@ -35,16 +36,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   system:   'Sistema',
 };
 
-function tempoRelativo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  const horas = Math.floor(mins / 60);
-  const dias = Math.floor(horas / 24);
-  if (dias > 0) return `há ${dias} dia${dias > 1 ? 's' : ''}`;
-  if (horas > 0) return `há ${horas}h`;
-  if (mins > 0) return `há ${mins}min`;
-  return 'agora mesmo';
-}
 
 const AUDIT_ACTION_LABELS: Record<string, { label: string; color: string; icon: string }> = {
   usuario_aprovado:      { label: 'Aprovação',  color: '#10B981', icon: 'user-check' },

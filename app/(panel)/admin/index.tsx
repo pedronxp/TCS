@@ -10,6 +10,9 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
+import { riscoColor } from '../../../utils/riscoUtils';
+import { tempoRelativo } from '../../../utils/htmlUtils';
+import { AtividadeItem } from '../../../types/vistoria';
 
 interface KPI {
   label: string;
@@ -18,19 +21,6 @@ interface KPI {
   color: string;
 }
 
-function riscoColor(nivel: string) {
-  if (nivel === 'r3' || nivel === 'r4' || nivel === 'alto') return '#EF4444';
-  if (nivel === 'r2' || nivel === 'medio') return '#F59E0B';
-  return '#10B981';
-}
-
-function tempoRelativo(dt: string | null) {
-  if (!dt) return '';
-  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
-  if (diff < 3600) return `há ${Math.floor(diff / 60)}min`;
-  if (diff < 86400) return `há ${Math.floor(diff / 3600)}h`;
-  return `há ${Math.floor(diff / 86400)}d`;
-}
 
 export default function AdminDashboardScreen() {
   const { theme } = useTheme();
@@ -38,7 +28,7 @@ export default function AdminDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [kpis, setKpis] = useState<KPI[]>([]);
-  const [atividade, setAtividade] = useState<any[]>([]);
+  const [atividade, setAtividade] = useState<AtividadeItem[]>([]);
 
   const carregar = async (showRefresh = false) => {
     if (!profile) return;

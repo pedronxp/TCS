@@ -8,6 +8,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { riscoColor } from '../../../utils/riscoUtils';
 
 type Periodo = '7d' | '30d' | '90d';
 
@@ -21,11 +22,6 @@ function getDias(periodo: Periodo): number {
   return periodo === '7d' ? 7 : periodo === '30d' ? 30 : 90;
 }
 
-function riscoColor(nivel: string) {
-  if (nivel === 'r3' || nivel === 'r4' || nivel === 'alto') return '#EF4444';
-  if (nivel === 'r2' || nivel === 'medio') return '#F59E0B';
-  return '#10B981';
-}
 
 interface BarData {
   label: string;
