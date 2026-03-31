@@ -68,10 +68,19 @@ export default function MunicipiosScreen() {
         supabase.from('municipios').select('nome, dominios_email'),
       ]);
 
-      if (statsRes.error) throw statsRes.error;
-      if (municipiosRes.error) throw municipiosRes.error;
+      if (municipiosRes.error) {
+        const msg = municipiosRes.error.message || JSON.stringify(municipiosRes.error);
+        logger.error('system', 'Erro tabela municipios', { erro: msg, code: municipiosRes.error.code });
+        throw new Error(msg);
+      }
 
-      const stats = statsRes.data || [];
+      // RPC pode não existir ainda — tratado como aviso, não falha total
+      if (statsRes.error) {
+        const msg = statsRes.error.message || JSON.stringify(statsRes.error);
+        logger.warn('system', 'RPC get_municipios_stats indisponível', { erro: msg, code: statsRes.error.code });
+      }
+
+      const stats = statsRes.error ? [] : (statsRes.data || []);
       const munConfigs: Record<string, string[] | null> = {};
       (municipiosRes.data || []).forEach((m: any) => {
         munConfigs[m.nome] = m.dominios_email;
@@ -87,12 +96,12 @@ export default function MunicipiosScreen() {
       stats.forEach((s: any) => {
         if (!s.municipio) return;
         if (!mapa[s.municipio]) {
-          mapa[s.municipio] = { 
-            nome: s.municipio, 
-            totalVistorias: 0, 
-            altoRisco: 0, 
-            agentes: 0, 
-            dominiosEmail: munConfigs[s.municipio] ?? null 
+          mapa[s.municipio] = {
+            nome: s.municipio,
+            totalVistorias: 0,
+            altoRisco: 0,
+            agentes: 0,
+            dominiosEmail: munConfigs[s.municipio] ?? null
           };
         }
         mapa[s.municipio].totalVistorias += Number(s.total_vistorias || 0);
@@ -102,7 +111,8 @@ export default function MunicipiosScreen() {
 
       setMunicipios(Object.values(mapa).sort((a, b) => b.totalVistorias - a.totalVistorias));
     } catch (e: any) {
-      logger.error('system', 'Erro municípios', { erro: String(e) });
+      const msg = e?.message || JSON.stringify(e);
+      logger.error('system', 'Erro municípios', { erro: msg });
       setErro('Não foi possível carregar os dados dos municípios.');
     } finally {
       setLoading(false);
@@ -137,7 +147,7 @@ export default function MunicipiosScreen() {
       setEditandoDominio(null);
     } catch (e) {
       Alert.alert('Erro', 'Não foi possível salvar.');
-      logger.error('system', 'Erro salvar domínio', { erro: String(e) });
+      logger.error('system', 'Erro salvar domínio', { erro: (e as any)?.message || JSON.stringify(e) });
     } finally {
       setSalvando(false);
     }
@@ -163,7 +173,7 @@ export default function MunicipiosScreen() {
       Alert.alert('Município criado', `"${nome}" foi adicionado com sucesso.`);
     } catch (e: any) {
       Alert.alert('Erro', e.message || 'Não foi possível criar o município.');
-      logger.error('system', 'Erro criar município', { erro: String(e) });
+      logger.error('system', 'Erro criar município', { erro: (e as any)?.message || JSON.stringify(e) });
     } finally {
       setSalvando(false);
     }
