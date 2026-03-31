@@ -360,21 +360,11 @@ export default function MapasScreen() {
             Sem conexão e nenhuma vistoria local.{'\n'}Reconecte para carregar.
           </Text>
         </View>
-      ) : Platform.OS === 'ios' ? (
-        <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
-          <Feather name="map" size={48} color={theme.border} />
-          <Text style={[styles.loadingText, { color: theme.text, fontWeight: '700', fontSize: 16 }]}>
-            Mapa indisponível no iOS
-          </Text>
-          <Text style={[styles.loadingText, { color: theme.textSecondary, textAlign: 'center', marginTop: -8 }]}>
-            Este recurso está disponível{'\n'}apenas na versão Android.
-          </Text>
-        </View>
       ) : (
         <WebView
           key={`${mapStyle}-${filter}-${filtroPeriodo}-${showHeatmap}`}
           ref={webviewRef}
-          source={{ html, baseUrl: '' }}
+          source={{ html, baseUrl: 'https://unpkg.com' }}
           style={[StyleSheet.absoluteFillObject, { backgroundColor: mapStyle === 'escuro' ? '#0B0F19' : '#E8EDF2' }]}
           javaScriptEnabled
           domStorageEnabled
