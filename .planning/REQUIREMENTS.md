@@ -60,17 +60,17 @@
 
 | REQ-ID | Fase | Status |
 |--------|------|--------|
-| MAPA-01 | — | pending |
-| MAPA-02 | — | pending |
-| AUTH-01 | — | pending |
-| AUTH-02 | — | pending |
-| FORM-01 | — | pending |
-| FORM-02 | — | pending |
-| FORM-03 | — | pending |
-| SYNC-01 | — | pending |
-| UX-01 | — | pending |
-| UX-02 | — | pending |
+| MAPA-01 | Phase 06 | pending |
+| MAPA-02 | Phase 06 | pending |
+| AUTH-01 | Phase 06 | pending |
+| AUTH-02 | Phase 06 | pending |
+| FORM-01 | Phase 07 | pending |
+| FORM-02 | Phase 07 | pending |
+| FORM-03 | Phase 07 | pending |
+| SYNC-01 | Phase 08 | pending |
+| UX-01 | Phase 09 | pending |
+| UX-02 | Phase 09 | pending |
 
 ---
 
-*Última atualização: 2026-03-31 — Milestone v1.2.0 requisitos definidos*
+*Última atualização: 2026-03-31 — Roadmap v1.2.0 criado, fases 06-09 mapeadas*
