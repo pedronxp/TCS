@@ -1088,7 +1088,78 @@ Wave 4 (dependem de 5.7/5.6 nos arquivos de tela):
   5.4 — inspecoes/[id].tsx (filtros + fallback SQLite)
   5.5 — SyncService.ts (VACUUM limitado)
   5.10 — resultado.tsx (botão Compartilhar)
+  5.12 — SyncService.ts (import dinâmico NotificationService — independente)
 ```
+
+---
+
+## TAREFA 5.12 — Corrigir erro de push notifications no Expo Go (SDK 53+)
+
+**Arquivo:** `services/SyncService.ts`
+
+**Contexto do erro:**
+
+Ao abrir qualquer tela do painel (ex.: mapa), o `_layout.tsx` carrega `SyncService`, que tem um import **estático** de `NotificationService`. Esse import por sua vez faz `import * as Notifications from 'expo-notifications'`, cujo módulo `DevicePushTokenAutoRegistration.fx.js` registra um listener de push token **no momento do carregamento do módulo** — antes de qualquer guard nosso ser executado. No Expo Go SDK 53+, esse listener lança:
+
+```
+ERROR expo-notifications: Android Push notifications (remote notifications) functionality
+provided by expo-notifications was removed from Expo Go with the release of SDK 53.
+```
+
+**Causa raiz:** import estático em `SyncService.ts` linha 13:
+
+```typescript
+import { notificarSincronizacao } from './NotificationService';
+```
+
+Isso força o carregamento do módulo `expo-notifications` no boot do app, disparando o efeito colateral nativo antes de qualquer código de guard.
+
+**O que fazer:**
+
+1. Remover o import estático do `NotificationService` em `SyncService.ts` (linha 13):
+
+```typescript
+// REMOVER esta linha:
+import { notificarSincronizacao } from './NotificationService';
+```
+
+2. Adicionar import de `Constants` no topo de `SyncService.ts` (junto com os outros imports):
+
+```typescript
+import Constants from 'expo-constants';
+```
+
+3. Substituir todas as chamadas a `notificarSincronizacao(...)` em `SyncService.ts` por import dinâmico com guard:
+
+```typescript
+// ANTES (qualquer ocorrência de):
+await notificarSincronizacao(...args);
+
+// DEPOIS — import dinâmico, só carrega o módulo em build real:
+if (Constants.appOwnership !== 'expo') {
+  const { notificarSincronizacao } = await import('./NotificationService');
+  await notificarSincronizacao(...args);
+}
+```
+
+> **Atenção:** Manter o número exato de argumentos de cada chamada. Usar `grep -n "notificarSincronizacao" services/SyncService.ts` para listar todas as ocorrências antes de editar.
+
+**Critério de verificação:**
+
+```bash
+# 1. Import estático removido
+grep -n "import.*notificarSincronizacao" services/SyncService.ts
+# Esperado: retorno vazio
+
+# 2. TypeScript compila
+npx tsc --noEmit
+# Esperado: sem saída
+
+# 3. No Expo Go, abrir o painel não deve exibir o erro de push notifications
+# Abrir o app no Expo Go e navegar para (panel) — o ERROR deve sumir do Metro
+```
+
+**Feito quando:** O painel carrega no Expo Go sem o erro `expo-notifications: Android Push notifications... was removed from Expo Go`.
 
 ---
 
@@ -1130,3 +1201,4 @@ npx tsc --noEmit
 - Foto tirada no wizard persistida no SQLite (`foto_url` preenchido)
 - Filtros de `municipio` e `agenteUid` aplicados na query de `inspecoes/[id].tsx`
 - `TypeScript` compila sem erros (`npx tsc --noEmit` limpo)
+- Painel abre no Expo Go sem o erro `expo-notifications: Android Push notifications was removed from Expo Go`
