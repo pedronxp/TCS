@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { tempoRelativo } from '../../../utils/htmlUtils';
 
 interface AgenteCard {
   uid: string;
@@ -18,15 +19,6 @@ interface AgenteCard {
   medio: number;
   baixo: number;
   ultima: string | null;
-}
-
-function tempoRelativo(dt: string | null) {
-  if (!dt) return 'Sem atividade';
-  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
-  if (diff < 3600) return `há ${Math.floor(diff / 60)}min`;
-  if (diff < 86400) return `há ${Math.floor(diff / 3600)}h`;
-  if (diff < 172800) return 'ontem';
-  return `há ${Math.floor(diff / 86400)}d`;
 }
 
 export default function EquipeScreen() {

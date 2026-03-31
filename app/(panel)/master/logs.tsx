@@ -8,6 +8,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { tempoRelativo } from '../../../utils/htmlUtils';
 
 type NivelFiltro = 'todos' | 'info' | 'aviso' | 'erro';
 
@@ -18,15 +19,6 @@ const NIVEL_CONFIG: Record<string, { color: string; icon: string; label: string 
   warning: { color: '#F59E0B', icon: 'alert-triangle', label: 'AVISO' },
   error: { color: '#EF4444', icon: 'x-circle', label: 'ERRO' },
 };
-
-function tempoRelativo(dt: string | null) {
-  if (!dt) return '';
-  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
-  if (diff < 60) return 'agora';
-  if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
-  return `${Math.floor(diff / 86400)}d atrás`;
-}
 
 export default function LogsScreen() {
   const { theme } = useTheme();

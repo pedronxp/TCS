@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio } from '../../utils/database';
 import { logger } from '../../utils/logger';
+import { escapeHtml } from '../../utils/htmlUtils';
 
 interface VistoriaMarker {
   id: string;
@@ -80,15 +81,6 @@ function getRiscoColor(nivel: string) {
   if (nivel === 'r3') return '#F97316';
   if (nivel === 'r2') return '#F59E0B';
   return '#10B981';
-}
-
-function escapeHtml(str: string): string {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }
 
 function buildHtml(
