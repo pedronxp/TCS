@@ -59,8 +59,39 @@ App com build estável, design system completo e todas as telas implementadas e 
 | Button aceita children como fallback para label | API mais ergonômica | ✓ Bom |
 | RPC get_municipios_stats opcional (warn, não throw) | Tela funciona sem RPC | ✓ Bom |
 
+## Current Milestone: v1.2.0 Correções Críticas + Funcionalidades Core
+
+**Goal:** Corrigir todos os problemas funcionais críticos do app — mapa, tokens, formulários, sincronização e UX.
+
+**Target features:**
+- Mapa: corrigir tela branca (nunca funcionou desde o início)
+- Tokens de convite: corrigir erro "Token expirado" em tokens recém-criados
+- Formulários offline: refazer campos alinhados ao sistema R1/R2/R3/R4, persistência SQLite, sync Supabase e layout
+- Sistema de Risco R1/R2/R3/R4: refazer classificação de risco completa
+- Sincronização: garantir que dados offline sobem corretamente pro Supabase
+- Aba de logs: consertar exibição (admin)
+- Mensagens de erro: traduzir todas para pt-br (app de cliente)
+- Cadastro de municípios: revisar e corrigir o fluxo
+
 ## applicationId
 `br.gov.defesacivil.app`
 
+## Evolution
+
+Este documento evolui a cada transição de fase e marco de milestone.
+
+**Após cada transição de fase** (via `/gsd:transition`):
+1. Requisitos invalidados? → Mover para Fora de Escopo com motivo
+2. Requisitos validados? → Mover para Validados com referência de fase
+3. Novos requisitos emergiram? → Adicionar em Ativos
+4. Decisões a registrar? → Adicionar em Decisões Chave
+5. "O que é isso" ainda está correto? → Atualizar se tiver derivado
+
+**Após cada milestone** (via `/gsd:complete-milestone`):
+1. Revisão completa de todas as seções
+2. Verificação do Valor Central — ainda é a prioridade certa?
+3. Auditar Fora de Escopo — motivos ainda válidos?
+4. Atualizar Contexto com o estado atual
+
 ---
-*Última atualização: 2026-03-31 após milestone v1.1.0*
+*Última atualização: 2026-03-31 após milestone v1.2.0 iniciado*
