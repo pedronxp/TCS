@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ Defesa Civil — App de Vistoria Técnica
+# 🛡️ TCS — App de Vistoria Técnica
 
 **Sistema mobile offline-first para agentes de campo da Defesa Civil**  
 Classificação automática de risco estrutural R1–R4 com sincronização em nuvem
