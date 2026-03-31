@@ -21,11 +21,11 @@ export default function TestUIScreen() {
         
         <SectionHeader title="Buttons" actionLabel="Toggle Loading" onAction={toggleLoading} />
         <Card style={styles.section}>
-          <Button title="Primary Button" onPress={() => {}} loading={isLoading} style={styles.margin} />
-          <Button title="Secondary Button" variant="secondary" onPress={() => {}} loading={isLoading} style={styles.margin} />
-          <Button title="Ghost Button" variant="ghost" onPress={() => {}} loading={isLoading} style={styles.margin} />
-          <Button title="Danger Button" variant="danger" onPress={() => {}} loading={isLoading} style={styles.margin} />
-          <Button title="Disabled Button" disabled onPress={() => {}} style={styles.margin} />
+          <Button label="Primary Button" onPress={() => {}} loading={isLoading} style={styles.margin} />
+          <Button label="Secondary Button" variant="secondary" onPress={() => {}} loading={isLoading} style={styles.margin} />
+          <Button label="Ghost Button" variant="ghost" onPress={() => {}} loading={isLoading} style={styles.margin} />
+          <Button label="Danger Button" variant="danger" onPress={() => {}} loading={isLoading} style={styles.margin} />
+          <Button label="Disabled Button" disabled onPress={() => {}} style={styles.margin} />
         </Card>
 
         <SectionHeader title="Badges" />
