@@ -3,23 +3,23 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: — Build Estável + UI Redesign + Qualidade
 status: executing
-stopped_at: Completed 03-14-PLAN.md
-last_updated: "2026-03-31T04:45:24.677Z"
+stopped_at: Completed 05-seguranca-divida-tecnica/05-PLAN.md
+last_updated: "2026-03-31T05:16:24.974Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 21
-  completed_plans: 21
+  completed_plans: 13
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 05 (seguranca-divida-tecnica) — EXECUTING
-Plan: 1 of 1
+Phase: 03 (ui-auth-agente) — EXECUTING
+Plan: 2 of 14
 **Phase 01:** Correções de Build e Dependências
-**Status:** Executing Phase 05
+**Status:** Ready to execute
 
 ## Phase Progress
 
@@ -44,10 +44,7 @@ Plan: 1 of 1
 - [Phase 02-design-system-gap-02]: BottomNavBarInner receives role+pathname as props — React.memo skips re-renders when AuthContext changes without role change
 - [Phase 02-design-system-gap-01]: primaryText (#1E40AF) separate from primaryDark (#1D4ED8) — different surfaces, both AA compliant
 - [Phase 02-design-system-gap-01]: *Text token suffix convention established: text-on-*Light backgrounds always use dedicated *Text high-contrast token
-- [Phase 03-ui-auth-agente]: getVistoriaById already existed in utils/database.ts — no modification needed for plan 03-10
-- [Phase 03-ui-auth-agente]: Supabase-first + SQLite fallback pattern established for offline-first detail screens
-- [Phase 03-ui-auth-agente]: stepRef.current used in auto-save setTimeout callback to avoid stale closure over step state
-- [Phase 03-ui-auth-agente]: foto_url extracted from first foto-type question response; falls back to null if none answered
+- [Phase 05-seguranca-divida-tecnica]: laudoPdfBuilder.ts uses resultado.tsx design as canonical; SyncService uses dynamic import for NotificationService guarded by Constants.appOwnership to prevent Expo Go crash
 
 ## Performance Metrics
 
@@ -57,14 +54,9 @@ Plan: 1 of 1
 | Phase 02-design-system P01 | 756 | 7 tasks | 12 files |
 | Phase 02-design-system Pgap-02 | 120 | 1 tasks | 1 files |
 | Phase 02-design-system Pgap-01 | 600 | 2 tasks | 3 files |
-| Phase 03-ui-auth-agente P09 | 180 | 1 tasks | 1 files |
-| Phase 03-ui-auth-agente P10 | 600 | 1 tasks | 2 files |
-| Phase 03-ui-auth-agente P11 | 300 | 1 tasks | 1 files |
-| Phase 03-ui-auth-agente P12 | 180 | 1 tasks | 1 files |
-| Phase 03-ui-auth-agente P13 | 300 | 2 tasks | 3 files |
-| Phase 03-ui-auth-agente P14 | 180 | 1 tasks | 1 files |
+| Phase 05-seguranca-divida-tecnica P05 | 1800 | 12 tasks | 22 files |
 
 ## Last Session
 
-- **Stopped at:** Completed 03-14-PLAN.md
+- **Stopped at:** Completed 05-seguranca-divida-tecnica/05-PLAN.md
 - **Timestamp:** 2026-03-29T23:15:00Z

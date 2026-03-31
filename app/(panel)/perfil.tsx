@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
 import { Badge, Card, ErrorState } from '../../components/ui';
+import { formatarData, formatarDataHora } from '../../utils/htmlUtils';
 
 const ROLE_LABELS: Record<string, string> = {
   agent:        'Agente de Campo',
@@ -17,21 +18,6 @@ const ROLE_LABELS: Record<string, string> = {
   admin:        'Administrador',
   master_admin: 'Master Admin',
 };
-
-function formatarData(iso: string | null | undefined) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-}
-
-function formatarDataHora(iso: string | null | undefined) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
 
 export default function PerfilScreen() {
   const { theme } = useTheme();

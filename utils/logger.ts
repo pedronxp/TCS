@@ -10,7 +10,8 @@ export type LogCategory =
   | 'network'
   | 'token'
   | 'form'
-  | 'system';
+  | 'system'
+  | 'notifications';
 
 export interface LogEntry {
   id: number;

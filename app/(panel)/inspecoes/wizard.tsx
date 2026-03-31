@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image, Animated
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,6 +15,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
+import { WizardParams } from '../../../types/vistoria';
 
 // Built-in JSON assets
 const ASSETS: Record<string, any> = {
@@ -50,25 +51,19 @@ interface PerguntaModel {
 type Respostas = Record<string, string>;
 
 export default function WizardAvaliacaoScreen() {
-  const params = useLocalSearchParams<any>();
+  const params = useLocalSearchParams<Record<string, string>>();
   const { theme } = useTheme();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
 
   const [perguntas, setPerguntas] = useState<PerguntaModel[]>([]);
   const [step, setStep] = useState(0); // índice da pergunta atual
-  const stepRef = useRef(step);
   const [respostas, setRespostas] = useState<Respostas>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [limites, setLimites] = useState<{max: number; nivel: string}[]>([]);
   const draftKey = `@draft_wizard_${params.formularioId}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    stepRef.current = step;
-  }, [step]);
 
   useEffect(() => {
     fetchPerguntas();
@@ -107,7 +102,7 @@ export default function WizardAvaliacaoScreen() {
       const updated = { ...r, [perguntaId]: valor };
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = setTimeout(() => {
-        AsyncStorage.setItem(draftKey, JSON.stringify({ respostas: updated, step: stepRef.current })).catch(() => null);
+        AsyncStorage.setItem(draftKey, JSON.stringify({ respostas: updated, step })).catch(() => null);
       }, 800);
       return updated;
     });
@@ -253,13 +248,6 @@ export default function WizardAvaliacaoScreen() {
     }
   };
 
-  const animateToStep = (newStep: number) => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 100, useNativeDriver: true }).start(() => {
-      setStep(newStep);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    });
-  };
-
   const finalizar = async () => {
     // Verifica obrigatórias
     const pendente = perguntas.find(p => p.obrigatoria && !respostas[p.id]);
@@ -281,10 +269,9 @@ export default function WizardAvaliacaoScreen() {
       // UUID via crypto (Hermes suporta desde RN 0.73+)
       const id = generateUUID();
 
-      // Extrair todas as fotos (principal e secundárias)
-      const perguntasFotos = perguntas.filter(p => p.tipo === 'foto' && respostas[p.id]);
-      const fotoUri = perguntasFotos.length > 0 ? respostas[perguntasFotos[0].id] : null;
-      const fotosUrlsArray = perguntasFotos.map(p => respostas[p.id]);
+      // Extrair URI da foto das respostas (pergunta do tipo 'foto')
+      const perguntaFoto = perguntas.find(p => p.tipo === 'foto');
+      const fotoUri = perguntaFoto ? (respostas[perguntaFoto.id] || null) : null;
 
       const vistoriaLocal = {
         id,
@@ -296,16 +283,15 @@ export default function WizardAvaliacaoScreen() {
         endereco_bairro: params.bairro || '',
         endereco_cep: params.cep || null,
         responsavel_nome: params.responsavelNome || null,
-        latitude: parseFloat(params.lat) || 0,
-        longitude: parseFloat(params.lng) || 0,
+        latitude: parseFloat(params.lat || '0') || 0,
+        longitude: parseFloat(params.lng || '0') || 0,
         data_vistoria: agora,
         formulario_id: params.formularioId,
-        formulario_versao: parseInt(params.formularioVersao) || 1,
+        formulario_versao: parseInt(params.formularioVersao || '1') || 1,
         respostas_json: JSON.stringify(respostas),
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
         foto_url: fotoUri,
-        fotos_urls: JSON.stringify(fotosUrlsArray),
         criado_em: agora,
       };
 
@@ -322,13 +308,34 @@ export default function WizardAvaliacaoScreen() {
         nivel
       ).catch(() => null);
 
-      // 2. Tentar sync imediato usando o serviço centralizado (que já faz o upload do Storage)
+      // 2. Tentar sync imediato se online
       if (isConnected) {
-        // Chamada assíncrona não-bloqueante importada do SyncService
-        import('../../../services/SyncService').then(({ syncPendentes }) => {
-          syncPendentes().catch(() => null);
+        const { error } = await supabase.from('vistorias').upsert({
+          id,
+          agenteUid: vistoriaLocal.agente_uid,
+          agenteNome: vistoriaLocal.agente_nome,
+          municipio: vistoriaLocal.municipio,
+          enderecoRua: vistoriaLocal.endereco_rua,
+          enderecoNumero: vistoriaLocal.endereco_numero,
+          enderecoBairro: vistoriaLocal.endereco_bairro,
+          enderecoCep: vistoriaLocal.endereco_cep,
+          responsavelNome: vistoriaLocal.responsavel_nome,
+          latitude: vistoriaLocal.latitude,
+          longitude: vistoriaLocal.longitude,
+          dataVistoria: vistoriaLocal.data_vistoria,
+          formularioId: vistoriaLocal.formulario_id,
+          formularioVersao: vistoriaLocal.formulario_versao,
+          respostasJson: vistoriaLocal.respostas_json,
+          nivelRisco: nivel,
+          pontuacaoTotal: pontuacao,
+          endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
         });
-        logger.info('sync', `Upload em background agendado para a vistoria`, { id });
+        if (!error) {
+          markSincronizado(id);
+          logger.info('sync', `Vistoria sincronizada imediatamente após salvar`, { id });
+        } else {
+          logger.warn('sync', `Falha no sync imediato — ficará pendente`, { id, erro: error.message });
+        }
       } else {
         logger.info('vistoria', `Offline — vistoria ficará pendente de sync`, { id });
       }
@@ -353,7 +360,7 @@ export default function WizardAvaliacaoScreen() {
       Alert.alert('Resposta obrigatória', 'Responda esta pergunta para continuar.');
       return;
     }
-    if (step < totalPerguntas - 1) animateToStep(step + 1);
+    if (step < totalPerguntas - 1) setStep(s => s + 1);
     else finalizar();
   };
 
@@ -370,7 +377,7 @@ export default function WizardAvaliacaoScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => step > 0 ? animateToStep(step - 1) : router.back()}>
+        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => step > 0 ? setStep(s => s - 1) : router.back()}>
           <Feather name={step > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -386,7 +393,7 @@ export default function WizardAvaliacaoScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {perguntaAtual && (
-          <Animated.View style={{ opacity: fadeAnim }}>
+          <>
             {/* Image example */}
             {perguntaAtual.imagemExemplo && (
               <Image source={{ uri: perguntaAtual.imagemExemplo }} style={styles.exampleImage} resizeMode="cover" />
@@ -475,7 +482,7 @@ export default function WizardAvaliacaoScreen() {
                 )}
               </View>
             )}
-          </Animated.View>
+          </>
         )}
 
         {totalPerguntas === 0 && !loading && (
@@ -491,7 +498,7 @@ export default function WizardAvaliacaoScreen() {
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
         {step > 0 && (
-          <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => animateToStep(step - 1)}>
+          <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(s => s - 1)}>
             <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
           </TouchableOpacity>
         )}
@@ -500,17 +507,12 @@ export default function WizardAvaliacaoScreen() {
           onPress={avancar}
           disabled={salvando}
         >
-          {salvando ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: '#fff' }}>Salvando...</Text>
-              <ActivityIndicator color="#fff" size="small" />
-            </View>
-          ) : (
-            <>
-              <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
-              <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
-            </>
-          )}
+          {salvando
+            ? <ActivityIndicator size="small" color="#FFF" />
+            : <>
+                <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
+                <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
+              </>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -523,8 +525,8 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   title: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
-  progressTrack: { height: 4 },
-  progressFill: { height: 4 },
+  progressTrack: { height: 3 },
+  progressFill: { height: 3 },
   scroll: { padding: 20, paddingBottom: 120 },
   groupLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginBottom: 8 },
   groupText: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },

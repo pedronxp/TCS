@@ -4,41 +4,25 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
+import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { getVistoriaById } from '../../../utils/database';
-import { Badge, ErrorState } from '../../../components/ui';
-
-function riscoLabel(nivel: string) {
-  if (nivel === 'r4') return 'CRÍTICO';
-  if (nivel === 'r3') return 'ALTO';
-  if (nivel === 'r2') return 'MÉDIO';
-  return 'BAIXO';
-}
-function riscoColor(nivel: string) {
-  if (nivel === 'r4' || nivel === 'r3') return '#EF4444';
-  if (nivel === 'r2') return '#F59E0B';
-  return '#10B981';
-}
-function formatarData(dt: string | null) {
-  if (!dt) return '—';
-  return new Date(dt).toLocaleDateString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
+import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarData } from '../../../utils/htmlUtils';
+import { VistoriaNormalizada } from '../../../types/vistoria';
 
 export default function VistoriaDetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
   const { initReport } = useReport();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [vistoria, setVistoria] = useState<any>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [vistoria, setVistoria] = useState<VistoriaNormalizada | null>(null);
 
   useEffect(() => { if (id) fetchDetalhes(); }, [id]);
 
-  function populateReport(data: any) {
+  const populateReport = (data: any) => {
     let respostas: Record<string, string> = {};
     try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
@@ -56,16 +40,26 @@ export default function VistoriaDetalhesScreen() {
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
     });
-  }
+  };
 
   const fetchDetalhes = async () => {
     try {
-      // 1. Tentar Supabase primeiro
-      const { data, error } = await supabase
+      // Construir query com filtros de segurança por role
+      let query = supabase
         .from('vistorias')
-        .select('*')
-        .eq('id', id)
-        .single();
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status')
+        .eq('id', id as string);
+
+      // Agentes só veem suas próprias vistorias
+      if (profile?.role === 'agent') {
+        query = query.eq('agenteUid', profile.uid);
+      }
+      // Admin e supervisor só veem vistorias do seu município
+      if (profile?.role !== 'master_admin' && profile?.municipio) {
+        query = query.eq('municipio', profile.municipio);
+      }
+
+      const { data, error } = await query.single();
 
       if (!error && data) {
         setVistoria(data);
@@ -73,40 +67,37 @@ export default function VistoriaDetalhesScreen() {
         return;
       }
 
-      // 2. Fallback SQLite — vistoria pode estar offline/não sincronizada
-      const local = getVistoriaById(id);
+      // Fallback: SQLite local (vistorias não sincronizadas)
+      const local = getVistoriaById(id as string);
       if (local) {
-        const normalizado = {
+        // Verificar se pertence ao agente atual (segurança offline)
+        if (profile?.role === 'agent' && local.agente_uid !== profile.uid) {
+          logger.warn('vistoria', 'Acesso negado — vistoria de outro agente (SQLite)');
+          return;
+        }
+        setVistoria({
           id: local.id,
-          agenteUid: local.agente_uid,
-          agenteNome: local.agente_nome,
-          municipio: local.municipio,
+          nivelRisco: local.nivel_risco,
+          pontuacaoTotal: local.pontuacao_total,
+          endereco: `${local.endereco_rua}, ${local.endereco_numero} — ${local.endereco_bairro}`,
           enderecoRua: local.endereco_rua,
           enderecoNumero: local.endereco_numero,
           enderecoBairro: local.endereco_bairro,
-          enderecoCep: local.endereco_cep,
-          responsavelNome: local.responsavel_nome,
-          latitude: local.latitude,
-          longitude: local.longitude,
+          municipio: local.municipio,
           dataVistoria: local.data_vistoria,
-          formularioId: local.formulario_id,
-          nivelRisco: local.nivel_risco,
-          pontuacaoTotal: local.pontuacao_total,
-          fotoUrl: local.foto_url,
+          agenteNome: local.agente_nome,
+          agenteUid: local.agente_uid,
+          responsavelNome: local.responsavel_nome,
           respostasJson: local.respostas_json,
-          status: 'Pendente de sincronização',
-        };
-        setVistoria(normalizado);
-        populateReport(normalizado);
+          formularioId: local.formulario_id,
+          status: 'Pendente Sync',
+        });
         return;
       }
 
-      // 3. Não encontrado em nenhum lugar
-      throw new Error('Vistoria não encontrada localmente nem no servidor.');
-
+      logger.warn('vistoria', 'Vistoria não encontrada — Supabase e SQLite');
     } catch (e) {
       logger.error('vistoria', 'Erro ao buscar vistoria', { erro: String(e) });
-      setFetchError(String(e));
     } finally {
       setLoading(false);
     }
@@ -117,15 +108,6 @@ export default function VistoriaDetalhesScreen() {
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
       </View>
-    );
-  }
-
-  if (fetchError) {
-    return (
-      <ErrorState
-        message={fetchError}
-        onRetry={fetchDetalhes}
-      />
     );
   }
 
@@ -153,11 +135,6 @@ export default function VistoriaDetalhesScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>Vistoria #{id?.toString().slice(0, 6)}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{vistoria.status || 'Registrado'}</Text>
-          {vistoria?.status === 'Pendente de sincronização' && (
-            <Badge variant="warning">
-              Pendente de sincronização
-            </Badge>
-          )}
         </View>
         <TouchableOpacity
           style={[styles.laudoBtn, { backgroundColor: theme.primary }]}

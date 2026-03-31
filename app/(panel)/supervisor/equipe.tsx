@@ -8,9 +8,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
-import { LoadingState } from '../../../components/ui/LoadingState';
-import { ErrorState } from '../../../components/ui/ErrorState';
-import { EmptyState } from '../../../components/ui/EmptyState';
+import { tempoRelativo } from '../../../utils/htmlUtils';
 
 interface AgenteCard {
   uid: string;
@@ -23,34 +21,19 @@ interface AgenteCard {
   ultima: string | null;
 }
 
-function tempoRelativo(dt: string | null) {
-  if (!dt) return 'Sem atividade';
-  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
-  if (diff < 3600) return `há ${Math.floor(diff / 60)}min`;
-  if (diff < 86400) return `há ${Math.floor(diff / 3600)}h`;
-  if (diff < 172800) return 'ontem';
-  return `há ${Math.floor(diff / 86400)}d`;
-}
-
 export default function EquipeScreen() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [agentes, setAgentes] = useState<AgenteCard[]>([]);
   const [busca, setBusca] = useState('');
   const [filtroRisco, setFiltroRisco] = useState<'todos' | 'alto' | 'medio' | 'baixo'>('todos');
-  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => { loadEquipe(); }, []);
 
   const loadEquipe = async () => {
-    setLoading(true);
-    setErro(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setErro('Sessão inválida ou não encontrada.');
-        return;
-      }
+      if (!session) return;
 
       const { data: user } = await supabase
         .from('users').select('municipio').eq('uid', session.user.id).single();
@@ -63,10 +46,7 @@ export default function EquipeScreen() {
         .eq('role', 'agent')
         .eq('isApproved', true);
 
-      if (!agentesList) {
-        setErro('Não foi possível carregar a lista de agentes.');
-        return;
-      }
+      if (!agentesList) return;
 
       const trintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -98,7 +78,6 @@ export default function EquipeScreen() {
       setAgentes(cards.sort((a, b) => b.total - a.total));
     } catch (e) {
       logger.error('system', 'Erro ao carregar equipe', { erro: String(e) });
-      setErro('Ocorreu um erro ao carregar os dados da equipe.');
     } finally {
       setLoading(false);
     }
@@ -115,11 +94,11 @@ export default function EquipeScreen() {
   });
 
   if (loading) {
-    return <LoadingState message="Carregando equipe..." />;
-  }
-
-  if (erro) {
-    return <ErrorState message={erro} onRetry={loadEquipe} />;
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
   }
 
   return (
@@ -179,16 +158,9 @@ export default function EquipeScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {filtrados.length === 0 ? (
-          <EmptyState
-            icon="users"
-            title="Equipe vazia"
-            description="Nenhum agente ativo no município ou compatível com o filtro."
-            actionLabel={busca || filtroRisco !== 'todos' ? 'Limpar filtros' : undefined}
-            onAction={busca || filtroRisco !== 'todos' ? () => {
-              setBusca('');
-              setFiltroRisco('todos');
-            } : undefined}
-          />
+          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhum agente encontrado.</Text>
+          </View>
         ) : (
           filtrados.map(agente => (
             <TouchableOpacity

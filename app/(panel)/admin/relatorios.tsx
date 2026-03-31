@@ -9,6 +9,8 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
+import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarData } from '../../../utils/htmlUtils';
 
 const PAGE_SIZE = 50;
 
@@ -27,21 +29,6 @@ function gerarCsv(vistorias: any[]): string {
 type FiltroPeriodo = '7d' | '30d' | '90d' | 'todos';
 type FiltroRisco = 'todos' | 'r1' | 'r2' | 'r3' | 'r4';
 
-function riscoLabel(n: string) {
-  if (n === 'r4') return 'CRÍTICO';
-  if (n === 'r3') return 'ALTO';
-  if (n === 'r2') return 'MÉDIO';
-  return 'BAIXO';
-}
-function riscoColor(n: string) {
-  if (n === 'r4' || n === 'r3') return '#EF4444';
-  if (n === 'r2') return '#F59E0B';
-  return '#10B981';
-}
-function formatarData(dt: string | null) {
-  if (!dt) return '—';
-  return new Date(dt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
 
 // ─── Card memoizado para evitar re-renders desnecessários ──────────────────
 

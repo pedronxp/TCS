@@ -1,6 +1,8 @@
 import { AppState, AppStateStatus } from 'react-native';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { supabase } from '../utils/supabase';
 import {
   getVistoriasNaoSincronizadas,
@@ -10,12 +12,25 @@ import {
   VistoriaLocal,
   getDb,
 } from '../utils/database';
-import { notificarSincronizacao } from './NotificationService';
 import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri } from './StorageService';
 
+/**
+ * Wrapper de notificação — importação dinâmica para evitar crash do expo-notifications
+ * no Expo Go (onde push remoto não é suportado no SDK 53+).
+ */
+async function notificarSincronizacao(count: number): Promise<void> {
+  if (Constants.appOwnership === 'expo') return;
+  try {
+    const { notificarSincronizacao: notify } = await import('./NotificationService');
+    await notify(count);
+  } catch { /* não crítico */ }
+}
+
 const MAX_TENTATIVAS_SYNC = 5;
 const BATCH_SIZE = 20; // Máximo de vistorias por request ao Supabase
+const VACUUM_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas
+const VACUUM_LAST_KEY = '@vacuum_last_run';
 
 const BACKGROUND_TASK_ID = 'DEFESA_CIVIL_SYNC';
 const APP_STATE_DEBOUNCE_MS = 3000;
@@ -23,6 +38,25 @@ const APP_STATE_DEBOUNCE_MS = 3000;
 // ─── Guard de concorrência ─────────────────────────────────────────────────
 
 let _syncInProgress = false;
+
+// ─── Controle de VACUUM ────────────────────────────────────────────────────
+
+async function shouldRunVacuum(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(VACUUM_LAST_KEY);
+    if (!raw) return true;
+    const last = parseInt(raw, 10);
+    return Date.now() - last >= VACUUM_INTERVAL_MS;
+  } catch {
+    return false; // Em caso de erro, não executar VACUUM
+  }
+}
+
+async function markVacuumRun(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(VACUUM_LAST_KEY, String(Date.now()));
+  } catch { /* não crítico */ }
+}
 
 // ─── Sincronização principal ───────────────────────────────────────────────
 
@@ -115,8 +149,15 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
     }
 
     if (sucesso > 0) {
-      // VACUUM após sync bem-sucedido para desfragmentar o banco SQLite
-      try { getDb().runSync('VACUUM'); } catch { /* não crítico */ }
+      // VACUUM limitado a 1x/dia — evita travar SQLite a cada sync
+      const vacuum = await shouldRunVacuum();
+      if (vacuum) {
+        try {
+          getDb().runSync('VACUUM');
+          await markVacuumRun();
+          logger.info('sync', 'VACUUM executado');
+        } catch { /* não crítico */ }
+      }
       notificarSincronizacao(sucesso).catch(() => null);
       logger.info('sync', `Sync concluído — sucesso: ${sucesso}, falha: ${falha}`);
     } else if (falha > 0) {

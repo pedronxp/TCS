@@ -8,9 +8,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
-import { ErrorState } from '../../../components/ui/ErrorState';
-import { LoadingState } from '../../../components/ui/LoadingState';
-import { EmptyState } from '../../../components/ui/EmptyState';
+import { tempoRelativo } from '../../../utils/htmlUtils';
 
 type NivelFiltro = 'todos' | 'info' | 'aviso' | 'erro';
 
@@ -22,25 +20,14 @@ const NIVEL_CONFIG: Record<string, { color: string; icon: string; label: string 
   error: { color: '#EF4444', icon: 'x-circle', label: 'ERRO' },
 };
 
-function tempoRelativo(dt: string | null) {
-  if (!dt) return '';
-  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
-  if (diff < 60) return 'agora';
-  if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
-  return `${Math.floor(diff / 86400)}d atrás`;
-}
-
 export default function LogsScreen() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [erroLogs, setErroLogs] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const [filtro, setFiltro] = useState<NivelFiltro>('todos');
 
   const carregar = async (showRefresh = false) => {
-    setErroLogs(false);
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
@@ -53,7 +40,6 @@ export default function LogsScreen() {
       setLogs(data || []);
     } catch (e) {
       logger.error('system', 'Erro ao carregar logs', { erro: String(e) });
-      setErroLogs(true);
       // Se a tabela não existir, retornar vazio
       setLogs([]);
     } finally {
@@ -73,7 +59,11 @@ export default function LogsScreen() {
   });
 
   if (loading) {
-    return <LoadingState message="Buscando logs do sistema..." />;
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
   }
 
   return (
@@ -128,18 +118,14 @@ export default function LogsScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
-        {erroLogs && !loading && logs.length === 0 ? (
-          <ErrorState
-            title="Erro ao carregar logs"
-            message="Não foi possível buscar os logs do sistema. Puxe para atualizar."
-            onRetry={() => carregar()}
-          />
-        ) : filtrados.length === 0 ? (
-          <EmptyState
-            icon="file-text"
-            title="Sem logs"
-            description="Nenhum log encontrado para o filtro selecionado."
-          />
+        {filtrados.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <Feather name="file-text" size={40} color={theme.textSecondary} style={{ marginBottom: 16 }} />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>Sem logs</Text>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              Nenhum log encontrado para o filtro selecionado.
+            </Text>
+          </View>
         ) : (
           filtrados.map((log, i) => {
             const nivel = log.nivel || log.level || 'info';
