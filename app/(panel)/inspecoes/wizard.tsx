@@ -15,6 +15,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
+import { WizardParams } from '../../../types/vistoria';
 
 // Built-in JSON assets
 const ASSETS: Record<string, any> = {
@@ -50,7 +51,7 @@ interface PerguntaModel {
 type Respostas = Record<string, string>;
 
 export default function WizardAvaliacaoScreen() {
-  const params = useLocalSearchParams<any>();
+  const params = useLocalSearchParams<Record<string, string>>();
   const { theme } = useTheme();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
@@ -268,6 +269,10 @@ export default function WizardAvaliacaoScreen() {
       // UUID via crypto (Hermes suporta desde RN 0.73+)
       const id = generateUUID();
 
+      // Extrair URI da foto das respostas (pergunta do tipo 'foto')
+      const perguntaFoto = perguntas.find(p => p.tipo === 'foto');
+      const fotoUri = perguntaFoto ? (respostas[perguntaFoto.id] || null) : null;
+
       const vistoriaLocal = {
         id,
         agente_uid: session.user.id,
@@ -278,15 +283,15 @@ export default function WizardAvaliacaoScreen() {
         endereco_bairro: params.bairro || '',
         endereco_cep: params.cep || null,
         responsavel_nome: params.responsavelNome || null,
-        latitude: parseFloat(params.lat) || 0,
-        longitude: parseFloat(params.lng) || 0,
+        latitude: parseFloat(params.lat || '0') || 0,
+        longitude: parseFloat(params.lng || '0') || 0,
         data_vistoria: agora,
         formulario_id: params.formularioId,
-        formulario_versao: parseInt(params.formularioVersao) || 1,
+        formulario_versao: parseInt(params.formularioVersao || '1') || 1,
         respostas_json: JSON.stringify(respostas),
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
-        foto_url: null,
+        foto_url: fotoUri,
         criado_em: agora,
       };
 
