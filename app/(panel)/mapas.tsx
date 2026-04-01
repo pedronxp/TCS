@@ -4,7 +4,6 @@ import {
   Modal, ScrollView, Platform,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { leafletCss, leafletJs, clusterCss, clusterDefaultCss, clusterJs, heatJs } from '../../utils/leafletBundle';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -146,11 +145,14 @@ function buildHtml(
 
   return `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<style>${leafletCss}${clusterCss}${clusterDefaultCss}</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;background:${bgColor}}
-#map{width:100%;height:100%;background:${bgColor}}
+html{width:100%;height:100%}
+body{width:100%;height:100%;min-height:-webkit-fill-available;background:${bgColor}}
+#map{width:100%;height:100vh;min-height:100%;background:${bgColor}}
 #map-error{display:none;position:absolute;inset:0;background:${bgColor};justify-content:center;align-items:center;flex-direction:column;font-family:-apple-system,sans-serif;text-align:center;padding:32px;gap:12px}
 .leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.18);border:none;padding:0}
 .leaflet-popup-content{margin:14px 16px}
@@ -171,18 +173,36 @@ html,body{width:100%;height:100%;background:${bgColor}}
   <div style="font-size:13px;color:#6B7280;line-height:1.5" id="map-error-msg">Verifique sua conexão com a internet e tente novamente.</div>
   <button onclick="location.reload()" style="margin-top:8px;background:#3B82F6;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">Tentar novamente</button>
 </div>
-<script>${leafletJs.replace(/<\/script>/gi, '<\\/script>')}</script>
-<script>${clusterJs.replace(/<\/script>/gi, '<\\/script>')}</script>
-<script>${heatJs.replace(/<\/script>/gi, '<\\/script>')}</script>
 <script>
 function showError(msg){
   var el=document.getElementById('map-error');
   if(el){el.style.display='flex';if(msg)document.getElementById('map-error-msg').textContent=msg;}
 }
 window.onerror=function(msg,src,line,col,err){
-  showError('Erro ao inicializar o mapa.');
+  showError('Erro ao inicializar o mapa. Verifique sua conexão.');
   return true;
 };
+var scriptsToLoad=[
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
+  'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js'
+];
+var loaded=0;
+var failed=false;
+function loadNextScript(idx){
+  if(idx>=scriptsToLoad.length){initMap();return;}
+  var s=document.createElement('script');
+  s.src=scriptsToLoad[idx];
+  s.onload=function(){loaded++;loadNextScript(idx+1);};
+  s.onerror=function(){
+    if(!failed){
+      failed=true;
+      showError('Não foi possível carregar o mapa. Verifique sua conexão com a internet.');
+      if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'loadError',msg:'cdn_fail'}));}
+    }
+  };
+  document.head.appendChild(s);
+}
 var _initRetry=0;
 function initMap(){
   if(typeof L==='undefined'){showError('Biblioteca de mapas não disponível. Verifique sua conexão.');return;}
@@ -217,7 +237,7 @@ function initMap(){
     showError('Erro ao renderizar o mapa: '+e.message);
   }
 }
-initMap();
+loadNextScript(0);
 </script></body></html>`;
 }
 
@@ -378,7 +398,7 @@ export default function MapasScreen() {
         <WebView
           key={`${mapStyle}-${filter}-${filtroPeriodo}-${showHeatmap}`}
           ref={webviewRef}
-          source={{ html }}
+          source={{ html, baseUrl: 'https://unpkg.com' }}
           style={[StyleSheet.absoluteFillObject, { backgroundColor: mapStyle === 'escuro' ? '#0B0F19' : '#E8EDF2' }]}
           javaScriptEnabled
           domStorageEnabled
