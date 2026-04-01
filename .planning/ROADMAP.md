@@ -82,7 +82,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 06. Mapa + Autenticação | 0/? | Not started | - |
+| 06. Mapa + Autenticação | 2/3 | In Progress|  |
 | 07. Formulários + Classificação de Risco | 0/? | Not started | - |
 | 08. Sincronização Offline | 0/? | Not started | - |
 | 09. UX + Correções Finais | 0/? | Not started | - |

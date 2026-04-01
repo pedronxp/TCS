@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2.0
-milestone_name: Correções Críticas + Funcionalidades Core
-status: planning
-stopped_at: Roadmap v1.2.0 criado — Phases 06-09 definidas, aguardando plan-phase
-last_updated: "2026-03-31T00:00:00.000Z"
+milestone_name: — Correções Críticas + Funcionalidades Core
+status: executing
+last_updated: "2026-04-01T22:05:37Z"
+last_activity: 2026-04-01 -- Phase 06 Plan 02 checkpoint reached (Task 3)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
 ---
 
@@ -16,10 +16,14 @@ progress:
 
 ## Current Position
 
-Phase: Not started (roadmap criado)
-Plan: —
-Status: Roadmap aprovado — pronto para plan-phase 06
-Last activity: 2026-03-31 — Roadmap v1.2.0 definido (4 fases, 10 requisitos)
+Phase: 06 (mapa-autentica-o) — EXECUTING
+Plan: 2 of 3 (checkpoint: aguardando SQL no Supabase)
+Status: Executing Phase 06 — checkpoint human-verify ativo
+Last activity: 2026-04-01 -- Phase 06 Plan 02 checkpoint reached (Task 3)
+
+## Decisions Made
+
+- AUTH-01: Usar RPC server-side `validate_invite_token` para comparação de expiração de token via PostgreSQL `now()`, eliminando bug de fuso horário onde tokens recém-criados apareciam como expirados
 
 ## Phase List (v1.2.0)
 
