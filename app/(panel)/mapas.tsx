@@ -366,6 +366,19 @@ export default function MapasScreen() {
     } catch { }
   };
 
+  const handleLoadEnd = () => {
+    // Injeta invalidateSize após o layout nativo ter finalizado
+    // Mais confiável que setTimeout dentro do HTML
+    setTimeout(() => {
+      webviewRef.current?.injectJavaScript(`
+        if (typeof map !== 'undefined') {
+          map.invalidateSize({animate: false});
+        }
+        true;
+      `);
+    }, 500);
+  };
+
   return (
     <View style={styles.container}>
       {/* Mapa */}
@@ -400,6 +413,7 @@ export default function MapasScreen() {
           onMessage={handleMessage}
           onError={(e) => logger.warn('system', 'WebView erro no mapa', { desc: e.nativeEvent.description })}
           onHttpError={(e) => logger.warn('system', 'WebView HTTP erro no mapa', { status: e.nativeEvent.statusCode })}
+          onLoadEnd={handleLoadEnd}
         />
       )}
 
