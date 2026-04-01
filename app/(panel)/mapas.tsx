@@ -150,8 +150,8 @@ function buildHtml(
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100vh;overflow:hidden;background:${bgColor}}
-#map{position:absolute;top:0;left:0;width:100%;height:100%;background:${bgColor}}
+html,body{width:100%;height:100%;background:${bgColor}}
+#map{width:100%;height:100%;background:${bgColor}}
 #map-error{display:none;position:absolute;inset:0;background:${bgColor};justify-content:center;align-items:center;flex-direction:column;font-family:-apple-system,sans-serif;text-align:center;padding:32px;gap:12px}
 .leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.18);border:none;padding:0}
 .leaflet-popup-content{margin:14px 16px}
@@ -195,18 +195,27 @@ function loadNextScript(idx){
   s.src=scriptsToLoad[idx];
   s.onload=function(){loaded++;loadNextScript(idx+1);};
   s.onerror=function(){
-    if(!failed){failed=true;showError('Não foi possível carregar o mapa. Verifique sua conexão com a internet.');}
+    if(!failed){
+      failed=true;
+      showError('Não foi possível carregar o mapa. Verifique sua conexão com a internet.');
+      if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'loadError',msg:'cdn_fail'}));}
+    }
   };
   document.head.appendChild(s);
 }
+var _initRetry=0;
 function initMap(){
   if(typeof L==='undefined'){showError('Biblioteca de mapas não disponível. Verifique sua conexão.');return;}
   try{
     var mapEl=document.getElementById('map');
     if(!mapEl||mapEl.offsetWidth===0||mapEl.offsetHeight===0){
-      setTimeout(initMap,100);return;
+      _initRetry++;
+      if(_initRetry<15){setTimeout(initMap,100);return;}
+      showError('Mapa não pôde ser inicializado. Tente fechar e abrir a tela novamente.');
+      if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'loadError',msg:'layout_zero'}));}
+      return;
     }
-    var map=L.map('map',{zoomControl:true,zoomAnimation:false,fadeAnimation:false}).setView(${initView});
+    var map=L.map('map',{zoomControl:true,zoomAnimation:true}).setView(${initView});
     L.tileLayer('${s.tileUrl}',{maxZoom:20,${subdomainsAttr}attribution:''}).addTo(map);
     var bounds=[];
     var clusterGroup;
@@ -219,9 +228,9 @@ function initMap(){
     if(clusterGroup.addTo){clusterGroup.addTo(map);}
     ${userJs}
     ${heatJs}
-    if(bounds.length>0){try{map.fitBounds(L.latLngBounds(bounds).pad(0.15),{maxZoom:15,animate:false});}catch(e){}}
-    // Força recalculo de tamanho após render
+    if(bounds.length>0){try{map.fitBounds(L.latLngBounds(bounds).pad(0.15),{maxZoom:15,animate:true});}catch(e){}}
     setTimeout(function(){map.invalidateSize({animate:false});},300);
+    setTimeout(function(){map.invalidateSize({animate:false});},800);
     // Notifica RN que o mapa carregou
     if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'mapReady'}));}
   }catch(e){
@@ -348,7 +357,26 @@ export default function MapasScreen() {
       if (msg.type === 'tap' && msg.id) {
         router.push(`/(panel)/inspecoes/${msg.id}`);
       }
+      if (msg.type === 'mapReady') {
+        setLoading(false);
+      }
+      if (msg.type === 'loadError') {
+        setLoading(false);
+      }
     } catch { }
+  };
+
+  const handleLoadEnd = () => {
+    // Injeta invalidateSize após o layout nativo ter finalizado
+    // Mais confiável que setTimeout dentro do HTML
+    setTimeout(() => {
+      webviewRef.current?.injectJavaScript(`
+        if (typeof map !== 'undefined') {
+          map.invalidateSize({animate: false});
+        }
+        true;
+      `);
+    }, 500);
   };
 
   return (
@@ -376,8 +404,6 @@ export default function MapasScreen() {
           domStorageEnabled
           originWhitelist={['*']}
           mixedContentMode="always"
-          allowFileAccessFromFileURLs
-          allowUniversalAccessFromFileURLs
           startInLoadingState
           renderLoading={() => (
             <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', backgroundColor: mapStyle === 'escuro' ? '#0B0F19' : '#E8EDF2' }]}>
@@ -387,6 +413,7 @@ export default function MapasScreen() {
           onMessage={handleMessage}
           onError={(e) => logger.warn('system', 'WebView erro no mapa', { desc: e.nativeEvent.description })}
           onHttpError={(e) => logger.warn('system', 'WebView HTTP erro no mapa', { status: e.nativeEvent.statusCode })}
+          onLoadEnd={handleLoadEnd}
         />
       )}
 
