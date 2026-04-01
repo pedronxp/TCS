@@ -195,13 +195,26 @@ function loadNextScript(idx){
   s.src=scriptsToLoad[idx];
   s.onload=function(){loaded++;loadNextScript(idx+1);};
   s.onerror=function(){
-    if(!failed){failed=true;showError('Não foi possível carregar o mapa. Verifique sua conexão com a internet.');}
+    if(!failed){
+      failed=true;
+      showError('Não foi possível carregar o mapa. Verifique sua conexão com a internet.');
+      if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'loadError',msg:'cdn_fail'}));}
+    }
   };
   document.head.appendChild(s);
 }
+var _initRetry=0;
 function initMap(){
   if(typeof L==='undefined'){showError('Biblioteca de mapas não disponível. Verifique sua conexão.');return;}
   try{
+    var mapEl=document.getElementById('map');
+    if(!mapEl||mapEl.offsetWidth===0||mapEl.offsetHeight===0){
+      _initRetry++;
+      if(_initRetry<15){setTimeout(initMap,100);return;}
+      showError('Mapa não pôde ser inicializado. Tente fechar e abrir a tela novamente.');
+      if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'loadError',msg:'layout_zero'}));}
+      return;
+    }
     var map=L.map('map',{zoomControl:true,zoomAnimation:true}).setView(${initView});
     L.tileLayer('${s.tileUrl}',{maxZoom:20,${subdomainsAttr}attribution:''}).addTo(map);
     var bounds=[];
@@ -216,6 +229,8 @@ function initMap(){
     ${userJs}
     ${heatJs}
     if(bounds.length>0){try{map.fitBounds(L.latLngBounds(bounds).pad(0.15),{maxZoom:15,animate:true});}catch(e){}}
+    setTimeout(function(){map.invalidateSize({animate:false});},300);
+    setTimeout(function(){map.invalidateSize({animate:false});},800);
     // Notifica RN que o mapa carregou
     if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'mapReady'}));}
   }catch(e){
@@ -341,6 +356,12 @@ export default function MapasScreen() {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === 'tap' && msg.id) {
         router.push(`/(panel)/inspecoes/${msg.id}`);
+      }
+      if (msg.type === 'mapReady') {
+        setLoading(false);
+      }
+      if (msg.type === 'loadError') {
+        setLoading(false);
       }
     } catch { }
   };
