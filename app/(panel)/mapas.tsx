@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   Modal, ScrollView, Platform,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, Heatmap, PROVIDER_GOOGLE, PROVIDER_DEFAULT, MapType } from 'react-native-maps';
+import ClusteredMapView from 'react-native-map-clustering';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -13,7 +14,6 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio } from '../../utils/database';
 import { logger } from '../../utils/logger';
-import { escapeHtml } from '../../utils/htmlUtils';
 
 interface VistoriaMarker {
   id: string;
@@ -36,216 +36,51 @@ const PERIODOS: { key: FilterPeriodo; label: string }[] = [
   { key: 'todos', label: 'Todos' },
 ];
 
-const MAP_STYLES: { key: MapStyle; label: string; icon: string; desc: string; tileUrl: string; subdomains?: string }[] = [
-  {
-    key: 'padrao',
-    label: 'Padrão',
-    icon: 'map',
-    desc: 'Ruas e estradas',
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    subdomains: 'abcd',
-  },
-  {
-    key: 'satelite',
-    label: 'Satélite',
-    icon: 'globe',
-    desc: 'Imagem aérea — Esri',
-    tileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  },
-  {
-    key: 'relevo',
-    label: 'Relevo',
-    icon: 'triangle',
-    desc: 'Topografia — Esri',
-    tileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-  },
-  {
-    key: 'escuro',
-    label: 'Escuro',
-    icon: 'moon',
-    desc: 'Modo noturno',
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    subdomains: 'abcd',
-  },
+const MAP_STYLES: { key: MapStyle; label: string; icon: string; desc: string; mapType: MapType }[] = [
+  { key: 'padrao',   label: 'Padrão',   icon: 'map',      desc: 'Ruas e estradas',      mapType: 'standard' },
+  { key: 'satelite', label: 'Satélite', icon: 'globe',    desc: 'Imagem aérea',          mapType: 'satellite' },
+  { key: 'relevo',   label: 'Relevo',   icon: 'triangle', desc: 'Topografia',            mapType: 'terrain' },
+  { key: 'escuro',   label: 'Escuro',   icon: 'moon',     desc: 'Modo noturno',          mapType: 'standard' },
+];
+
+// Google Maps JSON style para modo escuro
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#0B0F19' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8B949E' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0B0F19' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1C2333' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212A37' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0D1B2A' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#0F1923' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#0F1923' }] },
 ];
 
 const FILTERS: { key: FilterKey; label: string; color: string }[] = [
-  { key: 'todos', label: 'Todos',  color: '#3B82F6' },
-  { key: 'alto',  label: 'Alto',   color: '#EF4444' },
-  { key: 'medio', label: 'Médio',  color: '#F59E0B' },
-  { key: 'baixo', label: 'Baixo',  color: '#10B981' },
+  { key: 'todos', label: 'Todos', color: '#3B82F6' },
+  { key: 'alto',  label: 'Alto',  color: '#EF4444' },
+  { key: 'medio', label: 'Médio', color: '#F59E0B' },
+  { key: 'baixo', label: 'Baixo', color: '#10B981' },
 ];
 
-function getRiscoColor(nivel: string) {
+function getRiscoColor(nivel: string): string {
   if (nivel === 'r4') return '#EF4444';
   if (nivel === 'r3') return '#F97316';
   if (nivel === 'r2') return '#F59E0B';
   return '#10B981';
 }
 
-function buildHtml(
-  markers: VistoriaMarker[],
-  userLat: number | null,
-  userLng: number | null,
-  style: MapStyle,
-  showHeatmap: boolean,
-): string {
-  const s = MAP_STYLES.find(m => m.key === style)!;
-  // safeStr: escapa HTML + caracteres especiais JS para injeção segura em strings JS single-quoted
-  const safeStr = (v: string) => escapeHtml(v).replace(/\n/g, ' ');
-
-  const pinSvg = (color: string) =>
-    `<svg xmlns='http://www.w3.org/2000/svg' width='30' height='40' viewBox='0 0 30 40'>`
-    + `<filter id='s'><feDropShadow dx='0' dy='2' stdDeviation='2' flood-opacity='0.3'/></filter>`
-    + `<g filter='url(#s)'>`
-    + `<path d='M15 2C8 2 2 8 2 15C2 24 15 38 15 38C15 38 28 24 28 15C28 8 22 2 15 2Z' fill='${color}' stroke='white' stroke-width='2'/>`
-    + `<circle cx='15' cy='15' r='6' fill='white' opacity='0.9'/>`
-    + `</g></svg>`;
-
-  const markersJs = markers.map(m => {
-    const color = getRiscoColor(m.nivelRisco);
-    const svgEnc = encodeURIComponent(pinSvg(color));
-    const label = m.nivelRisco === 'r4' ? 'CRÍTICO' : m.nivelRisco === 'r3' ? 'ALTO' : m.nivelRisco === 'r2' ? 'MÉDIO' : 'BAIXO';
-    const pts = m.pontuacaoTotal != null ? ` · ${m.pontuacaoTotal}pts` : '';
-    const data = m.dataVistoria ? new Date(m.dataVistoria).toLocaleDateString('pt-BR') : '—';
-    const popup = `<div style='font-family:-apple-system,sans-serif;min-width:200px;padding:4px'>`
-      + `<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px'>`
-      + `<span style='background:${color};color:#fff;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:800'>${label}${pts}</span>`
-      + `</div>`
-      + `<div style='font-size:13px;font-weight:600;color:#111;margin-bottom:6px;line-height:1.4'>${safeStr(m.endereco)}</div>`
-      + `<div style='font-size:11px;color:#888;margin-bottom:10px'>${safeStr(m.agenteNome)} · ${data}</div>`
-      + `<button onclick="window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:'tap',id:'${m.id}'}))"`
-      + ` style='width:100%;background:#EFF6FF;color:#3B82F6;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer'>`
-      + `Ver detalhes →</button>`
-      + `</div>`;
-    return `(function(){
-      var icon=L.icon({iconUrl:'data:image/svg+xml;charset=UTF-8,${svgEnc}',iconSize:[30,40],iconAnchor:[15,38],popupAnchor:[0,-40]});
-      clusterGroup.addLayer(L.marker([${m.lat},${m.lng}],{icon:icon}).bindPopup('${safeStr(popup)}',{maxWidth:240,closeButton:false}));
-      bounds.push([${m.lat},${m.lng}]);
-    })();`;
-  }).join('\n');
-
-  const userSvg = encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'>`
-    + `<circle cx='11' cy='11' r='9' fill='#3B82F6' stroke='white' stroke-width='2.5'/>`
-    + `<circle cx='11' cy='11' r='4' fill='white'/></svg>`
-  );
-  const userJs = (userLat && userLng)
-    ? `(function(){var ui=L.icon({iconUrl:'data:image/svg+xml;charset=UTF-8,${userSvg}',iconSize:[22,22],iconAnchor:[11,11],popupAnchor:[0,-12]});L.marker([${userLat},${userLng}],{icon:ui}).addTo(map).bindPopup('<b>Você está aqui</b>');bounds.push([${userLat},${userLng}]);})();`
-    : '';
-
-  const initView = (userLat && userLng) ? `[${userLat},${userLng}],14` : `[-15.7801,-47.9292],5`;
-  const bgColor = style === 'escuro' ? '#0B0F19' : '#E8EDF2';
-  const subdomainsAttr = s.subdomains ? `subdomains:'${s.subdomains}',` : '';
-
-  const heatPoints = markers.map(m => `[${m.lat},${m.lng},0.8]`).join(',');
-  const heatJs = showHeatmap
-    ? `if(typeof L.heatLayer!=='undefined'){L.heatLayer([${heatPoints}],{radius:28,blur:18,maxZoom:16}).addTo(map);}`
-    : '';
-
-  return `<!DOCTYPE html><html><head>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-html{width:100%;height:100%}
-body{width:100%;height:100%;min-height:-webkit-fill-available;background:${bgColor}}
-#map{width:100%;height:100vh;min-height:100%;background:${bgColor}}
-#map-error{display:none;position:absolute;inset:0;background:${bgColor};justify-content:center;align-items:center;flex-direction:column;font-family:-apple-system,sans-serif;text-align:center;padding:32px;gap:12px}
-.leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.18);border:none;padding:0}
-.leaflet-popup-content{margin:14px 16px}
-.leaflet-popup-tip-container{display:none}
-.leaflet-control-attribution{display:none!important}
-.leaflet-control-zoom{border:none!important;box-shadow:0 4px 12px rgba(0,0,0,0.15)!important;border-radius:12px!important;overflow:hidden}
-.leaflet-control-zoom a{font-size:18px!important;width:38px!important;height:38px!important;line-height:38px!important;border-radius:0!important}
-.marker-cluster-small{background-color:rgba(59,130,246,0.4)}.marker-cluster-small div{background-color:rgba(59,130,246,0.8)}
-.marker-cluster-medium{background-color:rgba(245,158,11,0.4)}.marker-cluster-medium div{background-color:rgba(245,158,11,0.8)}
-.marker-cluster-large{background-color:rgba(239,68,68,0.4)}.marker-cluster-large div{background-color:rgba(239,68,68,0.8)}
-.marker-cluster div{width:30px;height:30px;margin-left:5px;margin-top:5px;text-align:center;border-radius:15px;font:bold 12px sans-serif;color:white;line-height:30px}
-.marker-cluster{width:40px;height:40px;border-radius:20px}
-</style></head><body>
-<div id="map"></div>
-<div id="map-error">
-  <div style="font-size:40px">🗺️</div>
-  <div style="font-size:16px;font-weight:700;color:#374151">Mapa indisponível</div>
-  <div style="font-size:13px;color:#6B7280;line-height:1.5" id="map-error-msg">Verifique sua conexão com a internet e tente novamente.</div>
-  <button onclick="location.reload()" style="margin-top:8px;background:#3B82F6;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">Tentar novamente</button>
-</div>
-<script>
-function showError(msg){
-  var el=document.getElementById('map-error');
-  if(el){el.style.display='flex';if(msg)document.getElementById('map-error-msg').textContent=msg;}
-}
-window.onerror=function(msg,src,line,col,err){
-  showError('Erro ao inicializar o mapa. Verifique sua conexão.');
-  return true;
-};
-var scriptsToLoad=[
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
-  'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js'
-];
-var loaded=0;
-var failed=false;
-function loadNextScript(idx){
-  if(idx>=scriptsToLoad.length){initMap();return;}
-  var s=document.createElement('script');
-  s.src=scriptsToLoad[idx];
-  s.onload=function(){loaded++;loadNextScript(idx+1);};
-  s.onerror=function(){
-    if(!failed){
-      failed=true;
-      showError('Não foi possível carregar o mapa. Verifique sua conexão com a internet.');
-      if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'loadError',msg:'cdn_fail'}));}
-    }
-  };
-  document.head.appendChild(s);
-}
-var _initRetry=0;
-function initMap(){
-  if(typeof L==='undefined'){showError('Biblioteca de mapas não disponível. Verifique sua conexão.');return;}
-  try{
-    var mapEl=document.getElementById('map');
-    if(!mapEl||mapEl.offsetWidth===0||mapEl.offsetHeight===0){
-      _initRetry++;
-      if(_initRetry<15){setTimeout(initMap,100);return;}
-      showError('Mapa não pôde ser inicializado. Tente fechar e abrir a tela novamente.');
-      if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'loadError',msg:'layout_zero'}));}
-      return;
-    }
-    var map=L.map('map',{zoomControl:true,zoomAnimation:true}).setView(${initView});
-    L.tileLayer('${s.tileUrl}',{maxZoom:20,${subdomainsAttr}attribution:''}).addTo(map);
-    var bounds=[];
-    var clusterGroup;
-    try{
-      clusterGroup=L.markerClusterGroup({maxClusterRadius:60,showCoverageOnHover:false,zoomToBoundsOnClick:true});
-    }catch(e){
-      clusterGroup={addLayer:function(layer){layer.addTo(map);}};
-    }
-    ${markersJs}
-    if(clusterGroup.addTo){clusterGroup.addTo(map);}
-    ${userJs}
-    ${heatJs}
-    if(bounds.length>0){try{map.fitBounds(L.latLngBounds(bounds).pad(0.15),{maxZoom:15,animate:true});}catch(e){}}
-    setTimeout(function(){map.invalidateSize({animate:false});},300);
-    setTimeout(function(){map.invalidateSize({animate:false});},800);
-    // Notifica RN que o mapa carregou
-    if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'mapReady'}));}
-  }catch(e){
-    showError('Erro ao renderizar o mapa: '+e.message);
-  }
-}
-loadNextScript(0);
-</script></body></html>`;
+function getRiscoLabel(nivel: string): string {
+  if (nivel === 'r4') return 'CRÍTICO';
+  if (nivel === 'r3') return 'ALTO';
+  if (nivel === 'r2') return 'MÉDIO';
+  return 'BAIXO';
 }
 
 export default function MapasScreen() {
   const { theme } = useTheme();
   const { isOnlineReal } = useConnectivity();
   const { profile } = useAuth();
-  const webviewRef = useRef<WebView>(null);
+  const mapRef = useRef<MapView>(null);
 
   const [loading, setLoading] = useState(true);
   const [markers, setMarkers] = useState<VistoriaMarker[]>([]);
@@ -254,6 +89,7 @@ export default function MapasScreen() {
   const [mapStyle, setMapStyle] = useState<MapStyle>('padrao');
   const [showStyleModal, setShowStyleModal] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [selectedMarker, setSelectedMarker] = useState<VistoriaMarker | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -328,11 +164,9 @@ export default function MapasScreen() {
   };
 
   const filteredMarkers = markers.filter(m => {
-    // Filtro de risco
     if (filter === 'alto' && !(m.nivelRisco === 'r3' || m.nivelRisco === 'r4')) return false;
     if (filter === 'medio' && m.nivelRisco !== 'r2') return false;
     if (filter === 'baixo' && m.nivelRisco !== 'r1') return false;
-    // Filtro de período
     if (filtroPeriodo !== 'todos' && m.dataVistoria) {
       const dias = filtroPeriodo === '7d' ? 7 : 30;
       const desde = new Date(Date.now() - dias * 86400000);
@@ -341,81 +175,76 @@ export default function MapasScreen() {
     return true;
   });
 
-  const html = buildHtml(
-    filteredMarkers,
-    userLocation?.lat ?? null,
-    userLocation?.lng ?? null,
-    mapStyle,
-    showHeatmap,
-  );
+  const currentStyleConfig = MAP_STYLES.find(s => s.key === mapStyle)!;
+  const initialRegion = userLocation
+    ? { latitude: userLocation.lat, longitude: userLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
+    : { latitude: -15.7801, longitude: -47.9292, latitudeDelta: 30, longitudeDelta: 30 };
 
-  const currentStyle = MAP_STYLES.find(s => s.key === mapStyle)!;
+  const heatmapPoints = filteredMarkers.map(m => ({
+    latitude: m.lat,
+    longitude: m.lng,
+    weight: m.nivelRisco === 'r4' ? 1 : m.nivelRisco === 'r3' ? 0.8 : m.nivelRisco === 'r2' ? 0.5 : 0.3,
+  }));
 
-  const handleMessage = (event: any) => {
-    try {
-      const msg = JSON.parse(event.nativeEvent.data);
-      if (msg.type === 'tap' && msg.id) {
-        router.push(`/(panel)/inspecoes/${msg.id}`);
-      }
-      if (msg.type === 'mapReady') {
-        setLoading(false);
-      }
-      if (msg.type === 'loadError') {
-        setLoading(false);
-      }
-    } catch { }
-  };
+  if (loading) {
+    return (
+      <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Carregando mapa...</Text>
+      </View>
+    );
+  }
 
-  const handleLoadEnd = () => {
-    // Injeta invalidateSize após o layout nativo ter finalizado
-    // Mais confiável que setTimeout dentro do HTML
-    setTimeout(() => {
-      webviewRef.current?.injectJavaScript(`
-        if (typeof map !== 'undefined') {
-          map.invalidateSize({animate: false});
-        }
-        true;
-      `);
-    }, 500);
-  };
+  if (!isOnlineReal && filteredMarkers.length === 0) {
+    return (
+      <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
+        <Feather name="wifi-off" size={48} color={theme.border} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary, textAlign: 'center' }]}>
+          Sem conexão e nenhuma vistoria local.{'\n'}Reconecte para carregar.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Mapa */}
-      {loading ? (
-        <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Carregando mapa...</Text>
-        </View>
-      ) : !isOnlineReal && filteredMarkers.length === 0 ? (
-        <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
-          <Feather name="wifi-off" size={48} color={theme.border} />
-          <Text style={[styles.loadingText, { color: theme.textSecondary, textAlign: 'center' }]}>
-            Sem conexão e nenhuma vistoria local.{'\n'}Reconecte para carregar.
-          </Text>
-        </View>
-      ) : (
-        <WebView
-          key={`${mapStyle}-${filter}-${filtroPeriodo}-${showHeatmap}`}
-          ref={webviewRef}
-          source={{ html, baseUrl: 'https://unpkg.com' }}
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: mapStyle === 'escuro' ? '#0B0F19' : '#E8EDF2' }]}
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={['*']}
-          mixedContentMode="always"
-          startInLoadingState
-          renderLoading={() => (
-            <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', backgroundColor: mapStyle === 'escuro' ? '#0B0F19' : '#E8EDF2' }]}>
-              <ActivityIndicator size="large" color="#3B82F6" />
-            </View>
-          )}
-          onMessage={handleMessage}
-          onError={(e) => logger.warn('system', 'WebView erro no mapa', { desc: e.nativeEvent.description })}
-          onHttpError={(e) => logger.warn('system', 'WebView HTTP erro no mapa', { status: e.nativeEvent.statusCode })}
-          onLoadEnd={handleLoadEnd}
-        />
-      )}
+      <ClusteredMapView
+        ref={mapRef}
+        style={StyleSheet.absoluteFillObject}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+        mapType={currentStyleConfig.mapType}
+        customMapStyle={mapStyle === 'escuro' ? DARK_MAP_STYLE : undefined}
+        initialRegion={initialRegion}
+        showsUserLocation
+        showsMyLocationButton={false}
+        clusterColor="#3B82F6"
+        clusterTextColor="#FFFFFF"
+        clusterFontFamily={undefined}
+        radius={40}
+        onClusterPress={() => {}}
+      >
+        {!showHeatmap && filteredMarkers.map(m => (
+          <Marker
+            key={m.id}
+            coordinate={{ latitude: m.lat, longitude: m.lng }}
+            pinColor={getRiscoColor(m.nivelRisco)}
+            onPress={() => setSelectedMarker(m)}
+          />
+        ))}
+
+        {showHeatmap && Platform.OS === 'android' && (
+          <Heatmap
+            points={heatmapPoints}
+            radius={40}
+            opacity={0.7}
+            gradient={{
+              colors: ['#10B981', '#F59E0B', '#EF4444'],
+              startPoints: [0.2, 0.5, 1.0],
+              colorMapSize: 256,
+            }}
+          />
+        )}
+      </ClusteredMapView>
 
       {/* Header flutuante */}
       <View style={styles.headerOverlay}>
@@ -442,7 +271,7 @@ export default function MapasScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filtros flutuantes — risco */}
+      {/* Filtros */}
       <View style={styles.filtersOverlay}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {FILTERS.map(f => (
@@ -483,21 +312,23 @@ export default function MapasScreen() {
 
       {/* FABs direita */}
       <View style={styles.fabGroup}>
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: showHeatmap ? theme.primary : theme.surfaceHighlight, marginBottom: 10 }]}
-          onPress={() => setShowHeatmap(h => !h)}
-        >
-          <Feather name="zap" size={20} color={showHeatmap ? '#FFF' : theme.textSecondary} />
-        </TouchableOpacity>
+        {Platform.OS === 'android' && (
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: showHeatmap ? theme.primary : theme.surfaceHighlight, marginBottom: 10 }]}
+            onPress={() => setShowHeatmap(h => !h)}
+          >
+            <Feather name="zap" size={20} color={showHeatmap ? '#FFF' : theme.textSecondary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: theme.surfaceHighlight }]}
           onPress={() => setShowStyleModal(true)}
         >
-          <Feather name={currentStyle.icon as any} size={20} color={theme.primary} />
+          <Feather name={currentStyleConfig.icon as any} size={20} color={theme.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Legenda rodapé */}
+      {/* Legenda */}
       <View style={[styles.legend, { backgroundColor: theme.surfaceHighlight }]}>
         {[
           { color: '#EF4444', label: 'Crítico' },
@@ -512,18 +343,41 @@ export default function MapasScreen() {
         ))}
       </View>
 
-      {/* Modal tipo de mapa */}
+      {/* Popup do marcador selecionado */}
+      {selectedMarker && (
+        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <View style={[styles.riscoBadge, { backgroundColor: getRiscoColor(selectedMarker.nivelRisco) }]}>
+              <Text style={styles.riscoBadgeText}>{getRiscoLabel(selectedMarker.nivelRisco)}</Text>
+            </View>
+            {selectedMarker.pontuacaoTotal != null && (
+              <Text style={[{ fontSize: 12, color: theme.textSecondary }]}>{selectedMarker.pontuacaoTotal}pts</Text>
+            )}
+            <TouchableOpacity onPress={() => setSelectedMarker(null)} style={{ marginLeft: 'auto' }}>
+              <Feather name="x" size={16} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.popupEndereco, { color: theme.text }]} numberOfLines={2}>{selectedMarker.endereco}</Text>
+          <Text style={[styles.popupAgente, { color: theme.textSecondary }]}>
+            {selectedMarker.agenteNome} · {selectedMarker.dataVistoria ? new Date(selectedMarker.dataVistoria).toLocaleDateString('pt-BR') : '—'}
+          </Text>
+          <TouchableOpacity
+            style={[styles.popupBtn, { backgroundColor: '#EFF6FF' }]}
+            onPress={() => { setSelectedMarker(null); router.push(`/(panel)/inspecoes/${selectedMarker.id}`); }}
+          >
+            <Text style={{ color: '#3B82F6', fontSize: 13, fontWeight: '700' }}>Ver detalhes →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Modal estilo do mapa */}
       <Modal
         visible={showStyleModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowStyleModal(false)}
       >
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => setShowStyleModal(false)}
-        />
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowStyleModal(false)} />
         <View style={[styles.sheet, { backgroundColor: theme.surfaceHighlight }]}>
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Estilo do Mapa</Text>
@@ -555,8 +409,7 @@ export default function MapasScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#E8EDF2' },
-
+  container: { flex: 1 },
   fullCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, padding: 32 },
   loadingText: { fontSize: 14, fontWeight: '500', marginTop: 8 },
 
@@ -578,8 +431,7 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 11, fontWeight: '500', marginTop: 1 },
 
   filtersOverlay: {
-    position: 'absolute', top: 118, left: 0, right: 0,
-    paddingHorizontal: 16,
+    position: 'absolute', top: 118, left: 0, right: 0, paddingHorizontal: 16,
   },
   chip: {
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
@@ -587,13 +439,12 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, fontWeight: '700' },
 
-  fabGroup: {
-    position: 'absolute', right: 16, bottom: 150,
-  },
+  fabGroup: { position: 'absolute', right: 16, bottom: 150 },
   fab: {
     width: 48, height: 48, borderRadius: 14,
     justifyContent: 'center', alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
+    marginBottom: 10,
   },
 
   legend: {
@@ -606,21 +457,26 @@ const styles = StyleSheet.create({
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendLabel: { fontSize: 10, fontWeight: '600' },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20, paddingTop: 12, gap: 10,
+  markerPopup: {
+    position: 'absolute', bottom: 120, left: 16, right: 16,
+    borderRadius: 16, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
   },
+  riscoBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  riscoBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  popupEndereco: { fontSize: 14, fontWeight: '600', marginBottom: 4, lineHeight: 20 },
+  popupAgente: { fontSize: 12, marginBottom: 10 },
+  popupBtn: { borderRadius: 10, padding: 10, alignItems: 'center' },
+
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 12, gap: 10 },
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
   sheetTitle: { fontSize: 17, fontWeight: '800', marginBottom: 4 },
   styleRow: {
     flexDirection: 'row', alignItems: 'center',
     padding: 14, borderRadius: 16, borderWidth: 2, borderColor: 'transparent',
   },
-  styleIcon: {
-    width: 48, height: 48, borderRadius: 14,
-    justifyContent: 'center', alignItems: 'center',
-  },
+  styleIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   styleLabel: { fontSize: 15, fontWeight: '700' },
   styleDesc: { fontSize: 12, marginTop: 2 },
 });
