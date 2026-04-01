@@ -135,9 +135,12 @@ export default function MunicipiosScreen() {
       ));
       setNovoDominio('');
       setEditandoDominio(null);
-    } catch (e) {
-      Alert.alert('Erro', 'Não foi possível salvar.');
-      logger.error('system', 'Erro salvar domínio', { erro: String(e) });
+    } catch (e: any) {
+      const msg = e?.code === '42501'
+        ? 'Permissão negada. Verifique se você tem perfil de master admin.'
+        : e?.message || 'Não foi possível salvar o domínio.';
+      Alert.alert('Erro', msg);
+      logger.error('system', 'Erro salvar domínio', { erro: e?.message || JSON.stringify(e), code: e?.code });
     } finally {
       setSalvando(false);
     }
@@ -162,8 +165,13 @@ export default function MunicipiosScreen() {
       setCriandoMunicipio(false);
       Alert.alert('Município criado', `"${nome}" foi adicionado com sucesso.`);
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível criar o município.');
-      logger.error('system', 'Erro criar município', { erro: String(e) });
+      const msg = e?.code === '42501'
+        ? 'Permissão negada. Verifique se você tem perfil de master admin.'
+        : e?.code === '23505'
+        ? 'Este município já está cadastrado.'
+        : e?.message || 'Não foi possível criar o município.';
+      Alert.alert('Erro', msg);
+      logger.error('system', 'Erro criar município', { erro: e?.message || JSON.stringify(e), code: e?.code });
     } finally {
       setSalvando(false);
     }
@@ -182,8 +190,11 @@ export default function MunicipiosScreen() {
           setMunicipios(prev => prev.map(m =>
             m.nome === mun.nome ? { ...m, dominiosEmail: novos.length > 0 ? novos : null } : m
           ));
-        } catch (e) {
-          Alert.alert('Erro', 'Não foi possível remover.');
+        } catch (e: any) {
+          const msg = e?.code === '42501'
+            ? 'Permissão negada. Verifique se você tem perfil de master admin.'
+            : 'Não foi possível remover o domínio.';
+          Alert.alert('Erro', msg);
         }
       }},
     ]);
