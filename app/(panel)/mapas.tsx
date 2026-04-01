@@ -171,9 +171,9 @@ html,body{width:100%;height:100%;background:${bgColor}}
   <div style="font-size:13px;color:#6B7280;line-height:1.5" id="map-error-msg">Verifique sua conexão com a internet e tente novamente.</div>
   <button onclick="location.reload()" style="margin-top:8px;background:#3B82F6;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">Tentar novamente</button>
 </div>
-<script>${leafletJs}</script>
-<script>${clusterJs}</script>
-<script>${heatJs}</script>
+<script>${leafletJs.replace(/<\/script>/gi, '<\\/script>')}</script>
+<script>${clusterJs.replace(/<\/script>/gi, '<\\/script>')}</script>
+<script>${heatJs.replace(/<\/script>/gi, '<\\/script>')}</script>
 <script>
 function showError(msg){
   var el=document.getElementById('map-error');
