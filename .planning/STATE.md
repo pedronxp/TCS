@@ -2,24 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: — Correções Críticas + Funcionalidades Core
-status: planning
-stopped_at: "Checkpoint 06-03: Task 2 aguarda verificacao humana (RLS policies no Supabase)"
-last_updated: "2026-04-02T10:58:06.200Z"
+status: executing
+stopped_at: Completed 07-formularios-classificacao-risco/07-01-PLAN.md
+last_updated: "2026-04-02T16:43:03.134Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
+Phase: 07 (formularios-classificacao-risco) — EXECUTING
+Plan: 2 of 3
 **Phase 01:** Correções de Build e Dependências
-**Status:** Ready to plan
+**Status:** Ready to execute
 
 ## Phase Progress
 
@@ -48,6 +48,8 @@ Plan: Not started
 - [Phase 06-mapa-autentica-o]: removerDominio incluido no tratamento RLS para consistencia entre todos os catch blocks de escrita em municipios.tsx
 - [Phase 06-mapa-autentica-o-04]: Função validate_invite_token recriada sem t.id (inexistente) — retorna codigo, municipio, role, criadoPor, valido, motivo
 - [Phase 06-mapa-autentica-o-04]: codigoNorm em register.tsx preserva hífens (.replace(/\s/g,'')) — formato XXXX-XXXX-XXXX deve ser mantido antes do RPC
+- [Phase 07-formularios-classificacao-risco]: limites[] do estrutural_avancado derivados das regrasGlobal existentes para fallback soma_total enquanto pontuacao_por_item nao e suportado
+- [Phase 07-formularios-classificacao-risco]: versao incrementada para 2 para invalidar rascunhos antigos automaticamente via novo draftKey
 
 ## Performance Metrics
 
@@ -60,8 +62,9 @@ Plan: Not started
 | Phase 05-seguranca-divida-tecnica P05 | 1800 | 12 tasks | 22 files |
 | Phase 06-mapa-autentica-o P03 | 120 | 1 tasks | 1 files |
 | Phase 06-mapa-autentica-o P04 | 3600 | 2 tasks | 1 files |
+| Phase 07-formularios-classificacao-risco P01 | 120 | 3 tasks | 3 files |
 
 ## Last Session
 
-- **Stopped at:** Checkpoint 06-03: Task 2 aguarda verificacao humana (RLS policies no Supabase)
+- **Stopped at:** Completed 07-formularios-classificacao-risco/07-01-PLAN.md
 - **Timestamp:** 2026-03-29T23:15:00Z
