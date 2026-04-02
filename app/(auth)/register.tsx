@@ -122,8 +122,8 @@ export default function RegisterScreen() {
 
       if (insertError) throw insertError;
 
-      // 4. Marcar token como usado (não deletar) — permite histórico de tokens utilizados
-      await supabase.from('invite_tokens').update({ usado: true }).eq('codigo', codigoNorm);
+      // 4. Marcar token como usado via RPC (SECURITY DEFINER ignora RLS)
+      await supabase.rpc('mark_token_used', { p_codigo: codigoNorm });
 
       // 5. Notificar o admin que criou o token (best effort — nunca bloqueia o fluxo)
       try {
