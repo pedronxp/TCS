@@ -1,0 +1,315 @@
+{
+  "id": "vistoria_deslizamento_v1",
+  "titulo": "Vistoria de Risco de Deslizamento",
+  "versao": 1,
+  "ativo": true,
+  "tipoCalculo": "soma_total",
+  "descricao": "Formulário de campo para avaliação de risco de deslizamento em encostas e taludes, baseado na planilha técnica de vistoria. Pontuação total classifica o risco global.",
+  "classificacao": {
+    "limites": [
+      { "max": 2,    "nivel": "baixo",    "label": "R1 — BAIXO — Sem intervenção imediata necessária",              "cor": "verde"    },
+      { "max": 4,    "nivel": "medio",    "label": "R2 — MÉDIO — Monitoramento e medidas preventivas",             "cor": "amarelo"  },
+      { "max": 9,    "nivel": "alto",     "label": "R3 — ALTO — Intervenção técnica urgente necessária",           "cor": "laranja"  },
+      { "max": 9999, "nivel": "iminente", "label": "R4 — MUITO ALTO — Evacuação e interdição imediata",            "cor": "vermelho" }
+    ]
+  },
+  "fases": [
+    {
+      "id": "fase_deslizamento",
+      "titulo": "Vistoria de Campo — Risco de Deslizamento",
+      "instrucao": "Preencha todos os campos observando as condições atuais do local. A pontuação total determina o nível de risco.",
+      "perguntas": [
+        {
+          "id": "desl_foto_geral",
+          "texto": "Foto geral do local / encosta",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "opcoes": []
+        },
+        {
+          "id": "desl_caracterizacao",
+          "texto": "Caracterização do local",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "natural",
+              "texto": "Encosta Natural",
+              "descricao": "Terreno original sem aterro",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "aterro",
+              "texto": "Aterro",
+              "descricao": "Terreno com material aterrado",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "desl_inclinacao",
+          "texto": "Inclinação da encosta",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "ate_10",
+              "texto": "Até 10°",
+              "descricao": "Encosta suave — risco muito baixo",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "ate_17",
+              "texto": "~17°",
+              "descricao": "Inclinação leve — risco baixo",
+              "imagemLocal": null,
+              "pesoRisco": 1
+            },
+            {
+              "id": "ate_30",
+              "texto": "~30°",
+              "descricao": "Inclinação moderada — risco médio",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            },
+            {
+              "id": "ate_60",
+              "texto": "~60°",
+              "descricao": "Inclinação forte — risco alto",
+              "imagemLocal": null,
+              "pesoRisco": 3
+            },
+            {
+              "id": "ate_90",
+              "texto": "≥90° (vertical/subvertical)",
+              "descricao": "Encosta quase vertical — risco muito alto",
+              "imagemLocal": null,
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "desl_drenagem",
+          "texto": "Drenagem superficial da encosta",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "satisfatoria",
+              "texto": "Satisfatória",
+              "descricao": "Drenagem funcional, sem acúmulo de água",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "precaria",
+              "texto": "Precária",
+              "descricao": "Drenagem deficiente, alguns pontos de acúmulo",
+              "imagemLocal": null,
+              "pesoRisco": 1
+            },
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Sem sistema de drenagem — água acumula livremente",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "desl_vegetacao",
+          "texto": "Vegetação no talude",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "arvores",
+              "texto": "Presença de Árvores",
+              "descricao": "Vegetação arbórea — raízes profundas estabilizando o solo",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "rasteira",
+              "texto": "Vegetação Rasteira",
+              "descricao": "Capim ou arbustos baixos — proteção superficial limitada",
+              "imagemLocal": null,
+              "pesoRisco": 1
+            },
+            {
+              "id": "desmatada",
+              "texto": "Área Desmatada",
+              "descricao": "Solo exposto sem cobertura vegetal",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            },
+            {
+              "id": "cultivo",
+              "texto": "Área de Cultivo",
+              "descricao": "Cultivo agrícola — solo revolvido e pouco protegido",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "desl_trincas",
+          "texto": "Trincas no solo ou estruturas da encosta",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Não",
+              "descricao": "Sem trincas visíveis",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim",
+              "descricao": "Trincas visíveis no solo ou estruturas — sinal de movimentação",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "desl_degraus",
+          "texto": "Degraus de abatimento (ruptura no solo)",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Não",
+              "descricao": "Superfície do solo contínua, sem degraus",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim",
+              "descricao": "Degraus ou rupturas no solo — indicativo de escorregamento",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "desl_inclinacao_estruturas",
+          "texto": "Inclinação de estruturas ou árvores",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Não",
+              "descricao": "Estruturas e árvores verticais, sem inclinação",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim",
+              "descricao": "Postes, muros ou árvores inclinados — indica deslocamento do solo",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "desl_muros_embarrigados",
+          "texto": "Muros embarrigados (com barriga)",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Não",
+              "descricao": "Muros verticais e sem deformação",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim",
+              "descricao": "Muros com protuberância (embarrigamento) — pressão lateral do solo",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "desl_trinca_escorregamento",
+          "texto": "Trinca de escorregamento próxima",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "sem_risco",
+              "texto": "Sem risco aparente",
+              "descricao": "Nenhuma trinca de escorregamento identificada nas proximidades",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "esperado",
+              "texto": "Esperado",
+              "descricao": "Condições propícias a escorregamento mas sem evento confirmado",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            },
+            {
+              "id": "ja_ocorrido",
+              "texto": "Já ocorrido",
+              "descricao": "Escorregamento próximo já registrado — risco de recorrência",
+              "imagemLocal": null,
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "desl_processos_instabilizacao",
+          "texto": "Processos de instabilização identificados",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "sem_risco",
+              "texto": "Sem risco aparente",
+              "descricao": "Nenhum processo de instabilização observado",
+              "imagemLocal": null,
+              "pesoRisco": 0
+            },
+            {
+              "id": "esperado",
+              "texto": "Esperado",
+              "descricao": "Sinais de instabilização — deslizamento esperado em eventos de chuva",
+              "imagemLocal": null,
+              "pesoRisco": 2
+            },
+            {
+              "id": "ja_ocorrido",
+              "texto": "Já ocorrido",
+              "descricao": "Deslizamento ou escorregamento já ocorreu no local",
+              "imagemLocal": null,
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "desl_observacoes",
+          "texto": "Observações adicionais do vistoriador",
+          "tipo": "texto",
+          "obrigatoria": false,
+          "opcoes": []
+        }
+      ]
+    }
+  ]
+}

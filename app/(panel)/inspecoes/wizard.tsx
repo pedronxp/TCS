@@ -20,10 +20,8 @@ import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 
 // Built-in JSON assets
 const ASSETS: Record<string, any> = {
-  'estrutural_v1': require('../../../assets/formularios/estrutural.json'),
-  'deslizamento_campo_v1': require('../../../assets/formularios/deslizamento_campo.json'),
-  'estrutural_avancado_v1': require('../../../assets/formularios/estrutural_avancado.json'),
-  'inundacao_v1': require('../../../assets/formularios/inundacao.json'),
+  'risco_estrutural_v1': require('../../../assets/formularios/risco_estrutural_v1.json'),
+  'vistoria_deslizamento_v1': require('../../../assets/formularios/vistoria_deslizamento_v1.json'),
 };
 
 // ─── Types (mapeados de formulario_model.dart) ────────────────────────────────
@@ -39,6 +37,7 @@ interface OpcaoModel {
 interface PerguntaModel {
   id: string;
   texto: string;
+  faseId?: string;
   grupo?: string;
   instrucao?: string;
   tipo: 'cards' | 'multipla_escolha' | 'texto' | 'foto';
@@ -63,6 +62,8 @@ export default function WizardAvaliacaoScreen() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [limites, setLimites] = useState<{max: number; nivel: string}[]>([]);
+  const [tipoCalculo, setTipoCalculo] = useState<string>('soma_total');
+  const [faseConfigs, setFaseConfigs] = useState<{id: string; peso: number}[]>([]);
   const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const riscoAnim = useRef(new Animated.Value(0)).current;
@@ -127,6 +128,8 @@ export default function WizardAvaliacaoScreen() {
         const flat = flattenPerguntas(json);
         setPerguntas(flat);
         setLimites(json?.classificacao?.limites || []);
+        setTipoCalculo(json?.tipoCalculo || 'soma_total');
+        setFaseConfigs((json?.fases || []).map((f: any) => ({ id: f.id, peso: f.peso ?? 1 })));
       } else {
         const { data, error } = await supabase
           .from('formularios')
@@ -169,6 +172,7 @@ export default function WizardAvaliacaoScreen() {
         result.push({
           id: p.id,
           texto: p.texto,
+          faseId: fase.id,
           grupo: fase.titulo,
           instrucao: fase.instrucao,
           tipo: p.tipo ?? (fase.tipoFase?.startsWith('radio') ? 'cards' : 'texto'),
@@ -199,6 +203,51 @@ export default function WizardAvaliacaoScreen() {
   };
 
   const calcularNivelRisco = (): { nivel: string; pontuacao: number } => {
+    const nivelMap: Record<string, string> = {
+      sem_risco: 'r1', baixo: 'r1', muito_baixo: 'r1',
+      medio: 'r2', medio_baixo: 'r2',
+      alto: 'r3', medio_alto: 'r3',
+      iminente: 'r4', critico: 'r4', muito_alto: 'r4',
+    };
+
+    // ── Cálculo ponderado por elemento (Risco Estrutural) ─────────────────────
+    if (tipoCalculo === 'ponderada_max_elemento') {
+      // Acumula score bruto por fase
+      const faseRaw: Record<string, number> = {};
+      perguntas.forEach(p => {
+        if (!p.faseId) return;
+        const r = respostas[p.id];
+        if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
+          const opcao = p.opcoes.find(o => o.id === r);
+          if (opcao && opcao.pesoRisco > 0) {
+            faseRaw[p.faseId] = (faseRaw[p.faseId] || 0) + opcao.pesoRisco;
+          }
+        }
+      });
+
+      // Aplica peso de cada elemento: score_elemento = raw × peso
+      const weighted = Object.entries(faseRaw).map(([faseId, raw]) => {
+        const cfg = faseConfigs.find(f => f.id === faseId);
+        return raw * (cfg?.peso ?? 1);
+      });
+
+      if (weighted.length === 0) return { nivel: 'r1', pontuacao: 0 };
+
+      const maxScore = Math.max(...weighted);
+      const mediaScore = weighted.reduce((a, b) => a + b, 0) / weighted.length;
+      // Critério: elementos com score > 10 classificados como Alto/Muito Alto
+      const countAltoPlus = weighted.filter(s => s > 10).length;
+
+      let nivel: string;
+      if (maxScore >= 15 || countAltoPlus >= 2) nivel = 'r4';
+      else if (maxScore >= 11) nivel = 'r3';
+      else if (maxScore >= 6 || mediaScore >= 6) nivel = 'r2';
+      else nivel = 'r1';
+
+      return { nivel, pontuacao: Math.round(maxScore * 10) / 10 };
+    }
+
+    // ── Cálculo soma total (padrão) ───────────────────────────────────────────
     let pontuacao = 0;
     perguntas.forEach(p => {
       const r = respostas[p.id];
@@ -207,14 +256,6 @@ export default function WizardAvaliacaoScreen() {
         if (opcao) pontuacao += opcao.pesoRisco;
       }
     });
-
-    // Map JSON nivel strings to r1-r4 system
-    const nivelMap: Record<string, string> = {
-      sem_risco: 'r1', baixo: 'r1',
-      medio: 'r2', medio_baixo: 'r2',
-      alto: 'r3', medio_alto: 'r3',
-      iminente: 'r4', critico: 'r4',
-    };
 
     if (limites.length > 0) {
       const sorted = [...limites].sort((a, b) => a.max - b.max);
@@ -226,7 +267,7 @@ export default function WizardAvaliacaoScreen() {
       return { nivel: 'r4', pontuacao };
     }
 
-    // Fallback hardcoded thresholds
+    // Fallback hardcoded
     let nivel = 'r1';
     if (pontuacao >= 75) nivel = 'r4';
     else if (pontuacao >= 50) nivel = 'r3';
@@ -238,7 +279,7 @@ export default function WizardAvaliacaoScreen() {
   const riscoAtual = useMemo(() => {
     if (Object.keys(respostas).length === 0) return null;
     return calcularNivelRisco();
-  }, [respostas, perguntas, limites]);
+  }, [respostas, perguntas, limites, tipoCalculo, faseConfigs]);
 
   // Anima entrada/saída do banner quando riscoAtual muda
   useEffect(() => {
