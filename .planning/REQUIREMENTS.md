@@ -21,7 +21,7 @@
 ### FORM
 
 - [x] **FORM-01**: Agente consegue preencher formulário de vistoria com campos alinhados ao sistema R1/R2/R3/R4
-- [ ] **FORM-02**: Sistema calcula automaticamente o nível de risco (R1/R2/R3/R4) com base nas respostas do formulário
+- [x] **FORM-02**: Sistema calcula automaticamente o nível de risco (R1/R2/R3/R4) com base nas respostas do formulário
 - [ ] **FORM-03**: Formulário preenchido offline é salvo no SQLite e não se perde com fechamento do app
 
 ### SYNC
@@ -65,7 +65,7 @@
 | AUTH-01 | Phase 06 | Complete |
 | AUTH-02 | Phase 06 | pending |
 | FORM-01 | Phase 07 | Complete |
-| FORM-02 | Phase 07 | pending |
+| FORM-02 | Phase 07 | Complete |
 | FORM-03 | Phase 07 | pending |
 | SYNC-01 | Phase 08 | pending |
 | UX-01 | Phase 09 | pending |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: — Correções Críticas + Funcionalidades Core
 status: executing
-stopped_at: Completed 07-formularios-classificacao-risco/07-01-PLAN.md
-last_updated: "2026-04-02T16:43:03.134Z"
+stopped_at: Completed 07-formularios-classificacao-risco/07-02-PLAN.md
+last_updated: "2026-04-02T16:47:30.044Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # State — Defesa Civil Expo
@@ -17,7 +17,7 @@ progress:
 ## Current Position
 
 Phase: 07 (formularios-classificacao-risco) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 **Phase 01:** Correções de Build e Dependências
 **Status:** Ready to execute
 
@@ -50,6 +50,8 @@ Plan: 2 of 3
 - [Phase 06-mapa-autentica-o-04]: codigoNorm em register.tsx preserva hífens (.replace(/\s/g,'')) — formato XXXX-XXXX-XXXX deve ser mantido antes do RPC
 - [Phase 07-formularios-classificacao-risco]: limites[] do estrutural_avancado derivados das regrasGlobal existentes para fallback soma_total enquanto pontuacao_por_item nao e suportado
 - [Phase 07-formularios-classificacao-risco]: versao incrementada para 2 para invalidar rascunhos antigos automaticamente via novo draftKey
+- [Phase 07-formularios-classificacao-risco]: useMemo de riscoAtual posicionado após calcularNivelRisco para evitar ReferenceError com const
+- [Phase 07-formularios-classificacao-risco]: Footer wizard mudado para flexDirection:column; botões envolvidos em View row interna
 
 ## Performance Metrics
 
@@ -63,8 +65,9 @@ Plan: 2 of 3
 | Phase 06-mapa-autentica-o P03 | 120 | 1 tasks | 1 files |
 | Phase 06-mapa-autentica-o P04 | 3600 | 2 tasks | 1 files |
 | Phase 07-formularios-classificacao-risco P01 | 120 | 3 tasks | 3 files |
+| Phase 07-formularios-classificacao-risco P02 | 125 | 2 tasks | 1 files |
 
 ## Last Session
 
-- **Stopped at:** Completed 07-formularios-classificacao-risco/07-01-PLAN.md
+- **Stopped at:** Completed 07-formularios-classificacao-risco/07-02-PLAN.md
 - **Timestamp:** 2026-03-29T23:15:00Z
