@@ -10,6 +10,7 @@ import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { riscoLabel, riscoColor, riscoConduta } from '../../../utils/riscoUtils';
+import { parseProtocolo } from '../../../utils/uuid';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -141,8 +142,13 @@ function buildRelatorioHtml(
   .brand-name { font-size:22px; font-weight:900; color:#1A365D; letter-spacing:-0.5px; }
   .brand-sub  { font-size:10px; font-weight:700; color:#718096; letter-spacing:1.5px; margin-top:2px; }
   .proto-block { text-align:right; }
-  .proto-label { font-size:9px; font-weight:700; color:#A0AEC0; letter-spacing:1px; }
-  .proto-num   { font-size:18px; font-weight:900; color:#1A365D; margin-top:2px; }
+  .proto-label { font-size:9px; font-weight:700; color:#A0AEC0; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:6px; }
+  .proto-partes { display:flex; align-items:center; gap:6px; }
+  .proto-parte { padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800; }
+  .proto-prefix { background:${cor}; color:#fff; }
+  .proto-date   { background:#EDF2F7; color:#2D3748; }
+  .proto-hash   { background:#EDF2F7; color:#1A202C; letter-spacing:2px; font-size:14px; font-weight:900; }
+  .proto-dot    { color:#A0AEC0; font-size:14px; font-weight:900; }
 
   /* ── Badge de risco ── */
   .risco-badge { background:${cor}; color:#fff; text-align:center; padding:18px 24px; border-radius:12px; margin-bottom:24px; }
@@ -190,8 +196,19 @@ function buildRelatorioHtml(
       <div class="brand-sub">RELATÓRIO DE VISTORIA</div>
     </div>
     <div class="proto-block">
-      <div class="proto-label">PROTOCOLO</div>
-      <div class="proto-num">#${draft.protocolo}</div>
+      <div class="proto-label">PROTOCOLO OFICIAL</div>
+      ${(() => {
+        const p = parseProtocolo(draft.protocolo);
+        return p
+          ? `<div class="proto-partes">
+               <span class="proto-parte proto-prefix">${p.prefix}</span>
+               <span class="proto-dot">·</span>
+               <span class="proto-parte proto-date">${p.date}</span>
+               <span class="proto-dot">·</span>
+               <span class="proto-parte proto-hash">${p.hash}</span>
+             </div>`
+          : `<div class="proto-num">${draft.protocolo}</div>`;
+      })()}
     </div>
   </div>
 
@@ -338,6 +355,7 @@ export default function RelatorioScreen() {
 
   const cor   = riscoColor(draft.nivelRisco);
   const label = riscoLabel(draft.nivelRisco);
+  const proto = parseProtocolo(draft.protocolo);
 
   const exportarPDF = async () => {
     setGerando(true);
@@ -383,7 +401,7 @@ export default function RelatorioScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[s.headerTitle, { color: theme.text }]}>Relatório Técnico</Text>
-          <Text style={[s.headerSub, { color: theme.textSecondary }]}>Protocolo #{draft.protocolo}</Text>
+          <Text style={[s.headerSub, { color: theme.textSecondary }]}>{draft.protocolo}</Text>
         </View>
         <View style={[s.riscoBadgeSmall, { backgroundColor: cor }]}>
           <Text style={s.riscoBadgeText}>{label}</Text>
@@ -395,23 +413,41 @@ export default function RelatorioScreen() {
         {/* ── Card do Relatório ───────────────────────────────────────────── */}
         <View style={[s.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
 
-          {/* Logo TCS */}
+          {/* ── Brand + Protocolo ─────────────────────────────────────── */}
           <View style={[s.brandHeader, { borderBottomColor: theme.border }]}>
+            {/* Logo + nome */}
             <View style={s.brandLeft}>
-              <Image
-                source={require('../../../assets/logo.png')}
-                style={s.logo}
-                resizeMode="contain"
-              />
+              <Image source={require('../../../assets/logo.png')} style={s.logo} resizeMode="contain" />
               <View>
                 <Text style={[s.brandName, { color: theme.text }]}>TCS</Text>
                 <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE VISTORIA</Text>
               </View>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[s.protoLabel, { color: theme.textSecondary }]}>PROTOCOLO</Text>
-              <Text style={[s.protoNum, { color: theme.text }]}>#{draft.protocolo}</Text>
-            </View>
+
+            {/* Protocolo em partes */}
+            {proto ? (
+              <View style={[s.protoBox, { borderColor: theme.border, backgroundColor: theme.iconBackground }]}>
+                <Text style={[s.protoBoxLabel, { color: theme.textSecondary }]}>PROTOCOLO</Text>
+                <View style={s.protoPartes}>
+                  <View style={[s.protoParte, { backgroundColor: cor }]}>
+                    <Text style={s.protoParteText}>{proto.prefix}</Text>
+                  </View>
+                  <Text style={[s.protoDot, { color: theme.textSecondary }]}>·</Text>
+                  <View style={[s.protoParte, { backgroundColor: theme.cardBorder }]}>
+                    <Text style={[s.protoParteText, { color: theme.text }]}>{proto.date}</Text>
+                  </View>
+                  <Text style={[s.protoDot, { color: theme.textSecondary }]}>·</Text>
+                  <View style={[s.protoParte, { backgroundColor: theme.cardBorder }]}>
+                    <Text style={[s.protoParteText, { color: theme.text, fontWeight: '900', letterSpacing: 2 }]}>{proto.hash}</Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[s.protoLabel, { color: theme.textSecondary }]}>PROTOCOLO</Text>
+                <Text style={[s.protoNum, { color: theme.text }]}>{draft.protocolo}</Text>
+              </View>
+            )}
           </View>
 
           {/* Badge de risco */}
@@ -591,13 +627,20 @@ const s = StyleSheet.create({
   card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', marginBottom: 24 },
 
   // Brand header
-  brandHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
-  brandLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  brandHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, gap: 12 },
+  brandLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   logo: { width: 44, height: 44, borderRadius: 10 },
   brandName: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
   brandSub: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, marginTop: 1 },
   protoLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   protoNum: { fontSize: 16, fontWeight: '900', marginTop: 2 },
+  // Protocolo em partes
+  protoBox: { borderWidth: 1, borderRadius: 12, padding: 10, alignItems: 'center', minWidth: 150 },
+  protoBoxLabel: { fontSize: 8, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
+  protoPartes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  protoParte: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6 },
+  protoParteText: { fontSize: 11, fontWeight: '800', color: '#FFF' },
+  protoDot: { fontSize: 12, fontWeight: '900' },
 
   // Risk banner
   riscoBanner: { padding: 20, alignItems: 'center' },

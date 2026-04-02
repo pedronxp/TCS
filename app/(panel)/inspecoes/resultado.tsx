@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, Share
+  ActivityIndicator, Alert, Share, Modal, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -12,8 +13,9 @@ import { useAuth } from '../../../context/AuthContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
 import { getVistoriaById } from '../../../utils/database';
-import { buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
+import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { generateProtocolo } from '../../../utils/uuid';
 
 /** Normaliza dados de qualquer fonte (Supabase camelCase ou SQLite snake_case) */
 function normalizar(v: any): any {
@@ -23,11 +25,15 @@ function normalizar(v: any): any {
     nivelRisco: v.nivelRisco ?? v.nivel_risco ?? 'r1',
     pontuacaoTotal: v.pontuacaoTotal ?? v.pontuacao_total ?? 0,
     endereco: v.endereco ?? `${v.endereco_rua ?? ''}, ${v.endereco_numero ?? ''} - ${v.endereco_bairro ?? ''}`,
+    enderecoRua: v.enderecoRua ?? v.endereco_rua ?? '',
+    enderecoNumero: v.enderecoNumero ?? v.endereco_numero ?? '',
+    enderecoBairro: v.enderecoBairro ?? v.endereco_bairro ?? '',
     municipio: v.municipio ?? '',
     dataVistoria: v.dataVistoria ?? v.data_vistoria ?? v.created_at ?? null,
     agenteNome: v.agenteNome ?? v.agente_nome ?? '—',
     respostasJson: v.respostasJson ?? v.respostas_json ?? '{}',
     formularioId: v.formularioId ?? v.formulario_id ?? 'Padrão',
+    responsavelNome: v.responsavelNome ?? v.responsavel_nome ?? '',
   };
 }
 
@@ -43,6 +49,19 @@ export default function ResultadoScreen() {
   const [gerando, setGerando] = useState(false);
   const [vistoria, setVistoria] = useState<ReturnType<typeof normalizar> | null>(null);
 
+  // Modal Termo de Interdição
+  const [showTermoModal, setShowTermoModal] = useState(false);
+  const [termoForm, setTermoForm] = useState<TermoInterdicaoData>({
+    nomeNotificado: '',
+    cpfNotificado: '',
+    enderecoRua: '',
+    enderecoNumero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    telefone: '',
+  });
+
   useEffect(() => { loadDados(); }, [id]);
 
   const populateReport = (v: ReturnType<typeof normalizar>, nome: string) => {
@@ -51,7 +70,7 @@ export default function ResultadoScreen() {
     try { respostas = JSON.parse(v.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: v.id || '',
-      protocolo: (v.id || '').toString().slice(0, 8).toUpperCase(),
+      protocolo: generateProtocolo(v.id || '', v.dataVistoria),
       endereco: v.endereco || '',
       municipio: v.municipio || '',
       agenteNome: nome,
@@ -71,7 +90,7 @@ export default function ResultadoScreen() {
       // 1. Tentar Supabase
       const { data, error } = await supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, municipio, dataVistoria, agenteNome, respostasJson, formularioId')
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome')
         .eq('id', id)
         .single();
 
@@ -79,6 +98,8 @@ export default function ResultadoScreen() {
         const norm = normalizar(data);
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || profile?.name || '—');
+        // Pré-preenche o form do Termo com dados da vistoria
+        prefillTermoForm(norm);
         return;
       }
 
@@ -88,6 +109,7 @@ export default function ResultadoScreen() {
         const norm = normalizar(local);
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || profile?.name || '—');
+        prefillTermoForm(norm);
         return;
       }
 
@@ -102,6 +124,7 @@ export default function ResultadoScreen() {
         });
         setVistoria(norm);
         populateReport(norm, profile?.name || '—');
+        prefillTermoForm(norm);
       }
     } catch {
       // Usar params da navegação como fallback silencioso
@@ -115,10 +138,24 @@ export default function ResultadoScreen() {
         });
         setVistoria(norm);
         populateReport(norm, profile?.name || '—');
+        prefillTermoForm(norm);
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  /** Pré-preenche os campos do modal do Termo de Interdição com dados da vistoria */
+  const prefillTermoForm = (v: any) => {
+    if (!v) return;
+    setTermoForm(prev => ({
+      ...prev,
+      nomeNotificado: v.responsavelNome || '',
+      enderecoRua: v.enderecoRua || '',
+      enderecoNumero: v.enderecoNumero || '',
+      bairro: v.enderecoBairro || '',
+      cidade: v.municipio || '',
+    }));
   };
 
   const buildDados = (): LaudoData => ({
@@ -143,7 +180,7 @@ export default function ResultadoScreen() {
       if (disponivel) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: 'Laudo Técnico — Defesa Civil',
+          dialogTitle: 'Laudo Técnico — TCS',
           UTI: 'com.adobe.pdf',
         });
       } else {
@@ -178,18 +215,45 @@ export default function ResultadoScreen() {
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `Laudo ${(vistoria?.id || '').slice(0, 8).toUpperCase()} — Defesa Civil`,
+          dialogTitle: `Laudo ${generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria)} — TCS`,
           UTI: 'com.adobe.pdf',
         });
       } else {
-        // Fallback: compartilhar texto com link (iOS sem Files.app)
         await Share.share({
-          message: `Laudo Técnico Defesa Civil — ${vistoria?.endereco || 'Endereço não informado'}\nNível de Risco: ${riscoLabel(vistoria?.nivelRisco || 'r1')}\nArquivo: ${uri}`,
-          title: 'Laudo Técnico — Defesa Civil',
+          message: `Laudo Técnico TCS — ${vistoria?.endereco || 'Endereço não informado'}\nNível de Risco: ${riscoLabel(vistoria?.nivelRisco || 'r1')}\nArquivo: ${uri}`,
+          title: 'Laudo Técnico — TCS',
         });
       }
     } catch {
       Alert.alert('Erro', 'Não foi possível compartilhar o laudo.');
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  /** Gera o Termo de Interdição */
+  const gerarTermoInterdicao = async () => {
+    if (!termoForm.nomeNotificado.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
+      return;
+    }
+    setGerando(true);
+    setShowTermoModal(false);
+    try {
+      const html = buildTermoInterdicaoHtml(buildDados(), termoForm);
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const disponivel = await Sharing.isAvailableAsync();
+      if (disponivel) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Termo de Interdição — TCS',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('PDF Gerado', `Termo de Interdição salvo em:\n${uri}`);
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
     } finally {
       setGerando(false);
     }
@@ -206,6 +270,26 @@ export default function ResultadoScreen() {
   const nivel = vistoria?.nivelRisco || nivelParam || 'r1';
   const cor = riscoColor(nivel);
   const label = riscoLabel(nivel);
+  const isAltoRisco = nivel === 'r3' || nivel === 'r4';
+
+  // CPF mask
+  const handleCpfChange = (t: string) => {
+    const limpo = t.replace(/\D/g, '').substring(0, 11);
+    let formatted = limpo;
+    if (limpo.length > 9) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6, 9)}-${limpo.slice(9)}`;
+    else if (limpo.length > 6) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6)}`;
+    else if (limpo.length > 3) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3)}`;
+    setTermoForm(f => ({ ...f, cpfNotificado: formatted }));
+  };
+
+  // Phone mask
+  const handlePhoneChange = (t: string) => {
+    const limpo = t.replace(/\D/g, '').substring(0, 11);
+    let formatted = limpo;
+    if (limpo.length > 6) formatted = `(${limpo.slice(0, 2)}) ${limpo.slice(2, 7)}-${limpo.slice(7)}`;
+    else if (limpo.length > 2) formatted = `(${limpo.slice(0, 2)}) ${limpo.slice(2)}`;
+    setTermoForm(f => ({ ...f, telefone: formatted }));
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -219,7 +303,7 @@ export default function ResultadoScreen() {
         <View style={styles.titleSection}>
           <Text style={[styles.title, { color: theme.text }]}>Resultado Final</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Laudo #{id?.toString().slice(0, 8).toUpperCase()}
+            {generateProtocolo(id?.toString() || '', vistoria?.dataVistoria)}
           </Text>
         </View>
       </View>
@@ -240,6 +324,28 @@ export default function ResultadoScreen() {
               : 'Dados salvos localmente. PDF disponível após sincronização.'}
           </Text>
         </View>
+
+        {/* Botão Termo de Interdição — SÓ R3/R4 */}
+        {isAltoRisco && (
+          <TouchableOpacity
+            style={[styles.termoBtn]}
+            onPress={() => setShowTermoModal(true)}
+            disabled={gerando}
+          >
+            <View style={styles.termoBtnInner}>
+              <View style={styles.termoBtnIconWrap}>
+                <Feather name="alert-triangle" size={22} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.termoBtnTitle}>Gerar Termo de Interdição</Text>
+                <Text style={styles.termoBtnDesc}>
+                  Documento oficial — apenas para risco {label}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+            </View>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[styles.reportBtn, { backgroundColor: theme.primary }]}
@@ -315,6 +421,145 @@ export default function ResultadoScreen() {
           <Text style={styles.primaryBtnText}>Voltar ao Início</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ═══════════════ MODAL TERMO DE INTERDIÇÃO ═══════════════ */}
+      <Modal visible={showTermoModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.modalKav}
+          >
+            <View style={[styles.modalCard, { backgroundColor: theme.surfaceHighlight }]}>
+              {/* Header do Modal */}
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <View style={styles.modalHeaderIcon}>
+                  <Feather name="alert-triangle" size={20} color="#DC2626" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>Termo de Interdição</Text>
+                  <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+                    Preencha os dados do notificado
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowTermoModal(false)}>
+                  <Feather name="x" size={22} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+                <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  placeholder="Nome completo"
+                  placeholderTextColor={theme.textSecondary}
+                  value={termoForm.nomeNotificado}
+                  onChangeText={t => setTermoForm(f => ({ ...f, nomeNotificado: t }))}
+                />
+
+                <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>CPF</Text>
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  placeholder="000.000.000-00"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="numeric"
+                  maxLength={14}
+                  value={termoForm.cpfNotificado}
+                  onChangeText={handleCpfChange}
+                />
+
+                <View style={styles.modalRow}>
+                  <View style={{ flex: 3 }}>
+                    <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Rua</Text>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Logradouro"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.enderecoRua}
+                      onChangeText={t => setTermoForm(f => ({ ...f, enderecoRua: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nº</Text>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Nº"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="numeric"
+                      value={termoForm.enderecoNumero}
+                      onChangeText={t => setTermoForm(f => ({ ...f, enderecoNumero: t }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.modalRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Complemento</Text>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Apto, Bloco..."
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.complemento}
+                      onChangeText={t => setTermoForm(f => ({ ...f, complemento: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Bairro</Text>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Bairro"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.bairro}
+                      onChangeText={t => setTermoForm(f => ({ ...f, bairro: t }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.modalRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Cidade</Text>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Município"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.cidade}
+                      onChangeText={t => setTermoForm(f => ({ ...f, cidade: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Telefone</Text>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="(00) 00000-0000"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                      value={termoForm.telefone}
+                      onChangeText={handlePhoneChange}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+
+              {/* Ações do Modal */}
+              <View style={[styles.modalActions, { borderTopColor: theme.border }]}>
+                <TouchableOpacity
+                  style={[styles.modalCancelBtn, { borderColor: theme.border }]}
+                  onPress={() => setShowTermoModal(false)}
+                >
+                  <Text style={[styles.modalCancelText, { color: theme.textSecondary }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalGerarBtn}
+                  onPress={gerarTermoInterdicao}
+                >
+                  <Feather name="file-text" size={18} color="#FFF" />
+                  <Text style={styles.modalGerarText}>Gerar Termo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -335,7 +580,7 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 24, paddingBottom: 100 },
   statusCard: {
     padding: 28, borderRadius: 20, borderWidth: 1,
-    alignItems: 'center', marginBottom: 32,
+    alignItems: 'center', marginBottom: 24,
   },
   statusIcon: {
     width: 72, height: 72, borderRadius: 20,
@@ -347,6 +592,23 @@ const styles = StyleSheet.create({
   nivelText: { color: '#FFF', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   statusTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
   statusDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+
+  // Termo de Interdição button
+  termoBtn: {
+    borderRadius: 18, marginBottom: 16, overflow: 'hidden',
+    backgroundColor: '#DC2626',
+  },
+  termoBtnInner: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18,
+  },
+  termoBtnIconWrap: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  termoBtnTitle: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  termoBtnDesc: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 },
+
   reportBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     padding: 18, borderRadius: 18, marginBottom: 24,
@@ -374,4 +636,49 @@ const styles = StyleSheet.create({
     height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
   },
   primaryBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+
+  // Modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalKav: { flex: 1, justifyContent: 'flex-end' },
+  modalCard: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  modalHeaderIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(220,38,38,0.1)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalSubtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  modalScroll: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 10 },
+  modalLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
+  modalInput: {
+    height: 52, borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 14, fontSize: 15, fontWeight: '500',
+  },
+  modalRow: { flexDirection: 'row' },
+  modalActions: {
+    flexDirection: 'row', gap: 12, padding: 20, paddingBottom: 36,
+    borderTopWidth: 1,
+  },
+  modalCancelBtn: {
+    flex: 1, height: 52, borderRadius: 14, borderWidth: 1.5,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 14, fontWeight: '700' },
+  modalGerarBtn: {
+    flex: 2, height: 52, borderRadius: 14,
+    backgroundColor: '#DC2626',
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+  },
+  modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
 });

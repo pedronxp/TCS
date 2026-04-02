@@ -9,6 +9,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { getVistoriaById } from '../../../utils/database';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { generateProtocolo } from '../../../utils/uuid';
 import { formatarData } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 
@@ -27,7 +28,7 @@ export default function VistoriaDetalhesScreen() {
     try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: data.id,
-      protocolo: (data.id || '').slice(0, 8).toUpperCase(),
+      protocolo: generateProtocolo(data.id || '', data.dataVistoria),
       endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
       municipio: data.municipio || '',
       agenteNome: data.agenteNome || '',
