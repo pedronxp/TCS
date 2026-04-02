@@ -67,7 +67,7 @@ export default function RegisterScreen() {
 
     try {
       // 1. Validar token de convite via RPC server-side (evita bug de fuso horário — AUTH-01)
-      const codigoNorm = token.trim().toUpperCase().replace(/[\s-]/g, '');
+      const codigoNorm = token.trim().toUpperCase().replace(/\s/g, '');
       const { data: tokenValidation, error: validationError } = await supabase
         .rpc('validate_invite_token', { p_codigo: codigoNorm })
         .single();
@@ -122,10 +122,22 @@ export default function RegisterScreen() {
 
       if (insertError) throw insertError;
 
-      // 4. Deletar token somente após insert confirmado — single-use (Regra 3)
-      await supabase.from('invite_tokens').delete().eq('codigo', codigoNorm);
+      // 4. Marcar token como usado (não deletar) — permite histórico de tokens utilizados
+      await supabase.from('invite_tokens').update({ usado: true }).eq('codigo', codigoNorm);
 
-      // 5. Deslogar — conta precisa de aprovação antes de acessar
+      // 5. Notificar o admin que criou o token (best effort — nunca bloqueia o fluxo)
+      try {
+        if (tokenData.criadoPor) {
+          const { data: adminData } = await supabase
+            .rpc('get_push_token_by_uid', { p_uid: tokenData.criadoPor });
+          if (adminData) {
+            const { notificarNovoUsuarioCadastrado } = await import('../../services/NotificationService');
+            await notificarNovoUsuarioCadastrado(adminData, nome, tokenData.municipio || '');
+          }
+        }
+      } catch { /* silencioso — notificação nunca pode impedir o cadastro */ }
+
+      // 6. Deslogar — conta precisa de aprovação antes de acessar
       await supabase.auth.signOut();
 
       setSucesso(true);
