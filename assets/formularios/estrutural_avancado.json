@@ -1,7 +1,7 @@
 {
   "id": "estrutural_avancado_v1",
   "titulo": "Estrutural Completo",
-  "versao": 1,
+  "versao": 2,
   "ativo": true,
   "tipoCalculo": "pontuacao_por_item",
   "classificacao": {
@@ -43,6 +43,12 @@
         "label": "R1 — BAIXO RISCO — Manutenção preventiva e acompanhamento.",
         "cor": "verde"
       }
+    ],
+    "limites": [
+      { "max": 5,    "nivel": "baixo",    "label": "R1 — BAIXO — Sem intervenção imediata", "cor": "verde" },
+      { "max": 10,   "nivel": "medio",    "label": "R2 — MÉDIO — Vistoria técnica necessária", "cor": "amarelo" },
+      { "max": 14,   "nivel": "alto",     "label": "R3 — ALTO — Laudo de engenheiro obrigatório", "cor": "laranja" },
+      { "max": 9999, "nivel": "iminente", "label": "R4 — CRÍTICO — Interdição imediata", "cor": "vermelho" }
     ]
   },
   "fases": [

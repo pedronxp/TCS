@@ -62,7 +62,7 @@ export default function WizardAvaliacaoScreen() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [limites, setLimites] = useState<{max: number; nivel: string}[]>([]);
-  const draftKey = `@draft_wizard_${params.formularioId}`;
+  const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
