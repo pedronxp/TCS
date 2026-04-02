@@ -116,7 +116,7 @@ export default function RegisterScreen() {
         email,
         role: tokenData.role,
         municipio: tokenData.municipio,
-        isApproved: false,
+        isApproved: true,
         createdAt: new Date().toISOString(),
       });
 
