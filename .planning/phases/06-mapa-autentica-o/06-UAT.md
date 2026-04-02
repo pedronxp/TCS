@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 06-mapa-autentica-o
 source: 06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md
 started: 2026-04-02T00:00:00Z
@@ -72,13 +72,29 @@ blocked: 0
   reason: "User reported: Da erro 'Token inválido ou já utilizado.' mesmo eu acabando de criar o token agora."
   severity: major
   test: 4
-  artifacts: []
-  missing: []
+  root_cause: "Função PostgreSQL validate_invite_token nunca foi criada no Supabase. Task 3 do plano 06-02 era checkpoint humano pendente. Quando o app chama supabase.rpc('validate_invite_token'), o Supabase retorna erro 'function does not exist', que register.tsx linha 75 trata como 'Token inválido ou já utilizado.' mascarando o erro real."
+  artifacts:
+    - path: "app/(auth)/register.tsx"
+      issue: "Linha 75 mascara erro de RPC (function does not exist) como 'Token inválido ou já utilizado'"
+    - path: ".planning/phases/06-mapa-autentica-o/06-02-PLAN.md"
+      issue: "SQL da função validate_invite_token está documentado na Task 3 mas nunca foi aplicado no Supabase"
+  missing:
+    - "Aplicar SQL da função validate_invite_token no Supabase SQL Editor (documentado em 06-02-PLAN.md Task 3)"
+  debug_session: ".planning/debug/token-invalido-registro.md"
 
 - truth: "Banner offline integrado visualmente ao design do app"
   status: failed
   reason: "User reported: barra laranja com texto 'modo offline - Dados sincronizados ao reconectar' precisa melhorar no design"
   severity: cosmetic
   test: 3
-  artifacts: []
-  missing: []
+  root_cause: "components/ConnectivityBanner.tsx usa cores hardcoded (#F59E0B, #10B981) ignorando os tokens do design system em constants/Colors.ts. O formato de barra full-width tampa o header das telas e não tem suporte a dark mode."
+  artifacts:
+    - path: "components/ConnectivityBanner.tsx"
+      issue: "Cores hardcoded, sem tokens do design system, sem dark mode, formato de barra full-width genérica"
+    - path: "constants/Colors.ts"
+      issue: "Tokens warning/warningLight/warningText/success já existem mas não são usados pelo banner"
+  missing:
+    - "Substituir barra full-width por pill/toast flutuante centralizado abaixo do safe area"
+    - "Usar tokens Colors.warning/warningLight/warningText e Colors.success/successLight/successText"
+    - "Adicionar useColorScheme() para dark mode automático"
+  debug_session: ".planning/debug/banner-offline-design.md"
