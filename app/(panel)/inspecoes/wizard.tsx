@@ -260,8 +260,7 @@ export default function WizardAvaliacaoScreen() {
 
     setSalvando(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
+      if (!profile?.uid) throw new Error('Perfil não carregado — tente novamente.');
 
       const { nivel, pontuacao } = calcularNivelRisco();
       const agora = new Date().toISOString();
@@ -275,8 +274,8 @@ export default function WizardAvaliacaoScreen() {
 
       const vistoriaLocal = {
         id,
-        agente_uid: session.user.id,
-        agente_nome: profile?.name || session.user.user_metadata?.name || 'Agente',
+        agente_uid: profile.uid,
+        agente_nome: profile.name || 'Agente',
         municipio: profile?.municipio || params.municipio || '',
         endereco_rua: params.rua || '',
         endereco_numero: params.numero || '',

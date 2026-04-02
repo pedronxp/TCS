@@ -41,8 +41,8 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
           <View style={styles.cardHeaderRight}>
             {isPendente && !hasErro && !maxTentativas && (
               <View style={styles.pendenteBadge}>
-                <Feather name="clock" size={10} color="#F59E0B" />
-                <Text style={styles.pendenteText}>Pendente</Text>
+                <Feather name="cloud-off" size={10} color="#F59E0B" />
+                <Text style={styles.pendenteText}>Pendente de sincronização</Text>
               </View>
             )}
             {hasErro && !maxTentativas && (
@@ -55,6 +55,12 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
               <View style={styles.erroBadge}>
                 <Feather name="x-circle" size={10} color="#EF4444" />
                 <Text style={styles.erroText}>Falhou</Text>
+              </View>
+            )}
+            {!isPendente && (
+              <View style={styles.sincronizadoBadge}>
+                <Feather name="check-circle" size={10} color="#10B981" />
+                <Text style={styles.sincronizadoText}>Sincronizado</Text>
               </View>
             )}
             <Text style={[styles.dateText, { color: theme.textSecondary }]}>
@@ -248,6 +254,8 @@ const styles = StyleSheet.create({
   pendenteText: { color: '#F59E0B', fontSize: 10, fontWeight: '700' },
   erroBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   erroText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
+  sincronizadoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(16,185,129,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  sincronizadoText: { color: '#10B981', fontSize: 10, fontWeight: '700' },
   dateText: { fontSize: 12, fontWeight: '500' },
   address: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
   agente: { fontSize: 12, fontWeight: '400' },
