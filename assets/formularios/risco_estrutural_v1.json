@@ -7,11 +7,31 @@
   "descricao": "Planilha Automática de Avaliação de Edificação e Risco Estrutural. Pontuação por elemento = (Estado + Gravidade + Extensão + Ativa) × Peso. Risco global calculado pelo maior elemento e média.",
   "classificacao": {
     "limitesPorItem": [
-      { "max": 3,    "nivel": "muito_baixo", "label": "Muito Baixo" },
-      { "max": 6,    "nivel": "baixo",       "label": "Baixo" },
-      { "max": 10,   "nivel": "medio",       "label": "Médio" },
-      { "max": 14,   "nivel": "alto",        "label": "Alto" },
-      { "max": 9999, "nivel": "muito_alto",  "label": "Muito Alto" }
+      {
+        "max": 3,
+        "nivel": "muito_baixo",
+        "label": "Muito Baixo"
+      },
+      {
+        "max": 6,
+        "nivel": "baixo",
+        "label": "Baixo"
+      },
+      {
+        "max": 10,
+        "nivel": "medio",
+        "label": "Médio"
+      },
+      {
+        "max": 14,
+        "nivel": "alto",
+        "label": "Alto"
+      },
+      {
+        "max": 9999,
+        "nivel": "muito_alto",
+        "label": "Muito Alto"
+      }
     ],
     "criterioGlobal": {
       "r1": "max_elemento < 6 E media < 6",
@@ -20,10 +40,30 @@
       "r4": "max_elemento >= 15 OU 2+ elementos em Alto/Muito Alto"
     },
     "limites": [
-      { "max": 5,    "nivel": "baixo",    "label": "R1 — BAIXO — Manutenção preventiva e acompanhamento",         "cor": "verde"    },
-      { "max": 10,   "nivel": "medio",    "label": "R2 — MÉDIO — Vistoria técnica necessária",                     "cor": "amarelo"  },
-      { "max": 14,   "nivel": "alto",     "label": "R3 — ALTO — Laudo de engenheiro civil obrigatório",            "cor": "laranja"  },
-      { "max": 9999, "nivel": "iminente", "label": "R4 — MUITO ALTO — Recomendar interdição imediata",             "cor": "vermelho" }
+      {
+        "max": 5,
+        "nivel": "baixo",
+        "label": "R1 — BAIXO — Manutenção preventiva e acompanhamento",
+        "cor": "verde"
+      },
+      {
+        "max": 10,
+        "nivel": "medio",
+        "label": "R2 — MÉDIO — Vistoria técnica necessária",
+        "cor": "amarelo"
+      },
+      {
+        "max": 14,
+        "nivel": "alto",
+        "label": "R3 — ALTO — Laudo de engenheiro civil obrigatório",
+        "cor": "laranja"
+      },
+      {
+        "max": 9999,
+        "nivel": "iminente",
+        "label": "R4 — MUITO ALTO — Recomendar interdição imediata",
+        "cor": "vermelho"
+      }
     ]
   },
   "fases": [
@@ -39,10 +79,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",                     "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural",        "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Manifestações com comprometimento moderado",                  "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Manifestações graves comprometendo a estabilidade",           "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Sem manifestações patológicas visíveis",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Pequenas manifestações sem comprometimento estrutural",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Manifestações com comprometimento moderado",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Manifestações graves comprometendo a estabilidade",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -51,10 +115,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano identificado",             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Dano superficial sem progressão",   "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Dano com potencial de progressão",  "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Dano estrutural avançado",          "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial sem progressão",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Dano com potencial de progressão",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Dano estrutural avançado",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -63,10 +151,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação identificada",    "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Área específica e isolada",        "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Afeta seção do elemento",          "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Afeta todo o elemento",            "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação identificada",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Área específica e isolada",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Afeta seção do elemento",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Afeta todo o elemento",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -75,8 +187,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem evolução recente",            "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Manifestação em evolução ativa",   "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem evolução recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Manifestação em evolução ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -100,10 +224,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Estrutura íntegra, sem fissuras ou deformações",              "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Fissuras leves ou deformações pequenas",                       "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Fissuras moderadas, armadura exposta ou deformações visíveis", "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Colapso parcial, grandes deformações ou armadura corroída",    "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Estrutura íntegra, sem fissuras ou deformações",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissuras leves ou deformações pequenas",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Fissuras moderadas, armadura exposta ou deformações visíveis",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Colapso parcial, grandes deformações ou armadura corroída",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -112,10 +260,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano identificado",             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Fissura capilar ou deformação mínima",    "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Trinca visível ou deformação moderada",   "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Rachadura ou deformação estrutural grave","imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Fissura capilar ou deformação mínima",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca visível ou deformação moderada",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou deformação estrutural grave",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -124,10 +296,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação identificada",    "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Um ponto ou elemento isolado",     "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Setor ou pavimento afetado",       "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Estrutura amplamente comprometida","imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação identificada",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Um ponto ou elemento isolado",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Setor ou pavimento afetado",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Estrutura amplamente comprometida",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -136,8 +332,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem evolução recente",          "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Fissuras em crescimento ativo", "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem evolução recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Fissuras em crescimento ativo",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -153,7 +361,7 @@
       "id": "fase_alvenaria",
       "titulo": "3. Alvenaria / Vedação",
       "instrucao": "Avalie paredes de vedação, blocos e tijolos. Inclui trincas em paredes e desaprumos. Peso estrutural: 1.0.",
-      "peso": 1.0,
+      "peso": 1,
       "perguntas": [
         {
           "id": "alv_estado",
@@ -161,10 +369,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Paredes íntegras, sem fissuras visíveis",              "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Fissuras finas ou desplacamentos pontuais",            "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Trincas moderadas ou desaprumo visível",               "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Rachaduras extensas ou risco de colapso de parede",    "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Paredes íntegras, sem fissuras visíveis",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissuras finas ou desplacamentos pontuais",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Trincas moderadas ou desaprumo visível",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Rachaduras extensas ou risco de colapso de parede",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -173,10 +405,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano",                              "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Fissuras capilares superficiais",      "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Trincas com abertura visível (>0.5mm)","imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Rachaduras ou desabamento iminente",   "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Fissuras capilares superficiais",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trincas com abertura visível (>0.5mm)",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachaduras ou desabamento iminente",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -185,10 +441,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",            "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Ponto isolado na parede",     "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Trecho ou cômodo afetado",   "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Múltiplas paredes afetadas", "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Ponto isolado na parede",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Trecho ou cômodo afetado",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Múltiplas paredes afetadas",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -197,8 +477,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem evolução aparente",         "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Fissuras aumentando/ativas",    "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem evolução aparente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Fissuras aumentando/ativas",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -222,10 +514,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Telhado íntegro, sem telhas quebradas ou infiltrações",   "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Telhas soltas, calhas entupidas ou infiltração leve",     "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Deformação na estrutura ou infiltração moderada",         "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Risco de colapso da cobertura ou infiltração grave",     "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Telhado íntegro, sem telhas quebradas ou infiltrações",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Telhas soltas, calhas entupidas ou infiltração leve",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Deformação na estrutura ou infiltração moderada",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Risco de colapso da cobertura ou infiltração grave",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -234,10 +550,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano",                            "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Deterioração superficial",           "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Comprometimento funcional parcial",  "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Risco de desabamento ou colapso",    "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Deterioração superficial",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Comprometimento funcional parcial",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Risco de desabamento ou colapso",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -246,10 +586,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",              "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Ponto isolado no telhado",     "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Trecho ou vertente afetada",  "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Toda a cobertura comprometida","imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Ponto isolado no telhado",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Trecho ou vertente afetada",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Toda a cobertura comprometida",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -258,8 +622,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem piora recente",               "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Infiltração ou deformação ativa", "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem piora recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Infiltração ou deformação ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -283,10 +659,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Piso nivelado e íntegro",                           "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Fissuras finas ou peças soltas pontuais",           "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Desnível ou fissuras moderadas",                   "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Recalque grave ou colapso do contrapiso",          "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Piso nivelado e íntegro",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissuras finas ou peças soltas pontuais",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Desnível ou fissuras moderadas",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Recalque grave ou colapso do contrapiso",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -295,10 +695,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano",                             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Deterioração estética mínima",        "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Funcionalidade comprometida",         "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Recalque ou desnível perigoso",       "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Deterioração estética mínima",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Funcionalidade comprometida",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Recalque ou desnível perigoso",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -307,10 +731,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",          "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Ponto isolado",             "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Cômodo ou seção afetada",  "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Todo o piso comprometido", "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Ponto isolado",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Cômodo ou seção afetada",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Todo o piso comprometido",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -319,8 +767,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem evolução recente",      "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Recalque em evolução",      "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem evolução recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Recalque em evolução",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -336,7 +796,7 @@
       "id": "fase_escadas",
       "titulo": "6. Escadas / Circulação",
       "instrucao": "Avalie escadas, rampas e áreas de circulação. Verifique guarda-corpos, corrimãos e condições estruturais. Peso estrutural: 1.0.",
-      "peso": 1.0,
+      "peso": 1,
       "perguntas": [
         {
           "id": "esc_estado",
@@ -344,10 +804,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Escadas íntegras, corrimão fixo e seguro",            "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Desgaste superficial ou corrimão com folga leve",     "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Degraus danificados ou ausência parcial de corrimão", "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Risco de queda iminente ou colapso da escada",        "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Escadas íntegras, corrimão fixo e seguro",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Desgaste superficial ou corrimão com folga leve",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Degraus danificados ou ausência parcial de corrimão",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Risco de queda iminente ou colapso da escada",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -356,10 +840,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano",                             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Deterioração estética",               "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Comprometimento funcional parcial",   "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Risco de acidente ou colapso",        "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Deterioração estética",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Comprometimento funcional parcial",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Risco de acidente ou colapso",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -368,10 +876,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",               "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Degrau ou trecho isolado",      "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Lança ou seção da escada",     "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Toda a circulação comprometida","imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Degrau ou trecho isolado",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Lança ou seção da escada",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Toda a circulação comprometida",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -380,8 +912,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem evolução recente",        "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Degradação em evolução ativa","imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem evolução recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Degradação em evolução ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -405,10 +949,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Muro vertical, drenos funcionando e sem fissuras",     "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Fissuras leves ou drenos entupidos parcialmente",      "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Embarrigamento, inclinação ou fissuras moderadas",     "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Risco de tombamento ou colapso iminente",             "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Muro vertical, drenos funcionando e sem fissuras",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissuras leves ou drenos entupidos parcialmente",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Embarrigamento, inclinação ou fissuras moderadas",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Risco de tombamento ou colapso iminente",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -417,10 +985,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano",                            "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Fissuras capilares ou desgaste leve","imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Embarrigamento ou inclinação leve",  "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Tombamento iminente ou grandes fissuras", "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Fissuras capilares ou desgaste leve",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Embarrigamento ou inclinação leve",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Tombamento iminente ou grandes fissuras",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -429,10 +1021,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Trecho isolado do muro",      "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Seção do muro afetada",      "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Todo o muro comprometido",   "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Trecho isolado do muro",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Seção do muro afetada",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Todo o muro comprometido",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -441,8 +1057,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem movimentação recente",         "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Inclinação ou fissuras crescendo", "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem movimentação recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Inclinação ou fissuras crescendo",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -466,10 +1094,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Revestimento íntegro e aderido",                        "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Fissuras finas ou manchas de umidade pontuais",         "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Destacamento de reboco ou infiltração moderada",         "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Queda de revestimento ou risco para pedestres",          "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Revestimento íntegro e aderido",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissuras finas ou manchas de umidade pontuais",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Destacamento de reboco ou infiltração moderada",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Queda de revestimento ou risco para pedestres",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -478,10 +1130,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem dano",                             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Fissuras capilares ou manchas leves", "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Destacamento parcial ou infiltração", "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Risco de queda de revestimento",      "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Fissuras capilares ou manchas leves",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Destacamento parcial ou infiltração",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Risco de queda de revestimento",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -490,10 +1166,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",              "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Área isolada da fachada",      "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Face ou trecho afetado",       "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Toda a fachada comprometida",  "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Área isolada da fachada",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Face ou trecho afetado",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Toda a fachada comprometida",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -502,8 +1202,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizada", "descricao": "Sem destacamento recente",      "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Destacamento ou fissura ativa", "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizada",
+              "descricao": "Sem destacamento recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Destacamento ou fissura ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -527,10 +1239,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Drenagem funcional, sem entupimentos ou erosão",        "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Calhas entupidas parcialmente ou escoamento deficiente","imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Erosão moderada ou acúmulo de água recorrente",         "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Erosão grave ou drenagem inexistente",                  "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Drenagem funcional, sem entupimentos ou erosão",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Calhas entupidas parcialmente ou escoamento deficiente",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Erosão moderada ou acúmulo de água recorrente",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Erosão grave ou drenagem inexistente",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -539,10 +1275,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem problema",                         "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Entupimento parcial sem danos",        "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Erosão ou infiltração por má drenagem","imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Erosão grave comprometendo estrutura", "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem problema",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Entupimento parcial sem danos",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Erosão ou infiltração por má drenagem",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Erosão grave comprometendo estrutura",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -551,10 +1311,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",              "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Ponto isolado",                "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Setor do terreno afetado",    "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Drenagem comprometida em toda a edificação", "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Ponto isolado",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Setor do terreno afetado",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Drenagem comprometida em toda a edificação",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -563,8 +1347,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizado", "descricao": "Sem agravamento recente",       "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Erosão ou infiltração crescendo","imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizado",
+              "descricao": "Sem agravamento recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Erosão ou infiltração crescendo",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -588,10 +1384,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Instalação adequada, protegida e sem exposição",        "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Fiação com proteção parcial ou quadro desorganizado",   "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Fiação exposta ou tomadas sem proteção",               "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Risco iminente de incêndio ou choque elétrico",         "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Instalação adequada, protegida e sem exposição",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fiação com proteção parcial ou quadro desorganizado",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Fiação exposta ou tomadas sem proteção",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Risco iminente de incêndio ou choque elétrico",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -600,10 +1420,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem risco elétrico",                      "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Fiação com desgaste superficial",        "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Fiação exposta sem proteção",            "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Risco real de incêndio ou choque",       "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem risco elétrico",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Fiação com desgaste superficial",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Fiação exposta sem proteção",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Risco real de incêndio ou choque",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -612,10 +1456,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem problema",                    "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Ponto ou tomada isolada",        "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Cômodo ou circuito afetado",    "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Toda a instalação comprometida", "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem problema",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Ponto ou tomada isolada",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Cômodo ou circuito afetado",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Toda a instalação comprometida",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -624,8 +1492,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Sem risco imediato", "descricao": "Situação estabilizada",             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Risco ativo",        "descricao": "Possibilidade real de incidente",  "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Sem risco imediato",
+              "descricao": "Situação estabilizada",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Risco ativo",
+              "descricao": "Possibilidade real de incidente",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -649,10 +1529,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Sem vazamentos, corrosão ou entupimentos",             "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Vazamentos leves ou pressão inadequada",              "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Corrosão moderada ou infiltração por vazamento",      "imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Ruptura ou colapso de tubulação",                     "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Sem vazamentos, corrosão ou entupimentos",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Vazamentos leves ou pressão inadequada",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Corrosão moderada ou infiltração por vazamento",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Ruptura ou colapso de tubulação",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -661,10 +1565,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem problema",                         "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Gotejamento ou pressão baixa",        "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Vazamento contínuo ou corrosão",      "imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Ruptura ou contaminação",             "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem problema",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Gotejamento ou pressão baixa",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Vazamento contínuo ou corrosão",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Ruptura ou contaminação",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -673,10 +1601,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem problema",                    "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Trecho isolado de tubulação",    "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Banheiro ou cozinha afetada",   "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Toda a rede comprometida",      "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem problema",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Trecho isolado de tubulação",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Banheiro ou cozinha afetada",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Toda a rede comprometida",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -685,8 +1637,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizado", "descricao": "Sem agravamento recente",        "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Vazamento ou corrosão crescendo","imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizado",
+              "descricao": "Sem agravamento recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Vazamento ou corrosão crescendo",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -710,10 +1674,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "bom",     "texto": "Bom",     "descricao": "Encosta estável, vegetada e sem sinais de erosão",       "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "regular", "texto": "Regular", "descricao": "Erosão leve ou vegetação rarefeita",                     "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "ruim",    "texto": "Ruim",    "descricao": "Erosão moderada, trincas no talude ou degraus de abatimento","imagemLocal": null, "pesoRisco": 4 },
-            { "id": "pessimo", "texto": "Péssimo", "descricao": "Risco iminente de deslizamento afetando a edificação",    "imagemLocal": null, "pesoRisco": 6 }
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Encosta estável, vegetada e sem sinais de erosão",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Erosão leve ou vegetação rarefeita",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Erosão moderada, trincas no talude ou degraus de abatimento",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Péssimo",
+              "descricao": "Risco iminente de deslizamento afetando a edificação",
+              "imagemLocal": "nv6",
+              "pesoRisco": 6
+            }
           ]
         },
         {
@@ -722,10 +1710,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem risco identificado",                "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "leve",     "texto": "Leve",     "descricao": "Erosão superficial mínima",            "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "moderada", "texto": "Moderada", "descricao": "Erosão moderada ou instabilidade leve","imagemLocal": null, "pesoRisco": 3 },
-            { "id": "severa",   "texto": "Severa",   "descricao": "Deslizamento iminente ou em curso",    "imagemLocal": null, "pesoRisco": 5 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem risco identificado",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Erosão superficial mínima",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Erosão moderada ou instabilidade leve",
+              "imagemLocal": "nv3",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Deslizamento iminente ou em curso",
+              "imagemLocal": "nv5",
+              "pesoRisco": 5
+            }
           ]
         },
         {
@@ -734,10 +1746,34 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nenhuma",      "texto": "Nenhuma",       "descricao": "Sem manifestação",               "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "pontual",      "texto": "Pontual",       "descricao": "Ponto isolado na encosta",      "imagemLocal": null, "pesoRisco": 1 },
-            { "id": "setorial",     "texto": "Setorial",      "descricao": "Trecho da encosta afetado",    "imagemLocal": null, "pesoRisco": 2 },
-            { "id": "generalizada", "texto": "Generalizada",  "descricao": "Toda a encosta instável",       "imagemLocal": null, "pesoRisco": 4 }
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem manifestação",
+              "imagemLocal": "nv0",
+              "pesoRisco": 0
+            },
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Ponto isolado na encosta",
+              "imagemLocal": "nv1",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Trecho da encosta afetado",
+              "imagemLocal": "nv2",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Toda a encosta instável",
+              "imagemLocal": "nv4",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -746,8 +1782,20 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            { "id": "nao", "texto": "Não — Estabilizado", "descricao": "Sem movimentação recente",           "imagemLocal": null, "pesoRisco": 0 },
-            { "id": "sim", "texto": "Sim — Em progressão","descricao": "Movimentação ou erosão em curso",    "imagemLocal": null, "pesoRisco": 2 }
+            {
+              "id": "nao",
+              "texto": "Não — Estabilizado",
+              "descricao": "Sem movimentação recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim — Em progressão",
+              "descricao": "Movimentação ou erosão em curso",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
           ]
         },
         {

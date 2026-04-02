@@ -24,13 +24,46 @@ const ASSETS: Record<string, any> = {
   'vistoria_deslizamento_v1': require('../../../assets/formularios/vistoria_deslizamento_v1.json'),
 };
 
+// Mapa estático de imagens locais dos formulários (require() deve ser estático no RN)
+const FORM_IMAGES: Record<string, any> = {
+  // Severidade por nível de pesoRisco
+  nv0: require('../../../assets/formularios/imagens/nv0.png'),
+  nv1: require('../../../assets/formularios/imagens/nv1.png'),
+  nv2: require('../../../assets/formularios/imagens/nv2.png'),
+  nv3: require('../../../assets/formularios/imagens/nv3.png'),
+  nv4: require('../../../assets/formularios/imagens/nv4.png'),
+  nv5: require('../../../assets/formularios/imagens/nv5.png'),
+  nv6: require('../../../assets/formularios/imagens/nv6.png'),
+  // Inclinação de encosta
+  inclinacao_10: require('../../../assets/formularios/imagens/inclinacao_10.png'),
+  inclinacao_17: require('../../../assets/formularios/imagens/inclinacao_17.png'),
+  inclinacao_30: require('../../../assets/formularios/imagens/inclinacao_30.png'),
+  inclinacao_60: require('../../../assets/formularios/imagens/inclinacao_60.png'),
+  inclinacao_90: require('../../../assets/formularios/imagens/inclinacao_90.png'),
+  // Drenagem
+  drenagem_ok:       require('../../../assets/formularios/imagens/drenagem_ok.png'),
+  drenagem_precaria: require('../../../assets/formularios/imagens/drenagem_precaria.png'),
+  drenagem_sem:      require('../../../assets/formularios/imagens/drenagem_sem.png'),
+  // Vegetação
+  veg_arvores:   require('../../../assets/formularios/imagens/veg_arvores.png'),
+  veg_rasteira:  require('../../../assets/formularios/imagens/veg_rasteira.png'),
+  veg_desmatada: require('../../../assets/formularios/imagens/veg_desmatada.png'),
+  veg_cultivo:   require('../../../assets/formularios/imagens/veg_cultivo.png'),
+  // Tipo de terreno
+  terreno_natural: require('../../../assets/formularios/imagens/terreno_natural.png'),
+  terreno_aterro:  require('../../../assets/formularios/imagens/terreno_aterro.png'),
+  // Binários sim/não
+  opcao_nao: require('../../../assets/formularios/imagens/opcao_nao.png'),
+  opcao_sim: require('../../../assets/formularios/imagens/opcao_sim.png'),
+};
+
 // ─── Types (mapeados de formulario_model.dart) ────────────────────────────────
 
 interface OpcaoModel {
   id: string;
   texto: string;
   descricao?: string;
-  imagemUrl?: string;
+  imagemLocal?: string | null;  // chave do FORM_IMAGES ou URL http/https
   pesoRisco: number;
 }
 
@@ -182,7 +215,7 @@ export default function WizardAvaliacaoScreen() {
             id: o.id,
             texto: o.texto,
             descricao: o.descricao,
-            imagemUrl: (o.imagemLocal && (o.imagemLocal.startsWith('http://') || o.imagemLocal.startsWith('https://'))) ? o.imagemLocal : null,
+            imagemLocal: o.imagemLocal || null,
             pesoRisco: o.pesoRisco || 0,
           })),
         });
@@ -489,7 +522,14 @@ export default function WizardAvaliacaoScreen() {
                       ]}
                       onPress={() => setResposta(perguntaAtual.id, op.id)}
                     >
-                      {op.imagemUrl && <Image source={{ uri: op.imagemUrl }} style={styles.optionImage} resizeMode="cover" />}
+                      {/* Imagem de referência: local (FORM_IMAGES) ou URL remota */}
+                      {op.imagemLocal && (
+                        FORM_IMAGES[op.imagemLocal]
+                          ? <Image source={FORM_IMAGES[op.imagemLocal]} style={styles.optionImage} resizeMode="cover" />
+                          : (op.imagemLocal.startsWith('http'))
+                            ? <Image source={{ uri: op.imagemLocal }} style={styles.optionImage} resizeMode="cover" />
+                            : null
+                      )}
                       <Text style={[styles.optionText, { color: sel ? theme.primary : theme.text }]}>{op.texto}</Text>
                       {op.descricao && <Text style={[styles.optionDesc, { color: theme.textSecondary }]}>{op.descricao}</Text>}
                       {sel && (
