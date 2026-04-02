@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: — Correções Críticas + Funcionalidades Core
-status: verifying
+status: planning
 stopped_at: Completed 07-formularios-classificacao-risco/07-03-PLAN.md
-last_updated: "2026-04-02T16:56:50.155Z"
+last_updated: "2026-04-02T20:26:54.394Z"
 progress:
   total_phases: 4
   completed_phases: 2
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 07 (formularios-classificacao-risco) — EXECUTING
-Plan: 3 of 3
+Phase: 08
+Plan: Not started
 **Phase 01:** Correções de Build e Dependências
-**Status:** Phase complete — ready for verification
+**Status:** Ready to plan
 
 ## Phase Progress
 
