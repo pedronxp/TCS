@@ -102,8 +102,44 @@ export default function MapasScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      const coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      setUserLocation(coords);
+      // Anima para localização do usuário assim que obtida
+      mapRef.current?.animateToRegion({
+        latitude: coords.lat,
+        longitude: coords.lng,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      }, 1000);
     } catch { }
+  };
+
+  const goToUserLocation = () => {
+    if (!userLocation) return;
+    mapRef.current?.animateToRegion({
+      latitude: userLocation.lat,
+      longitude: userLocation.lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }, 800);
+  };
+
+  const fitToMarkers = () => {
+    if (filteredMarkers.length === 0) return;
+    if (filteredMarkers.length === 1) {
+      mapRef.current?.animateToRegion({
+        latitude: filteredMarkers[0].lat,
+        longitude: filteredMarkers[0].lng,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }, 800);
+      return;
+    }
+    const coords = filteredMarkers.map(m => ({ latitude: m.lat, longitude: m.lng }));
+    (mapRef.current as any)?.fitToCoordinates(coords, {
+      edgePadding: { top: 120, right: 40, bottom: 160, left: 40 },
+      animated: true,
+    });
   };
 
   const loadMarkers = async () => {
@@ -127,7 +163,7 @@ export default function MapasScreen() {
 
         const { data, error } = await query.limit(500);
         if (!error && data) {
-          setMarkers(data.filter((v: any) => v.latitude && v.longitude).map((v: any) => ({
+          const loaded = data.filter((v: any) => v.latitude && v.longitude).map((v: any) => ({
             id: v.id,
             lat: Number(v.latitude),
             lng: Number(v.longitude),
@@ -136,7 +172,17 @@ export default function MapasScreen() {
             agenteNome: v.agenteNome || '—',
             dataVistoria: v.dataVistoria,
             pontuacaoTotal: v.pontuacaoTotal,
-          })));
+          }));
+          setMarkers(loaded);
+          // Fit automático nos bounds das vistorias após carregar
+          if (loaded.length > 0) {
+            setTimeout(() => {
+              (mapRef.current as any)?.fitToCoordinates(
+                loaded.map((m: VistoriaMarker) => ({ latitude: m.lat, longitude: m.lng })),
+                { edgePadding: { top: 120, right: 40, bottom: 160, left: 40 }, animated: true }
+              );
+            }, 500);
+          }
           return;
         }
       }
@@ -265,6 +311,13 @@ export default function MapasScreen() {
 
         <TouchableOpacity
           style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
+          onPress={goToUserLocation}
+        >
+          <Feather name="navigation" color={theme.primary} size={18} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
           onPress={loadMarkers}
         >
           <Feather name="refresh-cw" color={theme.text} size={18} />
@@ -312,9 +365,17 @@ export default function MapasScreen() {
 
       {/* FABs direita */}
       <View style={styles.fabGroup}>
+        {filteredMarkers.length > 0 && (
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: theme.surfaceHighlight }]}
+            onPress={fitToMarkers}
+          >
+            <Feather name="maximize-2" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
         {Platform.OS === 'android' && (
           <TouchableOpacity
-            style={[styles.fab, { backgroundColor: showHeatmap ? theme.primary : theme.surfaceHighlight, marginBottom: 10 }]}
+            style={[styles.fab, { backgroundColor: showHeatmap ? theme.primary : theme.surfaceHighlight }]}
             onPress={() => setShowHeatmap(h => !h)}
           >
             <Feather name="zap" size={20} color={showHeatmap ? '#FFF' : theme.textSecondary} />
