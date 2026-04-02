@@ -26,7 +26,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 
 ### Phases
 
-- [ ] **Phase 06: Mapa + Autenticação** - Corrigir tela branca do mapa e fluxos de token/município
+- [x] **Phase 06: Mapa + Autenticação** - Corrigir tela branca do mapa e fluxos de token/município (completed 2026-04-02)
 - [ ] **Phase 07: Formulários + Classificação de Risco** - Refazer campos do formulário alinhados ao R1/R2/R3/R4 com persistência SQLite
 - [ ] **Phase 08: Sincronização Offline** - Garantir upload de dados offline ao Supabase sem duplicatas
 - [ ] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin
@@ -82,7 +82,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 06. Mapa + Autenticação | 2/3 | In Progress|  |
+| 06. Mapa + Autenticação | 2/3 | Complete    | 2026-04-02 |
 | 07. Formulários + Classificação de Risco | 0/? | Not started | - |
 | 08. Sincronização Offline | 0/? | Not started | - |
 | 09. UX + Correções Finais | 0/? | Not started | - |

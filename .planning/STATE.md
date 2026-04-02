@@ -1,25 +1,25 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1.0
-milestone_name: — Build Estável + UI Redesign + Qualidade
-status: executing
+milestone: v1.2.0
+milestone_name: — Correções Críticas + Funcionalidades Core
+status: planning
 stopped_at: "Checkpoint 06-03: Task 2 aguarda verificacao humana (RLS policies no Supabase)"
-last_updated: "2026-04-01T22:06:30.956Z"
+last_updated: "2026-04-02T10:58:06.200Z"
 progress:
-  total_phases: 5
-  completed_phases: 3
-  total_plans: 21
-  completed_plans: 22
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 5
+  completed_plans: 5
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 03 (ui-auth-agente) — EXECUTING
-Plan: 3 of 14
+Phase: 07
+Plan: Not started
 **Phase 01:** Correções de Build e Dependências
-**Status:** Ready to execute
+**Status:** Ready to plan
 
 ## Phase Progress
 
@@ -46,6 +46,8 @@ Plan: 3 of 14
 - [Phase 02-design-system-gap-01]: *Text token suffix convention established: text-on-*Light backgrounds always use dedicated *Text high-contrast token
 - [Phase 05-seguranca-divida-tecnica]: laudoPdfBuilder.ts uses resultado.tsx design as canonical; SyncService uses dynamic import for NotificationService guarded by Constants.appOwnership to prevent Expo Go crash
 - [Phase 06-mapa-autentica-o]: removerDominio incluido no tratamento RLS para consistencia entre todos os catch blocks de escrita em municipios.tsx
+- [Phase 06-mapa-autentica-o-04]: Função validate_invite_token recriada sem t.id (inexistente) — retorna codigo, municipio, role, criadoPor, valido, motivo
+- [Phase 06-mapa-autentica-o-04]: codigoNorm em register.tsx preserva hífens (.replace(/\s/g,'')) — formato XXXX-XXXX-XXXX deve ser mantido antes do RPC
 
 ## Performance Metrics
 
@@ -57,6 +59,7 @@ Plan: 3 of 14
 | Phase 02-design-system Pgap-01 | 600 | 2 tasks | 3 files |
 | Phase 05-seguranca-divida-tecnica P05 | 1800 | 12 tasks | 22 files |
 | Phase 06-mapa-autentica-o P03 | 120 | 1 tasks | 1 files |
+| Phase 06-mapa-autentica-o P04 | 3600 | 2 tasks | 1 files |
 
 ## Last Session
 
