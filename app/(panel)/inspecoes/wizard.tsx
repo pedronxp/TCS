@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
+  Animated, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,6 +16,7 @@ import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { WizardParams } from '../../../types/vistoria';
+import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 
 // Built-in JSON assets
 const ASSETS: Record<string, any> = {
@@ -64,6 +65,7 @@ export default function WizardAvaliacaoScreen() {
   const [limites, setLimites] = useState<{max: number; nivel: string}[]>([]);
   const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const riscoAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchPerguntas();
@@ -231,6 +233,21 @@ export default function WizardAvaliacaoScreen() {
     else if (pontuacao >= 25) nivel = 'r2';
     return { nivel, pontuacao };
   };
+
+  // Risco calculado em tempo real — recalcula a cada resposta
+  const riscoAtual = useMemo(() => {
+    if (Object.keys(respostas).length === 0) return null;
+    return calcularNivelRisco();
+  }, [respostas, perguntas, limites]);
+
+  // Anima entrada/saída do banner quando riscoAtual muda
+  useEffect(() => {
+    Animated.timing(riscoAnim, {
+      toValue: riscoAtual ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [riscoAtual]);
 
   const tirarFoto = async (perguntaId: string) => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -496,23 +513,47 @@ export default function WizardAvaliacaoScreen() {
 
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
-        {step > 0 && (
-          <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(s => s - 1)}>
-            <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
-          </TouchableOpacity>
+        {/* Banner de risco em tempo real — aparece após primeira resposta */}
+        {riscoAtual && (
+          <Animated.View
+            style={[
+              styles.riscoBanner,
+              {
+                backgroundColor: riscoColor(riscoAtual.nivel) + '1A',
+                borderColor: riscoColor(riscoAtual.nivel),
+                opacity: riscoAnim,
+                transform: [{ translateY: riscoAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+              },
+            ]}
+          >
+            <Feather name={riscoAtual.nivel === 'r4' || riscoAtual.nivel === 'r3' ? 'alert-triangle' : 'shield'} size={16} color={riscoColor(riscoAtual.nivel)} />
+            <Text style={[styles.riscoBannerLabel, { color: riscoColor(riscoAtual.nivel) }]}>
+              RISCO ATUAL
+            </Text>
+            <Text style={[styles.riscoBannerNivel, { color: riscoColor(riscoAtual.nivel) }]}>
+              {riscoAtual.nivel.toUpperCase()} — {riscoLabel(riscoAtual.nivel)}
+            </Text>
+          </Animated.View>
         )}
-        <TouchableOpacity
-          style={[styles.nextBtn, { backgroundColor: theme.primary, flex: step > 0 ? 2 : 1 }]}
-          onPress={avancar}
-          disabled={salvando}
-        >
-          {salvando
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <>
-                <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
-                <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
-              </>}
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {step > 0 && (
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(s => s - 1)}>
+              <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.nextBtn, { backgroundColor: theme.primary, flex: step > 0 ? 2 : 1 }]}
+            onPress={avancar}
+            disabled={salvando}
+          >
+            {salvando
+              ? <ActivityIndicator size="small" color="#FFF" />
+              : <>
+                  <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
+                  <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
+                </>}
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -546,9 +587,31 @@ const styles = StyleSheet.create({
   fotoOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingVertical: 12 },
   fotoOverlayText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 60 },
-  footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'row', gap: 12 },
+  footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'column', gap: 0 },
   cancelBtn: { flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
   cancelText: { fontSize: 13, fontWeight: '800', letterSpacing: 1 },
   nextBtn: { height: 56, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
   nextBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  riscoBanner: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  riscoBannerLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  riscoBannerNivel: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'right',
+  },
 });
