@@ -18,6 +18,8 @@ import { generateUUID } from '../../../utils/uuid';
 import { WizardParams } from '../../../types/vistoria';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { ASSETS, flattenPerguntas, PerguntaModel } from '../../../utils/formulariosAssets';
+import { SvgXml } from 'react-native-svg';
+import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
 
 // Mapa estático de imagens locais dos formulários (require() deve ser estático no RN)
 const FORM_IMAGES: Record<string, any> = {
@@ -527,14 +529,17 @@ export default function WizardAvaliacaoScreen() {
                       ]}
                       onPress={() => setResposta(perguntaAtual.id, op.id)}
                     >
-                      {/* Imagem de referência: local (FORM_IMAGES) ou URL remota */}
-                      {op.imagemLocal && (
-                        FORM_IMAGES[op.imagemLocal]
-                          ? <Image source={FORM_IMAGES[op.imagemLocal]} style={styles.optionImage} resizeMode="cover" />
-                          : (op.imagemLocal.startsWith('http'))
-                            ? <Image source={{ uri: op.imagemLocal }} style={styles.optionImage} resizeMode="cover" />
-                            : null
-                      )}
+                      {/* Imagem de referência: SVG inline (prioridade) ou PNG local/URL */}
+                      {op.svgKey && DESL_SVGS[op.svgKey]
+                        ? <SvgXml xml={DESL_SVGS[op.svgKey]} width="100%" height={80} style={styles.optionSvg} />
+                        : op.imagemLocal && (
+                          FORM_IMAGES[op.imagemLocal]
+                            ? <Image source={FORM_IMAGES[op.imagemLocal]} style={styles.optionImage} resizeMode="cover" />
+                            : (op.imagemLocal.startsWith('http'))
+                              ? <Image source={{ uri: op.imagemLocal }} style={styles.optionImage} resizeMode="cover" />
+                              : null
+                        )
+                      }
                       <Text style={[styles.optionText, { color: sel ? theme.primary : theme.text }]}>{op.texto}</Text>
                       {op.descricao && <Text style={[styles.optionDesc, { color: theme.textSecondary }]}>{op.descricao}</Text>}
                       {sel && (
@@ -662,6 +667,7 @@ const styles = StyleSheet.create({
   optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   optionCard: { width: '47%', borderRadius: 14, borderWidth: 1.5, padding: 16, alignItems: 'center', position: 'relative' },
   optionImage: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10 },
+  optionSvg: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10, overflow: 'hidden' },
   optionText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
   optionDesc: { fontSize: 12, textAlign: 'center', marginTop: 4 },
   selectedBadge: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
