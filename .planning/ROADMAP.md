@@ -32,6 +32,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin (completed 2026-04-03)
 - [x] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4 (completed 2026-04-02)
 - [ ] **Phase 11: Mapa Nativo** - Substituir WebView+Leaflet por react-native-maps (Google Maps / Apple Maps)
+- [ ] **Phase 12: Formulário Completo — 10 Elementos** - Adaptar os JSONs de `json form/` para o formato nativo do app e registrar como novo formulário built-in
 
 ### Phase Details
 
@@ -114,6 +115,19 @@ Plans:
 **Plans**: 1 plano
 Plans:
 - [ ] 11-01-PLAN.md — Substituir ClusteredMapView por MapView + remover dependências leaflet/map-clustering
+
+#### Phase 12: Formulário Completo — 10 Elementos
+**Goal**: Agente consegue selecionar e preencher o novo formulário completo de risco estrutural com 10 elementos (4 estruturais + 6 complementares), com pontuação ponderada e classificação R1/R4 automática
+**Depends on**: Phase 07
+**Requirements**: FORM-06, FORM-07
+**Success Criteria** (what must be TRUE):
+  1. Formulário "Avaliação Completa — 10 Elementos" aparece na tela de seleção de formulários
+  2. Agente consegue preencher todos os 10 elementos com 4 critérios cada (estado, gravidade, extensão, ativa)
+  3. Pontuação por elemento = (estado + gravidade + extensão + ativa) × peso é calculada corretamente
+  4. Classificação global R1/R2/R3/R4 é gerada ao final com base no maior elemento e média
+**Plans**: 1 plano
+Plans:
+- [ ] 12-01-PLAN.md — Converter form1+form2 JSON para formato nativo + registrar como built-in
 
 ### Progress
 
