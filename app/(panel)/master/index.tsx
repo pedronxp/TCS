@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl
 } from 'react-native';
+import { countAgendamentosPendentes } from '../../../utils/database';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
@@ -27,6 +28,7 @@ export default function MasterDashboardScreen() {
   });
   const [municipios, setMunicipios] = useState<{ nome: string; count: number }[]>([]);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
 
   const carregar = async (showRefresh = false) => {
     setErro(false);
@@ -67,7 +69,12 @@ export default function MasterDashboardScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { carregar(); }, []));
+  useFocusEffect(useCallback(() => {
+    carregar();
+    if (profile?.municipio) {
+      setPendingAgendamentos(countAgendamentosPendentes(profile.municipio));
+    }
+  }, [profile?.municipio]));
 
   if (loading) {
     return <LoadingState message="Carregando painel principal..." />;
@@ -88,12 +95,27 @@ export default function MasterDashboardScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.push('/(panel)/perfil')}
-        >
-          <Feather name="user" size={18} color={theme.textSecondary} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <View>
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+              onPress={() => router.push('/(panel)/agendamentos')}
+            >
+              <Feather name="calendar" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+            {pendingAgendamentos > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{pendingAgendamentos > 9 ? '9+' : pendingAgendamentos}</Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+            onPress={() => router.push('/(panel)/perfil')}
+          >
+            <Feather name="user" size={18} color={theme.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -228,6 +250,14 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 10, borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',
   },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  badge: {
+    position: 'absolute', top: -4, right: -4,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 100 },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',

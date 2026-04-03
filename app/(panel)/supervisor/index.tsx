@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl
 } from 'react-native';
+import { countAgendamentosPendentes } from '../../../utils/database';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
@@ -38,6 +39,7 @@ export default function SupervisorDashboardScreen() {
   const [vistorias, setVistorias] = useState<VistoriaNormalizada[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
   const [agentesAtivos, setAgentesAtivos] = useState(0);
+  const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
 
   const carregar = async (showRefresh = false) => {
     if (!profile) return;
@@ -75,7 +77,12 @@ export default function SupervisorDashboardScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { carregar(); }, []));
+  useFocusEffect(useCallback(() => {
+    carregar();
+    if (profile?.municipio) {
+      setPendingAgendamentos(countAgendamentosPendentes(profile.municipio));
+    }
+  }, [profile?.municipio]));
 
   const totalVistorias = vistorias.length;
   const altoRisco = vistorias.filter(v =>
@@ -125,6 +132,19 @@ export default function SupervisorDashboardScreen() {
           >
             <Feather name="map" size={18} color={theme.primary} />
           </TouchableOpacity>
+          <View>
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+              onPress={() => router.push('/(panel)/agendamentos')}
+            >
+              <Feather name="calendar" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+            {pendingAgendamentos > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{pendingAgendamentos > 9 ? '9+' : pendingAgendamentos}</Text>
+              </View>
+            )}
+          </View>
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
             onPress={() => router.push('/(panel)/perfil')}
@@ -388,4 +408,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2, shadowRadius: 8,
   },
   fabText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  badge: {
+    position: 'absolute', top: -4, right: -4,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
 });
