@@ -16,7 +16,7 @@
 ### AUTH
 
 - [x] **AUTH-01**: Admin consegue criar token de convite e usuário consegue usá-lo imediatamente sem erro "Token expirado"
-- [ ] **AUTH-02**: Master admin consegue cadastrar um novo município sem erros no fluxo
+- [x] **AUTH-02**: Master admin consegue cadastrar um novo município sem erros no fluxo
 
 ### FORM
 
@@ -65,7 +65,7 @@
 | MAPA-01 | Phase 06 | pending |
 | MAPA-02 | Phase 06 | pending |
 | AUTH-01 | Phase 06 | Complete |
-| AUTH-02 | Phase 06 | pending |
+| AUTH-02 | Phase 06 | Complete |
 | FORM-01 | Phase 07 | Complete |
 | FORM-02 | Phase 07 | Complete |
 | FORM-03 | Phase 07 | Complete |
