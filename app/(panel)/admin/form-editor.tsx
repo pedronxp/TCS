@@ -86,7 +86,7 @@ export default function FormEditorScreen() {
       });
       Alert.alert('Criado!', 'Formulário criado como rascunho. Adicione perguntas na edição.');
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível criar o formulário.');
+      Alert.alert('Erro', 'Não foi possível criar o formulário. Tente novamente.');
     } finally {
       setSalvando(false);
     }
@@ -156,7 +156,7 @@ export default function FormEditorScreen() {
               carregar();
               Alert.alert('Duplicado!', 'Cópia criada como rascunho.');
             } catch (e: any) {
-              Alert.alert('Erro', e.message || 'Não foi possível duplicar.');
+              Alert.alert('Erro', 'Não foi possível duplicar. Tente novamente.');
             }
           }
         }

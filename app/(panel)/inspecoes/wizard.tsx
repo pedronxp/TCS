@@ -199,7 +199,7 @@ export default function WizardAvaliacaoScreen() {
         }
       }
     } catch (e: any) {
-      Alert.alert('Erro', `Não foi possível carregar as perguntas: ${e.message}`);
+      Alert.alert('Erro', 'Não foi possível carregar as perguntas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -439,7 +439,7 @@ export default function WizardAvaliacaoScreen() {
       });
     } catch (e: any) {
       logger.error('vistoria', 'Erro crítico ao salvar vistoria', { erro: e.message });
-      Alert.alert('Erro ao salvar', e.message || 'Tente novamente.');
+      Alert.alert('Erro ao salvar', 'Não foi possível salvar a vistoria. Tente novamente.');
     } finally {
       setSalvando(false);
     }

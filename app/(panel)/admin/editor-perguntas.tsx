@@ -184,7 +184,7 @@ export default function EditorPerguntasScreen() {
       );
     } catch (e: any) {
       logger.error('form', 'Erro ao salvar perguntas', { erro: String(e) });
-      Alert.alert('Erro', e.message || 'Não foi possível salvar.');
+      Alert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
     } finally {
       setSalvando(false);
     }

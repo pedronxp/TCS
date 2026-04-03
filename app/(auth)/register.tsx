@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../../utils/supabase';
+import { traduzirErroAuth } from '../../utils/authErrors';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
@@ -123,7 +124,20 @@ export default function RegisterScreen() {
       if (insertError) throw insertError;
 
       // 4. Marcar token como usado via RPC (SECURITY DEFINER ignora RLS)
-      await supabase.rpc('mark_token_used', { p_codigo: codigoNorm });
+      // Captura IP do dispositivo para rastreio (best effort)
+      let deviceIp = '';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        deviceIp = ipData.ip || '';
+      } catch { /* silencioso — IP não é obrigatório */ }
+
+      await supabase.rpc('mark_token_used', {
+        p_codigo: codigoNorm,
+        p_uid: uid,
+        p_nome: nome,
+        p_ip: deviceIp,
+      });
 
       // 5. Notificar o admin que criou o token (best effort — nunca bloqueia o fluxo)
       try {
@@ -142,7 +156,7 @@ export default function RegisterScreen() {
 
       setSucesso(true);
     } catch (e: any) {
-      setError(e.message || 'Erro ao registrar.');
+      setError(traduzirErroAuth(e.message) || 'Erro ao registrar.');
     } finally {
       setLoading(false);
     }
@@ -214,7 +228,7 @@ export default function RegisterScreen() {
                 <Feather name="user" color={theme.textSecondary} size={20} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="John Doe"
+                  placeholder="Maria Silva"
                   placeholderTextColor={theme.textSecondary}
                   value={nome}
                   onChangeText={setNome}

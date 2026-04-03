@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../../utils/supabase';
+import { traduzirErroAuth } from '../../utils/authErrors';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
@@ -54,7 +55,7 @@ export default function LoginScreen() {
         throw new Error('Conta aguardando aprovação do administrador.');
       }
     } catch (e: any) {
-      setError(e.message || 'Erro ao realizar login.');
+      setError(traduzirErroAuth(e.message) || 'Erro ao realizar login.');
     } finally {
       setLoading(false);
     }
