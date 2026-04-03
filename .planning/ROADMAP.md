@@ -79,7 +79,10 @@ Plans:
   1. Todas as mensagens de erro exibidas ao usuário final estão em português (nenhuma mensagem em inglês visível na UI)
   2. Admin abre a aba de logs e vê os registros de atividade renderizados corretamente (sem lista vazia ou layout quebrado)
   3. Erros de autenticação, sync e formulários exibem mensagens descritivas em pt-br que orientam o usuário sobre a ação a tomar
-**Plans**: TBD
+**Plans**: 2 planos
+Plans:
+- [ ] 09-01-PLAN.md — utils/authErrors.ts + fix e.message em auth e painel (UX-01)
+- [ ] 09-02-PLAN.md — master/logs.tsx: substituir Supabase system_logs por getLogs() SQLite (UX-02)
 **UI hint**: yes
 
 #### Phase 10: Formulário Estrutural Inteligente
@@ -106,5 +109,5 @@ Plans:
 | 06. Mapa + Autenticação | 2/3 | Complete    | 2026-04-02 |
 | 07. Formulários + Classificação de Risco | 1/3 | Complete    | 2026-04-02 |
 | 08. Sincronização Offline | 2/2 | Complete    | 2026-04-03 |
-| 09. UX + Correções Finais | 0/? | Not started | - |
+| 09. UX + Correções Finais | 0/2 | Not started | - |
 | 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
