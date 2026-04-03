@@ -21,6 +21,14 @@ const FORMULARIOS_BUILTIN = [
     isNew: true,
   },
   {
+    id: 'risco_estrutural_completo_v1',
+    titulo: 'Avaliação Completa — 10 Elementos',
+    descricao: '10 elementos · 40 perguntas · Avaliação abrangente',
+    asset: require('../../../assets/formularios/risco_estrutural_completo_v1.json'),
+    icon: 'home' as const,
+    isBuiltin: true,
+  },
+  {
     id: 'risco_estrutural_v1',
     titulo: 'Avaliação de Risco Estrutural',
     descricao: '12 elementos • Pontuação ponderada por peso estrutural',

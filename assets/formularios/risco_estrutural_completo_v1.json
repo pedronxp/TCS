@@ -1,0 +1,561 @@
+{
+  "id": "risco_estrutural_completo_v1",
+  "titulo": "Avaliação Completa — 10 Elementos",
+  "versao": 1,
+  "ativo": true,
+  "tipoCalculo": "ponderada_max_elemento",
+  "descricao": "Avaliação estrutural abrangente com 10 elementos (fundação, estrutura, cobertura, alvenaria, piso, escada, parede, fachada, drenagem e elétrica). Pontuação por elemento = (Estado + Gravidade + Extensão + Ativa) × Peso. Risco global calculado pelo maior elemento e média.",
+  "classificacao": {
+    "limitesPorItem": [
+      { "max": 3,    "nivel": "muito_baixo", "label": "Muito Baixo" },
+      { "max": 6,    "nivel": "baixo",       "label": "Baixo" },
+      { "max": 10,   "nivel": "medio",       "label": "Médio" },
+      { "max": 14,   "nivel": "alto",        "label": "Alto" },
+      { "max": 9999, "nivel": "muito_alto",  "label": "Muito Alto" }
+    ],
+    "criterioGlobal": {
+      "r1": "max_elemento < 6 E media < 6",
+      "r2": "max_elemento entre 6 e 10.9 OU media >= 6",
+      "r3": "max_elemento entre 11 e 14.9",
+      "r4": "max_elemento >= 15 OU 2+ elementos em Alto/Muito Alto"
+    },
+    "limites": [
+      { "max": 5,    "nivel": "baixo",    "label": "R1 — BAIXO — Manutenção preventiva e acompanhamento",      "cor": "verde" },
+      { "max": 10,   "nivel": "medio",    "label": "R2 — MÉDIO — Vistoria técnica necessária",                  "cor": "amarelo" },
+      { "max": 14,   "nivel": "alto",     "label": "R3 — ALTO — Laudo de engenheiro civil obrigatório",         "cor": "laranja" },
+      { "max": 9999, "nivel": "iminente", "label": "R4 — MUITO ALTO — Recomendar interdição imediata",           "cor": "vermelho" }
+    ]
+  },
+  "fases": [
+    {
+      "id": "fase_fundacao",
+      "titulo": "1. Fundação",
+      "instrucao": "Avalie as condições da fundação: sapatas, estacas, blocos de coroamento e baldrames. Peso estrutural: 1.5 (alto impacto).",
+      "peso": 1.5,
+      "perguntas": [
+        {
+          "id": "fundacao_estado",
+          "texto": "Estado de conservação da fundação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",                  "imagemLocal": "fund_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural",    "imagemLocal": "fund_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Manifestações com comprometimento moderado",               "imagemLocal": "fund_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Manifestações graves comprometendo a estabilidade",       "imagemLocal": "fund_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "fundacao_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Fissuras finas, sem risco estrutural",    "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Fissuras médias, monitoramento necessário","imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Fissuras profundas ou deformações",       "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "fundacao_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",          "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",        "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "fundacao_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",      "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento",  "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_estrutura",
+      "titulo": "2. Estrutura",
+      "instrucao": "Avalie pilares, vigas e lajes: recalques, fissuras estruturais, deformações. Peso estrutural: 1.5 (alto impacto).",
+      "peso": 1.5,
+      "perguntas": [
+        {
+          "id": "estrutura_estado",
+          "texto": "Estado de conservação da estrutura",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",               "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural", "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Manifestações com comprometimento moderado",            "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Manifestações graves comprometendo a estabilidade",    "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "estrutura_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                 "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Fissuras finas, sem risco estrutural",     "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Fissuras médias, monitoramento necessário", "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Fissuras profundas ou deformações",        "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "estrutura_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "estrutura_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_cobertura",
+      "titulo": "3. Cobertura",
+      "instrucao": "Avalie telhas, calhas, rufos e estrutura de telhado: infiltrações, deformações, faltando peças. Peso estrutural: 0.9.",
+      "peso": 0.9,
+      "perguntas": [
+        {
+          "id": "cobertura_estado",
+          "texto": "Estado de conservação da cobertura",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",               "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural", "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Infiltrações ou peças danificadas",                     "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Cobertura comprometida com risco de colapso",           "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "cobertura_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                 "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Infiltração pontual sem danos internos",   "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Infiltração frequente ou peças faltando",  "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Cobertura com risco de desabamento",       "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "cobertura_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "cobertura_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_alvenaria",
+      "titulo": "4. Alvenaria",
+      "instrucao": "Avalie paredes estruturais de alvenaria: fissuras, desaprumo, umidade ascendente. Peso estrutural: 1.0.",
+      "peso": 1.0,
+      "perguntas": [
+        {
+          "id": "alvenaria_estado",
+          "texto": "Estado de conservação da alvenaria",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",               "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural", "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Fissuras ou desaprumo com comprometimento moderado",    "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Manifestações graves comprometendo a estabilidade",    "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "alvenaria_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                 "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Fissuras finas, sem risco estrutural",     "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Fissuras médias, monitoramento necessário", "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Fissuras profundas ou desaprumo",           "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "alvenaria_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "alvenaria_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_piso",
+      "titulo": "5. Piso",
+      "instrucao": "Avalie o revestimento de piso: trincas, desgaste, recalques localizados, abaulamentos. Peso estrutural: 0.8.",
+      "peso": 0.8,
+      "perguntas": [
+        {
+          "id": "piso_estado",
+          "texto": "Estado de conservação do piso",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",               "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural", "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Trincas, abaulamentos ou recalques localizados",        "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Piso comprometido com risco de acidente",               "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "piso_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",               "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Desgaste superficial sem risco",         "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Trincas médias ou desnível perceptível", "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Desabamento parcial ou risco de queda",  "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "piso_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "piso_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_escada",
+      "titulo": "6. Escada",
+      "instrucao": "Avalie degraus, corrimão e estrutura de escadas: trincas, desgaste, ausência de proteções. Peso estrutural: 1.0.",
+      "peso": 1.0,
+      "perguntas": [
+        {
+          "id": "escada_estado",
+          "texto": "Estado de conservação da escada",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",               "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural", "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Degraus trincados ou corrimão danificado",              "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Escada comprometida com risco de acidente",             "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "escada_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",               "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Desgaste superficial sem risco",         "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Danos moderados com risco potencial",    "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Risco iminente de acidente ou colapso",  "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "escada_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "escada_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_parede",
+      "titulo": "7. Parede",
+      "instrucao": "Avalie paredes de vedação (não estruturais): fissuras, umidade, bolhas de pintura, descolamento. Peso estrutural: 1.4.",
+      "peso": 1.4,
+      "perguntas": [
+        {
+          "id": "parede_estado",
+          "texto": "Estado de conservação da parede",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",               "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural", "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Fissuras, umidade ou descolamento moderado",            "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Parede comprometida com risco de desabamento",          "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "parede_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                   "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Fissuras finas ou manchas superficiais",     "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Fissuras médias ou umidade frequente",       "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Desabamento parcial ou risco iminente",      "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "parede_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "parede_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_fachada",
+      "titulo": "8. Fachada",
+      "instrucao": "Avalie o revestimento externo: fissuras, descolamento, eflorescências, manchas. Peso estrutural: 0.8.",
+      "peso": 0.8,
+      "perguntas": [
+        {
+          "id": "fachada_estado",
+          "texto": "Estado de conservação da fachada",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sem manifestações patológicas visíveis",               "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas manifestações sem comprometimento estrutural", "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Descolamento ou fissuras no revestimento externo",      "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Risco de desprendimento de revestimento",               "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "fachada_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                   "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Manchas ou eflorescências superficiais",     "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Descolamento moderado ou fissuras médias",   "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Desplacamento com risco de queda de peças",  "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "fachada_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "fachada_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_drenagem",
+      "titulo": "9. Drenagem",
+      "instrucao": "Avalie calhas, ralos, caixas de inspeção e escoamento: entupimentos, ausência de componentes, acúmulo de água. Peso estrutural: 1.1.",
+      "peso": 1.1,
+      "perguntas": [
+        {
+          "id": "drenagem_estado",
+          "texto": "Estado de conservação da drenagem",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Sistema de drenagem funcional e sem obstruções",        "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenos entupimentos ou peças faltando",               "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Drenagem comprometida com acúmulo de água frequente",   "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Sistema de drenagem inoperante ou inexistente",          "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "drenagem_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                   "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Escoamento lento sem danos à estrutura",     "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Acúmulo frequente causando umidade",         "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Inundação recorrente causando danos graves", "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "drenagem_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "drenagem_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fase_eletrica",
+      "titulo": "10. Elétrica",
+      "instrucao": "Avalie instalações elétricas visíveis: fios expostos, quadro de distribuição, aterramento, sinais de curto. Peso estrutural: 0.9.",
+      "peso": 0.9,
+      "perguntas": [
+        {
+          "id": "eletrica_estado",
+          "texto": "Estado de conservação da instalação elétrica",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "bom",     "texto": "Bom",     "descricao": "Instalações em bom estado e sem irregularidades",       "imagemLocal": "est_bom",     "pesoRisco": 0 },
+            { "id": "regular", "texto": "Regular", "descricao": "Pequenas irregularidades sem risco imediato",            "imagemLocal": "est_regular", "pesoRisco": 2 },
+            { "id": "ruim",    "texto": "Ruim",    "descricao": "Fios expostos ou sinais de sobrecarga",                  "imagemLocal": "est_ruim",    "pesoRisco": 4 },
+            { "id": "pessimo", "texto": "Péssimo", "descricao": "Risco iminente de choque elétrico ou incêndio",          "imagemLocal": "est_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "eletrica_gravidade",
+          "texto": "Gravidade da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nenhuma",  "texto": "Nenhuma",  "descricao": "Sem manifestação de dano",                         "imagemLocal": "grav_nenhuma",  "pesoRisco": 0 },
+            { "id": "leve",     "texto": "Leve",     "descricao": "Irregularidade estética sem risco de segurança",   "imagemLocal": "grav_leve",     "pesoRisco": 1 },
+            { "id": "moderada", "texto": "Moderada", "descricao": "Instalação inadequada com risco potencial",         "imagemLocal": "grav_moderada", "pesoRisco": 3 },
+            { "id": "severa",   "texto": "Severa",   "descricao": "Risco real de acidente elétrico ou incêndio",       "imagemLocal": "grav_severa",   "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "eletrica_extensao",
+          "texto": "Extensão da manifestação",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "pontual",      "texto": "Pontual",      "descricao": "Afeta ponto isolado",           "imagemLocal": "ext_pontual",      "pesoRisco": 1 },
+            { "id": "setorial",     "texto": "Setorial",     "descricao": "Afeta seção ou trecho",         "imagemLocal": "ext_setorial",     "pesoRisco": 2 },
+            { "id": "generalizada", "texto": "Generalizada", "descricao": "Afeta a maior parte do elemento","imagemLocal": "ext_generalizada", "pesoRisco": 4 }
+          ]
+        },
+        {
+          "id": "eletrica_ativa",
+          "texto": "A manifestação está ativa (em progressão)?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "opcoes": [
+            { "id": "nao", "texto": "Não — Estabilizada",  "descricao": "Dano antigo sem progressão",     "imagemLocal": "opcao_nao", "pesoRisco": 0 },
+            { "id": "sim", "texto": "Sim — Em progressão", "descricao": "Dano recente ou em agravamento", "imagemLocal": "opcao_sim", "pesoRisco": 2 }
+          ]
+        }
+      ]
+    }
+  ]
+}

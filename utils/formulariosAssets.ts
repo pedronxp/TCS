@@ -2,6 +2,7 @@ export const ASSETS: Record<string, any> = {
   'risco_estrutural_v1': require('../assets/formularios/risco_estrutural_v1.json'),
   'risco_estrutural_v2': require('../assets/formularios/risco_estrutural_v2.json'),
   'vistoria_deslizamento_v1': require('../assets/formularios/vistoria_deslizamento_v1.json'),
+  'risco_estrutural_completo_v1': require('../assets/formularios/risco_estrutural_completo_v1.json'),
 };
 
 export interface OpcaoModel {
