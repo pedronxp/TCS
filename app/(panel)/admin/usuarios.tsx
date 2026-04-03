@@ -14,6 +14,7 @@ import { LoadingState } from '../../../components/ui/LoadingState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { Badge } from '../../../components/ui/Badge';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ROLE_LABELS: Record<string, string> = {
   agent: 'Agente', supervisor: 'Supervisor',
@@ -25,6 +26,7 @@ type Filtro = 'todos' | 'ativos' | 'pendentes';
 
 export default function UsuariosScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -198,7 +200,7 @@ export default function UsuariosScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -371,7 +373,7 @@ export default function UsuariosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {

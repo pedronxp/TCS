@@ -11,6 +11,7 @@ import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
 import { Badge, Card, ErrorState } from '../../components/ui';
 import { formatarData, formatarDataHora } from '../../utils/htmlUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ROLE_LABELS: Record<string, string> = {
   agent:        'Agente de Campo',
@@ -20,20 +21,46 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function PerfilScreen() {
-  const { theme } = useTheme();
-  const { profile: authProfile, loading: authLoading, signOut } = useAuth();
+  const { theme, themeMode, setThemeMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { session, profile: authProfile, loading: authLoading, signOut } = useAuth();
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(authProfile?.name || '');
   const [stats, setStats] = useState({ total: 0, altoRisco: 0, hoje: 0, semana: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [deviceIp, setDeviceIp] = useState<string>('');
 
   useEffect(() => {
     if (authProfile) {
       setNewName(authProfile.name || '');
       loadStats();
     }
+    // Capturar IP real do dispositivo — múltiplas fontes de fallback
+    const fetchIp = async () => {
+      const sources = [
+        'https://api.ipify.org?format=json',
+        'https://api.seeip.org/jsonip',
+        'https://api.myip.com',
+      ];
+      for (const url of sources) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeout);
+          const data = await res.json();
+          const ip = data.ip || data.IP || '';
+          if (ip && ip !== '0.0.0.0' && ip !== '127.0.0.1') {
+            setDeviceIp(ip);
+            return;
+          }
+        } catch { /* tenta próxima fonte */ }
+      }
+      setDeviceIp('Indisponível');
+    };
+    fetchIp();
   }, [authProfile]);
 
   const loadStats = async () => {
@@ -74,13 +101,19 @@ export default function PerfilScreen() {
     }
   };
 
+  const nameAlreadyChanged = authProfile?.nameChanged === true;
+
   const saveName = async () => {
     if (!newName.trim() || !authProfile) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('users').update({ name: newName.trim() }).eq('uid', authProfile.uid);
+      const { error } = await supabase
+        .from('users')
+        .update({ name: newName.trim(), nameChanged: true })
+        .eq('uid', authProfile.uid);
       if (error) throw error;
       setEditingName(false);
+      Alert.alert('Nome atualizado', 'Atenção: o nome só pode ser alterado uma vez.');
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar o nome.');
     } finally {
@@ -126,10 +159,21 @@ export default function PerfilScreen() {
     authProfile?.role === 'admin' ? 'error' :
     'warning';
 
+  // ── Último acesso ──
+  const lastSignIn = session?.user?.last_sign_in_at;
+  const lastAccessText = lastSignIn
+    ? formatarDataHora(lastSignIn)
+    : '—';
+
+  // ── Membro desde ──
+  const memberSinceText = authProfile?.createdAt
+    ? formatarData(authProfile.createdAt)
+    : '—';
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -147,7 +191,13 @@ export default function PerfilScreen() {
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
 
-          {editingName ? (
+          {/* ── Nome ── */}
+          {nameAlreadyChanged ? (
+            <View style={styles.nameRow}>
+              <Text style={[styles.name, { color: theme.text }]}>{authProfile?.name || 'Nome não definido'}</Text>
+              <Feather name="lock" size={14} color={theme.textSecondary} style={{ marginLeft: 8 }} />
+            </View>
+          ) : editingName ? (
             <View style={styles.editRow}>
               <TextInput
                 style={[styles.nameInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
@@ -174,7 +224,13 @@ export default function PerfilScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Badge de cargo — design system */}
+          {nameAlreadyChanged && (
+            <Text style={[styles.nameLockedHint, { color: theme.textSecondary }]}>
+              O nome só pode ser alterado uma vez
+            </Text>
+          )}
+
+          {/* Badge de cargo */}
           <Badge variant={roleBadgeVariant} label={roleLabel} />
         </Card>
 
@@ -197,10 +253,13 @@ export default function PerfilScreen() {
           />
           <Divider theme={theme} />
 
-          <InfoRow icon="calendar" label="Membro desde" value={formatarData((authProfile as any)?.createdAt)} theme={theme} />
+          <InfoRow icon="calendar" label="Membro desde" value={memberSinceText} theme={theme} />
           <Divider theme={theme} />
 
-          <InfoRow icon="clock" label="Último acesso" value={formatarDataHora((authProfile as any)?.lastLogin)} theme={theme} />
+          <InfoRow icon="clock" label="Último acesso" value={lastAccessText} theme={theme} />
+          <Divider theme={theme} />
+
+          <InfoRow icon="wifi" label="IP atual" value={deviceIp || '…'} theme={theme} />
         </Card>
 
         {/* Estatísticas */}
@@ -255,20 +314,47 @@ export default function PerfilScreen() {
         {/* Configurações */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Configurações</Text>
 
-        {/* Ver Introdução — UX-08 */}
-        <TouchableOpacity
-          style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-          onPress={() => router.push('/onboarding')}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}15` }]}>
-            <Feather name="info" size={20} color={theme.primary} />
+        <View style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder, flexDirection: 'column', alignItems: 'stretch' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}15` }]}>
+              <Feather name={themeMode === 'light' ? 'sun' : themeMode === 'dark' ? 'moon' : 'smartphone'} size={20} color={theme.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.actionTitle, { color: theme.text }]}>Aparência</Text>
+              <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Escolha o tema do aplicativo</Text>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.actionTitle, { color: theme.text }]}>Ver Introdução</Text>
-            <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Revisitar o tour do aplicativo</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['system', 'light', 'dark'] as const).map((mode) => {
+              const isSelected = themeMode === mode;
+              const labels = { system: 'Sistema', light: 'Claro', dark: 'Escuro' };
+              const icons = { system: 'smartphone', light: 'sun', dark: 'moon' } as const;
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  onPress={() => setThemeMode(mode)}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingVertical: 10,
+                    borderRadius: 10,
+                    backgroundColor: isSelected ? theme.primary : theme.background,
+                    borderWidth: 1,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                    gap: 6,
+                  }}
+                >
+                  <Feather name={icons[mode]} size={16} color={isSelected ? '#FFF' : theme.textSecondary} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: isSelected ? '#FFF' : theme.textSecondary }}>
+                    {labels[mode]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
@@ -365,7 +451,7 @@ const statStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {
@@ -384,8 +470,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: 16,
   },
   avatarText: { fontSize: 32, fontWeight: '800', color: '#FFF' },
-  nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   name: { fontSize: 22, fontWeight: '700' },
+  nameLockedHint: { fontSize: 11, fontWeight: '500', marginBottom: 14, fontStyle: 'italic' },
   editRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8, width: '100%' },
   nameInput: {
     flex: 1, height: 44, borderRadius: 12, borderWidth: 1,

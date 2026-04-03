@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Alert, Modal, Share
@@ -12,6 +12,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 import { Button } from '../../../components/ui/Button';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ROLES_LIST = [
   { key: 'agent', label: 'Agente', desc: 'Realiza vistorias em campo', icon: 'clipboard' as const },
@@ -48,19 +49,36 @@ function gerarCodigo(): string {
 
 export default function GerarTokenScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
+  const isMasterAdmin = profile?.role === 'master_admin';
   const [role, setRole] = useState('agent');
   const [municipio, setMunicipio] = useState(profile?.municipio || '');
   const [duracao, setDuracao] = useState('48');
   const [gerando, setGerando] = useState(false);
   const [tokenGerado, setTokenGerado] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [municipios, setMunicipios] = useState<string[]>([]);
+  const [loadingMunicipios, setLoadingMunicipios] = useState(false);
+
+  useEffect(() => {
+    if (!isMasterAdmin) return;
+    setLoadingMunicipios(true);
+    supabase.from('municipios').select('nome').order('nome').then(({ data }) => {
+      setMunicipios((data ?? []).map((m: { nome: string }) => m.nome));
+      setLoadingMunicipios(false);
+    });
+  }, [isMasterAdmin]);
 
   const roles = ROLES_LIST;
   const horasSelecionadas = DURACOES.find(d => d.key === duracao)?.horas ?? 48;
   const labelDuracao = DURACOES.find(d => d.key === duracao)?.label ?? '48h';
 
   const gerarToken = async () => {
+    if (!municipio) {
+      Alert.alert('Município obrigatório', 'Selecione para qual município este token é válido.');
+      return;
+    }
     setGerando(true);
     try {
       // Rate-limit: máx 10 tokens por hora por admin
@@ -127,7 +145,7 @@ export default function GerarTokenScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -167,6 +185,42 @@ export default function GerarTokenScreen() {
             )}
           </TouchableOpacity>
         ))}
+
+        {/* Seleção de município */}
+        <Text style={[styles.label, { color: theme.textSecondary, marginTop: 8 }]}>MUNICÍPIO</Text>
+        {isMasterAdmin ? (
+          loadingMunicipios ? (
+            <ActivityIndicator color={theme.primary} style={{ marginBottom: 24 }} />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 24 }}
+              contentContainerStyle={{ gap: 10 }}
+            >
+              {municipios.map(m => (
+                <TouchableOpacity
+                  key={m}
+                  style={[
+                    styles.municipioChip,
+                    { borderColor: municipio === m ? theme.primary : theme.cardBorder,
+                      backgroundColor: municipio === m ? `${theme.primary}15` : theme.surfaceHighlight },
+                  ]}
+                  onPress={() => setMunicipio(m)}
+                >
+                  <Text style={[styles.municipioText, { color: municipio === m ? theme.primary : theme.textSecondary }]}>
+                    {m}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )
+        ) : (
+          <View style={[styles.municipioLocked, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <Feather name="map-pin" size={16} color={theme.textSecondary} />
+            <Text style={[styles.municipioLockedText, { color: theme.text }]}>{municipio || 'Nenhum município definido'}</Text>
+          </View>
+        )}
 
         {/* Seleção de prazo */}
         <Text style={[styles.label, { color: theme.textSecondary, marginTop: 8 }]}>VALIDADE DO TOKEN</Text>
@@ -259,7 +313,7 @@ export default function GerarTokenScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {
@@ -315,4 +369,14 @@ const styles = StyleSheet.create({
   },
   duracaoText: { fontSize: 14, fontWeight: '700' },
   modalActions: { width: '100%' },
+  municipioChip: {
+    height: 40, borderRadius: 12, borderWidth: 1.5,
+    paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center',
+  },
+  municipioText: { fontSize: 14, fontWeight: '600' },
+  municipioLocked: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 24,
+  },
+  municipioLockedText: { fontSize: 15, fontWeight: '600' },
 });

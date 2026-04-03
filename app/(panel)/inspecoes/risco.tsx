@@ -13,6 +13,7 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RISCO_CONFIG: Record<string, {
   label: string; emoji: string; color: string; conduta: string;
@@ -83,6 +84,7 @@ export default function ResultadoRiscoScreen() {
     respostas: string;
   }>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { isOnlineReal: isConnected } = useConnectivity();
   const [saving, setSaving] = useState(false);
   const [showRespostas, setShowRespostas] = useState(false);
@@ -179,7 +181,7 @@ export default function ResultadoRiscoScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -252,7 +254,7 @@ export default function ResultadoRiscoScreen() {
       {/* Modal: Comprovante de Respostas */}
       <Modal visible={showRespostas} animationType="slide" presentationStyle="pageSheet">
         <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Comprovante de Respostas</Text>
             <TouchableOpacity onPress={() => setShowRespostas(false)}>
               <Feather name="x" size={24} color={theme.textSecondary} />
@@ -281,7 +283,7 @@ export default function ResultadoRiscoScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 24,
+    paddingBottom: 16, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {
@@ -327,7 +329,6 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 24, paddingVertical: 20, borderBottomWidth: 1,
-    paddingTop: 60,
   },
   modalTitle: { fontSize: 20, fontWeight: '700' },
   modalContent: { padding: 24, paddingBottom: 60 },

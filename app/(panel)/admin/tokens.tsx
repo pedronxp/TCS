@@ -13,6 +13,8 @@ import { LoadingState } from '../../../components/ui/LoadingState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Badge } from '../../../components/ui/Badge';
+import { formatarDataHora } from '../../../utils/htmlUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ROLE_LABELS: Record<string, string> = {
   agent: 'Agente', supervisor: 'Supervisor', admin: 'Administrador',
@@ -35,6 +37,7 @@ function getTempoRestante(expiresAt: string | null) {
 
 export default function TokensScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [tokens, setTokens] = useState<any[]>([]);
   const [erro, setErro] = useState<string | null>(null);
@@ -62,15 +65,29 @@ export default function TokensScreen() {
       let query = supabase
         .from('invite_tokens')
         .select('*')
-        .eq('usado', false)
         .order('criadoEm', { ascending: false });
 
-      if (me.role !== 'master_admin') {
-        query = query.eq('municipio', me.municipio);
+      if (me.role === 'master_admin') {
+        // Master admin vê todos os tokens
+      } else {
+        // Admin comum vê SOMENTE os tokens que ELE GEROU + da SUA CIDADE
+        query = query
+          .eq('criadoPor', session.user.id)
+          .eq('municipio', me.municipio);
       }
 
-      const { data } = await query;
-      setTokens(data || []);
+      const { data, error: queryError } = await query;
+
+      if (queryError) {
+        logger.error('token', 'Erro na query de tokens', { erro: queryError.message });
+      }
+
+      // Filtro de segurança client-side (caso RLS não filtre corretamente)
+      const tokensSeguro = me.role === 'master_admin'
+        ? (data || [])
+        : (data || []).filter(t => t.criadoPor === session.user.id);
+
+      setTokens(tokensSeguro);
       setErro(null);
     } catch (e: any) {
       logger.error('token', 'Erro ao carregar tokens', { erro: String(e) });
@@ -80,19 +97,20 @@ export default function TokensScreen() {
     }
   };
 
-  // Nota: setLoading(false) está no bloco finally — garante reset mesmo em early returns e erros
-
   useFocusEffect(useCallback(() => { loadTokens(); }, []));
 
-  // Separar ativos dos expirados
+  // Separar por status
   const ativos = tokens.filter(t => {
+    if (t.usado) return false;
     if (!t.expiraEm) return true;
     return new Date(t.expiraEm).getTime() > Date.now();
   });
   const expirados = tokens.filter(t => {
+    if (t.usado) return false;
     if (!t.expiraEm) return false;
     return new Date(t.expiraEm).getTime() <= Date.now();
   });
+  const usados = tokens.filter(t => t.usado === true);
 
   const copiarToken = async (codigo: string) => {
     await Clipboard.setStringAsync(codigo);
@@ -103,8 +121,8 @@ export default function TokensScreen() {
     const role = ROLE_LABELS[token.role] || token.role;
     const { texto } = getTempoRestante(token.expiraEm);
     await Share.share({
-      message: `🔐 Convite Defesa Civil\n\nCódigo: ${token.codigo}\nPerfil: ${role}\nMunicípio: ${token.municipio}\nExpira em: ${texto}\n\nAcesse o app e use este código para criar sua conta.`,
-      title: 'Token de Acesso — Defesa Civil',
+      message: `🔐 Convite TCS\n\nCódigo: ${token.codigo}\nPerfil: ${role}\nMunicípio: ${token.municipio}\nExpira em: ${texto}\n\nAcesse o app e use este código para criar sua conta.`,
+      title: 'Token de Acesso — TCS',
     });
   };
 
@@ -116,14 +134,14 @@ export default function TokensScreen() {
         { text: 'Manter', style: 'cancel' },
         {
           text: 'Cancelar Token', style: 'destructive', onPress: async () => {
-            setCancelando(token.id);
+            setCancelando(token.codigo);
             try {
-              await supabase.from('invite_tokens').delete().eq('id', token.id);
-              setTokens(prev => prev.filter(t => t.id !== token.id));
+              await supabase.from('invite_tokens').delete().eq('codigo', token.codigo);
+              setTokens(prev => prev.filter(t => t.codigo !== token.codigo));
               logger.info('token', `Token cancelado manualmente: ${token.codigo}`);
             } catch (e) {
               Alert.alert('Erro', 'Não foi possível cancelar o token.');
-              logger.error('token', 'Erro ao cancelar token', { id: token.id, erro: String(e) });
+              logger.error('token', 'Erro ao cancelar token', { codigo: token.codigo, erro: String(e) });
             } finally {
               setCancelando(null);
             }
@@ -133,24 +151,24 @@ export default function TokensScreen() {
     );
   };
 
-  const limparExpirados = () => {
-    if (expirados.length === 0) return;
+  const limparSecao = (lista: any[], titulo: string) => {
+    if (lista.length === 0) return;
     Alert.alert(
-      'Limpar expirados?',
-      `${expirados.length} token${expirados.length > 1 ? 's' : ''} expirado${expirados.length > 1 ? 's' : ''} será${expirados.length > 1 ? 'ão' : ''} removido${expirados.length > 1 ? 's' : ''}.`,
+      `Limpar ${titulo.toLowerCase()}?`,
+      `${lista.length} token${lista.length > 1 ? 's' : ''} ${titulo.toLowerCase()} será${lista.length > 1 ? 'ão' : ''} removido${lista.length > 1 ? 's' : ''}.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Limpar', style: 'destructive', onPress: async () => {
             setLimpando(true);
             try {
-              const ids = expirados.map(t => t.id);
-              await supabase.from('invite_tokens').delete().in('id', ids);
-              setTokens(prev => prev.filter(t => !ids.includes(t.id)));
-              logger.info('token', `${ids.length} tokens expirados removidos`);
+              const codigos = lista.map(t => t.codigo);
+              await supabase.from('invite_tokens').delete().in('codigo', codigos);
+              setTokens(prev => prev.filter(t => !codigos.includes(t.codigo)));
+              logger.info('token', `${codigos.length} tokens ${titulo.toLowerCase()} removidos`);
             } catch (e) {
-              Alert.alert('Erro', 'Não foi possível limpar os tokens.');
-              logger.error('token', 'Erro ao limpar tokens expirados', { erro: String(e) });
+              Alert.alert('Erro', `Não foi possível limpar os tokens ${titulo.toLowerCase()}.`);
+              logger.error('token', `Erro ao limpar tokens ${titulo.toLowerCase()}`, { erro: String(e) });
             } finally {
               setLimpando(false);
             }
@@ -182,26 +200,39 @@ export default function TokensScreen() {
     );
   }
 
-  const renderToken = (t: any, isExpirado = false) => {
+  const renderToken = (t: any, variante: 'ativo' | 'expirado' | 'usado') => {
     const { texto: tempoTexto, cor: tempoCor } = getTempoRestante(t.expiraEm);
     const role = ROLE_LABELS[t.role] || t.role;
+    const isExpirado = variante === 'expirado';
+    const isUsado = variante === 'usado';
+    const dimmed = isExpirado || isUsado;
+
     return (
       <View
+        key={t.codigo}
         style={[
           styles.tokenCard,
-          { backgroundColor: theme.surfaceHighlight, borderColor: isExpirado ? 'rgba(239,68,68,0.25)' : theme.cardBorder },
-          isExpirado && { opacity: 0.65 },
+          { backgroundColor: theme.surfaceHighlight, borderColor: isUsado ? 'rgba(16,185,129,0.25)' : isExpirado ? 'rgba(239,68,68,0.25)' : theme.cardBorder },
+          dimmed && { opacity: 0.65 },
         ]}
       >
         {/* Código */}
         <View style={styles.tokenHeader}>
-          <View style={[styles.keyIcon, { backgroundColor: isExpirado ? 'rgba(239,68,68,0.08)' : theme.iconBackground }]}>
-            <Feather name="key" size={20} color={isExpirado ? '#EF4444' : theme.primary} />
+          <View style={[styles.keyIcon, {
+            backgroundColor: isUsado
+              ? 'rgba(16,185,129,0.08)'
+              : isExpirado ? 'rgba(239,68,68,0.08)' : theme.iconBackground
+          }]}>
+            <Feather
+              name={isUsado ? 'check-circle' : 'key'}
+              size={20}
+              color={isUsado ? '#10B981' : isExpirado ? '#EF4444' : theme.primary}
+            />
           </View>
-          <Text style={[styles.tokenCode, { color: isExpirado ? theme.textSecondary : theme.text }]}>
+          <Text style={[styles.tokenCode, { color: dimmed ? theme.textSecondary : theme.text }]}>
             {t.codigo}
           </Text>
-          {!isExpirado && (
+          {variante === 'ativo' && (
             <TouchableOpacity onPress={() => copiarToken(t.codigo)}>
               <Feather name="copy" size={18} color={theme.primary} />
             </TouchableOpacity>
@@ -217,14 +248,50 @@ export default function TokensScreen() {
             <Feather name="map-pin" size={14} color={theme.textSecondary} />
             <Text style={[styles.infoText, { color: theme.textSecondary }]}>{t.municipio}</Text>
           </View>
-          <Badge 
-            label={tempoTexto} 
-            variant={isExpirado ? 'error' : (tempoCor === '#F59E0B' ? 'warning' : 'success')} 
-            size="sm" 
-          />
+          {isUsado ? (
+            <Badge label="Utilizado" variant="success" size="sm" />
+          ) : (
+            <Badge
+              label={tempoTexto}
+              variant={isExpirado ? 'error' : (tempoCor === '#F59E0B' ? 'warning' : 'success')}
+              size="sm"
+            />
+          )}
         </View>
 
-        {!isExpirado && (
+        {/* Info de quem usou o token */}
+        {isUsado && (t.usadoPorNome || t.usadoPorIp || t.usadoEm) && (
+          <>
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <View style={styles.usedBySection}>
+              <View style={[styles.usedByIcon, { backgroundColor: 'rgba(16,185,129,0.08)' }]}>
+                <Feather name="user-check" size={16} color="#10B981" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.usedByTitle, { color: theme.text }]}>
+                  {t.usadoPorNome || 'Usuário desconhecido'}
+                </Text>
+                <View style={styles.usedByDetails}>
+                  {t.usadoEm && (
+                    <Text style={[styles.usedByDetail, { color: theme.textSecondary }]}>
+                      <Feather name="calendar" size={11} color={theme.textSecondary} />{' '}
+                      {formatarDataHora(t.usadoEm)}
+                    </Text>
+                  )}
+                  {t.usadoPorIp && (
+                    <Text style={[styles.usedByDetail, { color: theme.textSecondary }]}>
+                      <Feather name="wifi" size={11} color={theme.textSecondary} />{' '}
+                      {t.usadoPorIp}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* Ações */}
+        {variante === 'ativo' && (
           <>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <View style={styles.tokenActions}>
@@ -232,7 +299,7 @@ export default function TokensScreen() {
                 <Feather name="share-2" size={16} color={theme.primary} />
                 <Text style={[styles.actionText, { color: theme.primary }]}>Compartilhar</Text>
               </TouchableOpacity>
-              {cancelando === t.id ? (
+              {cancelando === t.codigo ? (
                 <ActivityIndicator size="small" color="#EF4444" />
               ) : (
                 <TouchableOpacity style={styles.actionBtn} onPress={() => cancelarToken(t)}>
@@ -250,7 +317,7 @@ export default function TokensScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -262,6 +329,7 @@ export default function TokensScreen() {
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {ativos.length} ativo{ativos.length !== 1 ? 's' : ''}
             {expirados.length > 0 ? ` · ${expirados.length} expirado${expirados.length !== 1 ? 's' : ''}` : ''}
+            {usados.length > 0 ? ` · ${usados.length} utilizado${usados.length !== 1 ? 's' : ''}` : ''}
           </Text>
         </View>
         <TouchableOpacity
@@ -276,7 +344,7 @@ export default function TokensScreen() {
         {tokens.length === 0 ? (
           <EmptyState
             icon="key"
-            title="Nenhum token ativo"
+            title="Nenhum token"
             description="Gere um token de convite para permitir que novos usuários criem conta."
             actionLabel="Gerar Token"
             onAction={() => router.push('/(panel)/admin/gerar-token')}
@@ -289,7 +357,7 @@ export default function TokensScreen() {
                 <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
                   ATIVOS — {ativos.length}
                 </Text>
-                {ativos.map((t, i) => <React.Fragment key={t.id ?? i}>{renderToken(t, false)}</React.Fragment>)}
+                {ativos.map(t => renderToken(t, 'ativo'))}
               </>
             )}
 
@@ -302,7 +370,7 @@ export default function TokensScreen() {
                   </Text>
                   <TouchableOpacity
                     style={styles.limparBtn}
-                    onPress={limparExpirados}
+                    onPress={() => limparSecao(expirados, 'Expirados')}
                     disabled={limpando}
                   >
                     {limpando
@@ -310,13 +378,40 @@ export default function TokensScreen() {
                       : (
                         <>
                           <Feather name="trash-2" size={13} color="#EF4444" />
-                          <Text style={styles.limparBtnText}>Limpar todos</Text>
+                          <Text style={[styles.limparBtnText, { color: '#EF4444' }]}>Limpar todos</Text>
                         </>
                       )
                     }
                   </TouchableOpacity>
                 </View>
-                {expirados.map((t, i) => <React.Fragment key={t.id ?? i}>{renderToken(t, true)}</React.Fragment>)}
+                {expirados.map(t => renderToken(t, 'expirado'))}
+              </>
+            )}
+
+            {/* Tokens utilizados */}
+            {usados.length > 0 && (
+              <>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.sectionLabel, { color: '#10B981' }]}>
+                    UTILIZADOS — {usados.length}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.limparBtn}
+                    onPress={() => limparSecao(usados, 'Utilizados')}
+                    disabled={limpando}
+                  >
+                    {limpando
+                      ? <ActivityIndicator size="small" color="#10B981" />
+                      : (
+                        <>
+                          <Feather name="trash-2" size={13} color="#10B981" />
+                          <Text style={[styles.limparBtnText, { color: '#10B981' }]}>Limpar todos</Text>
+                        </>
+                      )
+                    }
+                  </TouchableOpacity>
+                </View>
+                {usados.map(t => renderToken(t, 'usado'))}
               </>
             )}
           </>
@@ -329,7 +424,7 @@ export default function TokensScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {
@@ -351,7 +446,7 @@ const styles = StyleSheet.create({
     marginBottom: 12, marginTop: 20,
   },
   limparBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 6 },
-  limparBtnText: { color: '#EF4444', fontSize: 13, fontWeight: '700' },
+  limparBtnText: { fontSize: 13, fontWeight: '700' },
   tokenCard: { borderRadius: 16, borderWidth: 1, padding: 18, marginBottom: 14 },
   tokenHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   keyIcon: {
@@ -365,11 +460,16 @@ const styles = StyleSheet.create({
   tokenActions: { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8 },
   actionText: { fontSize: 14, fontWeight: '700' },
-  emptyCard: {
-    borderRadius: 20, borderWidth: 1, padding: 40, alignItems: 'center', marginTop: 20,
+
+  // ── Seção "Cadastrado por" ──
+  usedBySection: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  emptyBtn: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14 },
-  emptyBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  usedByIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center', marginTop: 2,
+  },
+  usedByTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  usedByDetails: { flexDirection: 'column', gap: 2 },
+  usedByDetail: { fontSize: 12, fontWeight: '500' },
 });

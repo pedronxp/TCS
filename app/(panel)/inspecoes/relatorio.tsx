@@ -13,6 +13,7 @@ import { useReport } from '../../../context/ReportContext';
 import { riscoLabel, riscoColor, riscoConduta } from '../../../utils/riscoUtils';
 import { parseProtocolo } from '../../../utils/uuid';
 import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -162,6 +163,7 @@ const ef = StyleSheet.create({
 // ─── Tela principal ───────────────────────────────────────────────────────────
 export default function RelatorioScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { draft, updateField } = useReport();
   const [gerando, setGerando] = useState(false);
 
@@ -234,6 +236,7 @@ export default function RelatorioScreen() {
         condutaRecomendada: draft.condutaRecomendada,
         observacoesTecnicas: draft.observacoesTecnicas,
         cargo: draft.cargo,
+        foto_url: draft.foto_url ?? null,
         // Responsável e Bairro (tentativa map)
         responsavelNome: (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
         bairro: (draft.respostas || {})['Bairro'],
@@ -337,7 +340,7 @@ export default function RelatorioScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <View style={[s.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[s.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -714,7 +717,7 @@ const s = StyleSheet.create({
   container: { flex: 1 },
 
   // Header
-  header: { paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1 },
+  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1 },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
   headerSub: { fontSize: 12, fontWeight: '500', marginTop: 1 },

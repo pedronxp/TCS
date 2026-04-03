@@ -13,6 +13,7 @@ export interface ReportDraft {
   nivelRisco: string;
   pontuacaoTotal: number;
   respostas: Record<string, string>; // id → valor
+  foto_url?: string | null;
   // Campos editáveis pelo técnico
   condutaRecomendada: string;
   observacoesTecnicas: string;

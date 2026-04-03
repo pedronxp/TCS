@@ -12,6 +12,7 @@ import { logger } from '../../../utils/logger';
 import { riscoColor } from '../../../utils/riscoUtils';
 import { tempoRelativo } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Atribuicao {
   id: string;
@@ -30,6 +31,7 @@ function prioridadeColor(p: string) {
 
 export default function SupervisorDashboardScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,7 +109,7 @@ export default function SupervisorDashboardScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.greeting, { color: theme.text }]}>
             Olá, {profile?.name.split(' ')[0]}
@@ -154,22 +156,34 @@ export default function SupervisorDashboardScreen() {
         {/* KPIs */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Visão Geral</Text>
         <View style={styles.kpiRow}>
-          <View style={[styles.kpiBig, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <View style={[styles.kpiIcon, { backgroundColor: theme.iconBackground }]}>
-              <Feather name="clipboard" size={24} color={theme.primary} />
+          <TouchableOpacity 
+            style={[styles.kpiBig, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+            onPress={() => router.push('/(panel)/inspecoes')}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingRight: 10 }}>
+              <View style={[styles.kpiIcon, { backgroundColor: theme.iconBackground }]}>
+                <Feather name="clipboard" size={24} color={theme.primary} />
+              </View>
+              <Feather name="arrow-up-right" size={18} color={theme.primary} style={{ opacity: 0.5, marginTop: 10 }} />
             </View>
             <Text style={[styles.kpiValue, { color: theme.primary }]}>{totalVistorias}</Text>
             <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Total Vistorias</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.kpiSmallCol}>
-            <View style={[styles.kpiSmall, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <TouchableOpacity 
+              style={[styles.kpiSmall, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              onPress={() => router.push('/(panel)/inspecoes')}
+            >
               <Text style={[styles.kpiValueSm, { color: '#EF4444' }]}>{altoRisco}</Text>
               <Text style={[styles.kpiLabelSm, { color: theme.textSecondary }]}>Críticos</Text>
-            </View>
-            <View style={[styles.kpiSmall, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.kpiSmall, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              onPress={() => router.push('/(panel)/supervisor/equipe')}
+            >
               <Text style={[styles.kpiValueSm, { color: '#F59E0B' }]}>{agentesAtivos}</Text>
               <Text style={[styles.kpiLabelSm, { color: theme.textSecondary }]}>Agentes</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -288,7 +302,7 @@ export default function SupervisorDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   greeting: { fontSize: 22, fontWeight: '700' },

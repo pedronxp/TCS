@@ -11,9 +11,12 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { LoadingState } from '../../../components/ui/LoadingState';
+import { tempoRelativo } from '../../../utils/htmlUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function MasterDashboardScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,15 +26,21 @@ export default function MasterDashboardScreen() {
     totalUsuarios: 0, totalMunicipios: 0,
   });
   const [municipios, setMunicipios] = useState<{ nome: string; count: number }[]>([]);
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
 
   const carregar = async (showRefresh = false) => {
     setErro(false);
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [kpisRes, municipiosRes] = await Promise.all([
+      const [kpisRes, municipiosRes, logsRes] = await Promise.all([
         supabase.rpc('get_dashboard_kpis_master'),
         supabase.rpc('get_top_municipios', { p_limit: 10 }),
+        supabase.from('system_logs')
+          .select('id, acao, municipio, created_at')
+          .not('acao', 'eq', 'LOGIN') // Evitar flood de logins comuns
+          .order('created_at', { ascending: false })
+          .limit(5),
       ]);
 
       if (kpisRes.data) {
@@ -45,6 +54,9 @@ export default function MasterDashboardScreen() {
       }
       if (municipiosRes.data) {
         setMunicipios((municipiosRes.data as any[]) || []);
+      }
+      if (logsRes.data) {
+        setRecentLogs(logsRes.data || []);
       }
     } catch (e) {
       logger.error('system', 'Erro master dashboard', { erro: String(e) });
@@ -61,23 +73,11 @@ export default function MasterDashboardScreen() {
     return <LoadingState message="Carregando painel principal..." />;
   }
 
-  const MENU = [
-    { label: 'Municípios', icon: 'map', route: '/(panel)/master/municipios', color: '#3B82F6', desc: 'Gerenciar municípios' },
-    { label: 'Inspeções', icon: 'clipboard', route: '/(panel)/inspecoes', color: '#F59E0B', desc: 'Vistorias e formulários' },
-    { label: 'Relatórios', icon: 'file-text', route: '/(panel)/admin/relatorios', color: '#EF4444', desc: 'Laudos e exportação' },
-    { label: 'Formulários', icon: 'edit', route: '/(panel)/admin/form-editor', color: '#10B981', desc: 'Editor de formulários' },
-    { label: 'Config. Risco', icon: 'sliders', route: '/(panel)/admin/risco-config', color: '#EC4899', desc: 'Limiares de risco' },
-    { label: 'Usuários', icon: 'users', route: '/(panel)/admin/usuarios', color: '#06B6D4', desc: 'Todos os usuários' },
-    { label: 'Tokens', icon: 'key', route: '/(panel)/admin/tokens', color: '#8B5CF6', desc: 'Tokens de acesso' },
-    { label: 'Mapa Global', icon: 'map-pin', route: '/(panel)/mapas', color: '#6366F1', desc: 'Mapa de vistorias' },
-    { label: 'Logs', icon: 'terminal', route: '/(panel)/master/logs', color: '#F97316', desc: 'Logs do sistema' },
-    { label: 'Estatísticas', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas', color: '#14B8A6', desc: 'Analytics globais' },
-  ] as const;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.greeting, { color: theme.text }]}>
             Olá, {profile?.name?.split(' ')[0]}
@@ -87,6 +87,7 @@ export default function MasterDashboardScreen() {
             <Text style={[styles.masterBadgeText, { color: theme.primary }]}>MASTER ADMIN</Text>
           </View>
         </View>
+
         <TouchableOpacity
           style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.push('/(panel)/perfil')}
@@ -110,38 +111,57 @@ export default function MasterDashboardScreen() {
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Visão Global</Text>
         <View style={styles.kpiGrid}>
           {[
-            { label: 'Vistorias', value: stats.totalVistorias, color: theme.primary, icon: 'clipboard' },
-            { label: 'Alto Risco', value: stats.altoRisco, color: '#EF4444', icon: 'alert-triangle' },
-            { label: 'Usuários', value: stats.totalUsuarios, color: '#10B981', icon: 'users' },
-            { label: 'Municípios', value: stats.totalMunicipios, color: '#8B5CF6', icon: 'map' },
+            { label: 'Vistorias', value: stats.totalVistorias, color: theme.primary, icon: 'clipboard', route: '/(panel)/inspecoes' },
+            { label: 'Alto Risco', value: stats.altoRisco, color: '#EF4444', icon: 'alert-triangle', route: '/(panel)/inspecoes' },
+            { label: 'Usuários', value: stats.totalUsuarios, color: '#10B981', icon: 'users', route: '/(panel)/admin/usuarios' },
+            { label: 'Municípios', value: stats.totalMunicipios, color: '#8B5CF6', icon: 'map', route: '/(panel)/master/municipios' },
           ].map(k => (
-            <View key={k.label} style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-              <View style={[styles.kpiIcon, { backgroundColor: `${k.color}15` }]}>
-                <Feather name={k.icon as any} size={20} color={k.color} />
-              </View>
-              <Text style={[styles.kpiValue, { color: theme.text }]}>{k.value}</Text>
-              <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Menu de módulos */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Módulos</Text>
-        <View style={styles.menuGrid}>
-          {MENU.map(m => (
-            <TouchableOpacity
-              key={m.label}
-              style={[styles.menuCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push(m.route)}
+            <TouchableOpacity 
+              key={k.label} 
+              style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              onPress={() => router.push(k.route as any)}
             >
-              <View style={[styles.menuIcon, { backgroundColor: `${m.color}15` }]}>
-                <Feather name={m.icon as any} size={24} color={m.color} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start' }}>
+                <View style={[styles.kpiIcon, { backgroundColor: `${k.color}15` }]}>
+                  <Feather name={k.icon as any} size={20} color={k.color} />
+                </View>
+                <Feather name="arrow-up-right" size={14} color={theme.textSecondary} style={{ opacity: 0.5 }} />
               </View>
-              <Text style={[styles.menuLabel, { color: theme.text }]}>{m.label}</Text>
-              <Text style={[styles.menuDesc, { color: theme.textSecondary }]}>{m.desc}</Text>
+              <View style={{ width: '100%' }}>
+                <Text style={[styles.kpiValue, { color: theme.text }]}>{k.value}</Text>
+                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
+              </View>
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Barra de Risco Global */}
+        {(stats.totalVistorias > 0) && (
+          <View style={[styles.riskDistributionCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={[styles.riskCardTitle, { color: theme.text }]}>Severidade Global</Text>
+              <Text style={[styles.riskCardSubtitle, { color: theme.textSecondary }]}>{stats.totalVistorias} laudos</Text>
+            </View>
+            <View style={styles.riskBarContainer}>
+              {stats.altoRisco > 0 && (
+                <View style={[styles.riskSegment, { width: `${(stats.altoRisco / stats.totalVistorias) * 100}%`, backgroundColor: '#EF4444' }]} />
+              )}
+              {stats.totalVistorias - stats.altoRisco > 0 && (
+                <View style={[styles.riskSegment, { width: `${((stats.totalVistorias - stats.altoRisco) / stats.totalVistorias) * 100}%`, backgroundColor: theme.border }]} />
+              )}
+            </View>
+            <View style={styles.riskLegend}>
+              <View style={styles.riskLegendItem}>
+                <View style={[styles.riskDot, { backgroundColor: '#EF4444' }]} />
+                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Alto ({stats.altoRisco})</Text>
+              </View>
+              <View style={styles.riskLegendItem}>
+                <View style={[styles.riskDot, { backgroundColor: theme.border }]} />
+                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Moderado/Baixo ({stats.totalVistorias - stats.altoRisco})</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Top municípios */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Top Municípios</Text>
@@ -162,7 +182,31 @@ export default function MasterDashboardScreen() {
             </View>
           );
         })}
+
+        {/* Recentes do Sistema */}
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 12 }]}>Eventos Recentes do Sistema</Text>
+        {recentLogs.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Sem logs recentes.</Text>
+          </View>
+        ) : (
+          recentLogs.map((lg) => (
+            <View key={lg.id} style={[styles.logCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+              <View style={[styles.logIcon, { backgroundColor: `${theme.primary}15` }]}>
+                <Feather name="activity" size={16} color={theme.primary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.logAcao, { color: theme.text }]}>{lg.acao}</Text>
+                <Text style={[styles.logMeta, { color: theme.textSecondary }]}>
+                  {lg.municipio === '*' ? 'Sistema Global' : lg.municipio} • {tempoRelativo(lg.created_at)}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
+
+
     </View>
   );
 }
@@ -170,7 +214,7 @@ export default function MasterDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   greeting: { fontSize: 22, fontWeight: '700', marginBottom: 6 },
@@ -192,14 +236,14 @@ const styles = StyleSheet.create({
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 28 },
   kpiCard: {
     width: '47%', flexGrow: 1, borderRadius: 16, borderWidth: 1,
-    padding: 16, alignItems: 'center',
+    padding: 16, alignItems: 'flex-start', justifyContent: 'space-between',
   },
   kpiIcon: {
     width: 40, height: 40, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 10,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
   kpiValue: { fontSize: 26, fontWeight: '900' },
-  kpiLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  kpiLabel: { fontSize: 13, fontWeight: '600', marginTop: 2 },
   menuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
   menuCard: {
     width: '47%', flexGrow: 1, borderRadius: 18, borderWidth: 1,
@@ -221,4 +265,36 @@ const styles = StyleSheet.create({
   munCount: { fontSize: 15, fontWeight: '900' },
   munBarBg: { height: 6, borderRadius: 3, overflow: 'hidden' },
   munBarFill: { height: '100%', borderRadius: 3 },
+
+  // Nova Seção: Risk Distribution
+  riskDistributionCard: {
+    borderRadius: 18, borderWidth: 1, padding: 18, marginBottom: 28,
+  },
+  riskCardTitle: { fontSize: 14, fontWeight: '800' },
+  riskCardSubtitle: { fontSize: 13, fontWeight: '600' },
+  riskBarContainer: {
+    height: 8, flexDirection: 'row', borderRadius: 4, overflow: 'hidden',
+    backgroundColor: '#333', marginBottom: 12, gap: 2,
+  },
+  riskSegment: { height: '100%' },
+  riskLegend: { flexDirection: 'row', gap: 16 },
+  riskLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  riskDot: { width: 8, height: 8, borderRadius: 4 },
+  riskLegendText: { fontSize: 12, fontWeight: '600' },
+
+  // Nova Seção: Logs Restritos
+  emptyCard: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: 'center' },
+  emptyText: { fontSize: 14, fontWeight: '600' },
+  logCard: {
+    flexDirection: 'row', alignItems: 'center', borderRadius: 14,
+    borderWidth: 1, padding: 14, marginBottom: 10,
+  },
+  logIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  logAcao: { fontSize: 13, fontWeight: '700' },
+  logMeta: { fontSize: 11, marginTop: 2, fontWeight: '500' },
+
+
 });

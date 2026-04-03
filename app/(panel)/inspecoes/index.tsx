@@ -9,6 +9,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio, VistoriaLocal } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RISCO_COLORS: Record<string, string> = {
   r1: '#10B981',
@@ -82,6 +83,7 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
 
 export default function InspecoesListScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -179,7 +181,7 @@ export default function InspecoesListScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -238,7 +240,7 @@ export default function InspecoesListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  header: { paddingBottom: 20, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
   backButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, borderWidth: 1, marginRight: 16 },
   titleSection: { flex: 1 },
   title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },

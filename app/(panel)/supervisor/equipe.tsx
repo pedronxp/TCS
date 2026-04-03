@@ -9,6 +9,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { tempoRelativo } from '../../../utils/htmlUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AgenteCard {
   uid: string;
@@ -23,6 +24,7 @@ interface AgenteCard {
 
 export default function EquipeScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [agentes, setAgentes] = useState<AgenteCard[]>([]);
   const [busca, setBusca] = useState('');
@@ -104,7 +106,7 @@ export default function EquipeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -202,7 +204,7 @@ export default function EquipeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {

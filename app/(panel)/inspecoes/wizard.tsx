@@ -20,6 +20,7 @@ import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { ASSETS, flattenPerguntas, PerguntaModel } from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
 import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Mapa estático de imagens locais dos formulários (require() deve ser estático no RN)
 const FORM_IMAGES: Record<string, any> = {
@@ -101,6 +102,7 @@ type Respostas = Record<string, string>;
 export default function WizardAvaliacaoScreen() {
   const params = useLocalSearchParams<Record<string, string>>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
 
@@ -369,7 +371,7 @@ export default function WizardAvaliacaoScreen() {
         id,
         agente_uid: profile.uid,
         agente_nome: profile.name || 'Agente',
-        municipio: profile?.municipio || params.municipio || '',
+        municipio: params.municipio || profile?.municipio || '',
         endereco_rua: params.rua || '',
         endereco_numero: params.numero || '',
         endereco_bairro: params.bairro || '',
@@ -437,7 +439,7 @@ export default function WizardAvaliacaoScreen() {
 
       router.replace({
         pathname: '/(panel)/inspecoes/resultado',
-        params: { id, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isConnected ? '0' : '1' }
+        params: { id, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isConnected ? '0' : '1', municipio: vistoriaLocal.municipio }
       });
     } catch (e: any) {
       logger.error('vistoria', 'Erro crítico ao salvar vistoria', { erro: e.message });
@@ -468,7 +470,7 @@ export default function WizardAvaliacaoScreen() {
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => step > 0 ? setStep(s => s - 1) : router.back()}>
           <Feather name={step > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
@@ -652,7 +654,7 @@ export default function WizardAvaliacaoScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
+  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   title: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },

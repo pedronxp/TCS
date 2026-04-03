@@ -5,7 +5,6 @@ import { Feather } from '@expo/vector-icons';
 import { useConnectivity } from '../context/ConnectivityContext';
 import { useTheme } from '../context/ThemeContext';
 
-const HEADER_HEIGHT = 56;
 const PILL_HEIGHT = 36;
 const ANIM_DURATION = 300;
 
@@ -14,10 +13,10 @@ export function ConnectivityBanner() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
 
-  // Top position where the pill rests (below the header)
-  const pillTop = insets.top + HEADER_HEIGHT + 8;
-  // Slide from above the screen (hidden position)
-  const hiddenOffset = -(pillTop + PILL_HEIGHT + 16);
+  // Bottom position: above the bottom nav bar (approx 60px) + safe area
+  const pillBottom = insets.bottom + 68;
+  // Slide from below the screen (hidden position)
+  const hiddenOffset = PILL_HEIGHT + pillBottom + 16;
 
   const translateY = useRef(new Animated.Value(hiddenOffset)).current;
   const [bannerState, setBannerState] = useState<'offline' | 'restored' | 'hidden'>('hidden');
@@ -70,7 +69,7 @@ export function ConnectivityBanner() {
       style={[
         styles.pill,
         {
-          top: pillTop,
+          bottom: pillBottom,
           backgroundColor,
           transform: [{ translateY }],
         },

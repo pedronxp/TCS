@@ -13,6 +13,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { tempoRelativo, formatarDataHora } from '../../../utils/htmlUtils';
 import type { AuditAction } from '../../../utils/auditLogger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -51,6 +52,7 @@ function getAcaoConfig(acao: string) {
 
 export default function MasterLogsScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
@@ -146,7 +148,7 @@ export default function MasterLogsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -342,7 +344,7 @@ function DetailRow({ icon, label, value, theme }: { icon: string; label: string;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {

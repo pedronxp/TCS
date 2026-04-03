@@ -8,6 +8,7 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
 import { Card, Badge, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
@@ -68,6 +69,7 @@ const getFormIcon = (item: FormularioItem): string => {
 
 export default function SelecaoFormularioScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { isOnlineReal } = useConnectivity();
   const params = useLocalSearchParams<any>();
@@ -183,7 +185,7 @@ export default function SelecaoFormularioScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
@@ -301,7 +303,7 @@ export default function SelecaoFormularioScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
+  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },

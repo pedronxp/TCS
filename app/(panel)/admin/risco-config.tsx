@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STORAGE_KEY = '@risco_config_v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
@@ -22,6 +23,7 @@ const DEFAULT_CONFIG = [
 
 export default function RiscoConfigScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -136,7 +138,7 @@ export default function RiscoConfigScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -246,7 +248,7 @@ export default function RiscoConfigScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20,
+    paddingBottom: 16, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
   },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },

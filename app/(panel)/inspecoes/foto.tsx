@@ -12,6 +12,7 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { updateFotosUrls } from '../../../utils/database';
 import { EmptyState, Button } from '../../../components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MAX_FOTOS = 8;
 const QUALIDADE = 0.72;   // 72% JPEG — spec AGENTS.md
@@ -28,6 +29,7 @@ interface FotoItem {
 export default function FotoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { isOnlineReal } = useConnectivity();
   const [fotos, setFotos] = useState<FotoItem[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -234,7 +236,7 @@ export default function FotoScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -372,7 +374,7 @@ export default function FotoScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {

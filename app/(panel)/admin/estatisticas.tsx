@@ -9,6 +9,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { riscoColor } from '../../../utils/riscoUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Periodo = '7d' | '30d' | '90d';
 
@@ -32,6 +33,7 @@ interface BarData {
 
 export default function EstatisticasScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [periodo, setPeriodo] = useState<Periodo>('30d');
@@ -55,7 +57,7 @@ export default function EstatisticasScreen() {
 
       let query = supabase
         .from('vistorias')
-        .select('id, nivelRisco, dataVistoria, agenteUid, agenteNome')
+        .select('id, nivelRisco, dataVistoria, agenteUid, agenteNome, municipio')
         .gte('dataVistoria', desde);
 
       if (user.role !== 'master_admin') {
@@ -81,11 +83,12 @@ export default function EstatisticasScreen() {
   const baixo = vistorias.filter(v => v.nivelRisco === 'r1' || v.nivelRisco === 'baixo').length;
 
   // Ranking de agentes
-  const contagemAgentes: Record<string, { nome: string; count: number }> = {};
+  const contagemAgentes: Record<string, { uid: string; nome: string; count: number; municipio: string }> = {};
   vistorias.forEach(v => {
     const uid = v.agenteUid || 'desconhecido';
     const nome = v.agenteNome || 'Desconhecido';
-    if (!contagemAgentes[uid]) contagemAgentes[uid] = { nome, count: 0 };
+    const muni = v.municipio || '—';
+    if (!contagemAgentes[uid]) contagemAgentes[uid] = { uid, nome, count: 0, municipio: muni };
     contagemAgentes[uid].count++;
   });
   const rankingAgentes = Object.values(contagemAgentes).sort((a, b) => b.count - a.count).slice(0, 5);
@@ -116,7 +119,7 @@ export default function EstatisticasScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -224,12 +227,15 @@ export default function EstatisticasScreen() {
           </View>
         ) : (
           rankingAgentes.map((a, i) => (
-            <View key={a.nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <View key={a.uid} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
               <Text style={[styles.rankPos, { color: i < 3 ? theme.primary : theme.textSecondary }]}>#{i + 1}</Text>
               <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
                 <Text style={[styles.rankAvatarText, { color: theme.primary }]}>{a.nome[0]?.toUpperCase()}</Text>
               </View>
-              <Text style={[styles.rankName, { color: theme.text }]}>{a.nome}</Text>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={[styles.rankName, { color: theme.text }]} numberOfLines={1}>{a.nome}</Text>
+                <Text style={[styles.rankMunicipio, { color: theme.textSecondary }]} numberOfLines={1}>{a.municipio}</Text>
+              </View>
               <Text style={[styles.rankCount, { color: theme.primary }]}>{a.count} vistoria{a.count !== 1 ? 's' : ''}</Text>
             </View>
           ))
@@ -242,7 +248,7 @@ export default function EstatisticasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {
@@ -289,7 +295,8 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center',
   },
   rankAvatarText: { fontSize: 16, fontWeight: '800' },
-  rankName: { flex: 1, fontSize: 15, fontWeight: '700' },
+  rankName: { fontSize: 15, fontWeight: '700' },
+  rankMunicipio: { fontSize: 11, fontWeight: '600', marginTop: 2, letterSpacing: 0.5 },
   rankCount: { fontSize: 13, fontWeight: '700' },
   emptyCard: { borderRadius: 14, borderWidth: 1, padding: 30, alignItems: 'center' },
   emptyText: { fontSize: 14, fontWeight: '600' },

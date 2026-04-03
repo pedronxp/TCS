@@ -34,6 +34,9 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 11: Mapa Nativo** - Substituir WebView+Leaflet por react-native-maps (Google Maps / Apple Maps) (completed 2026-04-03)
 - [x] **Phase 12: Formulário Completo — 10 Elementos** - Adaptar os JSONs de `json form/` para o formato nativo do app e registrar como novo formulário built-in
 - [x] **Phase 13: Deslizamento SVG + Thresholds** - Adicionar ilustrações SVG inline nas Q5–Q10 do formulário de deslizamento e corrigir limites de classificação conforme planilha técnica (completed 2026-04-03)
+- [x] **Phase 14: Bug Fixes Críticos** - Município errado nos relatórios, fotos não salvas no PDF, banner offline sobrepondo tela, responsividade com safe area (completed 2026-04-03)
+- [ ] **Phase 15: Vistorias Agendadas** - Supervisor/Admin/Master criam agendamentos; Agente visualiza; ícone no header de todas as telas
+- [ ] **Phase 16: Sistema de Rotas** - Botão "Traçar Rota" na vistoria abre Google Maps/Apple Maps com GPS → destino
 
 ### Phase Details
 
@@ -155,3 +158,6 @@ Plans:
 | 11. Mapa Nativo | 0/1 | Complete    | 2026-04-03 |
 | 12. Formulário Completo — 10 Elementos | 1/1 | Complete | 2026-04-03 |
 | 13. Deslizamento SVG + Thresholds | 0/1 | Complete    | 2026-04-03 |
+| 14. Bug Fixes Críticos | 2/2 | Complete | 2026-04-03 |
+| 15. Vistorias Agendadas | 0/3 | Pending | — |
+| 16. Sistema de Rotas | 0/1 | Pending | — |

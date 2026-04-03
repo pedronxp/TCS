@@ -16,6 +16,7 @@ import { getVistoriaById } from '../../../utils/database';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Normaliza dados de qualquer fonte (Supabase camelCase ou SQLite snake_case) */
 function normalizar(v: any): any {
@@ -34,15 +35,17 @@ function normalizar(v: any): any {
     respostasJson: v.respostasJson ?? v.respostas_json ?? '{}',
     formularioId: v.formularioId ?? v.formulario_id ?? 'Padrão',
     responsavelNome: v.responsavelNome ?? v.responsavel_nome ?? '',
+    foto_url: v.foto_url ?? v.fotoUrl ?? null,
   };
 }
 
 
 export default function ResultadoScreen() {
-  const { id, nivelRisco: nivelParam, pontuacao: pontuacaoParam } = useLocalSearchParams<{
-    id: string; nivelRisco?: string; pontuacao?: string;
+  const { id, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam } = useLocalSearchParams<{
+    id: string; nivelRisco?: string; pontuacao?: string; municipio?: string;
   }>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { initReport } = useReport();
   const [loading, setLoading] = useState(true);
@@ -70,7 +73,7 @@ export default function ResultadoScreen() {
     try { respostas = JSON.parse(v.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: v.id || '',
-      protocolo: generateProtocolo(v.id || '', v.dataVistoria),
+      protocolo: generateProtocolo(v.id || '', v.dataVistoria, v.municipio),
       endereco: v.endereco || '',
       municipio: v.municipio || '',
       agenteNome: nome,
@@ -79,6 +82,7 @@ export default function ResultadoScreen() {
       nivelRisco: v.nivelRisco || 'r1',
       pontuacaoTotal: v.pontuacaoTotal ?? 0,
       respostas,
+      foto_url: v.foto_url ?? null,
       condutaRecomendada: '',
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
@@ -90,7 +94,7 @@ export default function ResultadoScreen() {
       // 1. Tentar Supabase
       const { data, error } = await supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome')
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, foto_url')
         .eq('id', id)
         .single();
 
@@ -120,7 +124,7 @@ export default function ResultadoScreen() {
           nivelRisco: nivelParam,
           pontuacaoTotal: parseInt(pontuacaoParam || '0'),
           agenteNome: profile?.name,
-          municipio: profile?.municipio,
+          municipio: municipioParam || profile?.municipio,
         });
         setVistoria(norm);
         populateReport(norm, profile?.name || '—');
@@ -134,7 +138,7 @@ export default function ResultadoScreen() {
           nivelRisco: nivelParam,
           pontuacaoTotal: parseInt(pontuacaoParam || '0'),
           agenteNome: profile?.name,
-          municipio: profile?.municipio,
+          municipio: municipioParam || profile?.municipio,
         });
         setVistoria(norm);
         populateReport(norm, profile?.name || '—');
@@ -168,12 +172,13 @@ export default function ResultadoScreen() {
     agenteNome: vistoria?.agenteNome || profile?.name || '—',
     formularioId: vistoria?.formularioId || 'Padrão',
     respostasJson: vistoria?.respostasJson || '{}',
+    foto_url: vistoria?.foto_url ?? null,
   });
 
   const gerarPdf = async () => {
     setGerando(true);
     try {
-      const html = buildLaudoHtml(buildDados());
+      const html = await buildLaudoHtml(buildDados());
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
       const disponivel = await Sharing.isAvailableAsync();
@@ -196,7 +201,7 @@ export default function ResultadoScreen() {
   const imprimir = async () => {
     setGerando(true);
     try {
-      const html = buildLaudoHtml(buildDados());
+      const html = await buildLaudoHtml(buildDados());
       await Print.printAsync({ html });
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
@@ -208,14 +213,14 @@ export default function ResultadoScreen() {
   const compartilhar = async () => {
     setGerando(true);
     try {
-      const html = buildLaudoHtml(buildDados());
+      const html = await buildLaudoHtml(buildDados());
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `Laudo ${generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria)} — TCS`,
+          dialogTitle: `Laudo ${generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria, vistoria?.municipio)} — TCS`,
           UTI: 'com.adobe.pdf',
         });
       } else {
@@ -293,7 +298,7 @@ export default function ResultadoScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -303,7 +308,7 @@ export default function ResultadoScreen() {
         <View style={styles.titleSection}>
           <Text style={[styles.title, { color: theme.text }]}>Resultado Final</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {generateProtocolo(id?.toString() || '', vistoria?.dataVistoria)}
+            {generateProtocolo(id?.toString() || '', vistoria?.dataVistoria, vistoria?.municipio)}
           </Text>
         </View>
       </View>
@@ -567,7 +572,7 @@ export default function ResultadoScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {

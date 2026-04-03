@@ -12,10 +12,12 @@ import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
 import { formatarData } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function VistoriaDetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { initReport } = useReport();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ export default function VistoriaDetalhesScreen() {
     try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: data.id,
-      protocolo: generateProtocolo(data.id || '', data.dataVistoria),
+      protocolo: generateProtocolo(data.id || '', data.dataVistoria, data.municipio),
       endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
       municipio: data.municipio || '',
       agenteNome: data.agenteNome || '',
@@ -129,7 +131,7 @@ export default function VistoriaDetalhesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
           <Feather name="arrow-left" color={theme.textSecondary} size={24} />
         </TouchableOpacity>
@@ -235,7 +237,7 @@ export default function VistoriaDetalhesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20,
+    paddingBottom: 16, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
   },
   backButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, borderWidth: 1 },
