@@ -432,6 +432,432 @@ function extImg(nivel) {
   return px;
 }
 
+/** Fundacao: secao lateral — piso acima, bloco de fundacao, solo abaixo.
+ *  Progressao: bom=alinhado, regular=leve afundamento, ruim=afundamento visivel, pessimo=colapso */
+function fundImg(nivel) {
+  const px = new Uint8Array(W * H * 3);
+  // Solo: marrom medio
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y*W+x)*3;
+      const t = y / H;
+      px[i]   = Math.round(140 + t*30);
+      px[i+1] = Math.round(90  + t*10);
+      px[i+2] = 40;
+    }
+  }
+  // Afundamento lateral (quanto o lado direito afunda)
+  const sinkR = nivel === 'bom' ? 0 : nivel === 'regular' ? 6 : nivel === 'ruim' ? 14 : 24;
+  // Bloco de fundacao (trapezio cinza escuro)
+  const fY0 = Math.round(H * 0.45); // topo fundacao (lado esq)
+  const fH  = Math.round(H * 0.22);
+  for (let x = 20; x < W - 20; x++) {
+    const t = (x - 20) / (W - 40);
+    const topY = Math.round(fY0 + t * sinkR);
+    for (let y = topY; y < topY + fH; y++) {
+      if (y >= 0 && y < H) {
+        const i = (y*W+x)*3;
+        px[i] = 90; px[i+1] = 90; px[i+2] = 90;
+      }
+    }
+  }
+  // Estrutura acima (retangulo cinza claro = laje/piso)
+  const lH = Math.round(H * 0.28);
+  for (let x = 10; x < W - 10; x++) {
+    const t = (x - 20) / Math.max(1, W - 40);
+    const baseY = Math.round(fY0 + t * sinkR);
+    for (let y = baseY - lH; y < baseY; y++) {
+      if (y >= 0 && y < H) {
+        const i = (y*W+x)*3;
+        px[i] = 200; px[i+1] = 200; px[i+2] = 200;
+      }
+    }
+  }
+  // Fissura vertical se ruim/pessimo
+  if (nivel === 'ruim' || nivel === 'pessimo') {
+    const fx = Math.round(W * 0.65);
+    const crackLen = nivel === 'pessimo' ? Math.round(H * 0.5) : Math.round(H * 0.3);
+    const crackW   = nivel === 'pessimo' ? 3 : 2;
+    const baseY2 = Math.round(fY0 + 0.65 * sinkR);
+    for (let y = baseY2 - lH; y < baseY2 - lH + crackLen; y++) {
+      for (let dx = -crackW; dx <= crackW; dx++) {
+        const xi = fx + dx + Math.round(Math.sin((y - baseY2 + lH) * 0.3) * 2);
+        if (xi >= 0 && xi < W && y >= 0 && y < H) {
+          const i = (y*W+xi)*3;
+          px[i] = nivel === 'pessimo' ? 180 : 60;
+          px[i+1] = 30;
+          px[i+2] = 30;
+        }
+      }
+    }
+  }
+  // Borda verde em bom
+  if (nivel === 'bom') {
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (x < 4 || x >= W-4 || y < 4 || y >= H-4) {
+          const i = (y*W+x)*3; px[i]=34; px[i+1]=197; px[i+2]=94;
+        }
+      }
+    }
+  }
+  return px;
+}
+
+/** Muro de arrimo: vista lateral — muro retangular com inclinacao progressiva */
+function muroImg(nivel) {
+  const px = new Uint8Array(W * H * 3);
+  // Fundo ceu + solo
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y*W+x)*3;
+      if (y < Math.round(H * 0.7)) {
+        // Ceu azul claro
+        px[i] = 200; px[i+1] = 220; px[i+2] = 240;
+      } else {
+        // Solo
+        px[i] = 130; px[i+1] = 90; px[i+2] = 45;
+      }
+    }
+  }
+  // Inclinacao do topo do muro (0=reto, >0=inclinado para frente)
+  const lean = nivel === 'bom' ? 0 : nivel === 'regular' ? 6 : nivel === 'ruim' ? 16 : 28;
+  const mX0 = Math.round(W * 0.3); // posicao esquerda do muro
+  const mW  = Math.round(W * 0.18);
+  const mTop = Math.round(H * 0.15);
+  const mBot = Math.round(H * 0.68);
+  // Desenha muro como trapezio (base reta, topo inclinado)
+  for (let y = mTop; y < mBot; y++) {
+    const t = (y - mTop) / (mBot - mTop);
+    const xOffset = Math.round(lean * (1 - t)); // mais inclinado no topo
+    const x0 = mX0 + xOffset;
+    for (let x = x0; x < x0 + mW; x++) {
+      if (x >= 0 && x < W) {
+        const i = (y*W+x)*3;
+        // Cor do muro: blocos de concreto/tijolo
+        const brickY = Math.floor((y - mTop) / 12) % 2;
+        const brickX = Math.floor((x - x0) / 20) % 2;
+        const shade = (brickY ^ brickX) ? 170 : 150;
+        px[i] = shade; px[i+1] = shade - 10; px[i+2] = shade - 20;
+      }
+    }
+    // Linha de borda do muro
+    for (let dx = -1; dx <= 1; dx++) {
+      const bx = mX0 + xOffset + dx;
+      const ex = mX0 + xOffset + mW + dx;
+      if (bx >= 0 && bx < W) { const i=(y*W+bx)*3; px[i]=80;px[i+1]=80;px[i+2]=80; }
+      if (ex >= 0 && ex < W) { const i=(y*W+ex)*3; px[i]=80;px[i+1]=80;px[i+2]=80; }
+    }
+  }
+  // Fissura horizontal nos niveis ruins
+  if (nivel === 'ruim' || nivel === 'pessimo') {
+    const fY = mTop + Math.round((mBot - mTop) * 0.4);
+    const t  = (fY - mTop) / (mBot - mTop);
+    const xOffset = Math.round(lean * (1 - t));
+    for (let x = mX0 + xOffset; x < mX0 + xOffset + mW; x++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const y = fY + dy;
+        if (y >= 0 && y < H && x >= 0 && x < W) {
+          const i=(y*W+x)*3;
+          px[i] = nivel === 'pessimo' ? 200 : 80;
+          px[i+1] = 30; px[i+2] = 30;
+        }
+      }
+    }
+  }
+  if (nivel === 'bom') {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x < 4 || x >= W-4 || y < 4 || y >= H-4) {
+        const i=(y*W+x)*3; px[i]=34;px[i+1]=197;px[i+2]=94;
+      }
+    }
+  }
+  return px;
+}
+
+/** Talude: encosta vista lateral com progressao de erosao/deslizamento */
+function talImg(nivel) {
+  const px = new Uint8Array(W * H * 3);
+  // Base: ceu + encosta
+  const angle = nivel === 'bom' ? 22 : nivel === 'regular' ? 28 : nivel === 'ruim' ? 35 : 42;
+  const slope = Math.tan(angle * Math.PI / 180);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const lineY = H - (x - 10) * slope;
+      const i = (y*W+x)*3;
+      if (y > lineY) {
+        const d = Math.min(1, (y - lineY) / (H * 0.4));
+        px[i]   = Math.round(110 + d * 30);
+        px[i+1] = Math.round(80  + d * 10);
+        px[i+2] = 35;
+      } else {
+        const t = y / H;
+        px[i]   = Math.round(180 - t * 30);
+        px[i+1] = Math.round(215 - t * 20);
+        px[i+2] = 240;
+      }
+    }
+  }
+  // Vegetacao no bom/regular
+  if (nivel === 'bom' || nivel === 'regular') {
+    for (let x = 20; x < W; x += 18) {
+      const lineY = Math.round(H - (x - 10) * slope);
+      for (let dy = -12; dy < 0; dy++) {
+        const y = lineY + dy;
+        if (y >= 0 && y < H && x >= 0 && x < W) {
+          const i=(y*W+x)*3;
+          px[i]=30; px[i+1]=150+Math.round(dy*-3); px[i+2]=40;
+        }
+      }
+    }
+  }
+  // Trinca vertical (ruim/pessimo)
+  if (nivel === 'ruim' || nivel === 'pessimo') {
+    const tx = Math.round(W * 0.55);
+    const lineY0 = Math.round(H - (tx - 10) * slope);
+    for (let y = lineY0 - 20; y < lineY0 + 5; y++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (tx+dx >= 0 && tx+dx < W && y >= 0 && y < H) {
+          const i=((y)*W+(tx+dx))*3;
+          px[i]=200; px[i+1]=40; px[i+2]=40;
+        }
+      }
+    }
+  }
+  // Rastro de escorregamento (pessimo)
+  if (nivel === 'pessimo') {
+    for (let x = Math.round(W*0.3); x < Math.round(W*0.75); x++) {
+      const lineY = Math.round(H - (x - 10) * slope);
+      for (let y = lineY - 8; y < lineY + 15; y++) {
+        if (y >= 0 && y < H && x >= 0 && x < W) {
+          const i=(y*W+x)*3;
+          px[i]=180; px[i+1]=100; px[i+2]=50;
+        }
+      }
+    }
+  }
+  if (nivel === 'bom') {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x < 4 || x >= W-4 || y < 4 || y >= H-4) {
+        const i=(y*W+x)*3; px[i]=34;px[i+1]=197;px[i+2]=94;
+      }
+    }
+  }
+  return px;
+}
+
+/** Drenagem: secao de calha vista de perfil — fluxo (azul) vs obstrucao (marrom) */
+function drenImg(nivel) {
+  const px = new Uint8Array(W * H * 3);
+  // Fundo cinza claro
+  for (let i = 0; i < W*H*3; i+=3) { px[i]=230; px[i+1]=230; px[i+2]=230; }
+  // Calha em U: duas paredes laterais + base
+  const cY0 = Math.round(H * 0.25);
+  const cH  = Math.round(H * 0.55);
+  const cX0 = Math.round(W * 0.15);
+  const cX1 = Math.round(W * 0.85);
+  const wallW = 8;
+  // Paredes
+  for (let y = cY0; y < cY0 + cH; y++) {
+    for (let dx = 0; dx < wallW; dx++) {
+      if (cX0+dx < W) { const i=(y*W+cX0+dx)*3; px[i]=110;px[i+1]=110;px[i+2]=110; }
+      if (cX1-dx >= 0) { const i=(y*W+(cX1-dx))*3; px[i]=110;px[i+1]=110;px[i+2]=110; }
+    }
+  }
+  // Base
+  for (let x = cX0; x < cX1; x++) {
+    for (let dy = 0; dy < wallW; dy++) {
+      const y = cY0 + cH - dy;
+      if (y >= 0 && y < H) { const i=(y*W+x)*3; px[i]=110;px[i+1]=110;px[i+2]=110; }
+    }
+  }
+  // Agua/obstrucao dentro da calha
+  const waterLevel = nivel === 'bom' ? 0.2 : nivel === 'regular' ? 0.45 : nivel === 'ruim' ? 0.7 : 0.92;
+  const waterColor = nivel === 'bom'     ? [30,120,200]  // azul limpo
+                   : nivel === 'regular' ? [80,150,180]  // azul acinzentado
+                   : nivel === 'ruim'    ? [120,100,50]  // marrom (obstrucao)
+                   :                      [100,70,30];   // marrom escuro (entupido)
+  const waterTop = Math.round(cY0 + cH * (1 - waterLevel));
+  for (let y = waterTop; y < cY0 + cH - wallW; y++) {
+    for (let x = cX0 + wallW; x < cX1 - wallW; x++) {
+      const i=(y*W+x)*3;
+      px[i]=waterColor[0]; px[i+1]=waterColor[1]; px[i+2]=waterColor[2];
+    }
+  }
+  // Ondas de agua no bom/regular
+  if (nivel === 'bom' || nivel === 'regular') {
+    for (let x = cX0+wallW; x < cX1-wallW; x++) {
+      const wy = waterTop + Math.round(Math.sin(x * 0.15) * 2);
+      if (wy >= 0 && wy < H) { const i=(wy*W+x)*3; px[i]=80;px[i+1]=160;px[i+2]=220; }
+    }
+  }
+  // Lixo bloqueando na calha (ruim/pessimo)
+  if (nivel === 'ruim' || nivel === 'pessimo') {
+    for (let block = 0; block < (nivel==='pessimo'?4:2); block++) {
+      const bx = Math.round(cX0 + wallW + (cX1-cX0-2*wallW) * (block+1) / 5);
+      const by = waterTop - Math.round(cH * 0.15);
+      for (let dy=-6; dy<=6; dy++) for (let dx=-10; dx<=10; dx++) {
+        if (bx+dx>=cX0+wallW && bx+dx<cX1-wallW && by+dy>=cY0 && by+dy<cY0+cH) {
+          const i=((by+dy)*W+(bx+dx))*3;
+          px[i]=90;px[i+1]=70;px[i+2]=40;
+        }
+      }
+    }
+  }
+  if (nivel === 'bom') {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x < 4 || x >= W-4 || y < 4 || y >= H-4) {
+        const i=(y*W+x)*3; px[i]=34;px[i+1]=197;px[i+2]=94;
+      }
+    }
+  }
+  return px;
+}
+
+/** Alvenaria: parede de tijolos vista frontal — fissuras diagonais */
+function alvImg(nivel) {
+  const px = new Uint8Array(W * H * 3);
+  // Parede de tijolos
+  const bW = 30, bH = 14, joint = 3;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const row = Math.floor(y / (bH + joint));
+      const offset = (row % 2) * Math.round(bW / 2);
+      const col = Math.floor((x + offset) / (bW + joint));
+      const inJointY = (y % (bH + joint)) >= bH;
+      const inJointX = ((x + offset) % (bW + joint)) >= bW;
+      const i = (y*W+x)*3;
+      if (inJointY || inJointX) {
+        // Junta: cinza claro
+        px[i]=195; px[i+1]=190; px[i+2]=185;
+      } else {
+        // Tijolo: terracota
+        const shade = ((row + col) % 3 === 0) ? 0 : ((row + col) % 3 === 1) ? -10 : 8;
+        px[i]=Math.min(255,185+shade); px[i+1]=Math.min(255,100+shade); px[i+2]=80+shade;
+      }
+    }
+  }
+  if (nivel === 'bom') {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x < 4 || x >= W-4 || y < 4 || y >= H-4) {
+        const i=(y*W+x)*3; px[i]=34;px[i+1]=197;px[i+2]=94;
+      }
+    }
+    return px;
+  }
+  // Fissura escalonada (padrao de alvenaria) de canto sup-dir para inf-esq
+  const lineW = nivel === 'regular' ? 1 : nivel === 'ruim' ? 2 : 4;
+  const color  = nivel === 'pessimo' ? [200,30,30] : [60,40,30];
+  const startX = Math.round(W * 0.7), startY = Math.round(H * 0.1);
+  const endX   = Math.round(W * 0.25), endY = Math.round(H * 0.85);
+  const steps  = Math.max(Math.abs(endX-startX), Math.abs(endY-startY));
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    // Fissura escalonada: avanca em zigzag pelos tijolos
+    const cx = Math.round(startX + (endX-startX)*t);
+    const cy = Math.round(startY + (endY-startY)*t);
+    for (let dy=-lineW; dy<=lineW; dy++) for (let dx=-lineW; dx<=lineW; dx++) {
+      const xi=cx+dx, yi=cy+dy;
+      if (xi>=0&&xi<W&&yi>=0&&yi<H) {
+        const i=(yi*W+xi)*3; px[i]=color[0];px[i+1]=color[1];px[i+2]=color[2];
+      }
+    }
+  }
+  // Mancha de umidade (ruim/pessimo)
+  if (nivel === 'ruim' || nivel === 'pessimo') {
+    for (let y = Math.round(H*0.5); y < H; y++) {
+      for (let x = Math.round(W*0.1); x < Math.round(W*0.4); x++) {
+        const d = Math.sqrt(Math.pow((x-W*0.25)/40,2) + Math.pow((y-H*0.75)/25,2));
+        if (d < 1) {
+          const blend = 1 - d;
+          const i=(y*W+x)*3;
+          px[i]   = Math.round(px[i]   * (1-blend*0.3) + 80*blend*0.3);
+          px[i+1] = Math.round(px[i+1] * (1-blend*0.3) + 100*blend*0.3);
+          px[i+2] = Math.round(px[i+2] * (1-blend*0.3) + 140*blend*0.3);
+        }
+      }
+    }
+  }
+  return px;
+}
+
+/** Cobertura: vista de perfil do telhado com progressao de danos */
+function cobImg(nivel) {
+  const px = new Uint8Array(W * H * 3);
+  // Ceu
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i=(y*W+x)*3;
+      px[i]=190; px[i+1]=220; px[i+2]=245;
+    }
+  }
+  // Telhado: triangulo com beiral
+  const peakX = Math.round(W/2), peakY = Math.round(H * 0.12);
+  const baseY  = Math.round(H * 0.68);
+  const baseX0 = Math.round(W * 0.05), baseX1 = Math.round(W * 0.95);
+  // Deformacao do teto (pessimo: afundamento central)
+  const sag = nivel === 'pessimo' ? 18 : nivel === 'ruim' ? 8 : 0;
+  // Preenche triangulo do telhado
+  for (let y = peakY; y <= baseY; y++) {
+    const t = (y - peakY) / (baseY - peakY);
+    const xL = Math.round(peakX + (baseX0 - peakX) * t);
+    const xR = Math.round(peakX + (baseX1 - peakX) * t);
+    // Deformacao: afundamento no centro
+    const sagY = Math.round(sag * Math.sin(t * Math.PI));
+    for (let x = xL; x <= xR; x++) {
+      const yi = y + (x > xL && x < xR ? sagY : 0);
+      if (yi >= 0 && yi < H) {
+        // Cor da telha: vermelho-telha com variacao por fileira
+        const row = Math.floor((y - peakY) / 10);
+        const col = Math.floor((x - xL) / 15);
+        const shade = (row + col) % 2 === 0 ? 0 : -12;
+        const i=(yi*W+x)*3;
+        px[i]=Math.min(255,180+shade); px[i+1]=Math.min(255,75+shade); px[i+2]=50+shade;
+      }
+    }
+  }
+  // Linhas de separacao entre fileiras de telhas
+  for (let row = 1; row < 7; row++) {
+    const t = row / 7;
+    const y = Math.round(peakY + (baseY - peakY) * t);
+    const xL = Math.round(peakX + (baseX0 - peakX) * t);
+    const xR = Math.round(peakX + (baseX1 - peakX) * t);
+    for (let x = xL; x <= xR; x++) {
+      if (y>=0&&y<H) { const i=(y*W+x)*3; px[i]=120;px[i+1]=50;px[i+2]=30; }
+    }
+  }
+  // Telhas quebradas/deslocadas (regular/ruim/pessimo)
+  if (nivel !== 'bom') {
+    const numBroken = nivel === 'regular' ? 2 : nivel === 'ruim' ? 5 : 9;
+    const positions = [0.35,0.55,0.42,0.62,0.28,0.7,0.48,0.38,0.65];
+    for (let k = 0; k < numBroken; k++) {
+      const tx = Math.round(peakX + (baseX0 - peakX + (baseX1-baseX0)*positions[k]));
+      const ty = Math.round(peakY + (baseY-peakY) * (0.3 + positions[(k+2)%9]*0.5));
+      for (let dy=-4;dy<=4;dy++) for (let dx=-7;dx<=7;dx++) {
+        if (tx+dx>=0&&tx+dx<W&&ty+dy>=0&&ty+dy<H) {
+          const i=((ty+dy)*W+(tx+dx))*3;
+          px[i]=100;px[i+1]=80;px[i+2]=60; // cinza escuro = vao aberto
+        }
+      }
+    }
+  }
+  // Parede da edificacao
+  for (let y = baseY; y < H; y++) {
+    for (let x = baseX0 + 10; x < baseX1 - 10; x++) {
+      const i=(y*W+x)*3;
+      px[i]=210; px[i+1]=200; px[i+2]=190;
+    }
+  }
+  if (nivel === 'bom') {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x < 4 || x >= W-4 || y < 4 || y >= H-4) {
+        const i=(y*W+x)*3; px[i]=34;px[i+1]=197;px[i+2]=94;
+      }
+    }
+  }
+  return px;
+}
+
 // ── Gerar e salvar ────────────────────────────────────────────────────────────
 const OUT = path.join(__dirname, '..', 'assets', 'formularios', 'imagens');
 fs.mkdirSync(OUT, { recursive: true });
@@ -488,5 +914,31 @@ save('grav_severa',      gravImg('severa'));
 save('ext_pontual',      extImg('pontual'));
 save('ext_setorial',     extImg('setorial'));
 save('ext_generalizada', extImg('generalizada'));
+
+console.log('\n=== Gerando imagens por elemento (v2 contextual) ===');
+save('fund_bom',     fundImg('bom'));
+save('fund_regular', fundImg('regular'));
+save('fund_ruim',    fundImg('ruim'));
+save('fund_pessimo', fundImg('pessimo'));
+save('muro_bom',     muroImg('bom'));
+save('muro_regular', muroImg('regular'));
+save('muro_ruim',    muroImg('ruim'));
+save('muro_pessimo', muroImg('pessimo'));
+save('tal_bom',      talImg('bom'));
+save('tal_regular',  talImg('regular'));
+save('tal_ruim',     talImg('ruim'));
+save('tal_pessimo',  talImg('pessimo'));
+save('dren_bom',     drenImg('bom'));
+save('dren_regular', drenImg('regular'));
+save('dren_ruim',    drenImg('ruim'));
+save('dren_pessimo', drenImg('pessimo'));
+save('alv_bom',      alvImg('bom'));
+save('alv_regular',  alvImg('regular'));
+save('alv_ruim',     alvImg('ruim'));
+save('alv_pessimo',  alvImg('pessimo'));
+save('cob_bom',      cobImg('bom'));
+save('cob_regular',  cobImg('regular'));
+save('cob_ruim',     cobImg('ruim'));
+save('cob_pessimo',  cobImg('pessimo'));
 
 console.log('\n✅ Todas as imagens geradas em:', OUT, '\n');

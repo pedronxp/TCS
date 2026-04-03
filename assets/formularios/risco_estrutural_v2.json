@@ -1,1147 +1,511 @@
 {
   "id": "risco_estrutural_v2",
-  "titulo": "Risco Estrutural - Campo",
-  "versao": 1,
-  "ativo": true,
-  "tipoCalculo": "ponderada_max_elemento",
-  "descricao": "Formulario de campo enxuto - 7 elementos criticos. Skip automatico quando Estado=Bom. Formula: (Estado+Gravidade+Extensao+Ativa) x Peso.",
-  "classificacao": {
-    "limitesPorItem": [
-      {
-        "max": 3,
-        "nivel": "muito_baixo",
-        "label": "Muito Baixo"
-      },
-      {
-        "max": 6,
-        "nivel": "baixo",
-        "label": "Baixo"
-      },
-      {
-        "max": 10,
-        "nivel": "medio",
-        "label": "Médio"
-      },
-      {
-        "max": 14,
-        "nivel": "alto",
-        "label": "Alto"
-      },
-      {
-        "max": 9999,
-        "nivel": "muito_alto",
-        "label": "Muito Alto"
-      }
-    ],
-    "criterioGlobal": {
-      "r1": "max_elemento < 6 E media < 6",
-      "r2": "max_elemento entre 6 e 10.9 OU media >= 6",
-      "r3": "max_elemento entre 11 e 14.9",
-      "r4": "max_elemento >= 15 OU 2+ elementos em Alto/Muito Alto"
-    },
-    "limites": [
-      {
-        "max": 5,
-        "nivel": "baixo",
-        "label": "R1 — BAIXO — Manutenção preventiva e acompanhamento",
-        "cor": "verde"
-      },
-      {
-        "max": 10,
-        "nivel": "medio",
-        "label": "R2 — MÉDIO — Vistoria técnica necessária",
-        "cor": "amarelo"
-      },
-      {
-        "max": 14,
-        "nivel": "alto",
-        "label": "R3 — ALTO — Laudo de engenheiro civil obrigatório",
-        "cor": "laranja"
-      },
-      {
-        "max": 9999,
-        "nivel": "iminente",
-        "label": "R4 — MUITO ALTO — Recomendar interdição imediata",
-        "cor": "vermelho"
-      }
-    ]
-  },
+  "titulo": "Risco Estrutural — Campo (v2)",
+  "descricao": "7 elementos essenciais · Skip automático · Formulário de campo",
+  "versao": 2,
+  "tipo": "estrutural",
   "fases": [
     {
       "id": "fase_fund",
-      "titulo": "1. Fundacao",
-      "instrucao": "Avalie sapatas, estacas, blocos de coroamento e baldrames. Peso 1.5.",
+      "titulo": "1. Fundação",
       "peso": 1.5,
       "perguntas": [
         {
           "id": "fund_estado",
-          "texto": "Estado de conservacao",
-          "tipo": "cards",
+          "faseId": "fase_fund",
+          "tipo": "opcao_unica",
+          "texto": "A fundação apresenta recalque (afundamento), fissuras na base ou umidade ascendente?",
           "obrigatoria": true,
+          "pesoRisco": 1,
           "opcoes": [
-            {
-              "id": "bom",
-              "texto": "Bom",
-              "descricao": "Sem recalques, trincas ou umidade ascendente visiveis",
-              "imagemLocal": "est_bom",
-              "pesoRisco": 0
-            },
-            {
-              "id": "regular",
-              "texto": "Regular",
-              "descricao": "Pequena fissura capilar em baldrame, sem deslocamento",
-              "imagemLocal": "est_regular",
-              "pesoRisco": 2
-            },
-            {
-              "id": "ruim",
-              "texto": "Ruim",
-              "descricao": "Trinca diagonal em pilar de fundacao ou recalque visivel",
-              "imagemLocal": "est_ruim",
-              "pesoRisco": 4
-            },
-            {
-              "id": "pessimo",
-              "texto": "Pessimo",
-              "descricao": "Recalque diferencial, pilar inclinado ou vazio sob sapata",
-              "imagemLocal": "est_pessimo",
-              "pesoRisco": 6
-            }
+            { "id": "bom",     "texto": "Sem recalque ou umidade — fundação estável",     "pesoRisco": 0, "imagemKey": "fund_bom" },
+            { "id": "regular", "texto": "Recalque leve ou umidade localizada na base",     "pesoRisco": 1, "imagemKey": "fund_regular" },
+            { "id": "ruim",    "texto": "Recalque visível ou fissuras de base evidentes",  "pesoRisco": 2, "imagemKey": "fund_ruim" },
+            { "id": "pessimo", "texto": "Recalque severo — risco de colapso da fundação",  "pesoRisco": 3, "imagemKey": "fund_pessimo" }
           ]
         },
         {
           "id": "fund_gravidade",
-          "texto": "Gravidade da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_fund",
+          "tipo": "opcao_unica",
+          "texto": "Qual a gravidade do recalque ou dano observado na fundação?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "fund_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "fund_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem dano identificado",
-              "imagemLocal": "grav_nenhuma",
-              "pesoRisco": 0
-            },
-            {
-              "id": "leve",
-              "texto": "Leve",
-              "descricao": "Dano superficial, fissura capilar",
-              "imagemLocal": "grav_leve",
-              "pesoRisco": 1
-            },
-            {
-              "id": "moderada",
-              "texto": "Moderada",
-              "descricao": "Trinca com potencial de progressao",
-              "imagemLocal": "grav_moderada",
-              "pesoRisco": 3
-            },
-            {
-              "id": "severa",
-              "texto": "Severa",
-              "descricao": "Rachadura ou dano estrutural avancado",
-              "imagemLocal": "grav_severa",
-              "pesoRisco": 5
-            }
+            { "id": "nenhuma",  "texto": "Sem dano perceptível",          "pesoRisco": 0, "imagemKey": "grav_nenhuma" },
+            { "id": "leve",     "texto": "Leve — dano superficial",       "pesoRisco": 1, "imagemKey": "grav_leve" },
+            { "id": "moderada", "texto": "Moderada — afeta funcionamento", "pesoRisco": 2, "imagemKey": "grav_moderada" },
+            { "id": "severa",   "texto": "Severa — risco estrutural",      "pesoRisco": 3, "imagemKey": "grav_severa" }
           ]
         },
         {
           "id": "fund_extensao",
-          "texto": "Extensao da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_fund",
+          "tipo": "opcao_unica",
+          "texto": "Qual a extensão da área afetada pelo dano na fundação?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "fund_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "fund_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "pontual",
-              "texto": "Pontual",
-              "descricao": "Area isolada (menos de 10%)",
-              "imagemLocal": "ext_pontual",
-              "pesoRisco": 1
-            },
-            {
-              "id": "setorial",
-              "texto": "Setorial",
-              "descricao": "Secao do elemento (10-50%)",
-              "imagemLocal": "ext_setorial",
-              "pesoRisco": 2
-            },
-            {
-              "id": "generalizada",
-              "texto": "Generalizada",
-              "descricao": "Maior parte (mais de 50%)",
-              "imagemLocal": "ext_generalizada",
-              "pesoRisco": 4
-            }
+            { "id": "pontual",      "texto": "Pontual — trecho isolado (<25%)",                "pesoRisco": 1, "imagemKey": "ext_pontual" },
+            { "id": "setorial",     "texto": "Setorial — trecho intermediário (25–75%)",       "pesoRisco": 2, "imagemKey": "ext_setorial" },
+            { "id": "generalizada", "texto": "Generalizada — ao longo de toda a base (>75%)", "pesoRisco": 3, "imagemKey": "ext_generalizada" }
           ]
         },
         {
           "id": "fund_ativa",
-          "texto": "A manifestacao esta ativa?",
-          "tipo": "cards",
+          "faseId": "fase_fund",
+          "tipo": "opcao_unica",
+          "texto": "O recalque ou dano na fundação ainda está evoluindo?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "fund_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "fund_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nao",
-              "texto": "Nao - Estabilizada",
-              "descricao": "Sem evolucao recente",
-              "imagemLocal": "opcao_nao",
-              "pesoRisco": 0
-            },
-            {
-              "id": "sim",
-              "texto": "Sim - Em progressao",
-              "descricao": "Manifestacao em evolucao ativa",
-              "imagemLocal": "opcao_sim",
-              "pesoRisco": 2
-            }
+            { "id": "nao", "texto": "Não — estabilizado, sem progressão", "pesoRisco": 0, "imagemKey": "opcao_nao" },
+            { "id": "sim", "texto": "Sim — em progressão ativa",          "pesoRisco": 1, "imagemKey": "opcao_sim" }
           ]
         },
         {
           "id": "fund_foto",
-          "texto": "Foto do elemento (opcional)",
+          "faseId": "fase_fund",
           "tipo": "foto",
+          "texto": "Registrar foto da fundação com o dano visível",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "fund_estado",
-            "opcaoId": "bom"
-          },
-          "opcoes": []
+          "pesoRisco": 0,
+          "skipSe": { "perguntaId": "fund_estado", "opcaoId": "bom" }
         }
       ]
     },
     {
       "id": "fase_est",
       "titulo": "2. Estrutura (Pilares e Vigas)",
-      "instrucao": "Avalie pilares, vigas e lajes. Peso 1.5.",
       "peso": 1.5,
       "perguntas": [
         {
           "id": "est_estado",
-          "texto": "Estado de conservacao",
-          "tipo": "cards",
+          "faseId": "fase_est",
+          "tipo": "opcao_unica",
+          "texto": "Pilares ou vigas apresentam fissuras, esmagamento ou deformação visível?",
           "obrigatoria": true,
+          "pesoRisco": 1,
           "opcoes": [
-            {
-              "id": "bom",
-              "texto": "Bom",
-              "descricao": "Sem fissuracoes, sem deformacoes visiveis em pilares ou vigas",
-              "imagemLocal": "est_bom",
-              "pesoRisco": 0
-            },
-            {
-              "id": "regular",
-              "texto": "Regular",
-              "descricao": "Fissura capilar em viga ou pilar sem armadura exposta",
-              "imagemLocal": "est_regular",
-              "pesoRisco": 2
-            },
-            {
-              "id": "ruim",
-              "texto": "Ruim",
-              "descricao": "Armadura exposta, laje com deflexao visivel ou fissura inclinada em pilar",
-              "imagemLocal": "est_ruim",
-              "pesoRisco": 4
-            },
-            {
-              "id": "pessimo",
-              "texto": "Pessimo",
-              "descricao": "Pilar com reducao de secao, viga com flecha excessiva ou colapso parcial",
-              "imagemLocal": "est_pessimo",
-              "pesoRisco": 6
-            }
+            { "id": "bom",     "texto": "Sem fissuras ou deformação — estrutura íntegra",              "pesoRisco": 0, "imagemKey": "est_bom" },
+            { "id": "regular", "texto": "Fissuras capilares (<0,3 mm) sem deslocamento",               "pesoRisco": 1, "imagemKey": "est_regular" },
+            { "id": "ruim",    "texto": "Fissuras largas (>0,3 mm) ou deformação perceptível",          "pesoRisco": 2, "imagemKey": "est_ruim" },
+            { "id": "pessimo", "texto": "Esmagamento do concreto, colapso ou deformação grave",         "pesoRisco": 3, "imagemKey": "est_pessimo" }
           ]
         },
         {
           "id": "est_gravidade",
-          "texto": "Gravidade da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_est",
+          "tipo": "opcao_unica",
+          "texto": "Qual a gravidade das fissuras ou danos nos pilares/vigas?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "est_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "est_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem dano identificado",
-              "imagemLocal": "grav_nenhuma",
-              "pesoRisco": 0
-            },
-            {
-              "id": "leve",
-              "texto": "Leve",
-              "descricao": "Dano superficial, fissura capilar",
-              "imagemLocal": "grav_leve",
-              "pesoRisco": 1
-            },
-            {
-              "id": "moderada",
-              "texto": "Moderada",
-              "descricao": "Trinca com potencial de progressao",
-              "imagemLocal": "grav_moderada",
-              "pesoRisco": 3
-            },
-            {
-              "id": "severa",
-              "texto": "Severa",
-              "descricao": "Rachadura ou dano estrutural avancado",
-              "imagemLocal": "grav_severa",
-              "pesoRisco": 5
-            }
+            { "id": "nenhuma",  "texto": "Sem dano perceptível",          "pesoRisco": 0, "imagemKey": "grav_nenhuma" },
+            { "id": "leve",     "texto": "Leve — dano superficial",       "pesoRisco": 1, "imagemKey": "grav_leve" },
+            { "id": "moderada", "texto": "Moderada — afeta funcionamento", "pesoRisco": 2, "imagemKey": "grav_moderada" },
+            { "id": "severa",   "texto": "Severa — risco estrutural",      "pesoRisco": 3, "imagemKey": "grav_severa" }
           ]
         },
         {
           "id": "est_extensao",
-          "texto": "Extensao da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_est",
+          "tipo": "opcao_unica",
+          "texto": "Em quantos elementos estruturais (pilares/vigas) o dano aparece?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "est_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "est_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "pontual",
-              "texto": "Pontual",
-              "descricao": "Area isolada (menos de 10%)",
-              "imagemLocal": "ext_pontual",
-              "pesoRisco": 1
-            },
-            {
-              "id": "setorial",
-              "texto": "Setorial",
-              "descricao": "Secao do elemento (10-50%)",
-              "imagemLocal": "ext_setorial",
-              "pesoRisco": 2
-            },
-            {
-              "id": "generalizada",
-              "texto": "Generalizada",
-              "descricao": "Maior parte (mais de 50%)",
-              "imagemLocal": "ext_generalizada",
-              "pesoRisco": 4
-            }
+            { "id": "pontual",      "texto": "Pontual — 1 elemento isolado",               "pesoRisco": 1, "imagemKey": "ext_pontual" },
+            { "id": "setorial",     "texto": "Setorial — alguns elementos (25–75%)",       "pesoRisco": 2, "imagemKey": "ext_setorial" },
+            { "id": "generalizada", "texto": "Generalizada — maioria dos elementos (>75%)", "pesoRisco": 3, "imagemKey": "ext_generalizada" }
           ]
         },
         {
           "id": "est_ativa",
-          "texto": "A manifestacao esta ativa?",
-          "tipo": "cards",
+          "faseId": "fase_est",
+          "tipo": "opcao_unica",
+          "texto": "As fissuras nos pilares/vigas ainda estão se abrindo ou aumentando?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "est_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "est_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nao",
-              "texto": "Nao - Estabilizada",
-              "descricao": "Sem evolucao recente",
-              "imagemLocal": "opcao_nao",
-              "pesoRisco": 0
-            },
-            {
-              "id": "sim",
-              "texto": "Sim - Em progressao",
-              "descricao": "Manifestacao em evolucao ativa",
-              "imagemLocal": "opcao_sim",
-              "pesoRisco": 2
-            }
+            { "id": "nao", "texto": "Não — estabilizadas, sem progressão", "pesoRisco": 0, "imagemKey": "opcao_nao" },
+            { "id": "sim", "texto": "Sim — fissuras em progressão ativa",  "pesoRisco": 1, "imagemKey": "opcao_sim" }
           ]
         },
         {
           "id": "est_foto",
-          "texto": "Foto do elemento (opcional)",
+          "faseId": "fase_est",
           "tipo": "foto",
+          "texto": "Registrar foto da fissura ou dano no pilar/viga",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "est_estado",
-            "opcaoId": "bom"
-          },
-          "opcoes": []
+          "pesoRisco": 0,
+          "skipSe": { "perguntaId": "est_estado", "opcaoId": "bom" }
         }
       ]
     },
     {
       "id": "fase_muro",
       "titulo": "3. Muro de Arrimo",
-      "instrucao": "Avalie muros de contencao. Peso 1.4.",
       "peso": 1.4,
       "perguntas": [
         {
           "id": "muro_estado",
-          "texto": "Estado de conservacao",
-          "tipo": "cards",
+          "faseId": "fase_muro",
+          "tipo": "opcao_unica",
+          "texto": "O muro de arrimo apresenta inclinação, fissuras horizontais ou sinais de tombamento?",
           "obrigatoria": true,
+          "pesoRisco": 1,
           "opcoes": [
-            {
-              "id": "bom",
-              "texto": "Bom",
-              "descricao": "Muro vertical, sem embarrigamento, sem fissuras, drenagem funcionando",
-              "imagemLocal": "est_bom",
-              "pesoRisco": 0
-            },
-            {
-              "id": "regular",
-              "texto": "Regular",
-              "descricao": "Fissura vertical isolada ou pequeno embarrigamento (menos de 5cm)",
-              "imagemLocal": "est_regular",
-              "pesoRisco": 2
-            },
-            {
-              "id": "ruim",
-              "texto": "Ruim",
-              "descricao": "Embarrigamento visivel (5 a 15cm), fissuras horizontais multiplas",
-              "imagemLocal": "est_ruim",
-              "pesoRisco": 4
-            },
-            {
-              "id": "pessimo",
-              "texto": "Pessimo",
-              "descricao": "Muro inclinado criticamente, fissuras passantes ou inicio de tombamento",
-              "imagemLocal": "est_pessimo",
-              "pesoRisco": 6
-            }
+            { "id": "bom",     "texto": "Vertical e íntegro — sem inclinação ou fissuras",          "pesoRisco": 0, "imagemKey": "muro_bom" },
+            { "id": "regular", "texto": "Fissuras capilares ou leve inclinação perceptível",         "pesoRisco": 1, "imagemKey": "muro_regular" },
+            { "id": "ruim",    "texto": "Fissuras horizontais ou inclinação >5 cm visível",          "pesoRisco": 2, "imagemKey": "muro_ruim" },
+            { "id": "pessimo", "texto": "Tombamento iminente — inclinação severa ou escorregamento", "pesoRisco": 3, "imagemKey": "muro_pessimo" }
           ]
         },
         {
           "id": "muro_gravidade",
-          "texto": "Gravidade da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_muro",
+          "tipo": "opcao_unica",
+          "texto": "Qual a gravidade da inclinação ou fissura no muro de arrimo?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "muro_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "muro_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem dano identificado",
-              "imagemLocal": "grav_nenhuma",
-              "pesoRisco": 0
-            },
-            {
-              "id": "leve",
-              "texto": "Leve",
-              "descricao": "Dano superficial, fissura capilar",
-              "imagemLocal": "grav_leve",
-              "pesoRisco": 1
-            },
-            {
-              "id": "moderada",
-              "texto": "Moderada",
-              "descricao": "Trinca com potencial de progressao",
-              "imagemLocal": "grav_moderada",
-              "pesoRisco": 3
-            },
-            {
-              "id": "severa",
-              "texto": "Severa",
-              "descricao": "Rachadura ou dano estrutural avancado",
-              "imagemLocal": "grav_severa",
-              "pesoRisco": 5
-            }
+            { "id": "nenhuma",  "texto": "Sem dano perceptível",          "pesoRisco": 0, "imagemKey": "grav_nenhuma" },
+            { "id": "leve",     "texto": "Leve — dano superficial",       "pesoRisco": 1, "imagemKey": "grav_leve" },
+            { "id": "moderada", "texto": "Moderada — afeta estabilidade",  "pesoRisco": 2, "imagemKey": "grav_moderada" },
+            { "id": "severa",   "texto": "Severa — risco de colapso",      "pesoRisco": 3, "imagemKey": "grav_severa" }
           ]
         },
         {
           "id": "muro_extensao",
-          "texto": "Extensao da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_muro",
+          "tipo": "opcao_unica",
+          "texto": "Qual a extensão do trecho do muro com inclinação ou dano?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "muro_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "muro_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "pontual",
-              "texto": "Pontual",
-              "descricao": "Area isolada (menos de 10%)",
-              "imagemLocal": "ext_pontual",
-              "pesoRisco": 1
-            },
-            {
-              "id": "setorial",
-              "texto": "Setorial",
-              "descricao": "Secao do elemento (10-50%)",
-              "imagemLocal": "ext_setorial",
-              "pesoRisco": 2
-            },
-            {
-              "id": "generalizada",
-              "texto": "Generalizada",
-              "descricao": "Maior parte (mais de 50%)",
-              "imagemLocal": "ext_generalizada",
-              "pesoRisco": 4
-            }
+            { "id": "pontual",      "texto": "Pontual — trecho isolado (<25%)",           "pesoRisco": 1, "imagemKey": "ext_pontual" },
+            { "id": "setorial",     "texto": "Setorial — trecho intermediário (25–75%)",  "pesoRisco": 2, "imagemKey": "ext_setorial" },
+            { "id": "generalizada", "texto": "Generalizada — todo o muro afetado (>75%)", "pesoRisco": 3, "imagemKey": "ext_generalizada" }
           ]
         },
         {
           "id": "muro_ativa",
-          "texto": "A manifestacao esta ativa?",
-          "tipo": "cards",
+          "faseId": "fase_muro",
+          "tipo": "opcao_unica",
+          "texto": "A inclinação ou dano no muro ainda está evoluindo?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "muro_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "muro_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nao",
-              "texto": "Nao - Estabilizada",
-              "descricao": "Sem evolucao recente",
-              "imagemLocal": "opcao_nao",
-              "pesoRisco": 0
-            },
-            {
-              "id": "sim",
-              "texto": "Sim - Em progressao",
-              "descricao": "Manifestacao em evolucao ativa",
-              "imagemLocal": "opcao_sim",
-              "pesoRisco": 2
-            }
+            { "id": "nao", "texto": "Não — muro estabilizado",              "pesoRisco": 0, "imagemKey": "opcao_nao" },
+            { "id": "sim", "texto": "Sim — inclinação ainda em progressão", "pesoRisco": 1, "imagemKey": "opcao_sim" }
           ]
         },
         {
           "id": "muro_foto",
-          "texto": "Foto do elemento (opcional)",
+          "faseId": "fase_muro",
           "tipo": "foto",
+          "texto": "Registrar foto do muro de arrimo com inclinação ou fissura",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "muro_estado",
-            "opcaoId": "bom"
-          },
-          "opcoes": []
+          "pesoRisco": 0,
+          "skipSe": { "perguntaId": "muro_estado", "opcaoId": "bom" }
         }
       ]
     },
     {
       "id": "fase_tal",
       "titulo": "4. Talude",
-      "instrucao": "Avalie taludes e encostas proximos. Peso 1.4.",
       "peso": 1.4,
       "perguntas": [
         {
           "id": "tal_estado",
-          "texto": "Estado de conservacao",
-          "tipo": "cards",
+          "faseId": "fase_tal",
+          "tipo": "opcao_unica",
+          "texto": "O talude apresenta erosão superficial, trincas no solo ou sinais de movimentação de terra?",
           "obrigatoria": true,
+          "pesoRisco": 1,
           "opcoes": [
-            {
-              "id": "bom",
-              "texto": "Bom",
-              "descricao": "Talude estavel, vegetado, sem sinais de movimentacao ou erosao",
-              "imagemLocal": "est_bom",
-              "pesoRisco": 0
-            },
-            {
-              "id": "regular",
-              "texto": "Regular",
-              "descricao": "Pequena erosao superficial ou ravinamento isolado",
-              "imagemLocal": "est_regular",
-              "pesoRisco": 2
-            },
-            {
-              "id": "ruim",
-              "texto": "Ruim",
-              "descricao": "Cicatriz de deslizamento recente, arvores inclinadas ou surgencia de agua",
-              "imagemLocal": "est_ruim",
-              "pesoRisco": 4
-            },
-            {
-              "id": "pessimo",
-              "texto": "Pessimo",
-              "descricao": "Massa em movimento ativo, bloco desprendido ou fissura na crista",
-              "imagemLocal": "est_pessimo",
-              "pesoRisco": 6
-            }
+            { "id": "bom",     "texto": "Talude estável — sem erosão, trincas ou movimentação",     "pesoRisco": 0, "imagemKey": "tal_bom" },
+            { "id": "regular", "texto": "Erosão superficial leve ou trincas pequenas na superfície", "pesoRisco": 1, "imagemKey": "tal_regular" },
+            { "id": "ruim",    "texto": "Trincas profundas ou rastros de movimentação de terra",     "pesoRisco": 2, "imagemKey": "tal_ruim" },
+            { "id": "pessimo", "texto": "Deslizamento ativo ou iminente — risco imediato",           "pesoRisco": 3, "imagemKey": "tal_pessimo" }
           ]
         },
         {
           "id": "tal_gravidade",
-          "texto": "Gravidade da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_tal",
+          "tipo": "opcao_unica",
+          "texto": "Qual a gravidade da erosão ou movimentação observada no talude?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "tal_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "tal_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem dano identificado",
-              "imagemLocal": "grav_nenhuma",
-              "pesoRisco": 0
-            },
-            {
-              "id": "leve",
-              "texto": "Leve",
-              "descricao": "Dano superficial, fissura capilar",
-              "imagemLocal": "grav_leve",
-              "pesoRisco": 1
-            },
-            {
-              "id": "moderada",
-              "texto": "Moderada",
-              "descricao": "Trinca com potencial de progressao",
-              "imagemLocal": "grav_moderada",
-              "pesoRisco": 3
-            },
-            {
-              "id": "severa",
-              "texto": "Severa",
-              "descricao": "Rachadura ou dano estrutural avancado",
-              "imagemLocal": "grav_severa",
-              "pesoRisco": 5
-            }
+            { "id": "nenhuma",  "texto": "Sem dano perceptível",                       "pesoRisco": 0, "imagemKey": "grav_nenhuma" },
+            { "id": "leve",     "texto": "Leve — erosão superficial ou trinca fina",   "pesoRisco": 1, "imagemKey": "grav_leve" },
+            { "id": "moderada", "texto": "Moderada — trinca aberta ou rastro de movimento", "pesoRisco": 2, "imagemKey": "grav_moderada" },
+            { "id": "severa",   "texto": "Severa — deslizamento em curso",              "pesoRisco": 3, "imagemKey": "grav_severa" }
           ]
         },
         {
           "id": "tal_extensao",
-          "texto": "Extensao da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_tal",
+          "tipo": "opcao_unica",
+          "texto": "Qual a extensão da área do talude afetada por erosão ou trinca?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "tal_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "tal_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "pontual",
-              "texto": "Pontual",
-              "descricao": "Area isolada (menos de 10%)",
-              "imagemLocal": "ext_pontual",
-              "pesoRisco": 1
-            },
-            {
-              "id": "setorial",
-              "texto": "Setorial",
-              "descricao": "Secao do elemento (10-50%)",
-              "imagemLocal": "ext_setorial",
-              "pesoRisco": 2
-            },
-            {
-              "id": "generalizada",
-              "texto": "Generalizada",
-              "descricao": "Maior parte (mais de 50%)",
-              "imagemLocal": "ext_generalizada",
-              "pesoRisco": 4
-            }
+            { "id": "pontual",      "texto": "Pontual — foco isolado (<25% do talude)",            "pesoRisco": 1, "imagemKey": "ext_pontual" },
+            { "id": "setorial",     "texto": "Setorial — parte do talude afetada (25–75%)",        "pesoRisco": 2, "imagemKey": "ext_setorial" },
+            { "id": "generalizada", "texto": "Generalizada — maior parte do talude afetada (>75%)", "pesoRisco": 3, "imagemKey": "ext_generalizada" }
           ]
         },
         {
           "id": "tal_ativa",
-          "texto": "A manifestacao esta ativa?",
-          "tipo": "cards",
+          "faseId": "fase_tal",
+          "tipo": "opcao_unica",
+          "texto": "A erosão ou movimentação do talude ainda está ocorrendo?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "tal_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "tal_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nao",
-              "texto": "Nao - Estabilizada",
-              "descricao": "Sem evolucao recente",
-              "imagemLocal": "opcao_nao",
-              "pesoRisco": 0
-            },
-            {
-              "id": "sim",
-              "texto": "Sim - Em progressao",
-              "descricao": "Manifestacao em evolucao ativa",
-              "imagemLocal": "opcao_sim",
-              "pesoRisco": 2
-            }
+            { "id": "nao", "texto": "Não — talude estabilizado",                "pesoRisco": 0, "imagemKey": "opcao_nao" },
+            { "id": "sim", "texto": "Sim — movimentação ou erosão ainda ativa", "pesoRisco": 1, "imagemKey": "opcao_sim" }
           ]
         },
         {
           "id": "tal_foto",
-          "texto": "Foto do elemento (opcional)",
+          "faseId": "fase_tal",
           "tipo": "foto",
+          "texto": "Registrar foto do talude com erosão, trinca ou deslizamento",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "tal_estado",
-            "opcaoId": "bom"
-          },
-          "opcoes": []
+          "pesoRisco": 0,
+          "skipSe": { "perguntaId": "tal_estado", "opcaoId": "bom" }
         }
       ]
     },
     {
       "id": "fase_dren",
       "titulo": "5. Drenagem",
-      "instrucao": "Avalie calhas, canaletas e escoamento perimetral. Peso 1.1.",
       "peso": 1.1,
       "perguntas": [
         {
           "id": "dren_estado",
-          "texto": "Estado de conservacao",
-          "tipo": "cards",
+          "faseId": "fase_dren",
+          "tipo": "opcao_unica",
+          "texto": "Calhas, valetas ou drenos estão obstruídos, entupidos ou com acúmulo de água?",
           "obrigatoria": true,
+          "pesoRisco": 1,
           "opcoes": [
-            {
-              "id": "bom",
-              "texto": "Bom",
-              "descricao": "Escoamento funcional, sem acumulo de agua ou entupimento",
-              "imagemLocal": "est_bom",
-              "pesoRisco": 0
-            },
-            {
-              "id": "regular",
-              "texto": "Regular",
-              "descricao": "Calha parcialmente entupida ou erosao leve no perimetro",
-              "imagemLocal": "est_regular",
-              "pesoRisco": 2
-            },
-            {
-              "id": "ruim",
-              "texto": "Ruim",
-              "descricao": "Acumulo de agua junto a fundacao ou canaleta quebrada",
-              "imagemLocal": "est_ruim",
-              "pesoRisco": 4
-            },
-            {
-              "id": "pessimo",
-              "texto": "Pessimo",
-              "descricao": "Inundacao recorrente na base da edificacao ou erosao grave",
-              "imagemLocal": "est_pessimo",
-              "pesoRisco": 6
-            }
+            { "id": "bom",     "texto": "Drenagem limpa e funcionando — sem obstrução",          "pesoRisco": 0, "imagemKey": "dren_bom" },
+            { "id": "regular", "texto": "Obstrução parcial ou acúmulo leve em algum trecho",     "pesoRisco": 1, "imagemKey": "dren_regular" },
+            { "id": "ruim",    "texto": "Obstrução severa ou acúmulo de água em pontos críticos", "pesoRisco": 2, "imagemKey": "dren_ruim" },
+            { "id": "pessimo", "texto": "Sistema de drenagem inoperante ou com dano estrutural",  "pesoRisco": 3, "imagemKey": "dren_pessimo" }
           ]
         },
         {
           "id": "dren_gravidade",
-          "texto": "Gravidade da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_dren",
+          "tipo": "opcao_unica",
+          "texto": "Qual a gravidade do problema de drenagem observado?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "dren_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "dren_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem dano identificado",
-              "imagemLocal": "grav_nenhuma",
-              "pesoRisco": 0
-            },
-            {
-              "id": "leve",
-              "texto": "Leve",
-              "descricao": "Dano superficial, fissura capilar",
-              "imagemLocal": "grav_leve",
-              "pesoRisco": 1
-            },
-            {
-              "id": "moderada",
-              "texto": "Moderada",
-              "descricao": "Trinca com potencial de progressao",
-              "imagemLocal": "grav_moderada",
-              "pesoRisco": 3
-            },
-            {
-              "id": "severa",
-              "texto": "Severa",
-              "descricao": "Rachadura ou dano estrutural avancado",
-              "imagemLocal": "grav_severa",
-              "pesoRisco": 5
-            }
+            { "id": "nenhuma",  "texto": "Sem dano perceptível",               "pesoRisco": 0, "imagemKey": "grav_nenhuma" },
+            { "id": "leve",     "texto": "Leve — obstrução pontual",           "pesoRisco": 1, "imagemKey": "grav_leve" },
+            { "id": "moderada", "texto": "Moderada — compromete o escoamento", "pesoRisco": 2, "imagemKey": "grav_moderada" },
+            { "id": "severa",   "texto": "Severa — inundação ou risco de deslizamento", "pesoRisco": 3, "imagemKey": "grav_severa" }
           ]
         },
         {
           "id": "dren_extensao",
-          "texto": "Extensao da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_dren",
+          "tipo": "opcao_unica",
+          "texto": "Qual a extensão do sistema de drenagem comprometido?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "dren_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "dren_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "pontual",
-              "texto": "Pontual",
-              "descricao": "Area isolada (menos de 10%)",
-              "imagemLocal": "ext_pontual",
-              "pesoRisco": 1
-            },
-            {
-              "id": "setorial",
-              "texto": "Setorial",
-              "descricao": "Secao do elemento (10-50%)",
-              "imagemLocal": "ext_setorial",
-              "pesoRisco": 2
-            },
-            {
-              "id": "generalizada",
-              "texto": "Generalizada",
-              "descricao": "Maior parte (mais de 50%)",
-              "imagemLocal": "ext_generalizada",
-              "pesoRisco": 4
-            }
+            { "id": "pontual",      "texto": "Pontual — trecho isolado da calha/dreno (<25%)",   "pesoRisco": 1, "imagemKey": "ext_pontual" },
+            { "id": "setorial",     "texto": "Setorial — parte do sistema afetada (25–75%)",     "pesoRisco": 2, "imagemKey": "ext_setorial" },
+            { "id": "generalizada", "texto": "Generalizada — todo o sistema comprometido (>75%)", "pesoRisco": 3, "imagemKey": "ext_generalizada" }
           ]
         },
         {
           "id": "dren_ativa",
-          "texto": "A manifestacao esta ativa?",
-          "tipo": "cards",
+          "faseId": "fase_dren",
+          "tipo": "opcao_unica",
+          "texto": "O acúmulo de água ou obstrução na drenagem ainda está ocorrendo?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "dren_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "dren_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nao",
-              "texto": "Nao - Estabilizada",
-              "descricao": "Sem evolucao recente",
-              "imagemLocal": "opcao_nao",
-              "pesoRisco": 0
-            },
-            {
-              "id": "sim",
-              "texto": "Sim - Em progressao",
-              "descricao": "Manifestacao em evolucao ativa",
-              "imagemLocal": "opcao_sim",
-              "pesoRisco": 2
-            }
+            { "id": "nao", "texto": "Não — situação estabilizada",             "pesoRisco": 0, "imagemKey": "opcao_nao" },
+            { "id": "sim", "texto": "Sim — obstrução ou acúmulo ainda ativos", "pesoRisco": 1, "imagemKey": "opcao_sim" }
           ]
         },
         {
           "id": "dren_foto",
-          "texto": "Foto do elemento (opcional)",
+          "faseId": "fase_dren",
           "tipo": "foto",
+          "texto": "Registrar foto da calha, dreno ou área com acúmulo de água",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "dren_estado",
-            "opcaoId": "bom"
-          },
-          "opcoes": []
+          "pesoRisco": 0,
+          "skipSe": { "perguntaId": "dren_estado", "opcaoId": "bom" }
         }
       ]
     },
     {
       "id": "fase_alv",
-      "titulo": "6. Alvenaria",
-      "instrucao": "Avalie paredes de alvenaria e vedacao. Peso 1.0.",
+      "titulo": "6. Alvenaria (Paredes)",
       "peso": 1.0,
       "perguntas": [
         {
           "id": "alv_estado",
-          "texto": "Estado de conservacao",
-          "tipo": "cards",
+          "faseId": "fase_alv",
+          "tipo": "opcao_unica",
+          "texto": "As paredes apresentam fissuras, umidade, eflorescência ou desaprumo visível?",
           "obrigatoria": true,
+          "pesoRisco": 1,
           "opcoes": [
-            {
-              "id": "bom",
-              "texto": "Bom",
-              "descricao": "Paredes sem fissuras, reboco integro, sem umidade aparente",
-              "imagemLocal": "est_bom",
-              "pesoRisco": 0
-            },
-            {
-              "id": "regular",
-              "texto": "Regular",
-              "descricao": "Fissura capilar isolada em parede (menos de 0.2mm)",
-              "imagemLocal": "est_regular",
-              "pesoRisco": 2
-            },
-            {
-              "id": "ruim",
-              "texto": "Ruim",
-              "descricao": "Fissura diagonal em 45 graus (sinal de recalque) ou fissura horizontal",
-              "imagemLocal": "est_ruim",
-              "pesoRisco": 4
-            },
-            {
-              "id": "pessimo",
-              "texto": "Pessimo",
-              "descricao": "Fissura passante, parede desaprumada ou bloco desprendido",
-              "imagemLocal": "est_pessimo",
-              "pesoRisco": 6
-            }
+            { "id": "bom",     "texto": "Paredes íntegras — sem fissuras, umidade ou desaprumo",       "pesoRisco": 0, "imagemKey": "alv_bom" },
+            { "id": "regular", "texto": "Fissuras finas (<0,5 mm) ou umidade localizada",               "pesoRisco": 1, "imagemKey": "alv_regular" },
+            { "id": "ruim",    "texto": "Fissuras largas, umidade intensa ou desaprumo perceptível",     "pesoRisco": 2, "imagemKey": "alv_ruim" },
+            { "id": "pessimo", "texto": "Colapso parcial de parede ou desaprumo grave — risco imediato", "pesoRisco": 3, "imagemKey": "alv_pessimo" }
           ]
         },
         {
           "id": "alv_gravidade",
-          "texto": "Gravidade da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_alv",
+          "tipo": "opcao_unica",
+          "texto": "Qual a gravidade das fissuras ou umidade nas paredes?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "alv_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "alv_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem dano identificado",
-              "imagemLocal": "grav_nenhuma",
-              "pesoRisco": 0
-            },
-            {
-              "id": "leve",
-              "texto": "Leve",
-              "descricao": "Dano superficial, fissura capilar",
-              "imagemLocal": "grav_leve",
-              "pesoRisco": 1
-            },
-            {
-              "id": "moderada",
-              "texto": "Moderada",
-              "descricao": "Trinca com potencial de progressao",
-              "imagemLocal": "grav_moderada",
-              "pesoRisco": 3
-            },
-            {
-              "id": "severa",
-              "texto": "Severa",
-              "descricao": "Rachadura ou dano estrutural avancado",
-              "imagemLocal": "grav_severa",
-              "pesoRisco": 5
-            }
+            { "id": "nenhuma",  "texto": "Sem dano perceptível",                       "pesoRisco": 0, "imagemKey": "grav_nenhuma" },
+            { "id": "leve",     "texto": "Leve — fissura capilar ou umidade pontual",  "pesoRisco": 1, "imagemKey": "grav_leve" },
+            { "id": "moderada", "texto": "Moderada — fissura larga ou umidade extensa", "pesoRisco": 2, "imagemKey": "grav_moderada" },
+            { "id": "severa",   "texto": "Severa — parede instável ou desaprumo grave", "pesoRisco": 3, "imagemKey": "grav_severa" }
           ]
         },
         {
           "id": "alv_extensao",
-          "texto": "Extensao da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_alv",
+          "tipo": "opcao_unica",
+          "texto": "Em quantas paredes ou qual a extensão das fissuras/umidade?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "alv_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "alv_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "pontual",
-              "texto": "Pontual",
-              "descricao": "Area isolada (menos de 10%)",
-              "imagemLocal": "ext_pontual",
-              "pesoRisco": 1
-            },
-            {
-              "id": "setorial",
-              "texto": "Setorial",
-              "descricao": "Secao do elemento (10-50%)",
-              "imagemLocal": "ext_setorial",
-              "pesoRisco": 2
-            },
-            {
-              "id": "generalizada",
-              "texto": "Generalizada",
-              "descricao": "Maior parte (mais de 50%)",
-              "imagemLocal": "ext_generalizada",
-              "pesoRisco": 4
-            }
+            { "id": "pontual",      "texto": "Pontual — 1 parede ou trecho pequeno (<25%)",        "pesoRisco": 1, "imagemKey": "ext_pontual" },
+            { "id": "setorial",     "texto": "Setorial — algumas paredes afetadas (25–75%)",       "pesoRisco": 2, "imagemKey": "ext_setorial" },
+            { "id": "generalizada", "texto": "Generalizada — maioria das paredes afetadas (>75%)", "pesoRisco": 3, "imagemKey": "ext_generalizada" }
           ]
         },
         {
           "id": "alv_ativa",
-          "texto": "A manifestacao esta ativa?",
-          "tipo": "cards",
+          "faseId": "fase_alv",
+          "tipo": "opcao_unica",
+          "texto": "As fissuras nas paredes ainda estão abertas ou aumentando?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "alv_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "alv_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nao",
-              "texto": "Nao - Estabilizada",
-              "descricao": "Sem evolucao recente",
-              "imagemLocal": "opcao_nao",
-              "pesoRisco": 0
-            },
-            {
-              "id": "sim",
-              "texto": "Sim - Em progressao",
-              "descricao": "Manifestacao em evolucao ativa",
-              "imagemLocal": "opcao_sim",
-              "pesoRisco": 2
-            }
+            { "id": "nao", "texto": "Não — fissuras estabilizadas",          "pesoRisco": 0, "imagemKey": "opcao_nao" },
+            { "id": "sim", "texto": "Sim — fissuras em abertura progressiva", "pesoRisco": 1, "imagemKey": "opcao_sim" }
           ]
         },
         {
           "id": "alv_foto",
-          "texto": "Foto do elemento (opcional)",
+          "faseId": "fase_alv",
           "tipo": "foto",
+          "texto": "Registrar foto da fissura, umidade ou desaprumo na parede",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "alv_estado",
-            "opcaoId": "bom"
-          },
-          "opcoes": []
+          "pesoRisco": 0,
+          "skipSe": { "perguntaId": "alv_estado", "opcaoId": "bom" }
         }
       ]
     },
     {
       "id": "fase_cob",
       "titulo": "7. Cobertura",
-      "instrucao": "Avalie telhado, telhas e estrutura. Peso 0.9.",
       "peso": 0.9,
       "perguntas": [
         {
           "id": "cob_estado",
-          "texto": "Estado de conservacao",
-          "tipo": "cards",
+          "faseId": "fase_cob",
+          "tipo": "opcao_unica",
+          "texto": "A cobertura apresenta telhas quebradas, ausentes, infiltrações ativas ou deformação da estrutura?",
           "obrigatoria": true,
+          "pesoRisco": 1,
           "opcoes": [
-            {
-              "id": "bom",
-              "texto": "Bom",
-              "descricao": "Telhado integro, sem telhas quebradas, rufos vedados e sem goteiras",
-              "imagemLocal": "est_bom",
-              "pesoRisco": 0
-            },
-            {
-              "id": "regular",
-              "texto": "Regular",
-              "descricao": "Uma ou duas telhas quebradas ou deslocadas, sem infiltracao ativa",
-              "imagemLocal": "est_regular",
-              "pesoRisco": 2
-            },
-            {
-              "id": "ruim",
-              "texto": "Ruim",
-              "descricao": "Varios pontos de infiltracao ativa ou madeiramento apodrecido",
-              "imagemLocal": "est_ruim",
-              "pesoRisco": 4
-            },
-            {
-              "id": "pessimo",
-              "texto": "Pessimo",
-              "descricao": "Colapso parcial do telhado ou estrutura metalica com corrosao critica",
-              "imagemLocal": "est_pessimo",
-              "pesoRisco": 6
-            }
+            { "id": "bom",     "texto": "Cobertura íntegra — sem infiltração, telhas soltas ou deformação", "pesoRisco": 0, "imagemKey": "cob_bom" },
+            { "id": "regular", "texto": "Telhas soltas ou deslocadas — infiltração leve eventual",           "pesoRisco": 1, "imagemKey": "cob_regular" },
+            { "id": "ruim",    "texto": "Telhas quebradas ou ausentes — infiltração frequente ou intensa",   "pesoRisco": 2, "imagemKey": "cob_ruim" },
+            { "id": "pessimo", "texto": "Cobertura comprometida — estrutura deformada ou risco de colapso",  "pesoRisco": 3, "imagemKey": "cob_pessimo" }
           ]
         },
         {
           "id": "cob_gravidade",
-          "texto": "Gravidade da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_cob",
+          "tipo": "opcao_unica",
+          "texto": "Qual a gravidade da infiltração ou dano estrutural na cobertura?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "cob_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "cob_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem dano identificado",
-              "imagemLocal": "grav_nenhuma",
-              "pesoRisco": 0
-            },
-            {
-              "id": "leve",
-              "texto": "Leve",
-              "descricao": "Dano superficial, fissura capilar",
-              "imagemLocal": "grav_leve",
-              "pesoRisco": 1
-            },
-            {
-              "id": "moderada",
-              "texto": "Moderada",
-              "descricao": "Trinca com potencial de progressao",
-              "imagemLocal": "grav_moderada",
-              "pesoRisco": 3
-            },
-            {
-              "id": "severa",
-              "texto": "Severa",
-              "descricao": "Rachadura ou dano estrutural avancado",
-              "imagemLocal": "grav_severa",
-              "pesoRisco": 5
-            }
+            { "id": "nenhuma",  "texto": "Sem dano perceptível",                           "pesoRisco": 0, "imagemKey": "grav_nenhuma" },
+            { "id": "leve",     "texto": "Leve — infiltração pontual eventual",             "pesoRisco": 1, "imagemKey": "grav_leve" },
+            { "id": "moderada", "texto": "Moderada — infiltração frequente ou área comprometida", "pesoRisco": 2, "imagemKey": "grav_moderada" },
+            { "id": "severa",   "texto": "Severa — cobertura estruturalmente comprometida", "pesoRisco": 3, "imagemKey": "grav_severa" }
           ]
         },
         {
           "id": "cob_extensao",
-          "texto": "Extensao da manifestacao",
-          "tipo": "cards",
+          "faseId": "fase_cob",
+          "tipo": "opcao_unica",
+          "texto": "Qual a extensão da área da cobertura com dano ou infiltração?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "cob_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "cob_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "pontual",
-              "texto": "Pontual",
-              "descricao": "Area isolada (menos de 10%)",
-              "imagemLocal": "ext_pontual",
-              "pesoRisco": 1
-            },
-            {
-              "id": "setorial",
-              "texto": "Setorial",
-              "descricao": "Secao do elemento (10-50%)",
-              "imagemLocal": "ext_setorial",
-              "pesoRisco": 2
-            },
-            {
-              "id": "generalizada",
-              "texto": "Generalizada",
-              "descricao": "Maior parte (mais de 50%)",
-              "imagemLocal": "ext_generalizada",
-              "pesoRisco": 4
-            }
+            { "id": "pontual",      "texto": "Pontual — foco isolado na cobertura (<25%)",              "pesoRisco": 1, "imagemKey": "ext_pontual" },
+            { "id": "setorial",     "texto": "Setorial — parte da cobertura afetada (25–75%)",         "pesoRisco": 2, "imagemKey": "ext_setorial" },
+            { "id": "generalizada", "texto": "Generalizada — cobertura amplamente comprometida (>75%)", "pesoRisco": 3, "imagemKey": "ext_generalizada" }
           ]
         },
         {
           "id": "cob_ativa",
-          "texto": "A manifestacao esta ativa?",
-          "tipo": "cards",
+          "faseId": "fase_cob",
+          "tipo": "opcao_unica",
+          "texto": "A infiltração ou dano na cobertura ainda está ocorrendo?",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "cob_estado",
-            "opcaoId": "bom"
-          },
+          "pesoRisco": 1,
+          "skipSe": { "perguntaId": "cob_estado", "opcaoId": "bom" },
           "opcoes": [
-            {
-              "id": "nao",
-              "texto": "Nao - Estabilizada",
-              "descricao": "Sem evolucao recente",
-              "imagemLocal": "opcao_nao",
-              "pesoRisco": 0
-            },
-            {
-              "id": "sim",
-              "texto": "Sim - Em progressao",
-              "descricao": "Manifestacao em evolucao ativa",
-              "imagemLocal": "opcao_sim",
-              "pesoRisco": 2
-            }
+            { "id": "nao", "texto": "Não — situação estabilizada",                  "pesoRisco": 0, "imagemKey": "opcao_nao" },
+            { "id": "sim", "texto": "Sim — infiltração ou dano ainda em progressão", "pesoRisco": 1, "imagemKey": "opcao_sim" }
           ]
         },
         {
           "id": "cob_foto",
-          "texto": "Foto do elemento (opcional)",
+          "faseId": "fase_cob",
           "tipo": "foto",
+          "texto": "Registrar foto da cobertura com dano ou infiltração visível",
           "obrigatoria": false,
-          "skipSe": {
-            "perguntaId": "cob_estado",
-            "opcaoId": "bom"
-          },
-          "opcoes": []
+          "pesoRisco": 0,
+          "skipSe": { "perguntaId": "cob_estado", "opcaoId": "bom" }
         }
       ]
     }
