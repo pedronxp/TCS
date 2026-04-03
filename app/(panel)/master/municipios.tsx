@@ -57,6 +57,8 @@ export default function MunicipiosScreen() {
   const [salvando, setSalvando] = useState(false);
   const [criandoMunicipio, setCriandoMunicipio] = useState(false);
   const [novoMunNome, setNovoMunNome] = useState('');
+  const [novoMunEstado, setNovoMunEstado] = useState('');
+  const [novoMunUF, setNovoMunUF] = useState('');
 
   const carregar = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -148,8 +150,18 @@ export default function MunicipiosScreen() {
 
   const criarMunicipio = async () => {
     const nome = novoMunNome.trim();
+    const estado = novoMunEstado.trim();
+    const uf = novoMunUF.trim().toUpperCase();
     if (!nome) {
       Alert.alert('Nome inválido', 'Digite o nome do município.');
+      return;
+    }
+    if (!estado) {
+      Alert.alert('Estado obrigatório', 'Digite o nome do estado (ex: São Paulo).');
+      return;
+    }
+    if (!uf || uf.length !== 2) {
+      Alert.alert('UF inválida', 'Digite a sigla do estado com 2 letras (ex: SP).');
       return;
     }
     if (municipios.some(m => m.nome.toLowerCase() === nome.toLowerCase())) {
@@ -158,10 +170,21 @@ export default function MunicipiosScreen() {
     }
     setSalvando(true);
     try {
-      const { error } = await supabase.from('municipios').insert({ nome, dominios_email: null });
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.from('municipios').insert({
+        nome,
+        estado,
+        uf,
+        ativo: true,
+        criado_em: new Date().toISOString(),
+        criado_por: session?.user?.id ?? null,
+        dominios_email: null,
+      });
       if (error) throw error;
       setMunicipios(prev => [...prev, { nome, totalVistorias: 0, altoRisco: 0, agentes: 0, dominiosEmail: null }]);
       setNovoMunNome('');
+      setNovoMunEstado('');
+      setNovoMunUF('');
       setCriandoMunicipio(false);
       Alert.alert('Município criado', `"${nome}" foi adicionado com sucesso.`);
     } catch (e: any) {
@@ -169,7 +192,7 @@ export default function MunicipiosScreen() {
         ? 'Permissão negada. Verifique se você tem perfil de master admin.'
         : e?.code === '23505'
         ? 'Este município já está cadastrado.'
-        : e?.message || 'Não foi possível criar o município.';
+        : 'Não foi possível criar o município. Tente novamente.';
       Alert.alert('Erro', msg);
       logger.error('system', 'Erro criar município', { erro: e?.message || JSON.stringify(e), code: e?.code });
     } finally {
@@ -256,10 +279,29 @@ export default function MunicipiosScreen() {
               style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.primary, color: theme.text }]}
               value={novoMunNome}
               onChangeText={setNovoMunNome}
-              placeholder="Ex: São Paulo"
+              placeholder="Nome do município"
               placeholderTextColor={theme.textSecondary}
               autoCapitalize="words"
               autoFocus
+            />
+          </View>
+          <View style={[styles.newMunRow, { marginTop: 8 }]}>
+            <TextInput
+              style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, flex: 2 }]}
+              value={novoMunEstado}
+              onChangeText={setNovoMunEstado}
+              placeholder="Estado (ex: São Paulo)"
+              placeholderTextColor={theme.textSecondary}
+              autoCapitalize="words"
+            />
+            <TextInput
+              style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, flex: 0, width: 64 }]}
+              value={novoMunUF}
+              onChangeText={t => setNovoMunUF(t.toUpperCase())}
+              placeholder="UF"
+              placeholderTextColor={theme.textSecondary}
+              autoCapitalize="characters"
+              maxLength={2}
             />
             <TouchableOpacity
               style={[styles.newMunBtn, { backgroundColor: salvando ? theme.textSecondary : theme.primary }]}
