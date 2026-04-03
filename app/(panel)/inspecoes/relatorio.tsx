@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image,
+  Modal,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -11,6 +12,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { riscoLabel, riscoColor, riscoConduta } from '../../../utils/riscoUtils';
 import { parseProtocolo } from '../../../utils/uuid';
+import { buildTermoInterdicaoHtml } from '../../../utils/laudoPdfBuilder';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -203,6 +205,8 @@ function buildRelatorioHtml(
           ? `<div class="proto-partes">
                <span class="proto-parte proto-prefix">${p.prefix}</span>
                <span class="proto-dot">·</span>
+               <span class="proto-parte proto-cidade">${p.cidade}</span>
+               <span class="proto-dot">·</span>
                <span class="proto-parte proto-date">${p.date}</span>
                <span class="proto-dot">·</span>
                <span class="proto-parte proto-hash">${p.hash}</span>
@@ -339,6 +343,33 @@ export default function RelatorioScreen() {
 
   const totalRespondidas = useMemo(() => grupos.reduce((acc, g) => acc + g.itens.length, 0), [grupos]);
 
+  const [showTermoModal, setShowTermoModal] = useState(false);
+  const [termoForm, setTermoForm] = useState({
+    nomeNotificado: '',
+    cpfNotificado: '',
+    enderecoRua: '',
+    enderecoNumero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    telefone: '',
+  });
+
+  const abrirModalTermo = () => {
+    const r = draft?.respostas || {};
+    setTermoForm({
+      nomeNotificado: r['Responsável'] || r['Nome do Responsável'] || '',
+      cpfNotificado: r['CPF do Responsável'] || r['CPF'] || '',
+      enderecoRua: draft?.endereco || '',
+      enderecoNumero: r['Número'] || '',
+      bairro: r['Bairro'] || '',
+      cidade: draft?.municipio || '',
+      complemento: r['Complemento'] || '',
+      telefone: r['Telefone de Contato'] || r['Telefone'] || '',
+    });
+    setShowTermoModal(true);
+  };
+
   if (!draft) {
     return (
       <View style={[s.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -373,6 +404,57 @@ export default function RelatorioScreen() {
     } finally {
       setGerando(false);
     }
+  };
+
+  const gerarTermoInterdicao = async () => {
+    if (!termoForm.nomeNotificado.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
+      return;
+    }
+    setGerando(true);
+    setShowTermoModal(false);
+    try {
+      const laudoData = {
+        id: draft.protocolo || draft.vistoriaId || '',
+        dataVistoria: draft.dataVistoria || new Date().toISOString(),
+        municipio: draft.municipio || '—',
+        agenteNome: draft.agenteNome || '—',
+        nivelRisco: draft.nivelRisco || 'r3',
+        pontuacaoTotal: draft.pontuacaoTotal || 0,
+        endereco: draft.endereco || '—',
+      };
+
+      const html = buildTermoInterdicaoHtml(laudoData, termoForm);
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const ok = await Sharing.isAvailableAsync();
+      if (ok) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Termo de Interdição', UTI: 'com.adobe.pdf' });
+      } else {
+        Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const handleCpfChange = (t: string) => {
+    const limpo = t.replace(/\D/g, '').substring(0, 11);
+    let formatted = limpo;
+    if (limpo.length > 9) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6, 9)}-${limpo.slice(9)}`;
+    else if (limpo.length > 6) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6)}`;
+    else if (limpo.length > 3) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3)}`;
+    setTermoForm(f => ({ ...f, cpfNotificado: formatted }));
+  };
+
+  const handlePhoneChange = (t: string) => {
+    const limpo = t.replace(/\D/g, '').substring(0, 11);
+    let formatted = limpo;
+    if (limpo.length > 6) formatted = `(${limpo.slice(0, 2)}) ${limpo.slice(2, 7)}-${limpo.slice(7)}`;
+    else if (limpo.length > 2) formatted = `(${limpo.slice(0, 2)}) ${limpo.slice(2)}`;
+    setTermoForm(f => ({ ...f, telefone: formatted }));
   };
 
   const imprimir = async () => {
@@ -427,14 +509,21 @@ export default function RelatorioScreen() {
             {/* Protocolo em partes */}
             {proto ? (
               <View style={[s.protoBox, { borderColor: theme.border, backgroundColor: theme.iconBackground }]}>
-                <Text style={[s.protoBoxLabel, { color: theme.textSecondary }]}>PROTOCOLO</Text>
-                <View style={s.protoPartes}>
+                <Text style={[s.protoBoxLabel, { color: theme.textSecondary }]}>PROTOCOLO OFICIAL</Text>
+                {/* Linha 1: TCS · CIDADE */}
+                <View style={[s.protoPartes, { marginBottom: 4 }]}>
                   <View style={[s.protoParte, { backgroundColor: cor }]}>
                     <Text style={s.protoParteText}>{proto.prefix}</Text>
                   </View>
                   <Text style={[s.protoDot, { color: theme.textSecondary }]}>·</Text>
+                  <View style={[s.protoParte, { backgroundColor: cor + '22' }]}>
+                    <Text style={[s.protoParteText, { color: cor }]}>{proto.cidade}</Text>
+                  </View>
+                </View>
+                {/* Linha 2: DATA · HASH */}
+                <View style={s.protoPartes}>
                   <View style={[s.protoParte, { backgroundColor: theme.cardBorder }]}>
-                    <Text style={[s.protoParteText, { color: theme.text }]}>{proto.date}</Text>
+                    <Text style={[s.protoParteText, { color: theme.textSecondary }]}>{proto.date}</Text>
                   </View>
                   <Text style={[s.protoDot, { color: theme.textSecondary }]}>·</Text>
                   <View style={[s.protoParte, { backgroundColor: theme.cardBorder }]}>
@@ -578,11 +667,20 @@ export default function RelatorioScreen() {
         {/* ── Exportação ────────────────────────────────────────────────── */}
         <Text style={[s.exportLabel, { color: theme.textSecondary }]}>EXPORTAR RELATÓRIO</Text>
 
+        {(draft.nivelRisco === 'r3' || draft.nivelRisco === 'r4') && (
+          <TouchableOpacity style={[s.exportBtn, { backgroundColor: '#EF4444' }]} onPress={abrirModalTermo} disabled={gerando}>
+            {gerando
+              ? <ActivityIndicator size="small" color="#FFF" />
+              : <Feather name="alert-octagon" size={20} color="#FFF" />}
+            <Text style={s.exportBtnText}>{gerando ? 'Gerando...' : 'Gerar Documento de Intervenção'}</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity style={[s.exportBtn, { backgroundColor: cor }]} onPress={exportarPDF} disabled={gerando}>
           {gerando
             ? <ActivityIndicator size="small" color="#FFF" />
             : <Feather name="download" size={20} color="#FFF" />}
-          <Text style={s.exportBtnText}>{gerando ? 'Gerando PDF...' : 'Baixar PDF'}</Text>
+          <Text style={s.exportBtnText}>{gerando ? 'Gerando PDF...' : 'Baixar PDF Vistoria'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[s.exportBtnOutline, { borderColor: theme.border }]} onPress={imprimir} disabled={gerando}>
@@ -596,6 +694,144 @@ export default function RelatorioScreen() {
         </TouchableOpacity>
 
       </ScrollView>
+
+      {/* ═══════════════ MODAL TERMO DE INTERDIÇÃO ═══════════════ */}
+      <Modal visible={showTermoModal} animationType="slide" transparent>
+        <View style={s.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={s.modalKav}
+          >
+            <View style={[s.modalCard, { backgroundColor: theme.surfaceHighlight }]}>
+              <View style={[s.modalHeader, { borderBottomColor: theme.border }]}>
+                <View style={s.modalHeaderIcon}>
+                  <Feather name="alert-triangle" size={20} color="#DC2626" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.modalTitle, { color: theme.text }]}>Termo de Interdição</Text>
+                  <Text style={[s.modalSubtitle, { color: theme.textSecondary }]}>
+                    Revise os dados do notificado
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowTermoModal(false)}>
+                  <Feather name="x" size={22} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
+                <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
+                <TextInput
+                  style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  placeholder="Nome completo"
+                  placeholderTextColor={theme.textSecondary}
+                  value={termoForm.nomeNotificado}
+                  onChangeText={t => setTermoForm(f => ({ ...f, nomeNotificado: t }))}
+                />
+
+                <Text style={[s.modalLabel, { color: theme.textSecondary }]}>CPF</Text>
+                <TextInput
+                  style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  placeholder="000.000.000-00"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="numeric"
+                  maxLength={14}
+                  value={termoForm.cpfNotificado}
+                  onChangeText={handleCpfChange}
+                />
+
+                <View style={s.modalRow}>
+                  <View style={{ flex: 3 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Rua</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Logradouro"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.enderecoRua}
+                      onChangeText={t => setTermoForm(f => ({ ...f, enderecoRua: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Nº</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Nº"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="numeric"
+                      value={termoForm.enderecoNumero}
+                      onChangeText={t => setTermoForm(f => ({ ...f, enderecoNumero: t }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={s.modalRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Complemento</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Apto, Bloco..."
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.complemento}
+                      onChangeText={t => setTermoForm(f => ({ ...f, complemento: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Bairro</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Bairro"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.bairro}
+                      onChangeText={t => setTermoForm(f => ({ ...f, bairro: t }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={s.modalRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Cidade</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Município"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.cidade}
+                      onChangeText={t => setTermoForm(f => ({ ...f, cidade: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Telefone</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="(00) 00000-0000"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                      value={termoForm.telefone}
+                      onChangeText={handlePhoneChange}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={[s.modalActions, { borderTopColor: theme.border }]}>
+                <TouchableOpacity
+                  style={[s.modalCancelBtn, { borderColor: theme.border }]}
+                  onPress={() => setShowTermoModal(false)}
+                >
+                  <Text style={[s.modalCancelText, { color: theme.textSecondary }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.modalGerarBtn}
+                  onPress={gerarTermoInterdicao}
+                >
+                  <Feather name="file-text" size={18} color="#FFF" />
+                  <Text style={s.modalGerarText}>Gerar Termo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -691,4 +927,49 @@ const s = StyleSheet.create({
   // Empty
   emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24, marginTop: 16, marginBottom: 28 },
   emptyBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5 },
+
+  // Modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalKav: { flex: 1, justifyContent: 'flex-end' },
+  modalCard: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  modalHeaderIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(220,38,38,0.1)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalSubtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  modalScroll: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 10 },
+  modalLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
+  modalInput: {
+    height: 52, borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 14, fontSize: 15, fontWeight: '500',
+  },
+  modalRow: { flexDirection: 'row' },
+  modalActions: {
+    flexDirection: 'row', gap: 12, padding: 20, paddingBottom: 36,
+    borderTopWidth: 1,
+  },
+  modalCancelBtn: {
+    flex: 1, height: 52, borderRadius: 14, borderWidth: 1.5,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 14, fontWeight: '700' },
+  modalGerarBtn: {
+    flex: 2, height: 52, borderRadius: 14,
+    backgroundColor: '#DC2626',
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+  },
+  modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
 });

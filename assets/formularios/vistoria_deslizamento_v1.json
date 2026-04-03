@@ -282,14 +282,14 @@
               "texto": "Esperado",
               "descricao": "Condições propícias a escorregamento mas sem evento confirmado",
               "imagemLocal": "nv3",
-              "pesoRisco": 2
+              "pesoRisco": 1
             },
             {
               "id": "ja_ocorrido",
               "texto": "Já ocorrido",
               "descricao": "Escorregamento próximo já registrado — risco de recorrência",
               "imagemLocal": "nv6",
-              "pesoRisco": 4
+              "pesoRisco": 3
             }
           ]
         },
@@ -311,14 +311,14 @@
               "texto": "Esperado",
               "descricao": "Sinais de instabilização — deslizamento esperado em eventos de chuva",
               "imagemLocal": "nv3",
-              "pesoRisco": 2
+              "pesoRisco": 1
             },
             {
               "id": "ja_ocorrido",
               "texto": "Já ocorrido",
               "descricao": "Deslizamento ou escorregamento já ocorreu no local",
               "imagemLocal": "nv6",
-              "pesoRisco": 4
+              "pesoRisco": 3
             }
           ]
         },

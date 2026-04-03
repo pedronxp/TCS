@@ -152,13 +152,6 @@
           "obrigatoria": false,
           "opcoes": [
             {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação identificada",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
-            {
               "id": "pontual",
               "texto": "Pontual",
               "descricao": "Área específica e isolada",
@@ -296,13 +289,6 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação identificada",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
             {
               "id": "pontual",
               "texto": "Pontual",
@@ -442,13 +428,6 @@
           "obrigatoria": false,
           "opcoes": [
             {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
-            {
               "id": "pontual",
               "texto": "Pontual",
               "descricao": "Ponto isolado na parede",
@@ -586,13 +565,6 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
             {
               "id": "pontual",
               "texto": "Pontual",
@@ -732,13 +704,6 @@
           "obrigatoria": false,
           "opcoes": [
             {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
-            {
               "id": "pontual",
               "texto": "Pontual",
               "descricao": "Ponto isolado",
@@ -876,13 +841,6 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
             {
               "id": "pontual",
               "texto": "Pontual",
@@ -1022,13 +980,6 @@
           "obrigatoria": false,
           "opcoes": [
             {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
-            {
               "id": "pontual",
               "texto": "Pontual",
               "descricao": "Trecho isolado do muro",
@@ -1166,13 +1117,6 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
             {
               "id": "pontual",
               "texto": "Pontual",
@@ -1312,13 +1256,6 @@
           "obrigatoria": false,
           "opcoes": [
             {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
-            {
               "id": "pontual",
               "texto": "Pontual",
               "descricao": "Ponto isolado",
@@ -1456,13 +1393,6 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem problema",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
             {
               "id": "pontual",
               "texto": "Pontual",
@@ -1602,13 +1532,6 @@
           "obrigatoria": false,
           "opcoes": [
             {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem problema",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
-            {
               "id": "pontual",
               "texto": "Pontual",
               "descricao": "Trecho isolado de tubulação",
@@ -1746,13 +1669,6 @@
           "tipo": "cards",
           "obrigatoria": false,
           "opcoes": [
-            {
-              "id": "nenhuma",
-              "texto": "Nenhuma",
-              "descricao": "Sem manifestação",
-              "imagemLocal": "nv0",
-              "pesoRisco": 0
-            },
             {
               "id": "pontual",
               "texto": "Pontual",
