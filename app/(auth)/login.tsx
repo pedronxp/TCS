@@ -157,9 +157,7 @@ export default function LoginScreen() {
               <Text style={[styles.registerText, { color: theme.primary }]}>Validar Token de Acesso</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.registerButton} onPress={() => router.push('/test-ui')}>
-              <Text style={[styles.registerText, { color: theme.success }]}>🔧 Acessar UI Sandbox</Text>
-            </TouchableOpacity>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
