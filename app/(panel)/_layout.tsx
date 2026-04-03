@@ -14,7 +14,10 @@ import { BottomNavBar } from '../../components/BottomNavBar';
 export default function PanelLayout() {
   const { isOnlineReal } = useConnectivity();
 
-  const prevConnected = useRef(true);
+  // Inicializar como false para garantir sync imediato no mount quando já conectado.
+  // Se isOnlineReal=true na primeira renderização, dispara syncPendentes() imediatamente.
+  // O guard _syncInProgress em SyncService.ts garante idempotência se AppState também disparar.
+  const prevConnected = useRef(false);
 
   useEffect(() => {
     // Registrar background task e listener de AppState ao entrar no painel
@@ -68,6 +71,7 @@ export default function PanelLayout() {
       <Stack.Screen name="master/index" />
       <Stack.Screen name="master/municipios" />
       <Stack.Screen name="master/logs" />
+      <Stack.Screen name="modulos" />
     </Stack>
     <BottomNavBar />
     </View>
