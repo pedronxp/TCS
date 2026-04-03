@@ -30,6 +30,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 07: Formulários + Classificação de Risco** - Refazer campos do formulário alinhados ao R1/R2/R3/R4 com persistência SQLite (completed 2026-04-02)
 - [ ] **Phase 08: Sincronização Offline** - Garantir upload de dados offline ao Supabase sem duplicatas
 - [ ] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin
+- [ ] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4
 
 ### Phase Details
 
@@ -78,6 +79,23 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 **Plans**: TBD
 **UI hint**: yes
 
+#### Phase 10: Formulário Estrutural Inteligente
+**Goal**: Agente preenche vistoria estrutural em campo com formulário enxuto (7-35 perguntas com skip automático), imagens PNG contextuais por resposta e classificação R1/R4 automática fiel à planilha
+**Depends on**: Phase 07
+**Requirements**: FORM-04, FORM-05
+**Success Criteria** (what must be TRUE):
+  1. Agente conclui uma vistoria estrutural completa respondendo no máximo 7 perguntas quando todos os elementos estão em bom estado (vs 60 do formulário atual)
+  2. Cada opção de resposta exibe imagem PNG criada especificamente para aquele tipo de dano (fissura capilar, trinca, rachadura, extensão) — sem barras de cor genéricas
+  3. Se o elemento está em bom estado, as perguntas de Gravidade/Extensão/Ativa/Foto são puladas automaticamente
+  4. A pontuação calculada segue a fórmula da planilha original: (Estado + Gravidade + Extensão + Ativa) × Peso
+  5. Formulário funciona 100% offline (JSON built-in, imagens PNG locais, sem dependência de rede)
+**Plans**: 3 planos
+Plans:
+- [ ] 10-01-PLAN.md — Lógica condicional skipSe no wizard + progresso por elemento
+- [ ] 10-02-PLAN.md — 11 imagens PNG contextuais (est_*, grav_*, ext_*) + FORM_IMAGES
+- [ ] 10-03-PLAN.md — risco_estrutural_v2.json + integração na seleção e wizard
+**UI hint**: yes
+
 ### Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -86,3 +104,4 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 | 07. Formulários + Classificação de Risco | 1/3 | Complete    | 2026-04-02 |
 | 08. Sincronização Offline | 0/? | Not started | - |
 | 09. UX + Correções Finais | 0/? | Not started | - |
+| 10. Formulário Estrutural Inteligente | 0/3 | Planned | - |
