@@ -33,7 +33,7 @@
 ### UX
 
 - [x] **UX-01**: Todas as mensagens de erro exibidas ao usuário estão em português (pt-br)
-- [ ] **UX-02**: Admin consegue visualizar a aba de logs com os registros corretos exibidos
+- [x] **UX-02**: Admin consegue visualizar a aba de logs com os registros corretos exibidos
 
 ---
 
@@ -73,7 +73,7 @@
 | FORM-05 | Phase 10 | pending |
 | SYNC-01 | Phase 08 | Complete |
 | UX-01 | Phase 09 | Complete |
-| UX-02 | Phase 09 | pending |
+| UX-02 | Phase 09 | Complete |
 
 ---
 
