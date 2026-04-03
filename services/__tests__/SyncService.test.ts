@@ -4,6 +4,11 @@
  */
 
 // Mock dependências externas
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  setItem: jest.fn().mockResolvedValue(undefined),
+  removeItem: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('expo-task-manager', () => ({
   defineTask: jest.fn(),
 }));
