@@ -92,8 +92,8 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 **Plans**: 3 planos
 Plans:
 - [x] 10-01-PLAN.md — Lógica condicional skipSe no wizard + progresso por elemento
-- [ ] 10-02-PLAN.md — 11 imagens PNG contextuais (est_*, grav_*, ext_*) + FORM_IMAGES
-- [ ] 10-03-PLAN.md — risco_estrutural_v2.json + integração na seleção e wizard
+- [x] 10-02-PLAN.md — 11 imagens PNG contextuais (est_*, grav_*, ext_*) + FORM_IMAGES
+- [x] 10-03-PLAN.md — risco_estrutural_v2.json + integração na seleção e wizard
 **UI hint**: yes
 
 ### Progress
@@ -104,4 +104,4 @@ Plans:
 | 07. Formulários + Classificação de Risco | 1/3 | Complete    | 2026-04-02 |
 | 08. Sincronização Offline | 0/? | Not started | - |
 | 09. UX + Correções Finais | 0/? | Not started | - |
-| 10. Formulário Estrutural Inteligente | 1/3 | In Progress|  |
+| 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
