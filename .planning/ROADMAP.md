@@ -30,7 +30,8 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 07: Formulários + Classificação de Risco** - Refazer campos do formulário alinhados ao R1/R2/R3/R4 com persistência SQLite (completed 2026-04-02)
 - [x] **Phase 08: Sincronização Offline** - Garantir upload de dados offline ao Supabase sem duplicatas (completed 2026-04-03)
 - [x] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin (completed 2026-04-03)
-- [ ] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4
+- [x] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4 (completed 2026-04-02)
+- [ ] **Phase 11: Mapa Nativo** - Substituir WebView+Leaflet por react-native-maps (Google Maps / Apple Maps)
 
 ### Phase Details
 
@@ -102,6 +103,18 @@ Plans:
 - [x] 10-03-PLAN.md — risco_estrutural_v2.json + integração na seleção e wizard
 **UI hint**: yes
 
+#### Phase 11: Mapa Nativo
+**Goal**: Agente consegue visualizar o mapa funcional sem tela branca no Android e iOS
+**Depends on**: Phase 06
+**Requirements**: MAPA-01, MAPA-02
+**Success Criteria** (what must be TRUE):
+  1. Agente abre a tela de mapa e vê tiles do Google Maps renderizados sem tela branca no Android
+  2. Marcadores de vistoria aparecem no mapa com coordenadas corretas e cores por nível de risco
+  3. Filtros por risco e período, heatmap, popup de marcador e modal de estilo continuam funcionando
+**Plans**: 1 plano
+Plans:
+- [ ] 11-01-PLAN.md — Substituir ClusteredMapView por MapView + remover dependências leaflet/map-clustering
+
 ### Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -111,3 +124,4 @@ Plans:
 | 08. Sincronização Offline | 2/2 | Complete    | 2026-04-03 |
 | 09. UX + Correções Finais | 2/2 | Complete   | 2026-04-03 |
 | 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
+| 11. Mapa Nativo | 0/1 | Not started | - |
