@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: — Correções Críticas + Funcionalidades Core
-status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-04-03T10:37:46.233Z"
+status: verifying
+stopped_at: Completado 09-01-PLAN.md — UX-01 tradução de erros
+last_updated: "2026-04-03T10:59:05.717Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
+  completed_phases: 5
+  total_plans: 15
+  completed_plans: 15
 ---
 
 # State — Defesa Civil Expo
@@ -19,7 +19,7 @@ progress:
 Phase: 10 (Formulário Estrutural Inteligente) — EXECUTING
 Plan: 3 of 3
 **Phase 01:** Correções de Build e Dependências
-**Status:** Ready to execute
+**Status:** Phase complete — ready for verification
 
 ## Phase Progress
 
@@ -55,6 +55,7 @@ Plan: 3 of 3
 - [Phase 07-formularios-classificacao-risco]: profile.uid substitui getSession() em finalizar() — nao depende de rede, disponivel em memoria
 - [Phase 10-formul-rio-estrutural-inteligente]: calcularNivelRisco recebe visiveis como argumento explicito para evitar closure inconsistente no useMemo
 - [Phase 10-formul-rio-estrutural-inteligente]: elementoAtual usa Set para deduplicar faseIds na ordem de aparicao em perguntasVisiveis
+- [Phase 09-ux-correcoes-finais]: includes-based matching em traduzirErroAuth para resiliência a variações de wording do Supabase
 
 ## Performance Metrics
 
@@ -71,8 +72,9 @@ Plan: 3 of 3
 | Phase 07-formularios-classificacao-risco P02 | 125 | 2 tasks | 1 files |
 | Phase 07-formularios-classificacao-risco P03 | 420 | 3 tasks | 3 files |
 | Phase 10-formul-rio-estrutural-inteligente P01 | 360 | 2 tasks | 1 files |
+| Phase 09-ux-correcoes-finais P01 | 15 | 2 tasks | 7 files |
 
 ## Last Session
 
-- **Stopped at:** Completed 08-02-PLAN.md
+- **Stopped at:** Completado 09-01-PLAN.md — UX-01 tradução de erros
 - **Timestamp:** 2026-03-29T23:15:00Z
