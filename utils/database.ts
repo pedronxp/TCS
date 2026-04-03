@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -119,6 +119,38 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       `);
       database.runSync(`
         CREATE INDEX IF NOT EXISTS idx_formularios_municipio ON formularios_cache (municipio)
+      `);
+    }
+
+    if (currentVersion < 6) {
+      // Tabela de agendamentos para vistorias agendadas
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS agendamentos (
+          id TEXT PRIMARY KEY,
+          titulo TEXT NOT NULL,
+          endereco TEXT,
+          municipio TEXT NOT NULL,
+          data_agendada TEXT NOT NULL,
+          criado_por_uid TEXT NOT NULL,
+          criado_por_nome TEXT,
+          agente_uid TEXT,
+          agente_nome TEXT,
+          lat REAL,
+          lng REAL,
+          observacoes TEXT,
+          status TEXT DEFAULT 'pendente',
+          criado_em TEXT,
+          sincronizado INTEGER DEFAULT 0
+        )
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_agendamentos_municipio ON agendamentos (municipio)
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_agendamentos_agente ON agendamentos (agente_uid)
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_agendamentos_status ON agendamentos (status)
       `);
     }
 
@@ -324,4 +356,103 @@ export function getFormularioCacheById(id: string): FormularioCache | null {
     `SELECT * FROM formularios_cache WHERE id = ?`,
     [id]
   ) ?? null;
+}
+
+// ─── Agendamentos ───────────────────────────────────────────────────────────
+
+import type { AgendamentoLocal } from '../types/agendamento';
+
+export function insertAgendamento(a: AgendamentoLocal): void {
+  const database = getDb();
+  database.runSync(
+    `INSERT OR REPLACE INTO agendamentos (
+      id, titulo, endereco, municipio, data_agendada,
+      criado_por_uid, criado_por_nome, agente_uid, agente_nome,
+      lat, lng, observacoes, status, criado_em, sincronizado
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      a.id,
+      a.titulo,
+      a.endereco ?? null,
+      a.municipio,
+      a.data_agendada,
+      a.criado_por_uid,
+      a.criado_por_nome ?? null,
+      a.agente_uid ?? null,
+      a.agente_nome ?? null,
+      a.lat ?? null,
+      a.lng ?? null,
+      a.observacoes ?? null,
+      a.status,
+      a.criado_em ?? new Date().toISOString(),
+      a.sincronizado ?? 0,
+    ]
+  );
+}
+
+export function getAgendamentosByMunicipio(municipio: string): AgendamentoLocal[] {
+  const database = getDb();
+  return database.getAllSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE municipio = ? ORDER BY data_agendada ASC`,
+    [municipio]
+  );
+}
+
+export function getAgendamentosByAgente(agenteUid: string): AgendamentoLocal[] {
+  const database = getDb();
+  return database.getAllSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE agente_uid = ? OR (agente_uid IS NULL AND municipio = (
+      SELECT municipio FROM agendamentos WHERE agente_uid = ? LIMIT 1
+    )) ORDER BY data_agendada ASC`,
+    [agenteUid, agenteUid]
+  );
+}
+
+export function getAgendamentoById(id: string): AgendamentoLocal | null {
+  const database = getDb();
+  return database.getFirstSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE id = ?`,
+    [id]
+  ) ?? null;
+}
+
+export function updateAgendamentoStatus(id: string, status: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE agendamentos SET status = ?, sincronizado = 0 WHERE id = ?`,
+    [status, id]
+  );
+}
+
+export function countAgendamentosPendentes(municipio: string): number {
+  const database = getDb();
+  const row = database.getFirstSync<{ total: number }>(
+    `SELECT COUNT(*) as total FROM agendamentos WHERE municipio = ? AND status = 'pendente'`,
+    [municipio]
+  );
+  return row?.total ?? 0;
+}
+
+export function countAgendamentosPendentesAgente(agenteUid: string): number {
+  const database = getDb();
+  const row = database.getFirstSync<{ total: number }>(
+    `SELECT COUNT(*) as total FROM agendamentos WHERE agente_uid = ? AND status = 'pendente'`,
+    [agenteUid]
+  );
+  return row?.total ?? 0;
+}
+
+export function getAgendamentosNaoSincronizados(): AgendamentoLocal[] {
+  const database = getDb();
+  return database.getAllSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE sincronizado = 0`
+  );
+}
+
+export function markAgendamentoSincronizado(id: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE agendamentos SET sincronizado = 1 WHERE id = ?`,
+    [id]
+  );
 }
