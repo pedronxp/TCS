@@ -3,23 +3,23 @@ gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: — Correções Críticas + Funcionalidades Core
 status: executing
-stopped_at: Completado 09-01-PLAN.md — UX-01 tradução de erros
-last_updated: "2026-04-03T16:21:49.605Z"
+stopped_at: Completado 13-01-PLAN.md — Deslizamento SVG + Thresholds
+last_updated: "2026-04-03T00:30:00Z"
 progress:
-  total_phases: 7
-  completed_phases: 5
-  total_plans: 17
-  completed_plans: 15
+  total_phases: 8
+  completed_phases: 7
+  total_plans: 18
+  completed_plans: 17
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 12 (formulario-completo-10-elementos) — EXECUTING
-Plan: 1 of 1
-**Phase 01:** Correções de Build e Dependências
-**Status:** Executing Phase 12
+Phase: 13 (deslizamento-svg-ilustracoes) — COMPLETE
+Plan: 1 of 1 (COMPLETE)
+**Phase 13:** Deslizamento SVG + Thresholds
+**Status:** Phase 13 concluída
 
 ## Phase Progress
 
@@ -56,6 +56,9 @@ Plan: 1 of 1
 - [Phase 10-formul-rio-estrutural-inteligente]: calcularNivelRisco recebe visiveis como argumento explicito para evitar closure inconsistente no useMemo
 - [Phase 10-formul-rio-estrutural-inteligente]: elementoAtual usa Set para deduplicar faseIds na ordem de aparicao em perguntasVisiveis
 - [Phase 09-ux-correcoes-finais]: includes-based matching em traduzirErroAuth para resiliência a variações de wording do Supabase
+- [Phase 13-deslizamento-svg-ilustracoes]: svgKey coexiste com imagemLocal — PNG mantido como fallback para retrocompatibilidade com laudos/relatórios
+- [Phase 13-deslizamento-svg-ilustracoes]: DESL_SVGS como Record<string,string> em arquivo separado para isolar catálogo SVG específico do formulário deslizamento
+- [Phase 13-deslizamento-svg-ilustracoes]: Thresholds corrigidos R1≤1/R2≤3/R3≤5/R4>5 conforme planilha técnica (anteriores 2/4/9 estavam incorretos)
 
 ## Performance Metrics
 
@@ -73,8 +76,9 @@ Plan: 1 of 1
 | Phase 07-formularios-classificacao-risco P03 | 420 | 3 tasks | 3 files |
 | Phase 10-formul-rio-estrutural-inteligente P01 | 360 | 2 tasks | 1 files |
 | Phase 09-ux-correcoes-finais P01 | 15 | 2 tasks | 7 files |
+| Phase 13-deslizamento-svg-ilustracoes P01 | 1500 | 4 tasks | 4 files |
 
 ## Last Session
 
-- **Stopped at:** Completado 09-01-PLAN.md — UX-01 tradução de erros
-- **Timestamp:** 2026-03-29T23:15:00Z
+- **Stopped at:** Completado 13-01-PLAN.md — Deslizamento SVG + Thresholds
+- **Timestamp:** 2026-04-03T00:30:00Z
