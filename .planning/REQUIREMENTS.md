@@ -28,7 +28,7 @@
 
 ### SYNC
 
-- [ ] **SYNC-01**: Dados de vistoria preenchidos offline sobem para o Supabase na próxima conexão sem duplicatas ou perda de dados
+- [x] **SYNC-01**: Dados de vistoria preenchidos offline sobem para o Supabase na próxima conexão sem duplicatas ou perda de dados
 
 ### UX
 
@@ -71,7 +71,7 @@
 | FORM-03 | Phase 07 | Complete |
 | FORM-04 | Phase 10 | Complete |
 | FORM-05 | Phase 10 | pending |
-| SYNC-01 | Phase 08 | pending |
+| SYNC-01 | Phase 08 | Complete |
 | UX-01 | Phase 09 | pending |
 | UX-02 | Phase 09 | pending |
 

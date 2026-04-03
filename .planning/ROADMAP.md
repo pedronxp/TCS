@@ -68,8 +68,8 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
   3. Se a sincronização falhar (rede instável), os dados permanecem no SQLite e são retentados sem intervenção do agente
 **Plans**: 2 planos
 Plans:
-- [ ] 08-01-PLAN.md — Auditar payload Supabase + corrigir mount sync gap em _layout.tsx
-- [ ] 08-02-PLAN.md — Expandir suite de testes: deduplicação, foto offline, backoff, esgotado
+- [x] 08-01-PLAN.md — Auditar payload Supabase + corrigir mount sync gap em _layout.tsx
+- [x] 08-02-PLAN.md — Expandir suite de testes: deduplicação, foto offline, backoff, esgotado
 
 #### Phase 09: UX + Correções Finais
 **Goal**: Todas as mensagens de erro estão em português e admin consegue visualizar logs corretamente
