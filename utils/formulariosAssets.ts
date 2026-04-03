@@ -10,6 +10,7 @@ export interface OpcaoModel {
   texto: string;
   descricao?: string;
   imagemLocal?: string | null;
+  svgKey?: string | null;
   pesoRisco: number;
 }
 
@@ -52,6 +53,7 @@ export function flattenPerguntas(json: any): PerguntaModel[] {
           texto: o.texto,
           descricao: o.descricao,
           imagemLocal: o.imagemKey || o.imagemLocal || null,
+          svgKey: o.svgKey || null,
           pesoRisco: o.pesoRisco || 0,
         })),
         skipSe: p.skipSe || null,
