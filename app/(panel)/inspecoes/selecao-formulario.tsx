@@ -12,6 +12,15 @@ import { Card, Badge, EmptyState, LoadingState, ErrorState } from '../../../comp
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
   {
+    id: 'risco_estrutural_v2',
+    titulo: 'Risco Estrutural — Campo (v2)',
+    descricao: '7 elementos essenciais · Skip automático · Formulário de campo',
+    asset: require('../../../assets/formularios/risco_estrutural_v2.json'),
+    icon: 'home' as const,
+    isBuiltin: true,
+    isNew: true,
+  },
+  {
     id: 'risco_estrutural_v1',
     titulo: 'Avaliação de Risco Estrutural',
     descricao: '12 elementos • Pontuação ponderada por peso estrutural',
@@ -38,6 +47,7 @@ interface FormularioItem {
   asset?: any;
   icon?: any;
   isBuiltin: boolean;
+  isNew?: boolean;
 }
 
 const getFormIcon = (item: FormularioItem): string => {
@@ -199,7 +209,10 @@ export default function SelecaoFormularioScreen() {
                     <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
                     <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
-                      <Badge variant="success">Built-in</Badge>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <Badge label="Built-in" variant="success" />
+                        {f.isNew && <Badge label="Novo" variant="info" />}
+                      </View>
                       {sel
                         ? <Feather name="check-circle" size={16} color={theme.primary} />
                         : <Feather name="chevron-right" size={16} color={theme.muted} />
@@ -244,7 +257,7 @@ export default function SelecaoFormularioScreen() {
                         <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
                         <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao || ''}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
-                          <Badge variant="warning">Personalizado</Badge>
+                          <Badge label="Personalizado" variant="warning" />
                           {sel
                             ? <Feather name="check-circle" size={16} color={theme.primary} />
                             : <Feather name="chevron-right" size={16} color={theme.muted} />

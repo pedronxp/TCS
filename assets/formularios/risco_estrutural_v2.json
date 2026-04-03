@@ -1,0 +1,1149 @@
+{
+  "id": "risco_estrutural_v2",
+  "titulo": "Risco Estrutural - Campo",
+  "versao": 1,
+  "ativo": true,
+  "tipoCalculo": "ponderada_max_elemento",
+  "descricao": "Formulario de campo enxuto - 7 elementos criticos. Skip automatico quando Estado=Bom. Formula: (Estado+Gravidade+Extensao+Ativa) x Peso.",
+  "classificacao": {
+    "limitesPorItem": [
+      {
+        "max": 3,
+        "nivel": "muito_baixo",
+        "label": "Muito Baixo"
+      },
+      {
+        "max": 6,
+        "nivel": "baixo",
+        "label": "Baixo"
+      },
+      {
+        "max": 10,
+        "nivel": "medio",
+        "label": "Médio"
+      },
+      {
+        "max": 14,
+        "nivel": "alto",
+        "label": "Alto"
+      },
+      {
+        "max": 9999,
+        "nivel": "muito_alto",
+        "label": "Muito Alto"
+      }
+    ],
+    "criterioGlobal": {
+      "r1": "max_elemento < 6 E media < 6",
+      "r2": "max_elemento entre 6 e 10.9 OU media >= 6",
+      "r3": "max_elemento entre 11 e 14.9",
+      "r4": "max_elemento >= 15 OU 2+ elementos em Alto/Muito Alto"
+    },
+    "limites": [
+      {
+        "max": 5,
+        "nivel": "baixo",
+        "label": "R1 — BAIXO — Manutenção preventiva e acompanhamento",
+        "cor": "verde"
+      },
+      {
+        "max": 10,
+        "nivel": "medio",
+        "label": "R2 — MÉDIO — Vistoria técnica necessária",
+        "cor": "amarelo"
+      },
+      {
+        "max": 14,
+        "nivel": "alto",
+        "label": "R3 — ALTO — Laudo de engenheiro civil obrigatório",
+        "cor": "laranja"
+      },
+      {
+        "max": 9999,
+        "nivel": "iminente",
+        "label": "R4 — MUITO ALTO — Recomendar interdição imediata",
+        "cor": "vermelho"
+      }
+    ]
+  },
+  "fases": [
+    {
+      "id": "fase_fund",
+      "titulo": "1. Fundacao",
+      "instrucao": "Avalie sapatas, estacas, blocos de coroamento e baldrames. Peso 1.5.",
+      "peso": 1.5,
+      "perguntas": [
+        {
+          "id": "fund_estado",
+          "texto": "Estado de conservacao",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Sem recalques, trincas ou umidade ascendente visiveis",
+              "imagemLocal": "est_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Pequena fissura capilar em baldrame, sem deslocamento",
+              "imagemLocal": "est_regular",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Trinca diagonal em pilar de fundacao ou recalque visivel",
+              "imagemLocal": "est_ruim",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Pessimo",
+              "descricao": "Recalque diferencial, pilar inclinado ou vazio sob sapata",
+              "imagemLocal": "est_pessimo",
+              "pesoRisco": 6
+            }
+          ]
+        },
+        {
+          "id": "fund_gravidade",
+          "texto": "Gravidade da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "fund_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "grav_nenhuma",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial, fissura capilar",
+              "imagemLocal": "grav_leve",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca com potencial de progressao",
+              "imagemLocal": "grav_moderada",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou dano estrutural avancado",
+              "imagemLocal": "grav_severa",
+              "pesoRisco": 5
+            }
+          ]
+        },
+        {
+          "id": "fund_extensao",
+          "texto": "Extensao da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "fund_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Area isolada (menos de 10%)",
+              "imagemLocal": "ext_pontual",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Secao do elemento (10-50%)",
+              "imagemLocal": "ext_setorial",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Maior parte (mais de 50%)",
+              "imagemLocal": "ext_generalizada",
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "fund_ativa",
+          "texto": "A manifestacao esta ativa?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "fund_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Nao - Estabilizada",
+              "descricao": "Sem evolucao recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim - Em progressao",
+              "descricao": "Manifestacao em evolucao ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "fund_foto",
+          "texto": "Foto do elemento (opcional)",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "fund_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "fase_est",
+      "titulo": "2. Estrutura (Pilares e Vigas)",
+      "instrucao": "Avalie pilares, vigas e lajes. Peso 1.5.",
+      "peso": 1.5,
+      "perguntas": [
+        {
+          "id": "est_estado",
+          "texto": "Estado de conservacao",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Sem fissuracoes, sem deformacoes visiveis em pilares ou vigas",
+              "imagemLocal": "est_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissura capilar em viga ou pilar sem armadura exposta",
+              "imagemLocal": "est_regular",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Armadura exposta, laje com deflexao visivel ou fissura inclinada em pilar",
+              "imagemLocal": "est_ruim",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Pessimo",
+              "descricao": "Pilar com reducao de secao, viga com flecha excessiva ou colapso parcial",
+              "imagemLocal": "est_pessimo",
+              "pesoRisco": 6
+            }
+          ]
+        },
+        {
+          "id": "est_gravidade",
+          "texto": "Gravidade da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "est_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "grav_nenhuma",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial, fissura capilar",
+              "imagemLocal": "grav_leve",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca com potencial de progressao",
+              "imagemLocal": "grav_moderada",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou dano estrutural avancado",
+              "imagemLocal": "grav_severa",
+              "pesoRisco": 5
+            }
+          ]
+        },
+        {
+          "id": "est_extensao",
+          "texto": "Extensao da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "est_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Area isolada (menos de 10%)",
+              "imagemLocal": "ext_pontual",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Secao do elemento (10-50%)",
+              "imagemLocal": "ext_setorial",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Maior parte (mais de 50%)",
+              "imagemLocal": "ext_generalizada",
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "est_ativa",
+          "texto": "A manifestacao esta ativa?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "est_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Nao - Estabilizada",
+              "descricao": "Sem evolucao recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim - Em progressao",
+              "descricao": "Manifestacao em evolucao ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "est_foto",
+          "texto": "Foto do elemento (opcional)",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "est_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "fase_muro",
+      "titulo": "3. Muro de Arrimo",
+      "instrucao": "Avalie muros de contencao. Peso 1.4.",
+      "peso": 1.4,
+      "perguntas": [
+        {
+          "id": "muro_estado",
+          "texto": "Estado de conservacao",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Muro vertical, sem embarrigamento, sem fissuras, drenagem funcionando",
+              "imagemLocal": "est_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissura vertical isolada ou pequeno embarrigamento (menos de 5cm)",
+              "imagemLocal": "est_regular",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Embarrigamento visivel (5 a 15cm), fissuras horizontais multiplas",
+              "imagemLocal": "est_ruim",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Pessimo",
+              "descricao": "Muro inclinado criticamente, fissuras passantes ou inicio de tombamento",
+              "imagemLocal": "est_pessimo",
+              "pesoRisco": 6
+            }
+          ]
+        },
+        {
+          "id": "muro_gravidade",
+          "texto": "Gravidade da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "muro_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "grav_nenhuma",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial, fissura capilar",
+              "imagemLocal": "grav_leve",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca com potencial de progressao",
+              "imagemLocal": "grav_moderada",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou dano estrutural avancado",
+              "imagemLocal": "grav_severa",
+              "pesoRisco": 5
+            }
+          ]
+        },
+        {
+          "id": "muro_extensao",
+          "texto": "Extensao da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "muro_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Area isolada (menos de 10%)",
+              "imagemLocal": "ext_pontual",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Secao do elemento (10-50%)",
+              "imagemLocal": "ext_setorial",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Maior parte (mais de 50%)",
+              "imagemLocal": "ext_generalizada",
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "muro_ativa",
+          "texto": "A manifestacao esta ativa?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "muro_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Nao - Estabilizada",
+              "descricao": "Sem evolucao recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim - Em progressao",
+              "descricao": "Manifestacao em evolucao ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "muro_foto",
+          "texto": "Foto do elemento (opcional)",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "muro_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "fase_tal",
+      "titulo": "4. Talude",
+      "instrucao": "Avalie taludes e encostas proximos. Peso 1.4.",
+      "peso": 1.4,
+      "perguntas": [
+        {
+          "id": "tal_estado",
+          "texto": "Estado de conservacao",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Talude estavel, vegetado, sem sinais de movimentacao ou erosao",
+              "imagemLocal": "est_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Pequena erosao superficial ou ravinamento isolado",
+              "imagemLocal": "est_regular",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Cicatriz de deslizamento recente, arvores inclinadas ou surgencia de agua",
+              "imagemLocal": "est_ruim",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Pessimo",
+              "descricao": "Massa em movimento ativo, bloco desprendido ou fissura na crista",
+              "imagemLocal": "est_pessimo",
+              "pesoRisco": 6
+            }
+          ]
+        },
+        {
+          "id": "tal_gravidade",
+          "texto": "Gravidade da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "tal_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "grav_nenhuma",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial, fissura capilar",
+              "imagemLocal": "grav_leve",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca com potencial de progressao",
+              "imagemLocal": "grav_moderada",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou dano estrutural avancado",
+              "imagemLocal": "grav_severa",
+              "pesoRisco": 5
+            }
+          ]
+        },
+        {
+          "id": "tal_extensao",
+          "texto": "Extensao da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "tal_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Area isolada (menos de 10%)",
+              "imagemLocal": "ext_pontual",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Secao do elemento (10-50%)",
+              "imagemLocal": "ext_setorial",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Maior parte (mais de 50%)",
+              "imagemLocal": "ext_generalizada",
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "tal_ativa",
+          "texto": "A manifestacao esta ativa?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "tal_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Nao - Estabilizada",
+              "descricao": "Sem evolucao recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim - Em progressao",
+              "descricao": "Manifestacao em evolucao ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "tal_foto",
+          "texto": "Foto do elemento (opcional)",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "tal_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "fase_dren",
+      "titulo": "5. Drenagem",
+      "instrucao": "Avalie calhas, canaletas e escoamento perimetral. Peso 1.1.",
+      "peso": 1.1,
+      "perguntas": [
+        {
+          "id": "dren_estado",
+          "texto": "Estado de conservacao",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Escoamento funcional, sem acumulo de agua ou entupimento",
+              "imagemLocal": "est_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Calha parcialmente entupida ou erosao leve no perimetro",
+              "imagemLocal": "est_regular",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Acumulo de agua junto a fundacao ou canaleta quebrada",
+              "imagemLocal": "est_ruim",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Pessimo",
+              "descricao": "Inundacao recorrente na base da edificacao ou erosao grave",
+              "imagemLocal": "est_pessimo",
+              "pesoRisco": 6
+            }
+          ]
+        },
+        {
+          "id": "dren_gravidade",
+          "texto": "Gravidade da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "dren_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "grav_nenhuma",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial, fissura capilar",
+              "imagemLocal": "grav_leve",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca com potencial de progressao",
+              "imagemLocal": "grav_moderada",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou dano estrutural avancado",
+              "imagemLocal": "grav_severa",
+              "pesoRisco": 5
+            }
+          ]
+        },
+        {
+          "id": "dren_extensao",
+          "texto": "Extensao da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "dren_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Area isolada (menos de 10%)",
+              "imagemLocal": "ext_pontual",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Secao do elemento (10-50%)",
+              "imagemLocal": "ext_setorial",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Maior parte (mais de 50%)",
+              "imagemLocal": "ext_generalizada",
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "dren_ativa",
+          "texto": "A manifestacao esta ativa?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "dren_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Nao - Estabilizada",
+              "descricao": "Sem evolucao recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim - Em progressao",
+              "descricao": "Manifestacao em evolucao ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "dren_foto",
+          "texto": "Foto do elemento (opcional)",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "dren_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "fase_alv",
+      "titulo": "6. Alvenaria",
+      "instrucao": "Avalie paredes de alvenaria e vedacao. Peso 1.0.",
+      "peso": 1.0,
+      "perguntas": [
+        {
+          "id": "alv_estado",
+          "texto": "Estado de conservacao",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Paredes sem fissuras, reboco integro, sem umidade aparente",
+              "imagemLocal": "est_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Fissura capilar isolada em parede (menos de 0.2mm)",
+              "imagemLocal": "est_regular",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Fissura diagonal em 45 graus (sinal de recalque) ou fissura horizontal",
+              "imagemLocal": "est_ruim",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Pessimo",
+              "descricao": "Fissura passante, parede desaprumada ou bloco desprendido",
+              "imagemLocal": "est_pessimo",
+              "pesoRisco": 6
+            }
+          ]
+        },
+        {
+          "id": "alv_gravidade",
+          "texto": "Gravidade da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "alv_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "grav_nenhuma",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial, fissura capilar",
+              "imagemLocal": "grav_leve",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca com potencial de progressao",
+              "imagemLocal": "grav_moderada",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou dano estrutural avancado",
+              "imagemLocal": "grav_severa",
+              "pesoRisco": 5
+            }
+          ]
+        },
+        {
+          "id": "alv_extensao",
+          "texto": "Extensao da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "alv_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Area isolada (menos de 10%)",
+              "imagemLocal": "ext_pontual",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Secao do elemento (10-50%)",
+              "imagemLocal": "ext_setorial",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Maior parte (mais de 50%)",
+              "imagemLocal": "ext_generalizada",
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "alv_ativa",
+          "texto": "A manifestacao esta ativa?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "alv_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Nao - Estabilizada",
+              "descricao": "Sem evolucao recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim - Em progressao",
+              "descricao": "Manifestacao em evolucao ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "alv_foto",
+          "texto": "Foto do elemento (opcional)",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "alv_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "fase_cob",
+      "titulo": "7. Cobertura",
+      "instrucao": "Avalie telhado, telhas e estrutura. Peso 0.9.",
+      "peso": 0.9,
+      "perguntas": [
+        {
+          "id": "cob_estado",
+          "texto": "Estado de conservacao",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "bom",
+              "texto": "Bom",
+              "descricao": "Telhado integro, sem telhas quebradas, rufos vedados e sem goteiras",
+              "imagemLocal": "est_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "regular",
+              "texto": "Regular",
+              "descricao": "Uma ou duas telhas quebradas ou deslocadas, sem infiltracao ativa",
+              "imagemLocal": "est_regular",
+              "pesoRisco": 2
+            },
+            {
+              "id": "ruim",
+              "texto": "Ruim",
+              "descricao": "Varios pontos de infiltracao ativa ou madeiramento apodrecido",
+              "imagemLocal": "est_ruim",
+              "pesoRisco": 4
+            },
+            {
+              "id": "pessimo",
+              "texto": "Pessimo",
+              "descricao": "Colapso parcial do telhado ou estrutura metalica com corrosao critica",
+              "imagemLocal": "est_pessimo",
+              "pesoRisco": 6
+            }
+          ]
+        },
+        {
+          "id": "cob_gravidade",
+          "texto": "Gravidade da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "cob_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nenhuma",
+              "texto": "Nenhuma",
+              "descricao": "Sem dano identificado",
+              "imagemLocal": "grav_nenhuma",
+              "pesoRisco": 0
+            },
+            {
+              "id": "leve",
+              "texto": "Leve",
+              "descricao": "Dano superficial, fissura capilar",
+              "imagemLocal": "grav_leve",
+              "pesoRisco": 1
+            },
+            {
+              "id": "moderada",
+              "texto": "Moderada",
+              "descricao": "Trinca com potencial de progressao",
+              "imagemLocal": "grav_moderada",
+              "pesoRisco": 3
+            },
+            {
+              "id": "severa",
+              "texto": "Severa",
+              "descricao": "Rachadura ou dano estrutural avancado",
+              "imagemLocal": "grav_severa",
+              "pesoRisco": 5
+            }
+          ]
+        },
+        {
+          "id": "cob_extensao",
+          "texto": "Extensao da manifestacao",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "cob_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "pontual",
+              "texto": "Pontual",
+              "descricao": "Area isolada (menos de 10%)",
+              "imagemLocal": "ext_pontual",
+              "pesoRisco": 1
+            },
+            {
+              "id": "setorial",
+              "texto": "Setorial",
+              "descricao": "Secao do elemento (10-50%)",
+              "imagemLocal": "ext_setorial",
+              "pesoRisco": 2
+            },
+            {
+              "id": "generalizada",
+              "texto": "Generalizada",
+              "descricao": "Maior parte (mais de 50%)",
+              "imagemLocal": "ext_generalizada",
+              "pesoRisco": 4
+            }
+          ]
+        },
+        {
+          "id": "cob_ativa",
+          "texto": "A manifestacao esta ativa?",
+          "tipo": "cards",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "cob_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": [
+            {
+              "id": "nao",
+              "texto": "Nao - Estabilizada",
+              "descricao": "Sem evolucao recente",
+              "imagemLocal": "opcao_nao",
+              "pesoRisco": 0
+            },
+            {
+              "id": "sim",
+              "texto": "Sim - Em progressao",
+              "descricao": "Manifestacao em evolucao ativa",
+              "imagemLocal": "opcao_sim",
+              "pesoRisco": 2
+            }
+          ]
+        },
+        {
+          "id": "cob_foto",
+          "texto": "Foto do elemento (opcional)",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "skipSe": {
+            "perguntaId": "cob_estado",
+            "opcaoId": "bom"
+          },
+          "opcoes": []
+        }
+      ]
+    }
+  ]
+}
