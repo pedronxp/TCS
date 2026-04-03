@@ -55,6 +55,20 @@ const FORM_IMAGES: Record<string, any> = {
   // Binários sim/não
   opcao_nao: require('../../../assets/formularios/imagens/opcao_nao.png'),
   opcao_sim: require('../../../assets/formularios/imagens/opcao_sim.png'),
+  // Estado de conservacao
+  est_bom:          require('../../../assets/formularios/imagens/est_bom.png'),
+  est_regular:      require('../../../assets/formularios/imagens/est_regular.png'),
+  est_ruim:         require('../../../assets/formularios/imagens/est_ruim.png'),
+  est_pessimo:      require('../../../assets/formularios/imagens/est_pessimo.png'),
+  // Gravidade
+  grav_nenhuma:     require('../../../assets/formularios/imagens/grav_nenhuma.png'),
+  grav_leve:        require('../../../assets/formularios/imagens/grav_leve.png'),
+  grav_moderada:    require('../../../assets/formularios/imagens/grav_moderada.png'),
+  grav_severa:      require('../../../assets/formularios/imagens/grav_severa.png'),
+  // Extensao
+  ext_pontual:      require('../../../assets/formularios/imagens/ext_pontual.png'),
+  ext_setorial:     require('../../../assets/formularios/imagens/ext_setorial.png'),
+  ext_generalizada: require('../../../assets/formularios/imagens/ext_generalizada.png'),
 };
 
 // ─── Types (mapeados de formulario_model.dart) ────────────────────────────────
