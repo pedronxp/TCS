@@ -251,7 +251,7 @@ export default function WizardAvaliacaoScreen() {
     return !!resposta;
   };
 
-  const calcularNivelRisco = (): { nivel: string; pontuacao: number } => {
+  const calcularNivelRisco = (visiveis: PerguntaModel[] = perguntasVisiveis): { nivel: string; pontuacao: number } => {
     const nivelMap: Record<string, string> = {
       sem_risco: 'r1', baixo: 'r1', muito_baixo: 'r1',
       medio: 'r2', medio_baixo: 'r2',
@@ -263,7 +263,7 @@ export default function WizardAvaliacaoScreen() {
     if (tipoCalculo === 'ponderada_max_elemento') {
       // Acumula score bruto por fase
       const faseRaw: Record<string, number> = {};
-      perguntas.forEach(p => {
+      visiveis.forEach(p => {
         if (!p.faseId) return;
         const r = respostas[p.id];
         if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
@@ -298,7 +298,7 @@ export default function WizardAvaliacaoScreen() {
 
     // ── Cálculo soma total (padrão) ───────────────────────────────────────────
     let pontuacao = 0;
-    perguntas.forEach(p => {
+    visiveis.forEach(p => {
       const r = respostas[p.id];
       if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
         const opcao = p.opcoes.find(o => o.id === r);
@@ -327,8 +327,17 @@ export default function WizardAvaliacaoScreen() {
   // Risco calculado em tempo real — recalcula a cada resposta
   const riscoAtual = useMemo(() => {
     if (Object.keys(respostas).length === 0) return null;
-    return calcularNivelRisco();
-  }, [respostas, perguntas, limites, tipoCalculo, faseConfigs]);
+    return calcularNivelRisco(perguntasVisiveis);
+  }, [respostas, perguntasVisiveis, limites, tipoCalculo, faseConfigs]);
+
+  // Calcula elemento atual (faseId) para exibição no header
+  const elementoAtual = useMemo(() => {
+    const p = perguntasVisiveis[step];
+    if (!p?.faseId) return null;
+    const fasesUnicas = [...new Set(perguntasVisiveis.map(x => x.faseId).filter(Boolean))];
+    const idx = fasesUnicas.indexOf(p.faseId);
+    return idx >= 0 ? { atual: idx + 1, total: fasesUnicas.length } : null;
+  }, [perguntasVisiveis, step]);
 
   // Anima entrada/saída do banner quando riscoAtual muda
   useEffect(() => {
@@ -357,10 +366,10 @@ export default function WizardAvaliacaoScreen() {
 
   const finalizar = async () => {
     // Verifica obrigatórias
-    const pendente = perguntas.find(p => p.obrigatoria && !respostas[p.id]);
+    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !respostas[p.id]);
     if (pendente) {
       Alert.alert('Pergunta obrigatória', `Responda: "${pendente.texto}"`);
-      const idx = perguntas.indexOf(pendente);
+      const idx = perguntasVisiveis.indexOf(pendente);
       setStep(idx);
       return;
     }
@@ -369,7 +378,7 @@ export default function WizardAvaliacaoScreen() {
     try {
       if (!profile?.uid) throw new Error('Perfil não carregado — tente novamente.');
 
-      const { nivel, pontuacao } = calcularNivelRisco();
+      const { nivel, pontuacao } = calcularNivelRisco(perguntasVisiveis);
       const agora = new Date().toISOString();
 
       // UUID via crypto (Hermes suporta desde RN 0.73+)
@@ -487,7 +496,12 @@ export default function WizardAvaliacaoScreen() {
           <Feather name={step > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>PASSO 3 DE 3 · PERGUNTA {step + 1}/{totalPerguntas}</Text>
+          <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>
+            PASSO 3 DE 3 ·{' '}
+            {elementoAtual
+              ? `ELEMENTO ${elementoAtual.atual}/${elementoAtual.total}`
+              : `PERGUNTA ${step + 1}/${totalPerguntas}`}
+          </Text>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{params.formularioTitulo}</Text>
         </View>
       </View>
