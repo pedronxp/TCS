@@ -28,7 +28,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 
 - [x] **Phase 06: Mapa + Autenticação** - Corrigir tela branca do mapa e fluxos de token/município (completed 2026-04-02)
 - [x] **Phase 07: Formulários + Classificação de Risco** - Refazer campos do formulário alinhados ao R1/R2/R3/R4 com persistência SQLite (completed 2026-04-02)
-- [ ] **Phase 08: Sincronização Offline** - Garantir upload de dados offline ao Supabase sem duplicatas
+- [x] **Phase 08: Sincronização Offline** - Garantir upload de dados offline ao Supabase sem duplicatas (completed 2026-04-03)
 - [ ] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin
 - [ ] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4
 
@@ -105,6 +105,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 06. Mapa + Autenticação | 2/3 | Complete    | 2026-04-02 |
 | 07. Formulários + Classificação de Risco | 1/3 | Complete    | 2026-04-02 |
-| 08. Sincronização Offline | 0/2 | Not started | - |
+| 08. Sincronização Offline | 2/2 | Complete    | 2026-04-03 |
 | 09. UX + Correções Finais | 0/? | Not started | - |
 | 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
