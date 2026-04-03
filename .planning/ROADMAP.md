@@ -154,4 +154,4 @@ Plans:
 | 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
 | 11. Mapa Nativo | 0/1 | Resolved (manual) | 2026-04-03 |
 | 12. Formulário Completo — 10 Elementos | 1/1 | Complete | 2026-04-03 |
-| 13. Deslizamento SVG + Thresholds | 0/1 | Not started | - |
+| 13. Deslizamento SVG + Thresholds | 0/1 | Complete    | 2026-04-03 |
