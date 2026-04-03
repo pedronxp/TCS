@@ -23,7 +23,7 @@
 - [x] **FORM-01**: Agente consegue preencher formulário de vistoria com campos alinhados ao sistema R1/R2/R3/R4
 - [x] **FORM-02**: Sistema calcula automaticamente o nível de risco (R1/R2/R3/R4) com base nas respostas do formulário
 - [x] **FORM-03**: Formulário preenchido offline é salvo no SQLite e não se perde com fechamento do app
-- [ ] **FORM-04**: Formulário de risco estrutural tem no máximo 15 perguntas por vistoria, com skip automático quando elemento está em bom estado
+- [x] **FORM-04**: Formulário de risco estrutural tem no máximo 15 perguntas por vistoria, com skip automático quando elemento está em bom estado
 - [ ] **FORM-05**: Cada opção de resposta do formulário estrutural exibe SVG contextual criado especificamente para aquele tipo de dano ou condição (sem imagens genéricas)
 
 ### SYNC
@@ -69,7 +69,7 @@
 | FORM-01 | Phase 07 | Complete |
 | FORM-02 | Phase 07 | Complete |
 | FORM-03 | Phase 07 | Complete |
-| FORM-04 | Phase 10 | pending |
+| FORM-04 | Phase 10 | Complete |
 | FORM-05 | Phase 10 | pending |
 | SYNC-01 | Phase 08 | pending |
 | UX-01 | Phase 09 | pending |

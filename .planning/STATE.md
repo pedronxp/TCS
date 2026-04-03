@@ -2,24 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: — Correções Críticas + Funcionalidades Core
-status: planning
-stopped_at: Completed 07-formularios-classificacao-risco/07-03-PLAN.md
-last_updated: "2026-04-02T20:26:54.394Z"
+status: executing
+stopped_at: Completed 10-formul-rio-estrutural-inteligente/10-01-PLAN.md
+last_updated: "2026-04-03T01:56:48.351Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 11
+  completed_plans: 9
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 08
-Plan: Not started
+Phase: 10 (Formulário Estrutural Inteligente) — EXECUTING
+Plan: 2 of 3
 **Phase 01:** Correções de Build e Dependências
-**Status:** Ready to plan
+**Status:** Ready to execute
 
 ## Phase Progress
 
@@ -53,6 +53,8 @@ Plan: Not started
 - [Phase 07-formularios-classificacao-risco]: useMemo de riscoAtual posicionado após calcularNivelRisco para evitar ReferenceError com const
 - [Phase 07-formularios-classificacao-risco]: Footer wizard mudado para flexDirection:column; botões envolvidos em View row interna
 - [Phase 07-formularios-classificacao-risco]: profile.uid substitui getSession() em finalizar() — nao depende de rede, disponivel em memoria
+- [Phase 10-formul-rio-estrutural-inteligente]: calcularNivelRisco recebe visiveis como argumento explicito para evitar closure inconsistente no useMemo
+- [Phase 10-formul-rio-estrutural-inteligente]: elementoAtual usa Set para deduplicar faseIds na ordem de aparicao em perguntasVisiveis
 
 ## Performance Metrics
 
@@ -68,8 +70,9 @@ Plan: Not started
 | Phase 07-formularios-classificacao-risco P01 | 120 | 3 tasks | 3 files |
 | Phase 07-formularios-classificacao-risco P02 | 125 | 2 tasks | 1 files |
 | Phase 07-formularios-classificacao-risco P03 | 420 | 3 tasks | 3 files |
+| Phase 10-formul-rio-estrutural-inteligente P01 | 360 | 2 tasks | 1 files |
 
 ## Last Session
 
-- **Stopped at:** Completed 07-formularios-classificacao-risco/07-03-PLAN.md
+- **Stopped at:** Completed 10-formul-rio-estrutural-inteligente/10-01-PLAN.md
 - **Timestamp:** 2026-03-29T23:15:00Z
