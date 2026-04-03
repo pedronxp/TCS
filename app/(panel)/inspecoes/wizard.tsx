@@ -17,13 +17,7 @@ import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { WizardParams } from '../../../types/vistoria';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
-
-// Built-in JSON assets
-const ASSETS: Record<string, any> = {
-  'risco_estrutural_v1': require('../../../assets/formularios/risco_estrutural_v1.json'),
-  'risco_estrutural_v2': require('../../../assets/formularios/risco_estrutural_v2.json'),
-  'vistoria_deslizamento_v1': require('../../../assets/formularios/vistoria_deslizamento_v1.json'),
-};
+import { ASSETS, flattenPerguntas, PerguntaModel } from '../../../utils/formulariosAssets';
 
 // Mapa estático de imagens locais dos formulários (require() deve ser estático no RN)
 const FORM_IMAGES: Record<string, any> = {
@@ -99,33 +93,6 @@ const FORM_IMAGES: Record<string, any> = {
 
 // ─── Types (mapeados de formulario_model.dart) ────────────────────────────────
 
-interface OpcaoModel {
-  id: string;
-  texto: string;
-  descricao?: string;
-  imagemLocal?: string | null;  // chave do FORM_IMAGES ou URL http/https
-  pesoRisco: number;
-}
-
-interface SkipSe {
-  perguntaId: string;
-  opcaoId: string;
-}
-
-interface PerguntaModel {
-  id: string;
-  texto: string;
-  faseId?: string;
-  grupo?: string;
-  instrucao?: string;
-  tipo: 'cards' | 'multipla_escolha' | 'texto' | 'foto';
-  layout?: string;
-  imagemExemplo?: string | null;
-  obrigatoria: boolean;
-  opcoes: OpcaoModel[];
-  skipSe?: SkipSe | null;   // pula esta pergunta se respostas[perguntaId] === opcaoId
-}
-
 /** Respostas: id_pergunta → { opcaoId | texto_livre } */
 type Respostas = Record<string, string>;
 
@@ -165,7 +132,7 @@ export default function WizardAvaliacaoScreen() {
                 { text: 'Descartar', style: 'destructive', onPress: () => AsyncStorage.removeItem(draftKey) },
                 { text: 'Continuar', onPress: () => {
                   setRespostas(draft.respostas);
-                  if (draft.step) setStep(draft.step);
+                  if (draft.step) setStep(draft.step); // clamped on render: perguntasVisiveis[step] ?? step 0
                 }},
               ]
             );
@@ -238,39 +205,6 @@ export default function WizardAvaliacaoScreen() {
     }
   };
 
-  /**
-   * Aplana `fases[].perguntas[]` em uma lista única de PerguntaModel.
-   * Cada fase tem um título que se torna o 'grupo' da pergunta.
-   */
-  const flattenPerguntas = (json: any): PerguntaModel[] => {
-    const result: PerguntaModel[] = [];
-    const fases: any[] = json?.fases || [];
-    for (const fase of fases) {
-      const pergs: any[] = fase?.perguntas || [];
-      for (const p of pergs) {
-        result.push({
-          id: p.id,
-          texto: p.texto,
-          faseId: fase.id,
-          grupo: fase.titulo,
-          instrucao: fase.instrucao,
-          tipo: p.tipo ?? (fase.tipoFase?.startsWith('radio') ? 'cards' : 'texto'),
-          imagemExemplo: p.imagemLocal || null,
-          obrigatoria: p.obrigatoria ?? true,
-          opcoes: (p.opcoes || []).map((o: any) => ({
-            id: o.id,
-            texto: o.texto,
-            descricao: o.descricao,
-            imagemLocal: o.imagemLocal || null,
-            pesoRisco: o.pesoRisco || 0,
-          })),
-          skipSe: p.skipSe || null,
-        });
-      }
-    }
-    return result;
-  };
-
   const perguntasVisiveis = useMemo(() =>
     perguntas.filter(p => {
       if (!p.skipSe) return true;
@@ -280,7 +214,8 @@ export default function WizardAvaliacaoScreen() {
     [perguntas, respostas]
   );
 
-  const perguntaAtual = perguntasVisiveis[step];
+  const safeStep = Math.min(step, Math.max(0, perguntasVisiveis.length - 1));
+  const perguntaAtual = perguntasVisiveis[safeStep];
   const totalPerguntas = perguntasVisiveis.length;
   const progress = totalPerguntas > 0 ? ((step + 1) / totalPerguntas) : 0;
 

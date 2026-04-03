@@ -12,11 +12,12 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { riscoLabel, riscoColor, riscoConduta } from '../../../utils/riscoUtils';
 import { parseProtocolo } from '../../../utils/uuid';
-import { buildTermoInterdicaoHtml } from '../../../utils/laudoPdfBuilder';
+import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
-  risco_estrutural_v1:     require('../../../assets/formularios/risco_estrutural_v1.json'),
+  risco_estrutural_v1:      require('../../../assets/formularios/risco_estrutural_v1.json'),
+  risco_estrutural_v2:      require('../../../assets/formularios/risco_estrutural_v2.json'),
   vistoria_deslizamento_v1: require('../../../assets/formularios/vistoria_deslizamento_v1.json'),
 };
 
@@ -86,177 +87,6 @@ function fmtData(iso: string | null | undefined) {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
-}
-
-// ─── Gera HTML do relatório para exportação ───────────────────────────────────
-function buildRelatorioHtml(
-  draft: NonNullable<ReturnType<typeof useReport>['draft']>,
-  grupos: GrupoResolvido[],
-): string {
-  const nivel = draft.nivelRisco;
-  const cor   = riscoColor(nivel);
-  const label = riscoLabel(nivel);
-  const conduta = draft.condutaRecomendada || riscoConduta(nivel);
-
-  const gruposHtml = grupos.map(g => {
-    const rows = g.itens.map(item => {
-      const dotColor = pesoColor(item.pesoRisco);
-      return `
-        <tr>
-          <td class="q-cell">${item.pergunta}</td>
-          <td class="a-cell">
-            <span class="dot" style="background:${dotColor}"></span>
-            ${item.resposta}
-          </td>
-        </tr>`;
-    }).join('');
-
-    const pesoLabel = g.peso !== undefined ? ` <span class="peso-tag">Peso ${g.peso}</span>` : '';
-    return `
-      <div class="grupo">
-        <div class="grupo-header">${g.grupo}${pesoLabel}</div>
-        <table class="respostas-table">
-          <thead><tr><th>Pergunta</th><th>Resposta</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-  }).join('');
-
-  const obsHtml = draft.observacoesTecnicas
-    ? `<div class="section">
-        <div class="sec-title">Observações Técnicas</div>
-        <p class="conduta-box" style="border-color:${cor};background:${cor}18">${draft.observacoesTecnicas}</p>
-       </div>`
-    : '';
-
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8"/>
-<style>
-  @page { margin: 40px 50px; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Helvetica Neue',Arial,sans-serif; color:#1A202C; background:#fff; font-size:12px; line-height:1.5; }
-
-  /* ── Cabeçalho ── */
-  .doc-header { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #E2E8F0; padding-bottom:18px; margin-bottom:24px; }
-  .brand { display:flex; flex-direction:column; }
-  .brand-name { font-size:22px; font-weight:900; color:#1A365D; letter-spacing:-0.5px; }
-  .brand-sub  { font-size:10px; font-weight:700; color:#718096; letter-spacing:1.5px; margin-top:2px; }
-  .proto-block { text-align:right; }
-  .proto-label { font-size:9px; font-weight:700; color:#A0AEC0; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:6px; }
-  .proto-partes { display:flex; align-items:center; gap:6px; }
-  .proto-parte { padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800; }
-  .proto-prefix { background:${cor}; color:#fff; }
-  .proto-date   { background:#EDF2F7; color:#2D3748; }
-  .proto-hash   { background:#EDF2F7; color:#1A202C; letter-spacing:2px; font-size:14px; font-weight:900; }
-  .proto-dot    { color:#A0AEC0; font-size:14px; font-weight:900; }
-
-  /* ── Badge de risco ── */
-  .risco-badge { background:${cor}; color:#fff; text-align:center; padding:18px 24px; border-radius:12px; margin-bottom:24px; }
-  .risco-badge-titulo { font-size:9px; font-weight:700; letter-spacing:2px; opacity:.85; }
-  .risco-badge-nivel  { font-size:32px; font-weight:900; letter-spacing:-1px; margin:6px 0 4px; }
-  .risco-badge-pts    { font-size:12px; opacity:.8; }
-
-  /* ── Dados ── */
-  .section { margin-bottom:22px; }
-  .sec-title { font-size:9px; font-weight:800; letter-spacing:1.5px; color:#718096; text-transform:uppercase; border-bottom:1px solid #E2E8F0; padding-bottom:6px; margin-bottom:12px; }
-  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .info-item label { font-size:9px; font-weight:700; color:#A0AEC0; text-transform:uppercase; display:block; margin-bottom:3px; }
-  .info-item span  { font-size:13px; font-weight:600; }
-
-  /* ── Grupos de respostas ── */
-  .grupo { margin-bottom:18px; }
-  .grupo-header { font-size:11px; font-weight:800; color:#1A365D; background:#EBF4FF; padding:8px 12px; border-radius:6px; margin-bottom:8px; }
-  .peso-tag { background:#BEE3F8; color:#2B6CB0; font-size:9px; font-weight:700; padding:2px 7px; border-radius:10px; margin-left:8px; }
-  .respostas-table { width:100%; border-collapse:collapse; }
-  .respostas-table th { font-size:9px; font-weight:800; color:#718096; text-transform:uppercase; text-align:left; padding:7px 10px; background:#F7FAFC; border-bottom:2px solid #E2E8F0; }
-  .respostas-table td { padding:8px 10px; border-bottom:1px solid #EDF2F7; vertical-align:top; font-size:12px; }
-  .q-cell { width:50%; color:#4A5568; }
-  .a-cell { font-weight:700; color:#1A202C; }
-  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
-
-  /* ── Conduta ── */
-  .conduta-box { border-left:4px solid ${cor}; background:${cor}12; padding:12px 16px; border-radius:0 8px 8px 0; font-size:13px; line-height:1.7; color:#2D3748; margin-top:0; }
-
-  /* ── Assinatura ── */
-  .assinatura { margin-top:36px; display:flex; justify-content:flex-end; }
-  .assinatura-inner { text-align:center; }
-  .assinatura-linha { border-top:1px solid #A0AEC0; width:220px; margin:0 auto 8px; }
-  .assinatura-nome  { font-size:13px; font-weight:700; }
-  .assinatura-cargo { font-size:10px; color:#718096; }
-
-  /* ── Rodapé ── */
-  .footer { margin-top:32px; padding-top:12px; border-top:1px solid #E2E8F0; font-size:9px; color:#A0AEC0; text-align:center; }
-</style>
-</head>
-<body>
-
-  <div class="doc-header">
-    <div class="brand">
-      <div class="brand-name">TCS</div>
-      <div class="brand-sub">RELATÓRIO DE VISTORIA</div>
-    </div>
-    <div class="proto-block">
-      <div class="proto-label">PROTOCOLO OFICIAL</div>
-      ${(() => {
-        const p = parseProtocolo(draft.protocolo);
-        return p
-          ? `<div class="proto-partes">
-               <span class="proto-parte proto-prefix">${p.prefix}</span>
-               <span class="proto-dot">·</span>
-               <span class="proto-parte proto-cidade">${p.cidade}</span>
-               <span class="proto-dot">·</span>
-               <span class="proto-parte proto-date">${p.date}</span>
-               <span class="proto-dot">·</span>
-               <span class="proto-parte proto-hash">${p.hash}</span>
-             </div>`
-          : `<div class="proto-num">${draft.protocolo}</div>`;
-      })()}
-    </div>
-  </div>
-
-  <div class="risco-badge">
-    <div class="risco-badge-titulo">NÍVEL DE RISCO — ${draft.formularioId}</div>
-    <div class="risco-badge-nivel">RISCO ${label}</div>
-    <div class="risco-badge-pts">${draft.pontuacaoTotal} pontos acumulados</div>
-  </div>
-
-  <div class="section">
-    <div class="sec-title">Dados da Vistoria</div>
-    <div class="info-grid">
-      <div class="info-item"><label>Endereço</label><span>${draft.endereco || '—'}</span></div>
-      <div class="info-item"><label>Município</label><span>${draft.municipio || '—'}</span></div>
-      <div class="info-item"><label>Data / Hora</label><span>${fmtData(draft.dataVistoria)}</span></div>
-      <div class="info-item"><label>Agente</label><span>${draft.agenteNome || '—'}</span></div>
-      <div class="info-item"><label>Formulário</label><span>${draft.formularioId || '—'}</span></div>
-      <div class="info-item"><label>Cargo</label><span>${draft.cargo || 'Agente de Defesa Civil'}</span></div>
-    </div>
-  </div>
-
-  ${gruposHtml ? `<div class="section"><div class="sec-title">Respostas do Formulário</div>${gruposHtml}</div>` : ''}
-
-  <div class="section">
-    <div class="sec-title">Conduta Recomendada</div>
-    <p class="conduta-box">${conduta}</p>
-  </div>
-
-  ${obsHtml}
-
-  <div class="assinatura">
-    <div class="assinatura-inner">
-      <div class="assinatura-linha"></div>
-      <div class="assinatura-nome">${draft.agenteNome || '—'}</div>
-      <div class="assinatura-cargo">${draft.cargo || 'Agente de Defesa Civil'}</div>
-    </div>
-  </div>
-
-  <div class="footer">
-    TCS — Relatório de Vistoria · Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-  </div>
-
-</body>
-</html>`;
 }
 
 // ─── Componente campo editável ─────────────────────────────────────────────────
@@ -391,7 +221,24 @@ export default function RelatorioScreen() {
   const exportarPDF = async () => {
     setGerando(true);
     try {
-      const html = buildRelatorioHtml(draft, grupos);
+      const dados: LaudoData = {
+        id: draft.vistoriaId,
+        nivelRisco: draft.nivelRisco,
+        pontuacaoTotal: draft.pontuacaoTotal,
+        endereco: draft.endereco,
+        municipio: draft.municipio,
+        dataVistoria: draft.dataVistoria,
+        agenteNome: draft.agenteNome,
+        formularioId: draft.formularioId,
+        respostasJson: JSON.stringify(draft.respostas || {}),
+        condutaRecomendada: draft.condutaRecomendada,
+        observacoesTecnicas: draft.observacoesTecnicas,
+        cargo: draft.cargo,
+        // Responsável e Bairro (tentativa map)
+        responsavelNome: (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
+        bairro: (draft.respostas || {})['Bairro'],
+      };
+      const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const ok = await Sharing.isAvailableAsync();
       if (ok) {
@@ -460,7 +307,23 @@ export default function RelatorioScreen() {
   const imprimir = async () => {
     setGerando(true);
     try {
-      await Print.printAsync({ html: buildRelatorioHtml(draft, grupos) });
+      const dados: LaudoData = {
+        id: draft.vistoriaId,
+        nivelRisco: draft.nivelRisco,
+        pontuacaoTotal: draft.pontuacaoTotal,
+        endereco: draft.endereco,
+        municipio: draft.municipio,
+        dataVistoria: draft.dataVistoria,
+        agenteNome: draft.agenteNome,
+        formularioId: draft.formularioId,
+        respostasJson: JSON.stringify(draft.respostas || {}),
+        condutaRecomendada: draft.condutaRecomendada,
+        observacoesTecnicas: draft.observacoesTecnicas,
+        cargo: draft.cargo,
+      };
+      
+      const html = await buildLaudoHtml(dados);
+      await Print.printAsync({ html });
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
     } finally {

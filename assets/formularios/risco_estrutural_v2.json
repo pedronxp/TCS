@@ -4,6 +4,15 @@
   "descricao": "7 elementos essenciais · Skip automático · Formulário de campo",
   "versao": 2,
   "tipo": "estrutural",
+  "tipoCalculo": "ponderada_max_elemento",
+  "classificacao": {
+    "limites": [
+      { "max": 4,   "nivel": "baixo",    "label": "R1 — SEM RISCO — Manutenção preventiva e acompanhamento", "cor": "verde" },
+      { "max": 9,   "nivel": "medio",    "label": "R2 — RISCO BAIXO — Vistoria técnica necessária", "cor": "amarelo" },
+      { "max": 14,  "nivel": "alto",     "label": "R3 — RISCO MÉDIO — Intervenção técnica necessária", "cor": "laranja" },
+      { "max": 999, "nivel": "iminente", "label": "R4 — RISCO ALTO — Evacuação e interdição imediata", "cor": "vermelho" }
+    ]
+  },
   "fases": [
     {
       "id": "fase_fund",

@@ -4,9 +4,10 @@
  */
 
 const riscoEstrutural = require('../../assets/formularios/risco_estrutural_v1.json');
+const riscoEstruturalV2 = require('../../assets/formularios/risco_estrutural_v2.json');
 const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v1.json');
 
-const FORMULARIOS = [riscoEstrutural, vistoriaDeslizamento];
+const FORMULARIOS = [riscoEstrutural, riscoEstruturalV2, vistoriaDeslizamento];
 
 // Níveis válidos do nivelMap do wizard (inclui ponderada_max_elemento e soma_total)
 const NIVEL_VALIDOS_LIMITES = [
