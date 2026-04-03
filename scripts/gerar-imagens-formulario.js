@@ -275,6 +275,163 @@ function terrenoImg(type) {
   return px;
 }
 
+/** Estado de conservacao: fundo cinza-claro com fissuras progressivas */
+function estImg(nivel) {
+  // nivel: 'bom' | 'regular' | 'ruim' | 'pessimo'
+  const px = new Uint8Array(W * H * 3);
+  // Fundo: cinza claro (230,230,230)
+  for (let i = 0; i < W * H * 3; i += 3) {
+    px[i] = 230; px[i+1] = 230; px[i+2] = 230;
+  }
+  if (nivel === 'bom') {
+    // Borda verde suave (4px) nas bordas
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (x < 4 || x >= W-4 || y < 4 || y >= H-4) {
+          const i = (y*W+x)*3;
+          px[i]=34; px[i+1]=197; px[i+2]=94;
+        }
+      }
+    }
+    return px;
+  }
+  // Fissura diagonal principal: de (W*0.2, H*0.15) ate (W*0.8, H*0.85)
+  const x0=Math.round(W*0.2), y0=Math.round(H*0.15);
+  const x1=Math.round(W*0.8), y1=Math.round(H*0.85);
+  const steps = Math.max(Math.abs(x1-x0), Math.abs(y1-y0));
+  const lineW = nivel === 'regular' ? 1 : nivel === 'ruim' ? 2 : 4;
+  const lineColor = nivel === 'pessimo' ? [180,40,40] : [90,90,90];
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const cx = Math.round(x0 + (x1-x0)*t);
+    const cy = Math.round(y0 + (y1-y0)*t);
+    for (let dy = -lineW; dy <= lineW; dy++) {
+      for (let dx = -Math.floor(lineW/2); dx <= Math.floor(lineW/2); dx++) {
+        const px2 = cx+dx, py2 = cy+dy;
+        if (px2>=0 && px2<W && py2>=0 && py2<H) {
+          const i=(py2*W+px2)*3;
+          px[i]=lineColor[0]; px[i+1]=lineColor[1]; px[i+2]=lineColor[2];
+        }
+      }
+    }
+  }
+  if (nivel === 'ruim' || nivel === 'pessimo') {
+    // Ramificacao secundaria a partir do meio da fissura
+    const mx=Math.round((x0+x1)/2), my=Math.round((y0+y1)/2);
+    for (let s = 0; s < 30; s++) {
+      const px2=mx+s, py2=my-s;
+      if (px2<W && py2>=0) {
+        const i=(py2*W+px2)*3; px[i]=lineColor[0];px[i+1]=lineColor[1];px[i+2]=lineColor[2];
+      }
+    }
+  }
+  if (nivel === 'pessimo') {
+    // Segunda fissura paralela deslocada
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const cx = Math.round(x0+20 + (x1+20-x0-20)*t);
+      const cy = Math.round(y0 + (y1-y0)*t);
+      if (cx>=0&&cx<W&&cy>=0&&cy<H) {
+        const i=(cy*W+cx)*3; px[i]=180;px[i+1]=40;px[i+2]=40;
+      }
+    }
+  }
+  return px;
+}
+
+/** Gravidade: linha horizontal com espessura e cor progressivas */
+function gravImg(nivel) {
+  // nivel: 'nenhuma' | 'leve' | 'moderada' | 'severa'
+  const px = new Uint8Array(W * H * 3);
+  // Fundo branco
+  for (let i = 0; i < W*H*3; i+=3) { px[i]=245; px[i+1]=245; px[i+2]=245; }
+  if (nivel === 'nenhuma') {
+    // Check verde centralizado (circulo + tracos)
+    const cx=W/2, cy=H/2, r=20;
+    for (let y=0;y<H;y++) { for (let x=0;x<W;x++) {
+      const dx=x-cx, dy=y-cy;
+      if (dx*dx+dy*dy < r*r) {
+        const i=(y*W+x)*3; px[i]=34;px[i+1]=197;px[i+2]=94;
+      }
+    }}
+    // Tracos do check (simplificado como linha branca interna)
+    for (let s=0;s<12;s++) {
+      const xi=Math.round(cx-8+s*0.8), yi=Math.round(cy+4-Math.abs(s-6)*0.8);
+      if (xi>=0&&xi<W&&yi>=0&&yi<H) {
+        const i=(yi*W+xi)*3; px[i]=255;px[i+1]=255;px[i+2]=255;
+      }
+    }
+    return px;
+  }
+  const lineW = nivel === 'leve' ? 1 : nivel === 'moderada' ? 3 : 6;
+  const color = nivel === 'leve' ? [150,150,150] : nivel === 'moderada' ? [230,110,20] : [200,30,30];
+  const cy = Math.round(H/2);
+  for (let x=20; x<W-20; x++) {
+    for (let dy=-lineW; dy<=lineW; dy++) {
+      const y=cy+dy;
+      if (y>=0&&y<H) {
+        const i=(y*W+x)*3; px[i]=color[0];px[i+1]=color[1];px[i+2]=color[2];
+      }
+    }
+  }
+  if (nivel === 'severa') {
+    // Deslocamento lateral: metade direita deslocada 4px para baixo
+    for (let x=W/2; x<W-20; x++) {
+      const i=(Math.round(cy+6)*W+Math.round(x))*3;
+      if (Math.round(cy+6)<H) { px[i]=200;px[i+1]=30;px[i+2]=30; }
+      // Apagar deslocamento original
+      const j=(cy*W+Math.round(x))*3;
+      px[j]=245;px[j+1]=245;px[j+2]=245;
+    }
+  }
+  return px;
+}
+
+/** Extensao: grade 3x2 de celulas, marcando proporcao afetada */
+function extImg(nivel) {
+  // nivel: 'pontual' | 'setorial' | 'generalizada'
+  const px = new Uint8Array(W * H * 3);
+  // Fundo cinza claro
+  for (let i=0;i<W*H*3;i+=3) { px[i]=235;px[i+1]=235;px[i+2]=235; }
+  // Grade 3 colunas x 2 linhas
+  const cols=3, rows=2;
+  const padX=20, padY=15;
+  const cellW=Math.round((W-padX*2)/cols), cellH=Math.round((H-padY*2)/rows);
+  // Celulas a marcar por nivel
+  const marcadas = nivel === 'pontual'
+    ? [[1,0]]                                    // so celula central superior
+    : nivel === 'setorial'
+    ? [[0,0],[1,0],[1,1]]                        // ~50%
+    : [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]];    // todas (generalizada)
+  const marcadasSet = new Set(marcadas.map(([c,r])=>`${c},${r}`));
+  const colorMarca = nivel === 'pontual' ? [220,38,38]
+    : nivel === 'setorial' ? [230,110,20]
+    : [200,30,30];
+  for (let r=0;r<rows;r++) {
+    for (let c=0;c<cols;c++) {
+      const x0=padX+c*cellW+2, y0=padY+r*cellH+2;
+      const x1=x0+cellW-4, y1=y0+cellH-4;
+      const isMarcada = marcadasSet.has(`${c},${r}`);
+      const fill = isMarcada ? colorMarca : [210,210,210];
+      for (let y=y0;y<y1&&y<H;y++) {
+        for (let x=x0;x<x1&&x<W;x++) {
+          const i=(y*W+x)*3; px[i]=fill[0];px[i+1]=fill[1];px[i+2]=fill[2];
+        }
+      }
+      // Borda da celula
+      for (let x=x0;x<x1&&x<W;x++) {
+        if (y0>=0&&y0<H) { const i=(y0*W+x)*3;px[i]=160;px[i+1]=160;px[i+2]=160; }
+        const ye=y1-1; if(ye>=0&&ye<H) { const i=(ye*W+x)*3;px[i]=160;px[i+1]=160;px[i+2]=160; }
+      }
+      for (let y=y0;y<y1&&y<H;y++) {
+        if (x0>=0&&x0<W) { const i=(y*W+x0)*3;px[i]=160;px[i+1]=160;px[i+2]=160; }
+        const xe=x1-1; if(xe>=0&&xe<W) { const i=(y*W+xe)*3;px[i]=160;px[i+1]=160;px[i+2]=160; }
+      }
+    }
+  }
+  return px;
+}
+
 // ── Gerar e salvar ────────────────────────────────────────────────────────────
 const OUT = path.join(__dirname, '..', 'assets', 'formularios', 'imagens');
 fs.mkdirSync(OUT, { recursive: true });
@@ -318,5 +475,18 @@ save('terreno_aterro',  terrenoImg('aterro'));
 console.log('\n=== Gerando imagens sim/não ===');
 save('opcao_nao', solid(34, 197, 94));    // verde = ok / sem problema
 save('opcao_sim', solid(220, 38, 38));    // vermelho = atenção
+
+console.log('\n=== Gerando imagens estruturais v2 ===');
+save('est_bom',          estImg('bom'));
+save('est_regular',      estImg('regular'));
+save('est_ruim',         estImg('ruim'));
+save('est_pessimo',      estImg('pessimo'));
+save('grav_nenhuma',     gravImg('nenhuma'));
+save('grav_leve',        gravImg('leve'));
+save('grav_moderada',    gravImg('moderada'));
+save('grav_severa',      gravImg('severa'));
+save('ext_pontual',      extImg('pontual'));
+save('ext_setorial',     extImg('setorial'));
+save('ext_generalizada', extImg('generalizada'));
 
 console.log('\n✅ Todas as imagens geradas em:', OUT, '\n');

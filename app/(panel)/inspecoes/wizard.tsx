@@ -67,6 +67,11 @@ interface OpcaoModel {
   pesoRisco: number;
 }
 
+interface SkipSe {
+  perguntaId: string;
+  opcaoId: string;
+}
+
 interface PerguntaModel {
   id: string;
   texto: string;
@@ -78,6 +83,7 @@ interface PerguntaModel {
   imagemExemplo?: string | null;
   obrigatoria: boolean;
   opcoes: OpcaoModel[];
+  skipSe?: SkipSe | null;   // pula esta pergunta se respostas[perguntaId] === opcaoId
 }
 
 /** Respostas: id_pergunta → { opcaoId | texto_livre } */
@@ -218,14 +224,24 @@ export default function WizardAvaliacaoScreen() {
             imagemLocal: o.imagemLocal || null,
             pesoRisco: o.pesoRisco || 0,
           })),
+          skipSe: p.skipSe || null,
         });
       }
     }
     return result;
   };
 
-  const perguntaAtual = perguntas[step];
-  const totalPerguntas = perguntas.length;
+  const perguntasVisiveis = useMemo(() =>
+    perguntas.filter(p => {
+      if (!p.skipSe) return true;
+      const resposta = respostas[p.skipSe.perguntaId];
+      return resposta !== p.skipSe.opcaoId;
+    }),
+    [perguntas, respostas]
+  );
+
+  const perguntaAtual = perguntasVisiveis[step];
+  const totalPerguntas = perguntasVisiveis.length;
   const progress = totalPerguntas > 0 ? ((step + 1) / totalPerguntas) : 0;
 
   const resposta = perguntaAtual ? respostas[perguntaAtual.id] : undefined;
