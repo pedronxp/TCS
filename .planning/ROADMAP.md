@@ -31,7 +31,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 08: Sincronização Offline** - Garantir upload de dados offline ao Supabase sem duplicatas (completed 2026-04-03)
 - [x] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin (completed 2026-04-03)
 - [x] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4 (completed 2026-04-02)
-- [ ] **Phase 11: Mapa Nativo** - Substituir WebView+Leaflet por react-native-maps (Google Maps / Apple Maps)
+- [x] **Phase 11: Mapa Nativo** - Substituir WebView+Leaflet por react-native-maps (Google Maps / Apple Maps) (completed 2026-04-03)
 - [x] **Phase 12: Formulário Completo — 10 Elementos** - Adaptar os JSONs de `json form/` para o formato nativo do app e registrar como novo formulário built-in
 - [x] **Phase 13: Deslizamento SVG + Thresholds** - Adicionar ilustrações SVG inline nas Q5–Q10 do formulário de deslizamento e corrigir limites de classificação conforme planilha técnica (completed 2026-04-03)
 
@@ -152,6 +152,6 @@ Plans:
 | 08. Sincronização Offline | 2/2 | Complete    | 2026-04-03 |
 | 09. UX + Correções Finais | 2/2 | Complete   | 2026-04-03 |
 | 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
-| 11. Mapa Nativo | 0/1 | Resolved (manual) | 2026-04-03 |
+| 11. Mapa Nativo | 0/1 | Complete    | 2026-04-03 |
 | 12. Formulário Completo — 10 Elementos | 1/1 | Complete | 2026-04-03 |
 | 13. Deslizamento SVG + Thresholds | 0/1 | Complete    | 2026-04-03 |

@@ -2,24 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: — Correções Críticas + Funcionalidades Core
-status: completed
+status: planning
 stopped_at: Completado 13-01-PLAN.md — Deslizamento SVG + Thresholds
-last_updated: "2026-04-03T21:28:25.947Z"
+last_updated: "2026-04-03T21:59:33.878Z"
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 13
+Phase: 12
 Plan: Not started
 **Phase 13:** Deslizamento SVG + Thresholds
-**Status:** Milestone complete
+**Status:** Ready to plan
 
 ## Phase Progress
 
