@@ -66,7 +66,10 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
   1. Formulário preenchido offline aparece no Supabase após o app recuperar conexão com a internet
   2. Sincronizar o mesmo formulário duas vezes não cria registros duplicados no Supabase
   3. Se a sincronização falhar (rede instável), os dados permanecem no SQLite e são retentados sem intervenção do agente
-**Plans**: TBD
+**Plans**: 2 planos
+Plans:
+- [ ] 08-01-PLAN.md — Auditar payload Supabase + corrigir mount sync gap em _layout.tsx
+- [ ] 08-02-PLAN.md — Expandir suite de testes: deduplicação, foto offline, backoff, esgotado
 
 #### Phase 09: UX + Correções Finais
 **Goal**: Todas as mensagens de erro estão em português e admin consegue visualizar logs corretamente
@@ -102,6 +105,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 06. Mapa + Autenticação | 2/3 | Complete    | 2026-04-02 |
 | 07. Formulários + Classificação de Risco | 1/3 | Complete    | 2026-04-02 |
-| 08. Sincronização Offline | 0/? | Not started | - |
+| 08. Sincronização Offline | 0/2 | Not started | - |
 | 09. UX + Correções Finais | 0/? | Not started | - |
 | 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
