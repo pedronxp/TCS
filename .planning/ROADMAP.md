@@ -32,7 +32,8 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin (completed 2026-04-03)
 - [x] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4 (completed 2026-04-02)
 - [ ] **Phase 11: Mapa Nativo** - Substituir WebView+Leaflet por react-native-maps (Google Maps / Apple Maps)
-- [ ] **Phase 12: Formulário Completo — 10 Elementos** - Adaptar os JSONs de `json form/` para o formato nativo do app e registrar como novo formulário built-in
+- [x] **Phase 12: Formulário Completo — 10 Elementos** - Adaptar os JSONs de `json form/` para o formato nativo do app e registrar como novo formulário built-in
+- [x] **Phase 13: Deslizamento SVG + Thresholds** - Adicionar ilustrações SVG inline nas Q5–Q10 do formulário de deslizamento e corrigir limites de classificação conforme planilha técnica (completed 2026-04-03)
 
 ### Phase Details
 
@@ -129,6 +130,19 @@ Plans:
 Plans:
 - [ ] 12-01-PLAN.md — Converter form1+form2 JSON para formato nativo + registrar como built-in
 
+#### Phase 13: Deslizamento SVG + Thresholds
+**Goal**: Formulário "Vistoria de Risco de Deslizamento" exibe ilustrações SVG inline nas questões Q5–Q10 e limites de classificação correspondem à planilha técnica original (R1≤1, R2≤3, R3≤5, R4>5)
+**Depends on**: Phase 07
+**Requirements**: FORM-08
+**Success Criteria** (what must be TRUE):
+  1. Questões Q5–Q10 exibem SVGs específicos ao contexto (trincas, degraus, muros, escorregamento) — não mais ícones genéricos de sim/não
+  2. Pontuação 0–1 classifica como R1 Baixo; 6+ classifica como R4 Muito Alto (alinhado à planilha)
+  3. SVGs renderizam sem erro em Android e iOS (react-native-svg já instalado)
+  4. Formulários risco_estrutural_v1/v2/completo_v1 continuam funcionando normalmente (sem svgKey, usam PNG)
+**Plans**: 1 plano
+Plans:
+- [ ] 13-01-PLAN.md — Fix thresholds JSON + criar DESL_SVGS catalog + SvgXml no wizard
+
 ### Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -138,4 +152,6 @@ Plans:
 | 08. Sincronização Offline | 2/2 | Complete    | 2026-04-03 |
 | 09. UX + Correções Finais | 2/2 | Complete   | 2026-04-03 |
 | 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
-| 11. Mapa Nativo | 0/1 | Not started | - |
+| 11. Mapa Nativo | 0/1 | Resolved (manual) | 2026-04-03 |
+| 12. Formulário Completo — 10 Elementos | 1/1 | Complete | 2026-04-03 |
+| 13. Deslizamento SVG + Thresholds | 0/1 | Not started | - |

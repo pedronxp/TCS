@@ -25,6 +25,9 @@
 - [x] **FORM-03**: Formulário preenchido offline é salvo no SQLite e não se perde com fechamento do app
 - [x] **FORM-04**: Formulário de risco estrutural (v2) tem no máximo 35 perguntas e mínimo 7 por vistoria, com skip automático quando elemento está em bom estado
 - [x] **FORM-05**: Cada opção de resposta do formulário estrutural exibe imagem PNG contextual criada especificamente para aquele tipo de dano ou condição (sem imagens genéricas)
+- [ ] **FORM-06**: Formulário completo de 10 elementos (estrutura principal + complementos) está disponível na seleção e pode ser preenchido pelo agente com 4 critérios por elemento
+- [ ] **FORM-07**: Pontuação e classificação R1/R4 do formulário completo são calculadas corretamente usando a fórmula (estado + gravidade + extensão + ativa) × peso
+- [x] **FORM-08**: Questões Q5–Q10 do formulário de deslizamento exibem ilustrações SVG específicas ao tema (não ícones genéricos) e limites de classificação correspondem à planilha técnica (R1≤1, R2≤3, R3≤5, R4>5)
 
 ### SYNC
 
@@ -71,10 +74,13 @@
 | FORM-03 | Phase 07 | Complete |
 | FORM-04 | Phase 10 | Complete |
 | FORM-05 | Phase 10 | Complete |
+| FORM-06 | Phase 12 | pending |
+| FORM-07 | Phase 12 | pending |
+| FORM-08 | Phase 13 | Complete |
 | SYNC-01 | Phase 08 | Complete |
 | UX-01 | Phase 09 | Complete |
 | UX-02 | Phase 09 | Complete |
 
 ---
 
-*Última atualização: 2026-04-02 — Fase 10 adicionada: Formulário Estrutural Inteligente (FORM-04, FORM-05)*
+*Última atualização: 2026-04-03 — Fase 13 adicionada: Deslizamento SVG + Thresholds (FORM-08)*
