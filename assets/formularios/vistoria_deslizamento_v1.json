@@ -8,19 +8,19 @@
   "classificacao": {
     "limites": [
       {
-        "max": 2,
+        "max": 1,
         "nivel": "baixo",
         "label": "R1 — BAIXO — Sem intervenção imediata necessária",
         "cor": "verde"
       },
       {
-        "max": 4,
+        "max": 3,
         "nivel": "medio",
         "label": "R2 — MÉDIO — Monitoramento e medidas preventivas",
         "cor": "amarelo"
       },
       {
-        "max": 9,
+        "max": 5,
         "nivel": "alto",
         "label": "R3 — ALTO — Intervenção técnica urgente necessária",
         "cor": "laranja"
@@ -187,6 +187,7 @@
               "texto": "Não",
               "descricao": "Sem trincas visíveis",
               "imagemLocal": "opcao_nao",
+              "svgKey": "desl_trincas_nao",
               "pesoRisco": 0
             },
             {
@@ -194,6 +195,7 @@
               "texto": "Sim",
               "descricao": "Trincas visíveis no solo ou estruturas — sinal de movimentação",
               "imagemLocal": "opcao_sim",
+              "svgKey": "desl_trincas_sim",
               "pesoRisco": 2
             }
           ]
@@ -209,6 +211,7 @@
               "texto": "Não",
               "descricao": "Superfície do solo contínua, sem degraus",
               "imagemLocal": "opcao_nao",
+              "svgKey": "desl_degraus_nao",
               "pesoRisco": 0
             },
             {
@@ -216,6 +219,7 @@
               "texto": "Sim",
               "descricao": "Degraus ou rupturas no solo — indicativo de escorregamento",
               "imagemLocal": "opcao_sim",
+              "svgKey": "desl_degraus_sim",
               "pesoRisco": 2
             }
           ]
@@ -231,6 +235,7 @@
               "texto": "Não",
               "descricao": "Estruturas e árvores verticais, sem inclinação",
               "imagemLocal": "opcao_nao",
+              "svgKey": "desl_incl_est_nao",
               "pesoRisco": 0
             },
             {
@@ -238,6 +243,7 @@
               "texto": "Sim",
               "descricao": "Postes, muros ou árvores inclinados — indica deslocamento do solo",
               "imagemLocal": "opcao_sim",
+              "svgKey": "desl_incl_est_sim",
               "pesoRisco": 2
             }
           ]
@@ -253,6 +259,7 @@
               "texto": "Não",
               "descricao": "Muros verticais e sem deformação",
               "imagemLocal": "opcao_nao",
+              "svgKey": "desl_muros_nao",
               "pesoRisco": 0
             },
             {
@@ -260,6 +267,7 @@
               "texto": "Sim",
               "descricao": "Muros com protuberância (embarrigamento) — pressão lateral do solo",
               "imagemLocal": "opcao_sim",
+              "svgKey": "desl_muros_sim",
               "pesoRisco": 2
             }
           ]
@@ -275,6 +283,7 @@
               "texto": "Sem risco aparente",
               "descricao": "Nenhuma trinca de escorregamento identificada nas proximidades",
               "imagemLocal": "nv0",
+              "svgKey": "desl_escorr_sem_risco",
               "pesoRisco": 0
             },
             {
@@ -282,6 +291,7 @@
               "texto": "Esperado",
               "descricao": "Condições propícias a escorregamento mas sem evento confirmado",
               "imagemLocal": "nv3",
+              "svgKey": "desl_escorr_esperado",
               "pesoRisco": 1
             },
             {
@@ -289,6 +299,7 @@
               "texto": "Já ocorrido",
               "descricao": "Escorregamento próximo já registrado — risco de recorrência",
               "imagemLocal": "nv6",
+              "svgKey": "desl_escorr_ocorrido",
               "pesoRisco": 3
             }
           ]
@@ -304,6 +315,7 @@
               "texto": "Sem risco aparente",
               "descricao": "Nenhum processo de instabilização observado",
               "imagemLocal": "nv0",
+              "svgKey": "desl_instab_sem_risco",
               "pesoRisco": 0
             },
             {
@@ -311,6 +323,7 @@
               "texto": "Esperado",
               "descricao": "Sinais de instabilização — deslizamento esperado em eventos de chuva",
               "imagemLocal": "nv3",
+              "svgKey": "desl_instab_esperado",
               "pesoRisco": 1
             },
             {
@@ -318,6 +331,7 @@
               "texto": "Já ocorrido",
               "descricao": "Deslizamento ou escorregamento já ocorreu no local",
               "imagemLocal": "nv6",
+              "svgKey": "desl_instab_ocorrido",
               "pesoRisco": 3
             }
           ]
