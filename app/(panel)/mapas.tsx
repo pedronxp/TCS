@@ -14,6 +14,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio } from '../../utils/database';
 import { logger } from '../../utils/logger';
+import { tracarRota } from '../../utils/routingUtils';
 
 interface VistoriaMarker {
   id: string;
@@ -422,12 +423,21 @@ export default function MapasScreen() {
           <Text style={[styles.popupAgente, { color: theme.textSecondary }]}>
             {selectedMarker.agenteNome} · {selectedMarker.dataVistoria ? new Date(selectedMarker.dataVistoria).toLocaleDateString('pt-BR') : '—'}
           </Text>
-          <TouchableOpacity
-            style={[styles.popupBtn, { backgroundColor: '#EFF6FF' }]}
-            onPress={() => { setSelectedMarker(null); router.push(`/(panel)/inspecoes/${selectedMarker.id}`); }}
-          >
-            <Text style={{ color: '#3B82F6', fontSize: 13, fontWeight: '700' }}>Ver detalhes →</Text>
-          </TouchableOpacity>
+          <View style={styles.popupActions}>
+            <TouchableOpacity
+              style={[styles.popupBtn, { backgroundColor: '#EFF6FF', flex: 1 }]}
+              onPress={() => { setSelectedMarker(null); router.push(`/(panel)/inspecoes/${selectedMarker.id}`); }}
+            >
+              <Text style={{ color: '#3B82F6', fontSize: 13, fontWeight: '700' }}>Ver detalhes →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.popupBtn, styles.popupRotaBtn, { backgroundColor: `${theme.primary}15`, flex: 1 }]}
+              onPress={() => tracarRota(selectedMarker.lat, selectedMarker.lng)}
+            >
+              <Feather name="navigation" size={14} color={theme.primary} />
+              <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '700', marginLeft: 5 }}>Traçar Rota</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -527,7 +537,9 @@ const styles = StyleSheet.create({
   riscoBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   popupEndereco: { fontSize: 14, fontWeight: '600', marginBottom: 4, lineHeight: 20 },
   popupAgente: { fontSize: 12, marginBottom: 10 },
+  popupActions: { flexDirection: 'row', gap: 8 },
   popupBtn: { borderRadius: 10, padding: 10, alignItems: 'center' },
+  popupRotaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 12, gap: 10 },
