@@ -42,6 +42,11 @@ export function traduzirErroAuth(msg: string): string {
     return 'Link expirado ou inválido. Solicite um novo.';
   }
 
-  // Fallback: retornar mensagem original sem alteração
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to fetch')) {
+    return 'Sem conexão com a internet. Verifique sua rede e tente novamente.';
+  }
+
+  // Fallback: retornar mensagem original sem alteração — preserva mensagens
+  // pt-br já corretas (ex: 'Conta aguardando aprovação do administrador.').
   return msg;
 }

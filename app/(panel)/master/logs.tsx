@@ -9,36 +9,68 @@ import { router, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../../context/ThemeContext';
-import { getLogs, countLogsByLevel, logger } from '../../../utils/logger';
-import type { LogEntry, LogLevel, LogCategory } from '../../../utils/logger';
+import { supabase } from '../../../utils/supabase';
+import { logger } from '../../../utils/logger';
 import { tempoRelativo, formatarDataHora } from '../../../utils/htmlUtils';
+import type { AuditAction } from '../../../utils/auditLogger';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-type NivelFiltro = 'todos' | 'info' | 'warn' | 'error';
+interface AuditLogRow {
+  id: string;
+  acao: AuditAction;
+  ator_uid: string;
+  ator_nome: string;
+  ator_role: string | null;
+  alvo_id: string | null;
+  alvo_tipo: string | null;
+  detalhes: Record<string, any> | null;
+  criado_em: string;
+}
+
+type RoleFiltro = 'todos' | 'admin' | 'agente' | 'supervisor' | 'master_admin';
 type FiltroPeriodo = 'todos' | 'hoje' | '7d' | '30d';
+
+const ACAO_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
+  usuario_aprovado:       { icon: 'user-check',   color: '#10B981', label: 'APROVAÇÃO' },
+  usuario_bloqueado:      { icon: 'user-x',       color: '#EF4444', label: 'BLOQUEIO' },
+  token_gerado:           { icon: 'key',           color: '#3B82F6', label: 'TOKEN' },
+  token_revogado:         { icon: 'slash',         color: '#F59E0B', label: 'TOKEN' },
+  formulario_publicado:   { icon: 'check-square',  color: '#10B981', label: 'FORMULÁRIO' },
+  formulario_despublicado:{ icon: 'square',        color: '#6B7280', label: 'FORMULÁRIO' },
+  formulario_excluido:    { icon: 'trash-2',       color: '#EF4444', label: 'FORMULÁRIO' },
+  formulario_criado:      { icon: 'file-plus',     color: '#8B5CF6', label: 'FORMULÁRIO' },
+  formulario_duplicado:   { icon: 'copy',          color: '#6366F1', label: 'FORMULÁRIO' },
+};
+
+function getAcaoConfig(acao: string) {
+  return ACAO_CONFIG[acao] ?? { icon: 'activity', color: '#6B7280', label: 'AÇÃO' };
+}
 
 export default function MasterLogsScreen() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [filtro, setFiltro] = useState<NivelFiltro>('todos');
+  const [logs, setLogs] = useState<AuditLogRow[]>([]);
+  const [filtroRole, setFiltroRole] = useState<RoleFiltro>('todos');
   const [filtroPeriodo, setFiltroPeriodo] = useState<FiltroPeriodo>('todos');
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [counts, setCounts] = useState({ info: 0, warn: 0, error: 0 });
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const carregar = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const data = getLogs({ limit: 500 });
-      setLogs(data);
-      setCounts(countLogsByLevel());
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('criado_em', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      setLogs((data as AuditLogRow[]) ?? []);
     } catch (e) {
-      logger.error('system', 'Erro ao carregar logs', { erro: String(e) });
+      logger.error('system', 'Erro ao carregar audit_logs', { erro: String(e) });
       setLogs([]);
     } finally {
       setLoading(false);
@@ -48,7 +80,7 @@ export default function MasterLogsScreen() {
 
   useFocusEffect(useCallback(() => { carregar(); }, []));
 
-  const filterByPeriodo = (log: LogEntry) => {
+  const filterByPeriodo = (log: AuditLogRow) => {
     if (filtroPeriodo === 'todos') return true;
     if (!log.criado_em) return false;
     const now = new Date();
@@ -60,54 +92,40 @@ export default function MasterLogsScreen() {
 
   const filtrados = logs.filter(l => {
     if (!filterByPeriodo(l)) return false;
-    if (filtro !== 'todos' && l.level !== filtro) return false;
+    if (filtroRole !== 'todos' && l.ator_role !== filtroRole) return false;
     return true;
   });
 
-  const toggleExpand = (id: number) => {
+  const toggleExpand = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedId(prev => prev === id ? null : id);
   };
 
-  const getLogConfig = (level: LogLevel, category?: LogCategory) => {
-    if (level === 'error') return { icon: 'x-circle', color: '#EF4444', label: 'ERRO' };
-    if (level === 'warn')  return { icon: 'alert-triangle', color: '#F59E0B', label: 'AVISO' };
-
-    const cat = String(category || '').toLowerCase();
-    let icon = 'info';
-    let label = 'INFO';
-    if (cat === 'auth')          { icon = 'shield';    label = 'AUTH'; }
-    else if (cat === 'sync')     { icon = 'refresh-cw'; label = 'SYNC'; }
-    else if (cat === 'form')     { icon = 'edit';       label = 'FORM'; }
-    else if (cat === 'token')    { icon = 'key';        label = 'TOKEN'; }
-    else if (cat === 'network')  { icon = 'wifi';       label = 'REDE'; }
-    else if (cat === 'vistoria') { icon = 'clipboard';  label = 'VISTORIA'; }
-    else if (cat === 'notifications') { icon = 'bell'; label = 'NOTIF'; }
-
-    return { icon, color: '#3B82F6', label };
-  };
+  const countByRole = (role: string) => logs.filter(l => l.ator_role === role).length;
 
   const exportarCSV = async () => {
     if (filtrados.length === 0) {
-      Alert.alert('Sem dados', 'Não há logs para exportar.');
+      Alert.alert('Sem dados', 'Não há registros para exportar.');
       return;
     }
     try {
-      const cabecalho = 'id,level,category,message,data,criado_em';
+      const cabecalho = 'id,acao,ator_nome,ator_role,alvo_id,alvo_tipo,municipio,criado_em';
       const linhas = filtrados.map(l => [
         l.id ?? '',
-        l.level ?? '',
-        l.category ?? '',
-        (l.message || '').replace(/,/g, ';').replace(/\n/g, ' '),
-        (l.data || '').replace(/,/g, ';').replace(/\n/g, ' '),
+        l.acao ?? '',
+        (l.ator_nome || '').replace(/,/g, ';'),
+        l.ator_role ?? '',
+        l.alvo_id ?? '',
+        (l.alvo_tipo || '').replace(/,/g, ';'),
+        (l.detalhes?.municipio || '').replace(/,/g, ';'),
         l.criado_em ?? '',
       ].join(','));
       const csvContent = [cabecalho, ...linhas].join('\n');
-      const fileName = `system_logs_${new Date().toISOString().split('T')[0]}.csv`;
+      const fileName = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
       const filePath = `${FileSystem.documentDirectory}${fileName}`;
       await FileSystem.writeAsStringAsync(filePath, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(filePath, { mimeType: 'text/csv', dialogTitle: 'Exportar Logs' });
+        await Sharing.shareAsync(filePath, { mimeType: 'text/csv', dialogTitle: 'Exportar Auditoria' });
       } else {
         Alert.alert('Exportado', `Arquivo salvo em:\n${filePath}`);
       }
@@ -120,7 +138,7 @@ export default function MasterLogsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={[{ color: theme.textSecondary, marginTop: 12, fontSize: 13 }]}>Carregando logs do sistema...</Text>
+        <Text style={{ color: theme.textSecondary, marginTop: 12, fontSize: 13 }}>Carregando auditoria global...</Text>
       </View>
     );
   }
@@ -136,9 +154,9 @@ export default function MasterLogsScreen() {
           <Feather name="arrow-left" color={theme.textSecondary} size={24} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Logs do Sistema</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Auditoria Global</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Master Admin · {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
+            Todos os municípios · {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
           </Text>
         </View>
         <TouchableOpacity
@@ -158,26 +176,24 @@ export default function MasterLogsScreen() {
       {/* KPIs */}
       <View style={[styles.kpiRow, { borderBottomColor: theme.border, backgroundColor: theme.surfaceHighlight }]}>
         {([
-          { lv: 'total', label: 'Total',  count: logs.length,  cor: theme.primary, icon: 'database' },
-          { lv: 'info',  label: 'Info',   count: counts.info,  cor: '#3B82F6',    icon: 'info' },
-          { lv: 'warn',  label: 'Avisos', count: counts.warn,  cor: '#F59E0B',    icon: 'alert-triangle' },
-          { lv: 'error', label: 'Erros',  count: counts.error, cor: '#EF4444',    icon: 'x-circle' },
+          { key: 'total',        label: 'Total',      count: logs.length,           cor: theme.primary, icon: 'database' },
+          { key: 'admin',        label: 'Admins',     count: countByRole('admin'),  cor: '#8B5CF6',    icon: 'shield' },
+          { key: 'agente',       label: 'Agentes',    count: countByRole('agente'), cor: '#3B82F6',    icon: 'user' },
+          { key: 'supervisor',   label: 'Superv.',    count: countByRole('supervisor'), cor: '#10B981', icon: 'users' },
         ] as const).map(kpi => (
           <TouchableOpacity
-            key={kpi.lv}
+            key={kpi.key}
             style={styles.kpiItem}
             onPress={() => {
-              if (kpi.lv === 'total') return;
-              setFiltro(filtro === kpi.lv as NivelFiltro ? 'todos' : kpi.lv as NivelFiltro);
+              if (kpi.key === 'total') { setFiltroRole('todos'); return; }
+              setFiltroRole(filtroRole === kpi.key as RoleFiltro ? 'todos' : kpi.key as RoleFiltro);
             }}
           >
             <View style={[styles.kpiIconWrap, { backgroundColor: `${kpi.cor}12` }]}>
               <Feather name={kpi.icon as any} size={16} color={kpi.cor} />
             </View>
             <Text style={[styles.kpiValue, { color: kpi.cor }]}>{kpi.count}</Text>
-            <Text style={[styles.kpiLabel, {
-              color: (filtro === kpi.lv) ? kpi.cor : theme.textSecondary,
-            }]}>
+            <Text style={[styles.kpiLabel, { color: (filtroRole === kpi.key) ? kpi.cor : theme.textSecondary }]}>
               {kpi.label}
             </Text>
           </TouchableOpacity>
@@ -186,17 +202,12 @@ export default function MasterLogsScreen() {
 
       {/* Filtros */}
       <View style={[styles.filterSection, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterBar}
-        >
-          {/* Período */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBar}>
           {([
             { key: 'todos' as FiltroPeriodo, label: 'Tudo' },
-            { key: 'hoje' as FiltroPeriodo,  label: 'Hoje' },
-            { key: '7d'   as FiltroPeriodo,  label: '7 dias' },
-            { key: '30d'  as FiltroPeriodo,  label: '30 dias' },
+            { key: 'hoje'  as FiltroPeriodo, label: 'Hoje' },
+            { key: '7d'    as FiltroPeriodo, label: '7 dias' },
+            { key: '30d'   as FiltroPeriodo, label: '30 dias' },
           ] as const).map(f => (
             <TouchableOpacity
               key={f.key}
@@ -213,59 +224,29 @@ export default function MasterLogsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-
-          <View style={[styles.filterSep, { backgroundColor: theme.border }]} />
-
-          {/* Nível */}
-          {([
-            { key: 'todos' as NivelFiltro, label: 'Todos', color: theme.primary },
-            { key: 'info'  as NivelFiltro, label: 'Info',  color: '#3B82F6' },
-            { key: 'warn'  as NivelFiltro, label: 'Avisos', color: '#F59E0B' },
-            { key: 'error' as NivelFiltro, label: 'Erros', color: '#EF4444' },
-          ] as const).map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[
-                styles.chip,
-                filtro === f.key
-                  ? { backgroundColor: f.color }
-                  : { backgroundColor: theme.iconBackground, borderColor: theme.border, borderWidth: 1 },
-              ]}
-              onPress={() => setFiltro(f.key)}
-            >
-              <Text style={{ color: filtro === f.key ? '#FFF' : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
         </ScrollView>
       </View>
 
       {/* Lista */}
       <FlatList
         data={filtrados}
-        keyExtractor={(item, i) => String(item.id ?? i)}
+        keyExtractor={item => item.id}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
         ListEmptyComponent={
           <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
             <View style={[styles.emptyIconWrap, { backgroundColor: `${theme.primary}10` }]}>
-              <Feather name="file-text" size={40} color={theme.textSecondary} />
+              <Feather name="shield" size={40} color={theme.textSecondary} />
             </View>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Sem logs</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>Sem registros</Text>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              Nenhum log encontrado para os filtros selecionados.
+              Nenhuma ação auditável encontrada para os filtros selecionados.
             </Text>
           </View>
         }
-        renderItem={({ item: log, index: i }) => {
+        renderItem={({ item: log }) => {
           const isExpanded = expandedId === log.id;
-          const config = getLogConfig(log.level, log.category);
-
-          let parsedData: any = null;
-          if (log.data) {
-            try { parsedData = JSON.parse(log.data); } catch { parsedData = log.data; }
-          }
+          const config = getAcaoConfig(log.acao);
 
           return (
             <TouchableOpacity
@@ -273,9 +254,7 @@ export default function MasterLogsScreen() {
               activeOpacity={0.8}
               onPress={() => toggleExpand(log.id)}
             >
-              {/* Stripe */}
               <View style={[styles.logStripe, { backgroundColor: config.color }]} />
-
               <View style={styles.logContent}>
                 {/* Header */}
                 <View style={styles.logHeader}>
@@ -290,49 +269,52 @@ export default function MasterLogsScreen() {
                   </Text>
                   <Feather
                     name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                    size={16}
-                    color={theme.textSecondary}
-                    style={{ marginLeft: 4 }}
+                    size={16} color={theme.textSecondary} style={{ marginLeft: 4 }}
                   />
                 </View>
 
-                {/* Description */}
+                {/* Ação */}
                 <Text style={[styles.logDesc, { color: theme.text }]}>
-                  {log.message || 'Sem descrição'}
+                  {log.acao.replace(/_/g, ' ')}
                 </Text>
 
-                {/* Category badge */}
-                {log.category && (
-                  <View style={styles.logMeta}>
+                {/* Meta */}
+                <View style={styles.logMeta}>
+                  {log.ator_nome && (
                     <View style={styles.metaItem}>
-                      <Feather name="tag" size={12} color={theme.textSecondary} />
-                      <Text style={[styles.metaText, { color: theme.textSecondary }]}>
-                        {log.category}
-                      </Text>
+                      <Feather name="user" size={12} color={theme.textSecondary} />
+                      <Text style={[styles.metaText, { color: theme.textSecondary }]}>{log.ator_nome}</Text>
                     </View>
-                  </View>
-                )}
+                  )}
+                  {log.detalhes?.municipio && (
+                    <View style={styles.metaItem}>
+                      <Feather name="map-pin" size={12} color={theme.textSecondary} />
+                      <Text style={[styles.metaText, { color: theme.textSecondary }]}>{log.detalhes.municipio}</Text>
+                    </View>
+                  )}
+                </View>
 
                 {/* Expanded */}
                 {isExpanded && (
                   <View style={[styles.expandedSection, { borderTopColor: theme.border }]}>
-                    <Text style={[styles.expandedTitle, { color: theme.textSecondary }]}>DETALHES TÉCNICOS</Text>
-
+                    <Text style={[styles.expandedTitle, { color: theme.textSecondary }]}>DETALHES</Text>
                     {log.criado_em && (
                       <DetailRow icon="calendar" label="Data/Hora" value={formatarDataHora(log.criado_em)} theme={theme} />
                     )}
-                    {log.id != null && (
-                      <DetailRow icon="hash" label="ID" value={String(log.id)} theme={theme} />
+                    {log.ator_role && (
+                      <DetailRow icon="shield" label="Papel" value={log.ator_role} theme={theme} />
                     )}
-
-                    {parsedData != null && (
+                    {log.alvo_id && (
+                      <DetailRow icon="hash" label="Alvo ID" value={log.alvo_id} theme={theme} />
+                    )}
+                    {log.alvo_tipo && (
+                      <DetailRow icon="tag" label="Alvo" value={log.alvo_tipo} theme={theme} />
+                    )}
+                    {log.detalhes && Object.keys(log.detalhes).length > 0 && (
                       <View style={[styles.jsonBlock, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
-                        <Text style={[styles.jsonLabel, { color: theme.textSecondary }]}>DADOS / PAYLOAD JSON</Text>
+                        <Text style={[styles.jsonLabel, { color: theme.textSecondary }]}>DADOS</Text>
                         <Text style={[styles.jsonContent, { color: theme.text }]}>
-                          {typeof parsedData === 'string'
-                            ? parsedData
-                            : JSON.stringify(parsedData, null, 2)
-                          }
+                          {JSON.stringify(log.detalhes, null, 2)}
                         </Text>
                       </View>
                     )}
@@ -373,8 +355,6 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 10, borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',
   },
-
-  // KPIs
   kpiRow: {
     flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 14, borderBottomWidth: 1,
   },
@@ -385,16 +365,10 @@ const styles = StyleSheet.create({
   },
   kpiValue: { fontSize: 20, fontWeight: '800' },
   kpiLabel: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-
-  // Filtros
   filterSection: { borderBottomWidth: 1 },
   filterBar: { gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  filterSep: { width: 1, height: 24, alignSelf: 'center', marginHorizontal: 4 },
-
   scrollContent: { padding: 16, paddingBottom: 60 },
-
-  // Log Cards
   logCard: {
     borderRadius: 16, borderWidth: 1, overflow: 'hidden',
     flexDirection: 'row', marginBottom: 10,
@@ -408,27 +382,19 @@ const styles = StyleSheet.create({
   nivelBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   nivelText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   logTime: { marginLeft: 'auto', fontSize: 11, fontWeight: '500' },
-  logDesc: { fontSize: 14, fontWeight: '500', lineHeight: 20, marginBottom: 8 },
+  logDesc: { fontSize: 14, fontWeight: '500', lineHeight: 20, marginBottom: 8, textTransform: 'capitalize' },
   logMeta: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { fontSize: 11, fontWeight: '500' },
-
-  // Expanded
-  expandedSection: {
-    borderTopWidth: 1, marginTop: 12, paddingTop: 12,
-  },
+  expandedSection: { borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
   expandedTitle: {
     fontSize: 10, fontWeight: '800', letterSpacing: 1,
     textTransform: 'uppercase', marginBottom: 10,
   },
-  detailRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 8,
-  },
+  detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 8 },
   detailLabel: { fontSize: 11, fontWeight: '600' },
   detailValue: { fontSize: 12, fontWeight: '500', flex: 1, flexWrap: 'wrap' },
-  jsonBlock: {
-    borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 8,
-  },
+  jsonBlock: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 8 },
   jsonLabel: {
     fontSize: 9, fontWeight: '800', letterSpacing: 1,
     textTransform: 'uppercase', marginBottom: 6,
@@ -437,8 +403,6 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
     lineHeight: 16,
   },
-
-  // Empty
   emptyCard: {
     borderRadius: 20, borderWidth: 1, padding: 40, alignItems: 'center', marginTop: 20,
   },
