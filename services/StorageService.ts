@@ -9,6 +9,13 @@ const BUCKET_NAME = 'vistorias';
  * @param localUri A URI local do arquivo gerada pela câmera ou galeria
  * @param remotePath O caminho destino no Storage (ex: '2026/03/vistoria_123_foto_1.jpg')
  * @returns A URL pública da imagem recém-salva
+ *
+ * @note COMPORTAMENTO DE RETRY: O remotePath inclui Date.now(), então cada
+ * tentativa de upload usa um caminho único. Se o upload for bem-sucedido mas
+ * o app morrer antes de persistir a URL pública no SQLite (em processarImagensVistoria),
+ * o arquivo permanecerá no Storage sem referência (arquivo órfão). O retry
+ * seguinte fará upload para um novo path sem conflito. Para limpeza de órfãos,
+ * seria necessário um job periódico no Supabase (out of scope para SYNC-01).
  */
 export async function uploadImageFromLocalUri(localUri: string, remotePath: string): Promise<string> {
   try {
