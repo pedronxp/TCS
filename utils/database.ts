@@ -489,7 +489,7 @@ export function updateAgendamentoStatus(id: string, status: string): void {
 
 export function deleteAgendamento(id: string): void {
   const database = getDb();
-  database.runSync(`DELETE FROM agendamentos_offline WHERE id = ?`, [id]);
+  database.runSync(`DELETE FROM agendamentos WHERE id = ?`, [id]);
 }
 
 export function countAgendamentosPendentes(municipio: string): number {
