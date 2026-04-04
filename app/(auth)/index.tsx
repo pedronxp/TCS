@@ -1,80 +1,219 @@
-import { View, Text, SafeAreaView, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import {
+  View, Text, SafeAreaView, StyleSheet, Platform,
+  Animated, TouchableOpacity, Dimensions,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { useTheme } from '../../context/ThemeContext';
-import { Button } from '../../components/ui';
-import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 
+const { width: SCREEN_W } = Dimensions.get('window');
+const RISK_COLORS = ['#10B981', '#F59E0B', '#F97316', '#EF4444'];
+
 export default function WelcomeScreen() {
-  const { theme, isDark } = useTheme();
+  const { isDark } = useTheme();
+
+  const logoAnim   = useRef(new Animated.Value(0)).current;
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const ctaAnim    = useRef(new Animated.Value(0)).current;
+  const footerAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim  = useRef(new Animated.Value(1)).current;
+  const dotAnim    = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.stagger(130, [
+      Animated.timing(logoAnim,   { toValue: 1, duration: 650, useNativeDriver: true }),
+      Animated.timing(headerAnim, { toValue: 1, duration: 520, useNativeDriver: true }),
+      Animated.timing(ctaAnim,    { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(footerAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.1,  duration: 2200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,    duration: 2200, useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotAnim, { toValue: 0.25, duration: 1100, useNativeDriver: true }),
+        Animated.timing(dotAnim, { toValue: 1,    duration: 1100, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  // ── Paleta adaptada ao tema ──────────────────────────────────────────────
+  const bg          = isDark ? '#080C14' : '#F0F4FF';
+  const surface     = isDark ? '#0F172A' : '#FFFFFF';
+  const border      = isDark ? '#1E293B' : '#E2E8F0';
+  const textPrimary = isDark ? '#F1F5F9' : '#0F172A';
+  const textMuted   = isDark ? '#4B5563' : '#94A3B8';
+  const primary     = '#3B82F6';
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.root, { backgroundColor: bg }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+
+      {/* ── Linhas de fundo decorativas ─────────────────────────────────── */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {[0, 1, 2, 3, 4, 5].map(i => (
+          <View
+            key={i}
+            style={[
+              styles.bgLine,
+              {
+                top: SCREEN_W * 0.38 * i - 60,
+                borderColor: isDark
+                  ? 'rgba(59,130,246,0.045)'
+                  : 'rgba(59,130,246,0.07)',
+              },
+            ]}
+          />
+        ))}
+      </View>
+
       <View style={styles.container}>
 
-        {/* ── Top spacer ── */}
-        <View style={styles.topSpacer} />
+        <View style={{ flex: 1.3 }} />
 
-        {/* ── Logo + Branding ── */}
-        <View style={styles.brand}>
-          <Image
-            source={require('../../assets/logo.png')}
-            style={styles.logo}
-            contentFit="contain"
+        {/* ── Logo ────────────────────────────────────────────────────────── */}
+        <Animated.View
+          style={[
+            styles.logoBlock,
+            {
+              opacity: logoAnim,
+              transform: [{
+                translateY: logoAnim.interpolate({
+                  inputRange: [0, 1], outputRange: [28, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.pulseRing,
+              { borderColor: primary + '28', transform: [{ scale: pulseAnim }] },
+            ]}
           />
+          <View style={[styles.logoWrap, { backgroundColor: surface, borderColor: border }]}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logo}
+              contentFit="contain"
+            />
+          </View>
+        </Animated.View>
 
-          <Text style={[styles.appName, { color: theme.text }]}>
-            TCS
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <Animated.View
+          style={[
+            styles.headerBlock,
+            {
+              opacity: headerAnim,
+              transform: [{
+                translateY: headerAnim.interpolate({
+                  inputRange: [0, 1], outputRange: [18, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Text style={[styles.appName, { color: textPrimary }]}>TCS</Text>
+
+          {/* Barra de risco R1 → R4 */}
+          <View style={styles.riskBar}>
+            {RISK_COLORS.map((c, i) => (
+              <View key={i} style={[styles.riskSegment, { backgroundColor: c }]} />
+            ))}
+          </View>
+
+          <Text style={[styles.appSystem, { color: primary }]}>RELATÓRIO E RISCO</Text>
+          <Text style={[styles.appSub, { color: textMuted }]}>
+            Sistema de Vistoria Técnica · Defesa Civil
           </Text>
-          <View style={[styles.divider, { backgroundColor: theme.primary }]} />
-          <Text style={[styles.appTagline, { color: theme.textSecondary }]}>
-            Relatório e Vistoria
-          </Text>
-        </View>
+        </Animated.View>
 
-        <Text style={[styles.description, { color: theme.muted ?? theme.textSecondary }]}>
-          Plataforma inteligente para gestão{'\n'}de riscos e laudos técnicos
-        </Text>
+        <View style={{ flex: 1 }} />
 
-        {/* ── Bottom spacer ── */}
-        <View style={styles.bottomSpacer} />
-
-        {/* ── CTAs ── */}
-        <View style={styles.ctas}>
-          <Button
-            variant="primary"
-            label="Entrar"
+        {/* ── CTAs ────────────────────────────────────────────────────────── */}
+        <Animated.View
+          style={[
+            styles.ctas,
+            {
+              opacity: ctaAnim,
+              transform: [{
+                translateY: ctaAnim.interpolate({
+                  inputRange: [0, 1], outputRange: [22, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          {/* Botão principal */}
+          <TouchableOpacity
+            style={[styles.btnPrimary, { backgroundColor: primary }]}
             onPress={() => router.push('/(auth)/login')}
-          />
-          <Button
-            variant="secondary"
-            label="Conhecer o App"
-            onPress={() => router.push('/onboarding')}
-          />
-          <Button
-            variant="ghost"
-            label="Validar Token de Acesso"
-            onPress={() => router.push('/(auth)/register')}
-          />
-        </View>
+            activeOpacity={0.82}
+          >
+            <Feather name="log-in" size={18} color="#FFF" />
+            <Text style={styles.btnPrimaryText}>ACESSAR SISTEMA</Text>
+            <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.55)" />
+          </TouchableOpacity>
 
-        {/* ── Footer ── */}
-        <View style={styles.footer}>
-          <Feather name="lock" size={11} color={theme.muted ?? theme.textSecondary} />
-          <Text style={[styles.footerText, { color: theme.muted ?? theme.textSecondary }]}>
-            Acesso restrito a usuários credenciados
-          </Text>
-        </View>
+          {/* Botões secundários lado a lado */}
+          <View style={styles.secondaryRow}>
+            <TouchableOpacity
+              style={[styles.btnSecondary, { borderColor: border, backgroundColor: surface }]}
+              onPress={() => router.push('/onboarding')}
+              activeOpacity={0.8}
+            >
+              <Feather name="info" size={14} color={textMuted} />
+              <Text style={[styles.btnSecondaryText, { color: textMuted }]}>Conhecer o App</Text>
+            </TouchableOpacity>
 
-        {/* ── Créditos ── */}
-        <Text style={[styles.credits, { color: theme.muted ?? theme.textSecondary }]}>
-          Desenvolvido por Pedronxp · v{Constants.expoConfig?.version ?? '1.0.0'}
-        </Text>
+            <TouchableOpacity
+              style={[styles.btnSecondary, { borderColor: border, backgroundColor: surface }]}
+              onPress={() => router.push('/(auth)/register')}
+              activeOpacity={0.8}
+            >
+              <Feather name="key" size={14} color={textMuted} />
+              <Text style={[styles.btnSecondaryText, { color: textMuted }]}>Validar Token</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* ── Footer ──────────────────────────────────────────────────────── */}
+        <Animated.View
+          style={[
+            styles.footer,
+            { opacity: footerAnim, borderTopColor: border },
+          ]}
+        >
+          {/* Status online */}
+          <View style={styles.statusRow}>
+            <Animated.View style={[styles.statusDot, { opacity: dotAnim }]} />
+            <Text style={styles.statusText}>SISTEMA ONLINE</Text>
+          </View>
+
+          {/* Linha inferior: lock + créditos */}
+          <View style={styles.footerBottom}>
+            <View style={styles.lockRow}>
+              <Feather name="shield" size={11} color={textMuted} />
+              <Text style={[styles.footerText, { color: textMuted }]}>
+                Acesso restrito · Credencial necessária
+              </Text>
+            </View>
+            <Text style={[styles.credits, { color: textMuted }]}>
+              Pedronxp · v{Constants.expoConfig?.version ?? '1.0.0'}
+            </Text>
+          </View>
+        </Animated.View>
 
       </View>
     </SafeAreaView>
@@ -82,69 +221,165 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
+  root: { flex: 1 },
   container: {
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: Spacing[8],
   },
 
-  topSpacer: { flex: 1.2 },
-  bottomSpacer: { flex: 1 },
+  /* ── Fundo ── */
+  bgLine: {
+    position: 'absolute',
+    left: -SCREEN_W * 0.3,
+    width: SCREEN_W * 2,
+    height: 1,
+    borderTopWidth: 1,
+    transform: [{ rotate: '-20deg' }],
+  },
 
-  /* ── Branding ── */
-  brand: {
+  /* ── Logo ── */
+  logoBlock: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+    borderWidth: 1.5,
+  },
+  logoWrap: {
+    width: 104,
+    height: 104,
+    borderRadius: 30,
+    borderWidth: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   logo: {
-    width: 140,
-    height: 140,
-    marginBottom: Spacing[5],
+    width: 70,
+    height: 70,
+  },
+
+  /* ── Header ── */
+  headerBlock: {
+    alignItems: 'center',
+    gap: 8,
   },
   appName: {
-    fontSize: 38,
-    fontWeight: '800',
-    letterSpacing: 2,
+    fontSize: 60,
+    fontWeight: '900',
+    letterSpacing: -2,
+    lineHeight: 64,
   },
-  divider: {
-    width: 40,
+  riskBar: {
+    flexDirection: 'row',
+    width: 60,
     height: 3,
     borderRadius: 2,
-    marginVertical: Spacing[3],
+    overflow: 'hidden',
+    gap: 2,
   },
-  appTagline: {
-    fontSize: Typography.subtitle.size,
-    fontWeight: Typography.subtitle.weight,
+  riskSegment: {
+    flex: 1,
+    borderRadius: 2,
   },
-  description: {
-    fontSize: Typography.body.size,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginTop: Spacing[6],
-    maxWidth: 280,
+  appSystem: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 3.5,
+  },
+  appSub: {
+    fontSize: 12,
+    fontWeight: '400',
+    marginTop: 2,
   },
 
   /* ── CTAs ── */
   ctas: {
     width: '100%',
-    gap: Spacing[3],
-    marginBottom: Platform.OS === 'ios' ? Spacing[4] : Spacing[6],
+    gap: 10,
+    marginBottom: Platform.OS === 'ios' ? Spacing[2] : Spacing[4],
+  },
+  btnPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 17,
+    borderRadius: 14,
+    width: '100%',
+  },
+  btnPrimaryText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    flex: 1,
+    textAlign: 'center',
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  btnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  btnSecondaryText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   /* ── Footer ── */
   footer: {
+    width: '100%',
+    borderTopWidth: 1,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 4 : Spacing[3],
+    gap: 8,
+  },
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing[2],
-    paddingBottom: Platform.OS === 'ios' ? 0 : Spacing[4],
+    justifyContent: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  statusText: {
+    color: '#10B981',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.8,
+  },
+  footerBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  lockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   footerText: {
-    fontSize: Typography.caption.size,
+    fontSize: 11,
   },
   credits: {
     fontSize: 10,
-    opacity: 0.45,
-    paddingBottom: Platform.OS === 'ios' ? 8 : Spacing[4],
-    marginTop: Spacing[1],
+    opacity: 0.5,
   },
 });
