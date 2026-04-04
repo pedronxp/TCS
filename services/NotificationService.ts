@@ -280,6 +280,51 @@ export async function notificarNovoUsuarioCadastrado(
   }
 }
 
+export async function notificarMasterSolicitaTokens(
+  adminNome: string,
+  municipio: string,
+  usadoMes: number,
+  limiteTotal: number,
+): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('fcmToken')
+      .eq('role', 'master_admin')
+      .eq('isApproved', true)
+      .not('fcmToken', 'is', null);
+
+    if (!data || data.length === 0) return;
+
+    const payloads = data
+      .filter((u: any) => u.fcmToken)
+      .map((u: any) => ({
+        to: u.fcmToken,
+        title: '📊 Solicitação de aumento de limite',
+        body: `${adminNome} (${municipio}) usou ${usadoMes}/${limiteTotal} tokens e solicita aumento de limite.`,
+        data: { tipo: 'solicita_tokens', municipio },
+        sound: 'default',
+        channelId: 'tokens',
+        priority: 'high',
+        ttl: 86400,
+      }));
+
+    if (payloads.length === 0) return;
+
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
+    });
+  } catch (e) {
+    logger.warn('notifications', 'Erro ao notificar master sobre solicitação de tokens', { erro: String(e) });
+  }
+}
+
 export async function notificarMasterTokenGerado(
   geradoPorNome: string,
   municipio: string,
