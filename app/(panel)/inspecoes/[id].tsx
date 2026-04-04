@@ -51,7 +51,7 @@ export default function VistoriaDetalhesScreen() {
       // Construir query com filtros de segurança por role
       let query = supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status, latitude, longitude')
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status, latitude, longitude, fotosUrls')
         .eq('id', id as string);
 
       // Agentes só veem suas próprias vistorias
@@ -79,6 +79,10 @@ export default function VistoriaDetalhesScreen() {
           logger.warn('vistoria', 'Acesso negado — vistoria de outro agente (SQLite)');
           return;
         }
+        let fotosUrlsParsed: string[] | null = null;
+        if (local.fotos_urls) {
+          try { fotosUrlsParsed = JSON.parse(local.fotos_urls); } catch { /* noop */ }
+        }
         setVistoria({
           id: local.id,
           nivelRisco: local.nivel_risco,
@@ -97,6 +101,7 @@ export default function VistoriaDetalhesScreen() {
           status: 'Pendente Sync',
           latitude: local.latitude,
           longitude: local.longitude,
+          fotosUrls: fotosUrlsParsed,
         });
         return;
       }

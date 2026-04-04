@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image,
   ScrollView, ActivityIndicator, Alert
@@ -10,7 +10,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
-import { updateFotosUrls } from '../../../utils/database';
+import { updateFotosUrls, getVistoriaById } from '../../../utils/database';
 import { EmptyState, Button } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,6 +33,23 @@ export default function FotoScreen() {
   const { isOnlineReal } = useConnectivity();
   const [fotos, setFotos] = useState<FotoItem[]>([]);
   const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    const local = getVistoriaById(id as string);
+    if (local?.fotos_urls) {
+      try {
+        const urls: string[] = JSON.parse(local.fotos_urls);
+        if (urls.length > 0) {
+          setFotos(urls.map(uri => ({
+            localId: uri,
+            uri,
+            url: uri.startsWith('http') ? uri : undefined,
+          })));
+        }
+      } catch { /* noop */ }
+    }
+  }, [id]);
 
   const solicitarPermissaoCamera = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
