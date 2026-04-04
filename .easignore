@@ -1,0 +1,11 @@
+# Ignorar no upload para EAS Build
+node_modules/
+.claude/
+.planning/
+planilhas/
+"json form"/
+Laudo.docx
+*.log
+.git/
+android/
+ios/
