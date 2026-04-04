@@ -124,13 +124,11 @@ export default function ShowcaseScreen() {
 
         {/* ── Seção 1: Hero ── */}
         <Animated.View style={[styles.hero, fadeSlide(heroAnim, 28)]}>
-          <View style={[styles.logoBg, { backgroundColor: surface, borderColor: border }]}>
-            <Image
-              source={require('../assets/logo.png')}
-              style={styles.logo}
-              contentFit="contain"
-            />
-          </View>
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.logo}
+            contentFit="contain"
+          />
           <Text style={[styles.heroTitle, { color: text }]}>TCS</Text>
 
           {/* Barra R1→R4 */}
@@ -144,7 +142,7 @@ export default function ShowcaseScreen() {
 
           <Text style={[styles.heroSystem, { color: primary }]}>RELATÓRIO E RISCO</Text>
           <Text style={[styles.heroSub, { color: muted }]}>
-            Sistema Oficial de Vistoria Técnica · Defesa Civil
+            Do registro em campo ao laudo técnico — tudo em um só lugar.
           </Text>
         </Animated.View>
 
@@ -233,12 +231,7 @@ const styles = StyleSheet.create({
 
   /* ── Hero ── */
   hero: { alignItems: 'center', paddingTop: 8, gap: 10 },
-  logoBg: {
-    width: 96, height: 96, borderRadius: 28, borderWidth: 1,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 4,
-  },
-  logo: { width: 66, height: 66 },
+  logo: { width: 96, height: 96, marginBottom: 4 },
   heroTitle: {
     fontSize: 56, fontWeight: '900', letterSpacing: -2, lineHeight: 60,
   },

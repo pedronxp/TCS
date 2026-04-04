@@ -101,13 +101,11 @@ export default function WelcomeScreen() {
               { borderColor: primary + '28', transform: [{ scale: pulseAnim }] },
             ]}
           />
-          <View style={[styles.logoWrap, { backgroundColor: surface, borderColor: border }]}>
-            <Image
-              source={require('../../assets/logo.png')}
-              style={styles.logo}
-              contentFit="contain"
-            />
-          </View>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logo}
+            contentFit="contain"
+          />
         </Animated.View>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -250,17 +248,9 @@ const styles = StyleSheet.create({
     borderRadius: 62,
     borderWidth: 1.5,
   },
-  logoWrap: {
+  logo: {
     width: 104,
     height: 104,
-    borderRadius: 30,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logo: {
-    width: 70,
-    height: 70,
   },
 
   /* ── Header ── */
