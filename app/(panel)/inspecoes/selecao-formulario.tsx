@@ -8,39 +8,41 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
 import { Card, Badge, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
   {
-    id: 'estrutural_v1',
-    titulo: 'Vistoria Estrutural',
-    descricao: '7 fases • Soma total de risco',
-    asset: require('../../../assets/formularios/estrutural.json'),
-    icon: 'layers' as const,
+    id: 'risco_estrutural_v2',
+    titulo: 'Risco Estrutural — Campo (v2)',
+    descricao: '7 elementos essenciais · Skip automático · Formulário de campo',
+    asset: require('../../../assets/formularios/risco_estrutural_v2.json'),
+    icon: 'home' as const,
     isBuiltin: true,
+    isNew: true,
   },
   {
-    id: 'deslizamento_campo_v1',
-    titulo: 'Deslizamento Técnico',
-    descricao: '10 fases • Planilha técnica de campo',
-    asset: require('../../../assets/formularios/deslizamento_campo.json'),
-    icon: 'trending-down' as const,
-    isBuiltin: true,
-  },
-  {
-    id: 'estrutural_avancado_v1',
-    titulo: 'Estrutural Completo',
-    descricao: '12 sistemas • Avaliação aprofundada',
-    asset: require('../../../assets/formularios/estrutural_avancado.json'),
+    id: 'risco_estrutural_completo_v1',
+    titulo: 'Avaliação Completa — 10 Elementos',
+    descricao: '10 elementos · 40 perguntas · Avaliação abrangente',
+    asset: require('../../../assets/formularios/risco_estrutural_completo_v1.json'),
     icon: 'home' as const,
     isBuiltin: true,
   },
   {
-    id: 'inundacao_v1',
-    titulo: 'Vistoria de Inundação',
-    descricao: '8 fases • Enchente e alagamento',
-    asset: require('../../../assets/formularios/inundacao.json'),
-    icon: 'droplet' as const,
+    id: 'risco_estrutural_v1',
+    titulo: 'Avaliação de Risco Estrutural',
+    descricao: '12 elementos • Pontuação ponderada por peso estrutural',
+    asset: require('../../../assets/formularios/risco_estrutural_v1.json'),
+    icon: 'home' as const,
+    isBuiltin: true,
+  },
+  {
+    id: 'vistoria_deslizamento_v1',
+    titulo: 'Vistoria de Risco de Deslizamento',
+    descricao: '10 campos • Planilha técnica de campo',
+    asset: require('../../../assets/formularios/vistoria_deslizamento_v1.json'),
+    icon: 'trending-down' as const,
     isBuiltin: true,
   },
 ];
@@ -54,6 +56,7 @@ interface FormularioItem {
   asset?: any;
   icon?: any;
   isBuiltin: boolean;
+  isNew?: boolean;
 }
 
 const getFormIcon = (item: FormularioItem): string => {
@@ -66,6 +69,7 @@ const getFormIcon = (item: FormularioItem): string => {
 
 export default function SelecaoFormularioScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { isOnlineReal } = useConnectivity();
   const params = useLocalSearchParams<any>();
@@ -181,7 +185,7 @@ export default function SelecaoFormularioScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
@@ -215,7 +219,10 @@ export default function SelecaoFormularioScreen() {
                     <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
                     <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
-                      <Badge variant="success">Built-in</Badge>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <Badge label="Built-in" variant="success" />
+                        {f.isNew && <Badge label="Novo" variant="info" />}
+                      </View>
                       {sel
                         ? <Feather name="check-circle" size={16} color={theme.primary} />
                         : <Feather name="chevron-right" size={16} color={theme.muted} />
@@ -260,7 +267,7 @@ export default function SelecaoFormularioScreen() {
                         <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
                         <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao || ''}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
-                          <Badge variant="warning">Personalizado</Badge>
+                          <Badge label="Personalizado" variant="warning" />
                           {sel
                             ? <Feather name="check-circle" size={16} color={theme.primary} />
                             : <Feather name="chevron-right" size={16} color={theme.muted} />
@@ -296,7 +303,7 @@ export default function SelecaoFormularioScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
+  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },

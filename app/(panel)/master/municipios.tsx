@@ -9,6 +9,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /*
   SQL to create the RPC in Supabase:
@@ -46,6 +47,7 @@ interface MunicipioData {
 
 export default function MunicipiosScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -57,6 +59,8 @@ export default function MunicipiosScreen() {
   const [salvando, setSalvando] = useState(false);
   const [criandoMunicipio, setCriandoMunicipio] = useState(false);
   const [novoMunNome, setNovoMunNome] = useState('');
+  const [novoMunEstado, setNovoMunEstado] = useState('');
+  const [novoMunUF, setNovoMunUF] = useState('');
 
   const carregar = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -135,9 +139,12 @@ export default function MunicipiosScreen() {
       ));
       setNovoDominio('');
       setEditandoDominio(null);
-    } catch (e) {
-      Alert.alert('Erro', 'Não foi possível salvar.');
-      logger.error('system', 'Erro salvar domínio', { erro: String(e) });
+    } catch (e: any) {
+      const msg = e?.code === '42501'
+        ? 'Permissão negada. Verifique se você tem perfil de master admin.'
+        : e?.message || 'Não foi possível salvar o domínio.';
+      Alert.alert('Erro', msg);
+      logger.error('system', 'Erro salvar domínio', { erro: e?.message || JSON.stringify(e), code: e?.code });
     } finally {
       setSalvando(false);
     }
@@ -145,8 +152,18 @@ export default function MunicipiosScreen() {
 
   const criarMunicipio = async () => {
     const nome = novoMunNome.trim();
+    const estado = novoMunEstado.trim();
+    const uf = novoMunUF.trim().toUpperCase();
     if (!nome) {
       Alert.alert('Nome inválido', 'Digite o nome do município.');
+      return;
+    }
+    if (!estado) {
+      Alert.alert('Estado obrigatório', 'Digite o nome do estado (ex: São Paulo).');
+      return;
+    }
+    if (!uf || uf.length !== 2) {
+      Alert.alert('UF inválida', 'Digite a sigla do estado com 2 letras (ex: SP).');
       return;
     }
     if (municipios.some(m => m.nome.toLowerCase() === nome.toLowerCase())) {
@@ -155,15 +172,31 @@ export default function MunicipiosScreen() {
     }
     setSalvando(true);
     try {
-      const { error } = await supabase.from('municipios').insert({ nome, dominios_email: null });
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.from('municipios').insert({
+        nome,
+        estado,
+        uf,
+        ativo: true,
+        criado_em: new Date().toISOString(),
+        criado_por: session?.user?.id ?? null,
+        dominios_email: null,
+      });
       if (error) throw error;
       setMunicipios(prev => [...prev, { nome, totalVistorias: 0, altoRisco: 0, agentes: 0, dominiosEmail: null }]);
       setNovoMunNome('');
+      setNovoMunEstado('');
+      setNovoMunUF('');
       setCriandoMunicipio(false);
       Alert.alert('Município criado', `"${nome}" foi adicionado com sucesso.`);
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível criar o município.');
-      logger.error('system', 'Erro criar município', { erro: String(e) });
+      const msg = e?.code === '42501'
+        ? 'Permissão negada. Verifique se você tem perfil de master admin.'
+        : e?.code === '23505'
+        ? 'Este município já está cadastrado.'
+        : 'Não foi possível criar o município. Tente novamente.';
+      Alert.alert('Erro', msg);
+      logger.error('system', 'Erro criar município', { erro: e?.message || JSON.stringify(e), code: e?.code });
     } finally {
       setSalvando(false);
     }
@@ -182,8 +215,11 @@ export default function MunicipiosScreen() {
           setMunicipios(prev => prev.map(m =>
             m.nome === mun.nome ? { ...m, dominiosEmail: novos.length > 0 ? novos : null } : m
           ));
-        } catch (e) {
-          Alert.alert('Erro', 'Não foi possível remover.');
+        } catch (e: any) {
+          const msg = e?.code === '42501'
+            ? 'Permissão negada. Verifique se você tem perfil de master admin.'
+            : 'Não foi possível remover o domínio.';
+          Alert.alert('Erro', msg);
         }
       }},
     ]);
@@ -217,7 +253,7 @@ export default function MunicipiosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -245,10 +281,29 @@ export default function MunicipiosScreen() {
               style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.primary, color: theme.text }]}
               value={novoMunNome}
               onChangeText={setNovoMunNome}
-              placeholder="Ex: São Paulo"
+              placeholder="Nome do município"
               placeholderTextColor={theme.textSecondary}
               autoCapitalize="words"
               autoFocus
+            />
+          </View>
+          <View style={[styles.newMunRow, { marginTop: 8 }]}>
+            <TextInput
+              style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, flex: 2 }]}
+              value={novoMunEstado}
+              onChangeText={setNovoMunEstado}
+              placeholder="Estado (ex: São Paulo)"
+              placeholderTextColor={theme.textSecondary}
+              autoCapitalize="words"
+            />
+            <TextInput
+              style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, flex: 0, width: 64 }]}
+              value={novoMunUF}
+              onChangeText={t => setNovoMunUF(t.toUpperCase())}
+              placeholder="UF"
+              placeholderTextColor={theme.textSecondary}
+              autoCapitalize="characters"
+              maxLength={2}
             />
             <TouchableOpacity
               style={[styles.newMunBtn, { backgroundColor: salvando ? theme.textSecondary : theme.primary }]}
@@ -382,7 +437,7 @@ export default function MunicipiosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {

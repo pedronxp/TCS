@@ -16,11 +16,40 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// ─── Channels Android criados na inicialização do módulo ─────────────────────
+// Criados aqui (e não só dentro de requestNotificationPermissions) para garantir
+// que existam antes de qualquer notificação ser agendada.
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Defesa Civil',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#3B82F6',
+    sound: 'default',
+  });
+
+  Notifications.setNotificationChannelAsync('alertas', {
+    name: 'Alertas Críticos',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 500, 200, 500],
+    lightColor: '#EF4444',
+    sound: 'default',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+
+  Notifications.setNotificationChannelAsync('tokens', {
+    name: 'Tokens de Acesso',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 200, 100, 200],
+    lightColor: '#8B5CF6',
+    sound: 'default',
+  });
+}
+
 // ─── Permissões ──────────────────────────────────────────────────────────────
 
 export async function requestNotificationPermissions(): Promise<boolean> {
   if (!Device.isDevice) {
-    // Simulador/emulador — notificações não funcionam
     return false;
   }
 
@@ -32,25 +61,6 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     finalStatus = status;
   }
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Defesa Civil',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#3B82F6',
-      sound: 'default',
-    });
-
-    await Notifications.setNotificationChannelAsync('alertas', {
-      name: 'Alertas Críticos',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 500, 200, 500],
-      lightColor: '#EF4444',
-      sound: 'default',
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    });
-  }
-
   return finalStatus === 'granted';
 }
 
@@ -59,7 +69,6 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 export async function getExpoPushToken(): Promise<string | null> {
   if (!Device.isDevice) return null;
 
-  // Expo Go SDK 53+ removeu push remoto — só funciona em APK/dev build
   if (Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient') {
     return null;
   }
@@ -121,7 +130,7 @@ export async function notificarVistoriaSalva(endereco: string, nivel: string): P
       color: isAlto ? '#EF4444' : '#10B981',
       ...(Platform.OS === 'android' && { channelId: isAlto ? 'alertas' : 'default' }),
     },
-    trigger: null, // imediata
+    trigger: null,
   });
 }
 
@@ -168,6 +177,39 @@ export async function notificarLembrete(mensagem: string, segundos: number): Pro
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: segundos, repeats: false },
   });
+}
+
+// ─── Notificação: novo usuário aguardando aprovação ───────────────────────────
+// Enviada via Expo Push API para o admin que criou o token.
+// adminPushToken: token expo do admin (ExponentPushToken[...])
+export async function notificarNovoUsuarioCadastrado(
+  adminPushToken: string,
+  nomeUsuario: string,
+  municipio: string,
+): Promise<void> {
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify({
+        to: adminPushToken,
+        title: '👤 Novo usuário cadastrado',
+        body: `${nomeUsuario} entrou no sistema via token (${municipio}).`,
+        data: { tipo: 'novo_usuario', municipio },
+        sound: 'default',
+        channelId: 'tokens',
+        priority: 'high',
+        ttl: 86400,
+      }),
+    });
+  } catch (e) {
+    // Fire-and-forget — falha silenciosa
+    logger.warn('notifications', 'Erro ao enviar push de novo usuário', { erro: String(e) });
+  }
 }
 
 // ─── Listeners ────────────────────────────────────────────────────────────────

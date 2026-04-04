@@ -9,6 +9,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio, VistoriaLocal } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RISCO_COLORS: Record<string, string> = {
   r1: '#10B981',
@@ -41,8 +42,8 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
           <View style={styles.cardHeaderRight}>
             {isPendente && !hasErro && !maxTentativas && (
               <View style={styles.pendenteBadge}>
-                <Feather name="clock" size={10} color="#F59E0B" />
-                <Text style={styles.pendenteText}>Pendente</Text>
+                <Feather name="cloud-off" size={10} color="#F59E0B" />
+                <Text style={styles.pendenteText}>Pendente de sincronização</Text>
               </View>
             )}
             {hasErro && !maxTentativas && (
@@ -55,6 +56,12 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
               <View style={styles.erroBadge}>
                 <Feather name="x-circle" size={10} color="#EF4444" />
                 <Text style={styles.erroText}>Falhou</Text>
+              </View>
+            )}
+            {!isPendente && (
+              <View style={styles.sincronizadoBadge}>
+                <Feather name="check-circle" size={10} color="#10B981" />
+                <Text style={styles.sincronizadoText}>Sincronizado</Text>
               </View>
             )}
             <Text style={[styles.dateText, { color: theme.textSecondary }]}>
@@ -76,6 +83,7 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
 
 export default function InspecoesListScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -141,8 +149,11 @@ export default function InspecoesListScreen() {
             respostas_json: r.respostasJson,
             nivel_risco: r.nivelRisco,
             pontuacao_total: r.pontuacaoTotal,
-            foto_url: r.fotoUrl,
+            foto_url: r.fotoUrl ?? r.foto_url ?? null,
             fotos_urls: Array.isArray(r.fotosUrls) ? JSON.stringify(r.fotosUrls) : r.fotosUrls ?? null,
+            municipio_agente: r.municipio_agente ?? null,
+            laudo_url: r.laudo_url ?? null,
+            laudo_gerado_em: r.laudo_gerado_em ?? null,
             sincronizado: 1,
             erro_sync: null,
             tentativas_sync: 0,
@@ -173,7 +184,7 @@ export default function InspecoesListScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -232,7 +243,7 @@ export default function InspecoesListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  header: { paddingBottom: 20, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
   backButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, borderWidth: 1, marginRight: 16 },
   titleSection: { flex: 1 },
   title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
@@ -248,6 +259,8 @@ const styles = StyleSheet.create({
   pendenteText: { color: '#F59E0B', fontSize: 10, fontWeight: '700' },
   erroBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   erroText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
+  sincronizadoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(16,185,129,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  sincronizadoText: { color: '#10B981', fontSize: 10, fontWeight: '700' },
   dateText: { fontSize: 12, fontWeight: '500' },
   address: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
   agente: { fontSize: 12, fontWeight: '400' },

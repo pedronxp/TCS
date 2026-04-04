@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useColorScheme, Alert } from 'react-native';
+import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/Colors';
 import { logger } from '../utils/logger';
@@ -36,36 +36,12 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       if (savedTheme) {
         setThemeModeState(savedTheme as ThemeMode);
       } else {
-        // Primeira vez abrindo o app
-        promptThemeSelection();
+        // Primeira vez: seguir sistema automaticamente (sem dialog)
+        await AsyncStorage.setItem('@theme_preference', 'system');
       }
     } catch (e) {
       logger.warn('system', 'Failed to load theme preference', { erro: String(e) });
     }
-  };
-
-  const promptThemeSelection = () => {
-    Alert.alert(
-      "Tema do Aplicativo",
-      "Deseja que o app acompanhe automaticamente o tema (Claro/Escuro) do seu celular?",
-      [
-        {
-          text: "Não, usar Modo Escuro",
-          onPress: () => setThemeMode('dark'),
-          style: "cancel"
-        },
-        {
-          text: "Não, usar Modo Claro",
-          onPress: () => setThemeMode('light'),
-          style: "cancel"
-        },
-        { 
-          text: "Sim, seguir sistema", 
-          onPress: () => setThemeMode('system') 
-        }
-      ],
-      { cancelable: false }
-    );
   };
 
   const setThemeMode = async (mode: ThemeMode) => {

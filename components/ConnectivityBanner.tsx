@@ -3,14 +3,22 @@ import { Text, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useConnectivity } from '../context/ConnectivityContext';
+import { useTheme } from '../context/ThemeContext';
 
-const BANNER_HEIGHT = 40;
+const PILL_HEIGHT = 36;
 const ANIM_DURATION = 300;
 
 export function ConnectivityBanner() {
   const { isOnlineReal } = useConnectivity();
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(-(BANNER_HEIGHT + insets.top))).current;
+
+  // Bottom position: above the bottom nav bar (approx 60px) + safe area
+  const pillBottom = insets.bottom + 68;
+  // Slide from below the screen (hidden position)
+  const hiddenOffset = PILL_HEIGHT + pillBottom + 16;
+
+  const translateY = useRef(new Animated.Value(hiddenOffset)).current;
   const [bannerState, setBannerState] = useState<'offline' | 'restored' | 'hidden'>('hidden');
   const prevOnline = useRef(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -18,16 +26,16 @@ export function ConnectivityBanner() {
   const showBanner = (state: 'offline' | 'restored') => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     setBannerState(state);
-    Animated.timing(translateY, {
+    Animated.spring(translateY, {
       toValue: 0,
-      duration: ANIM_DURATION,
       useNativeDriver: true,
+      bounciness: 6,
     }).start();
   };
 
   const hideBanner = () => {
     Animated.timing(translateY, {
-      toValue: -(BANNER_HEIGHT + insets.top),
+      toValue: hiddenOffset,
       duration: ANIM_DURATION,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -54,23 +62,24 @@ export function ConnectivityBanner() {
   if (bannerState === 'hidden') return null;
 
   const isOffline = bannerState === 'offline';
+  const backgroundColor = isOffline ? theme.warning : theme.success;
 
   return (
     <Animated.View
       style={[
-        styles.banner,
+        styles.pill,
         {
-          backgroundColor: isOffline ? '#F59E0B' : '#10B981',
-          paddingTop: insets.top,
-          height: BANNER_HEIGHT + insets.top,
+          bottom: pillBottom,
+          backgroundColor,
           transform: [{ translateY }],
         },
       ]}
+      pointerEvents="none"
     >
       <Feather name={isOffline ? 'wifi-off' : 'wifi'} size={13} color="#fff" />
       <Text style={styles.text}>
         {isOffline
-          ? 'Modo Offline — dados sincronizados ao reconectar'
+          ? 'Sem conexão — dados sincronizados ao reconectar'
           : 'Conexão restaurada'}
       </Text>
     </Animated.View>
@@ -78,17 +87,23 @@ export function ConnectivityBanner() {
 }
 
 const styles = StyleSheet.create({
-  banner: {
+  pill: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    alignSelf: 'center',
+    // Left/right not set — pill width is determined by content + padding
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minHeight: PILL_HEIGHT,
     zIndex: 9999,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
   },
   text: {
     color: '#fff',

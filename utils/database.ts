@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 5;
+const DB_VERSION = 7;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -122,6 +122,45 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       `);
     }
 
+    if (currentVersion < 6) {
+      // Tabela de agendamentos para vistorias agendadas
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS agendamentos (
+          id TEXT PRIMARY KEY,
+          titulo TEXT NOT NULL,
+          endereco TEXT,
+          municipio TEXT NOT NULL,
+          data_agendada TEXT NOT NULL,
+          criado_por_uid TEXT NOT NULL,
+          criado_por_nome TEXT,
+          agente_uid TEXT,
+          agente_nome TEXT,
+          lat REAL,
+          lng REAL,
+          observacoes TEXT,
+          status TEXT DEFAULT 'pendente',
+          criado_em TEXT,
+          sincronizado INTEGER DEFAULT 0
+        )
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_agendamentos_municipio ON agendamentos (municipio)
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_agendamentos_agente ON agendamentos (agente_uid)
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_agendamentos_status ON agendamentos (status)
+      `);
+    }
+
+    if (currentVersion < 7) {
+      // Storage URLs e município de origem do agente
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN laudo_url TEXT`); } catch { /* já existe */ }
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN laudo_gerado_em TEXT`); } catch { /* já existe */ }
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN municipio_agente TEXT`); } catch { /* já existe */ }
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -151,6 +190,9 @@ export interface VistoriaLocal {
   pontuacao_total: number;
   foto_url: string | null;
   fotos_urls: string | null;    // JSON array de URLs (["url1","url2"])
+  municipio_agente: string | null; // município de origem do agente
+  laudo_url: string | null;     // URL signed do PDF no Storage
+  laudo_gerado_em: string | null; // ISO timestamp da última geração
   sincronizado: number;         // 0 = pendente, 1 = sincronizado
   erro_sync: string | null;
   tentativas_sync: number;      // contador de tentativas falhas
@@ -160,23 +202,24 @@ export interface VistoriaLocal {
 // ─── CRUD ──────────────────────────────────────────────────────────────────
 
 export function insertVistoria(
-  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync'>
+  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em'> & { municipio_agente?: string | null; laudo_url?: string | null; laudo_gerado_em?: string | null }
 ): void {
   const database = getDb();
   database.runSync(
     `INSERT OR REPLACE INTO vistorias_offline (
-      id, agente_uid, agente_nome, municipio,
+      id, agente_uid, agente_nome, municipio, municipio_agente,
       endereco_rua, endereco_numero, endereco_bairro, endereco_cep,
       responsavel_nome, latitude, longitude, data_vistoria,
       formulario_id, formulario_versao, respostas_json,
       nivel_risco, pontuacao_total, foto_url, fotos_urls,
-      sincronizado, criado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
+      laudo_url, laudo_gerado_em, sincronizado, criado_em
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
     [
       vistoria.id,
       vistoria.agente_uid,
       vistoria.agente_nome,
       vistoria.municipio,
+      vistoria.municipio_agente ?? null,
       vistoria.endereco_rua,
       vistoria.endereco_numero,
       vistoria.endereco_bairro,
@@ -192,6 +235,8 @@ export function insertVistoria(
       vistoria.pontuacao_total,
       vistoria.foto_url ?? null,
       null, // fotos_urls — preenchido separadamente pela FotoScreen
+      vistoria.laudo_url ?? null,
+      vistoria.laudo_gerado_em ?? null,
       vistoria.criado_em,
     ]
   );
@@ -241,6 +286,22 @@ export function getVistoriasByMunicipio(municipio: string): VistoriaLocal[] {
   return database.getAllSync<VistoriaLocal>(
     `SELECT * FROM vistorias_offline WHERE municipio = ? ORDER BY criado_em DESC LIMIT 50`,
     [municipio]
+  );
+}
+
+export function updateLaudoUrl(id: string, laudoUrl: string, laudoGeradoEm: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET laudo_url = ?, laudo_gerado_em = ? WHERE id = ?`,
+    [laudoUrl, laudoGeradoEm, id]
+  );
+}
+
+export function updateFotoUrl(id: string, fotoUrl: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET foto_url = ? WHERE id = ?`,
+    [fotoUrl, id]
   );
 }
 
@@ -324,4 +385,103 @@ export function getFormularioCacheById(id: string): FormularioCache | null {
     `SELECT * FROM formularios_cache WHERE id = ?`,
     [id]
   ) ?? null;
+}
+
+// ─── Agendamentos ───────────────────────────────────────────────────────────
+
+import type { AgendamentoLocal } from '../types/agendamento';
+
+export function insertAgendamento(a: AgendamentoLocal): void {
+  const database = getDb();
+  database.runSync(
+    `INSERT OR REPLACE INTO agendamentos (
+      id, titulo, endereco, municipio, data_agendada,
+      criado_por_uid, criado_por_nome, agente_uid, agente_nome,
+      lat, lng, observacoes, status, criado_em, sincronizado
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      a.id,
+      a.titulo,
+      a.endereco ?? null,
+      a.municipio,
+      a.data_agendada,
+      a.criado_por_uid,
+      a.criado_por_nome ?? null,
+      a.agente_uid ?? null,
+      a.agente_nome ?? null,
+      a.lat ?? null,
+      a.lng ?? null,
+      a.observacoes ?? null,
+      a.status,
+      a.criado_em ?? new Date().toISOString(),
+      a.sincronizado ?? 0,
+    ]
+  );
+}
+
+export function getAgendamentosByMunicipio(municipio: string): AgendamentoLocal[] {
+  const database = getDb();
+  return database.getAllSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE municipio = ? ORDER BY data_agendada ASC`,
+    [municipio]
+  );
+}
+
+export function getAgendamentosByAgente(agenteUid: string): AgendamentoLocal[] {
+  const database = getDb();
+  return database.getAllSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE agente_uid = ? OR (agente_uid IS NULL AND municipio = (
+      SELECT municipio FROM agendamentos WHERE agente_uid = ? LIMIT 1
+    )) ORDER BY data_agendada ASC`,
+    [agenteUid, agenteUid]
+  );
+}
+
+export function getAgendamentoById(id: string): AgendamentoLocal | null {
+  const database = getDb();
+  return database.getFirstSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE id = ?`,
+    [id]
+  ) ?? null;
+}
+
+export function updateAgendamentoStatus(id: string, status: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE agendamentos SET status = ?, sincronizado = 0 WHERE id = ?`,
+    [status, id]
+  );
+}
+
+export function countAgendamentosPendentes(municipio: string): number {
+  const database = getDb();
+  const row = database.getFirstSync<{ total: number }>(
+    `SELECT COUNT(*) as total FROM agendamentos WHERE municipio = ? AND status = 'pendente'`,
+    [municipio]
+  );
+  return row?.total ?? 0;
+}
+
+export function countAgendamentosPendentesAgente(agenteUid: string): number {
+  const database = getDb();
+  const row = database.getFirstSync<{ total: number }>(
+    `SELECT COUNT(*) as total FROM agendamentos WHERE agente_uid = ? AND status = 'pendente'`,
+    [agenteUid]
+  );
+  return row?.total ?? 0;
+}
+
+export function getAgendamentosNaoSincronizados(): AgendamentoLocal[] {
+  const database = getDb();
+  return database.getAllSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos WHERE sincronizado = 0`
+  );
+}
+
+export function markAgendamentoSincronizado(id: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE agendamentos SET sincronizado = 1 WHERE id = ?`,
+    [id]
+  );
 }

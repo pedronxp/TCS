@@ -10,6 +10,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { riscoColor, riscoLabel } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type FiltroRisco = 'todos' | 'alto' | 'medio' | 'baixo';
 
@@ -17,6 +18,7 @@ type FiltroRisco = 'todos' | 'alto' | 'medio' | 'baixo';
 export default function AgenteVistoriasScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [agente, setAgente] = useState<any>(null);
   const [vistorias, setVistorias] = useState<any[]>([]);
@@ -68,7 +70,7 @@ export default function AgenteVistoriasScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -171,7 +173,7 @@ export default function AgenteVistoriasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {

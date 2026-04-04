@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform
+  TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image,
+  Modal,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -9,11 +10,89 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
-import { buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { riscoLabel, riscoColor, riscoConduta } from '../../../utils/riscoUtils';
+import { parseProtocolo } from '../../../utils/uuid';
+import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
+import { buildShareMessage } from '../../../utils/shareUtils';
+import { useAuth } from '../../../context/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// ─── Componente de campo editável ─────────────────────────────────────────────
+// ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
+const FORM_JSONS: Record<string, any> = {
+  risco_estrutural_v1:      require('../../../assets/formularios/risco_estrutural_v1.json'),
+  risco_estrutural_v2:      require('../../../assets/formularios/risco_estrutural_v2.json'),
+  vistoria_deslizamento_v1: require('../../../assets/formularios/vistoria_deslizamento_v1.json'),
+};
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+interface ItemResolvido {
+  perguntaId: string;
+  pergunta: string;
+  resposta: string;
+  tipo: string;
+  pesoRisco: number;
+}
+
+interface GrupoResolvido {
+  grupo: string;
+  faseId: string;
+  peso?: number;
+  itens: ItemResolvido[];
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Resolve IDs de respostas em textos legíveis, agrupados por fase */
+function resolverRespostas(formularioId: string, respostas: Record<string, string>): GrupoResolvido[] {
+  const form = FORM_JSONS[formularioId];
+  if (!form) {
+    // Fallback genérico: mostra chave → valor bruto
+    const itens = Object.entries(respostas)
+      .filter(([, v]) => v)
+      .map(([k, v]) => ({ perguntaId: k, pergunta: k, resposta: v, tipo: 'texto', pesoRisco: 0 }));
+    return itens.length ? [{ grupo: 'Respostas', faseId: 'raw', itens }] : [];
+  }
+
+  const grupos: GrupoResolvido[] = [];
+  for (const fase of form.fases || []) {
+    const itens: ItemResolvido[] = [];
+    for (const p of fase.perguntas || []) {
+      if (p.tipo === 'foto') continue; // fotos não entram no relatório de texto
+      const raw = respostas[p.id];
+      if (raw === undefined || raw === null || raw === '') continue;
+
+      let respostaTexto = raw;
+      let pesoRisco = 0;
+      if (p.tipo === 'cards' || p.tipo === 'multipla_escolha') {
+        const op = (p.opcoes || []).find((o: any) => o.id === raw);
+        if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
+      }
+
+      itens.push({ perguntaId: p.id, pergunta: p.texto, resposta: respostaTexto, tipo: p.tipo, pesoRisco });
+    }
+    if (itens.length) grupos.push({ grupo: fase.titulo, faseId: fase.id, peso: fase.peso, itens });
+  }
+  return grupos;
+}
+
+/** Cor do indicador por pesoRisco */
+function pesoColor(p: number) {
+  if (p === 0) return '#22C55E';
+  if (p <= 2)  return '#EAB308';
+  if (p <= 4)  return '#F97316';
+  return '#DC2626';
+}
+
+/** Formata data ISO em pt-BR */
+function fmtData(iso: string | null | undefined) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// ─── Componente campo editável ─────────────────────────────────────────────────
 interface EditableFieldProps {
   label: string;
   value: string;
@@ -28,60 +107,47 @@ function EditableField({ label, value, placeholder, multiline = true, onSave, th
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(value);
 
-  const handleSave = () => {
-    onSave(text);
-    setEditing(false);
-  };
+  const handleSave = () => { onSave(text); setEditing(false); };
 
   return (
-    <View style={eStyles.wrapper}>
-      <View style={eStyles.labelRow}>
-        <Text style={[eStyles.label, { color: theme.textSecondary }]}>{label.toUpperCase()}</Text>
+    <View style={ef.wrapper}>
+      <View style={ef.labelRow}>
+        <Text style={[ef.label, { color: theme.textSecondary }]}>{label.toUpperCase()}</Text>
         {!editing && (
-          <TouchableOpacity onPress={() => { setText(value); setEditing(true); }} style={eStyles.editBtn}>
+          <TouchableOpacity onPress={() => { setText(value); setEditing(true); }} style={ef.editBtn}>
             <Feather name="edit-2" size={13} color={accent || theme.primary} />
-            <Text style={[eStyles.editText, { color: accent || theme.primary }]}>Editar</Text>
+            <Text style={[ef.editText, { color: accent || theme.primary }]}>Editar</Text>
           </TouchableOpacity>
         )}
       </View>
-
       {editing ? (
         <View>
           <TextInput
-            style={[eStyles.input, {
-              backgroundColor: theme.background,
-              borderColor: accent || theme.primary,
-              color: theme.text,
-              minHeight: multiline ? 100 : 48,
-            }]}
-            value={text}
-            onChangeText={setText}
-            multiline={multiline}
-            placeholder={placeholder}
-            placeholderTextColor={theme.textSecondary}
-            textAlignVertical="top"
-            autoFocus
+            style={[ef.input, { backgroundColor: theme.background, borderColor: accent || theme.primary, color: theme.text, minHeight: multiline ? 90 : 44 }]}
+            value={text} onChangeText={setText} multiline={multiline}
+            placeholder={placeholder} placeholderTextColor={theme.textSecondary}
+            textAlignVertical="top" autoFocus
           />
-          <View style={eStyles.actionRow}>
-            <TouchableOpacity style={[eStyles.cancelBtn, { borderColor: theme.border }]} onPress={() => setEditing(false)}>
-              <Text style={[eStyles.cancelText, { color: theme.textSecondary }]}>Cancelar</Text>
+          <View style={ef.actionRow}>
+            <TouchableOpacity style={[ef.cancelBtn, { borderColor: theme.border }]} onPress={() => setEditing(false)}>
+              <Text style={[ef.cancelText, { color: theme.textSecondary }]}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[eStyles.saveBtn, { backgroundColor: accent || theme.primary }]} onPress={handleSave}>
+            <TouchableOpacity style={[ef.saveBtn, { backgroundColor: accent || theme.primary }]} onPress={handleSave}>
               <Feather name="check" size={14} color="#FFF" />
-              <Text style={eStyles.saveText}>Salvar</Text>
+              <Text style={ef.saveText}>Salvar</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
-        <Text style={[eStyles.content, { color: theme.text }]}>
-          {value || <Text style={{ color: theme.textSecondary, fontStyle: 'italic' }}>{placeholder || 'Toque em Editar para preencher...'}</Text>}
+        <Text style={[ef.content, { color: value ? theme.text : theme.textSecondary, fontStyle: value ? 'normal' : 'italic' }]}>
+          {value || (placeholder || 'Toque em Editar para preencher...')}
         </Text>
       )}
     </View>
   );
 }
 
-const eStyles = StyleSheet.create({
+const ef = StyleSheet.create({
   wrapper: { marginBottom: 4 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   label: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
@@ -97,73 +163,187 @@ const eStyles = StyleSheet.create({
 });
 
 // ─── Tela principal ───────────────────────────────────────────────────────────
-
 export default function RelatorioScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { draft, updateField } = useReport();
+  const { profile } = useAuth();
   const [gerando, setGerando] = useState(false);
+
+  // Resolve respostas em textos legíveis agrupados por fase
+  const grupos = useMemo<GrupoResolvido[]>(() => {
+    if (!draft) return [];
+    return resolverRespostas(draft.formularioId, draft.respostas || {});
+  }, [draft?.formularioId, draft?.respostas]);
+
+  const totalRespondidas = useMemo(() => grupos.reduce((acc, g) => acc + g.itens.length, 0), [grupos]);
+
+  const [showTermoModal, setShowTermoModal] = useState(false);
+  const [termoForm, setTermoForm] = useState({
+    nomeNotificado: '',
+    cpfNotificado: '',
+    enderecoRua: '',
+    enderecoNumero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    telefone: '',
+  });
+
+  const abrirModalTermo = () => {
+    const r = draft?.respostas || {};
+    setTermoForm({
+      nomeNotificado: r['Responsável'] || r['Nome do Responsável'] || '',
+      cpfNotificado: r['CPF do Responsável'] || r['CPF'] || '',
+      enderecoRua: draft?.endereco || '',
+      enderecoNumero: r['Número'] || '',
+      bairro: r['Bairro'] || '',
+      cidade: draft?.municipio || '',
+      complemento: r['Complemento'] || '',
+      telefone: r['Telefone de Contato'] || r['Telefone'] || '',
+    });
+    setShowTermoModal(true);
+  };
 
   if (!draft) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[s.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <Feather name="file-text" size={48} color={theme.border} />
-        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+        <Text style={[s.emptyText, { color: theme.textSecondary }]}>
           Nenhum relatório ativo.{'\n'}Conclua uma vistoria primeiro.
         </Text>
-        <TouchableOpacity style={[styles.backBtnCenter, { borderColor: theme.border }]} onPress={() => router.back()}>
-          <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Voltar</Text>
+        <TouchableOpacity style={[s.emptyBtn, { borderColor: theme.border }]} onPress={() => router.back()}>
+          <Text style={[{ fontSize: 14, fontWeight: '700' }, { color: theme.textSecondary }]}>Voltar</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const cor = riscoColor(draft.nivelRisco);
+  const cor   = riscoColor(draft.nivelRisco);
   const label = riscoLabel(draft.nivelRisco);
-
-  const buildDraftHtml = (): string => {
-    const dados: LaudoData = {
-      id: draft.vistoriaId,
-      nivelRisco: draft.nivelRisco,
-      pontuacaoTotal: draft.pontuacaoTotal,
-      endereco: draft.endereco,
-      municipio: draft.municipio,
-      dataVistoria: draft.dataVistoria,
-      agenteNome: draft.agenteNome,
-      formularioId: draft.formularioId,
-      respostasJson: JSON.stringify(draft.respostas || {}),
-      condutaRecomendada: draft.condutaRecomendada,
-      observacoesTecnicas: draft.observacoesTecnicas,
-      cargo: draft.cargo,
-    };
-    return buildLaudoHtml(dados);
-  };
+  const proto = parseProtocolo(draft.protocolo);
 
   const exportarPDF = async () => {
     setGerando(true);
     try {
-      const html = buildDraftHtml();
+      const dados: LaudoData = {
+        id: draft.vistoriaId,
+        nivelRisco: draft.nivelRisco,
+        pontuacaoTotal: draft.pontuacaoTotal,
+        endereco: draft.endereco,
+        municipio: draft.municipio,
+        dataVistoria: draft.dataVistoria,
+        agenteNome: draft.agenteNome,
+        formularioId: draft.formularioId,
+        respostasJson: JSON.stringify(draft.respostas || {}),
+        condutaRecomendada: draft.condutaRecomendada,
+        observacoesTecnicas: draft.observacoesTecnicas,
+        cargo: draft.cargo,
+        foto_url: draft.foto_url ?? null,
+        // Responsável e Bairro (tentativa map)
+        responsavelNome: (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
+        bairro: (draft.respostas || {})['Bairro'],
+      };
+      const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const disponivel = await Sharing.isAvailableAsync();
-      if (disponivel) {
+      const protocolo = draft.protocolo || '';
+      const ok = await Sharing.isAvailableAsync();
+      if (ok) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: 'Laudo Técnico — Defesa Civil',
+          dialogTitle: protocolo ? `TCS — ${protocolo}` : 'TCS — Relatório de Risco',
           UTI: 'com.adobe.pdf',
         });
       } else {
-        Alert.alert('PDF Gerado', `Arquivo salvo em:\n${uri}`);
+        const { Share } = require('react-native');
+        const mensagem = buildShareMessage({
+          protocolo,
+          endereco: draft.endereco || 'Endereço não informado',
+          municipio: draft.municipio || '',
+          nivelRisco: draft.nivelRisco || 'r1',
+          agenteNome: draft.agenteNome || profile?.name || 'Agente',
+          dataVistoria: draft.dataVistoria || new Date().toISOString(),
+        });
+        await Share.share({ message: mensagem, title: 'TCS — Relatório de Risco' });
       }
     } catch {
-      Alert.alert('Erro', 'Não foi possível gerar o PDF. Tente novamente.');
+      Alert.alert('Erro', 'Não foi possível gerar o PDF.');
     } finally {
       setGerando(false);
     }
   };
 
+  const gerarTermoInterdicao = async () => {
+    if (!termoForm.nomeNotificado.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
+      return;
+    }
+    setGerando(true);
+    setShowTermoModal(false);
+    try {
+      const laudoData = {
+        id: draft.protocolo || draft.vistoriaId || '',
+        dataVistoria: draft.dataVistoria || new Date().toISOString(),
+        municipio: draft.municipio || '—',
+        agenteNome: draft.agenteNome || '—',
+        nivelRisco: draft.nivelRisco || 'r3',
+        pontuacaoTotal: draft.pontuacaoTotal || 0,
+        endereco: draft.endereco || '—',
+      };
+
+      const html = buildTermoInterdicaoHtml(laudoData, termoForm);
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const ok = await Sharing.isAvailableAsync();
+      if (ok) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Termo de Interdição', UTI: 'com.adobe.pdf' });
+      } else {
+        Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const handleCpfChange = (t: string) => {
+    const limpo = t.replace(/\D/g, '').substring(0, 11);
+    let formatted = limpo;
+    if (limpo.length > 9) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6, 9)}-${limpo.slice(9)}`;
+    else if (limpo.length > 6) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6)}`;
+    else if (limpo.length > 3) formatted = `${limpo.slice(0, 3)}.${limpo.slice(3)}`;
+    setTermoForm(f => ({ ...f, cpfNotificado: formatted }));
+  };
+
+  const handlePhoneChange = (t: string) => {
+    const limpo = t.replace(/\D/g, '').substring(0, 11);
+    let formatted = limpo;
+    if (limpo.length > 6) formatted = `(${limpo.slice(0, 2)}) ${limpo.slice(2, 7)}-${limpo.slice(7)}`;
+    else if (limpo.length > 2) formatted = `(${limpo.slice(0, 2)}) ${limpo.slice(2)}`;
+    setTermoForm(f => ({ ...f, telefone: formatted }));
+  };
+
   const imprimir = async () => {
     setGerando(true);
     try {
-      await Print.printAsync({ html: buildDraftHtml() });
+      const dados: LaudoData = {
+        id: draft.vistoriaId,
+        nivelRisco: draft.nivelRisco,
+        pontuacaoTotal: draft.pontuacaoTotal,
+        endereco: draft.endereco,
+        municipio: draft.municipio,
+        dataVistoria: draft.dataVistoria,
+        agenteNome: draft.agenteNome,
+        formularioId: draft.formularioId,
+        respostasJson: JSON.stringify(draft.respostas || {}),
+        condutaRecomendada: draft.condutaRecomendada,
+        observacoesTecnicas: draft.observacoesTecnicas,
+        cargo: draft.cargo,
+      };
+      
+      const html = await buildLaudoHtml(dados);
+      await Print.printAsync({ html });
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
     } finally {
@@ -171,89 +351,157 @@ export default function RelatorioScreen() {
     }
   };
 
-  const respostasEntries = Object.entries(draft.respostas).filter(([, v]) => v);
-  const dataFormatada = draft.dataVistoria
-    ? new Date(draft.dataVistoria).toLocaleDateString('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
-    : '—';
-
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[s.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <View style={[s.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+          style={[s.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
         >
           <Feather name="arrow-left" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Relatório Técnico</Text>
-          <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
-            Protocolo #{draft.protocolo}
-          </Text>
+          <Text style={[s.headerTitle, { color: theme.text }]}>Relatório Técnico</Text>
+          <Text style={[s.headerSub, { color: theme.textSecondary }]}>{draft.protocolo}</Text>
         </View>
-        <View style={[styles.riscoBadgeSmall, { backgroundColor: cor }]}>
-          <Text style={styles.riscoBadgeText}>{label}</Text>
+        <View style={[s.riscoBadgeSmall, { backgroundColor: cor }]}>
+          <Text style={s.riscoBadgeText}>{label}</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* ── CARD DE PREVIEW ──────────────────────────────────────────────── */}
-        <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        {/* ── Card do Relatório ───────────────────────────────────────────── */}
+        <View style={[s.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
 
-          {/* Cabeçalho do laudo */}
-          <View style={[styles.laudoHeader, { borderBottomColor: theme.border }]}>
-            <View>
-              <Text style={[styles.orgName, { color: theme.text }]}>DEFESA CIVIL</Text>
-              <Text style={[styles.orgSub, { color: theme.textSecondary }]}>LAUDO TÉCNICO DE VISTORIA</Text>
+          {/* ── Brand + Protocolo ─────────────────────────────────────── */}
+          <View style={[s.brandHeader, { borderBottomColor: theme.border }]}>
+            {/* Logo + nome */}
+            <View style={s.brandLeft}>
+              <Image source={require('../../../assets/logo.png')} style={s.logo} resizeMode="contain" />
+              <View>
+                <Text style={[s.brandName, { color: theme.text }]}>TCS</Text>
+                <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE RISCO</Text>
+              </View>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[styles.protocolLabel, { color: theme.textSecondary }]}>PROTOCOLO</Text>
-              <Text style={[styles.protocolNum, { color: theme.text }]}>#{draft.protocolo}</Text>
-            </View>
+
+            {/* Protocolo em partes */}
+            {proto ? (
+              <View style={[s.protoBox, { borderColor: theme.border, backgroundColor: theme.iconBackground }]}>
+                <Text style={[s.protoBoxLabel, { color: theme.textSecondary }]}>PROTOCOLO OFICIAL</Text>
+                {/* Linha 1: TCS · CIDADE */}
+                <View style={[s.protoPartes, { marginBottom: 4 }]}>
+                  <View style={[s.protoParte, { backgroundColor: cor }]}>
+                    <Text style={s.protoParteText}>{proto.prefix}</Text>
+                  </View>
+                  <Text style={[s.protoDot, { color: theme.textSecondary }]}>·</Text>
+                  <View style={[s.protoParte, { backgroundColor: cor + '22' }]}>
+                    <Text style={[s.protoParteText, { color: cor }]}>{proto.cidade}</Text>
+                  </View>
+                </View>
+                {/* Linha 2: DATA · HASH */}
+                <View style={s.protoPartes}>
+                  <View style={[s.protoParte, { backgroundColor: theme.cardBorder }]}>
+                    <Text style={[s.protoParteText, { color: theme.textSecondary }]}>{proto.date}</Text>
+                  </View>
+                  <Text style={[s.protoDot, { color: theme.textSecondary }]}>·</Text>
+                  <View style={[s.protoParte, { backgroundColor: theme.cardBorder }]}>
+                    <Text style={[s.protoParteText, { color: theme.text, fontWeight: '900', letterSpacing: 2 }]}>{proto.hash}</Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[s.protoLabel, { color: theme.textSecondary }]}>PROTOCOLO</Text>
+                <Text style={[s.protoNum, { color: theme.text }]}>{draft.protocolo}</Text>
+              </View>
+            )}
           </View>
 
           {/* Badge de risco */}
-          <View style={[styles.riscoBanner, { backgroundColor: cor }]}>
-            <Text style={styles.riscoBannerLabel}>NÍVEL DE RISCO ESTRUTURAL</Text>
-            <Text style={styles.riscoBannerVal}>RISCO {label}</Text>
-            <Text style={styles.riscoBannerPts}>{draft.pontuacaoTotal} pontos acumulados</Text>
+          <View style={[s.riscoBanner, { backgroundColor: cor }]}>
+            <Text style={s.bannerLabel}>NÍVEL DE RISCO</Text>
+            <Text style={s.bannerNivel}>RISCO {label}</Text>
+            <Text style={s.bannerPts}>{draft.pontuacaoTotal} pontos acumulados</Text>
           </View>
 
           {/* Dados da vistoria */}
-          <View style={[styles.section, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DADOS DA VISTORIA</Text>
-            <View style={styles.infoGrid}>
-              <InfoItem label="Endereço" value={draft.endereco} theme={theme} />
-              <InfoItem label="Município" value={draft.municipio} theme={theme} />
-              <InfoItem label="Data / Hora" value={dataFormatada} theme={theme} />
-              <InfoItem label="Agente" value={draft.agenteNome} theme={theme} />
+          <View style={[s.section, { borderBottomColor: theme.border }]}>
+            <Text style={[s.secTitle, { color: theme.textSecondary }]}>DADOS DA VISTORIA</Text>
+            <View style={s.infoGrid}>
+              <InfoItem label="Endereço"   value={draft.endereco}    theme={theme} />
+              <InfoItem label="Município"  value={draft.municipio}   theme={theme} />
+              <InfoItem label="Data / Hora" value={fmtData(draft.dataVistoria)} theme={theme} />
+              <InfoItem label="Agente"     value={draft.agenteNome}  theme={theme} />
               <InfoItem label="Formulário" value={draft.formularioId} theme={theme} />
             </View>
           </View>
 
-          {/* Respostas */}
-          {respostasEntries.length > 0 && (
-            <View style={[styles.section, { borderBottomColor: theme.border }]}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>RESPOSTAS DO FORMULÁRIO</Text>
-              {respostasEntries.map(([k, v]) => (
-                <View key={k} style={[styles.respostaRow, { borderBottomColor: theme.border }]}>
-                  <Text style={[styles.respostaKey, { color: theme.textSecondary }]} numberOfLines={2}>{k}</Text>
-                  <Text style={[styles.respostaVal, { color: theme.text }]} numberOfLines={2}>{v}</Text>
+          {/* Resumo de cobertura */}
+          <View style={[s.section, { borderBottomColor: theme.border }]}>
+            <View style={s.coverageRow}>
+              <Feather name="check-square" size={14} color={cor} />
+              <Text style={[s.coverageText, { color: theme.textSecondary }]}>
+                <Text style={{ fontWeight: '800', color: theme.text }}>{totalRespondidas}</Text>
+                {' perguntas respondidas · '}
+                <Text style={{ fontWeight: '800', color: theme.text }}>{grupos.length}</Text>
+                {' elementos avaliados'}
+              </Text>
+            </View>
+          </View>
+
+          {/* ── Respostas agrupadas por fase ─────────────────────────────── */}
+          {grupos.map((g, gi) => (
+            <View key={g.faseId} style={[s.grupo, { borderBottomColor: theme.border, borderBottomWidth: gi < grupos.length - 1 ? 1 : 0 }]}>
+              {/* Cabeçalho do grupo */}
+              <View style={[s.grupoHeader, { backgroundColor: theme.iconBackground }]}>
+                <Text style={[s.grupoTitulo, { color: theme.text }]}>{g.grupo}</Text>
+                {g.peso !== undefined && (
+                  <View style={[s.pesoTag, { backgroundColor: cor + '22' }]}>
+                    <Text style={[s.pesoText, { color: cor }]}>Peso {g.peso}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Perguntas do grupo */}
+              {g.itens.map((item, ii) => (
+                <View
+                  key={item.perguntaId}
+                  style={[
+                    s.itemRow,
+                    { borderBottomColor: theme.border, borderBottomWidth: ii < g.itens.length - 1 ? 1 : 0 },
+                  ]}
+                >
+                  {/* Indicador de severidade */}
+                  <View style={[s.dot, { backgroundColor: pesoColor(item.pesoRisco) }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.itemPergunta, { color: theme.textSecondary }]}>{item.pergunta}</Text>
+                    <Text style={[s.itemResposta, { color: theme.text }]}>{item.resposta}</Text>
+                  </View>
+                  {item.pesoRisco > 0 && (
+                    <View style={[s.pesoBadge, { backgroundColor: pesoColor(item.pesoRisco) + '22' }]}>
+                      <Text style={[s.pesoBadgeText, { color: pesoColor(item.pesoRisco) }]}>+{item.pesoRisco}</Text>
+                    </View>
+                  )}
                 </View>
               ))}
+            </View>
+          ))}
+
+          {grupos.length === 0 && (
+            <View style={[s.section, { borderBottomColor: theme.border }]}>
+              <Text style={[s.emptyText, { color: theme.textSecondary, textAlign: 'center', fontSize: 13 }]}>
+                Nenhuma resposta registrada.
+              </Text>
             </View>
           )}
 
           {/* Conduta recomendada — editável */}
-          <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <View style={[s.section, { borderBottomColor: theme.border }]}>
             <EditableField
               label="Conduta Recomendada"
               value={draft.condutaRecomendada}
@@ -265,21 +513,21 @@ export default function RelatorioScreen() {
           </View>
 
           {/* Observações técnicas — editável */}
-          <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <View style={[s.section, { borderBottomColor: theme.border }]}>
             <EditableField
               label="Observações Técnicas (opcional)"
               value={draft.observacoesTecnicas}
-              placeholder="Adicione observações específicas do local, condições climáticas, acesso, etc..."
+              placeholder="Condições climáticas, acesso, particularidades do local..."
               onSave={v => updateField('observacoesTecnicas', v)}
               theme={theme}
             />
           </View>
 
           {/* Assinatura — editável */}
-          <View style={[styles.section, { borderBottomWidth: 0 }]}>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>ASSINATURA</Text>
-            <View style={[styles.assinaturaCard, { borderColor: theme.border }]}>
-              <View style={[styles.assinaturaLinha, { borderColor: theme.textSecondary }]} />
+          <View style={[s.section, { borderBottomWidth: 0 }]}>
+            <Text style={[s.secTitle, { color: theme.textSecondary }]}>ASSINATURA</Text>
+            <View style={[s.assinaturaCard, { borderColor: theme.border }]}>
+              <View style={[s.assinaturaLinha, { borderColor: theme.textSecondary }]} />
               <EditableField
                 label="Nome do Técnico"
                 value={draft.agenteNome}
@@ -299,60 +547,194 @@ export default function RelatorioScreen() {
           </View>
         </View>
 
-        {/* ── AÇÕES DE EXPORTAÇÃO ───────────────────────────────────────── */}
-        <Text style={[styles.exportTitle, { color: theme.textSecondary }]}>EXPORTAR</Text>
+        {/* ── Exportação ────────────────────────────────────────────────── */}
+        <Text style={[s.exportLabel, { color: theme.textSecondary }]}>EXPORTAR RELATÓRIO</Text>
 
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: cor }]}
-          onPress={exportarPDF}
-          disabled={gerando}
-        >
+        {(draft.nivelRisco === 'r3' || draft.nivelRisco === 'r4') && (
+          <TouchableOpacity style={[s.exportBtn, { backgroundColor: '#EF4444' }]} onPress={abrirModalTermo} disabled={gerando}>
+            {gerando
+              ? <ActivityIndicator size="small" color="#FFF" />
+              : <Feather name="alert-octagon" size={20} color="#FFF" />}
+            <Text style={s.exportBtnText}>{gerando ? 'Gerando...' : 'Gerar Documento de Intervenção'}</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={[s.exportBtn, { backgroundColor: cor }]} onPress={exportarPDF} disabled={gerando}>
           {gerando
             ? <ActivityIndicator size="small" color="#FFF" />
             : <Feather name="download" size={20} color="#FFF" />}
-          <Text style={styles.exportBtnText}>
-            {gerando ? 'Gerando PDF...' : 'Baixar PDF'}
-          </Text>
+          <Text style={s.exportBtnText}>{gerando ? 'Gerando PDF...' : 'Baixar PDF Vistoria'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.exportBtnOutline, { borderColor: theme.border }]}
-          onPress={imprimir}
-          disabled={gerando}
-        >
+        <TouchableOpacity style={[s.exportBtnOutline, { borderColor: theme.border }]} onPress={imprimir} disabled={gerando}>
           <Feather name="printer" size={20} color={theme.textSecondary} />
-          <Text style={[styles.exportBtnOutlineText, { color: theme.textSecondary }]}>Imprimir</Text>
+          <Text style={[s.exportBtnOutlineText, { color: theme.textSecondary }]}>Imprimir</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.exportBtnOutline, { borderColor: theme.border }]}
-          onPress={exportarPDF}
-          disabled={gerando}
-        >
+        <TouchableOpacity style={[s.exportBtnOutline, { borderColor: theme.border }]} onPress={exportarPDF} disabled={gerando}>
           <Feather name="share-2" size={20} color={theme.textSecondary} />
-          <Text style={[styles.exportBtnOutlineText, { color: theme.textSecondary }]}>Compartilhar</Text>
+          <Text style={[s.exportBtnOutlineText, { color: theme.textSecondary }]}>Compartilhar</Text>
         </TouchableOpacity>
 
       </ScrollView>
+
+      {/* ═══════════════ MODAL TERMO DE INTERDIÇÃO ═══════════════ */}
+      <Modal visible={showTermoModal} animationType="slide" transparent>
+        <View style={s.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={s.modalKav}
+          >
+            <View style={[s.modalCard, { backgroundColor: theme.surfaceHighlight }]}>
+              <View style={[s.modalHeader, { borderBottomColor: theme.border }]}>
+                <View style={s.modalHeaderIcon}>
+                  <Feather name="alert-triangle" size={20} color="#DC2626" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.modalTitle, { color: theme.text }]}>Termo de Interdição</Text>
+                  <Text style={[s.modalSubtitle, { color: theme.textSecondary }]}>
+                    Revise os dados do notificado
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowTermoModal(false)}>
+                  <Feather name="x" size={22} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
+                <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
+                <TextInput
+                  style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  placeholder="Nome completo"
+                  placeholderTextColor={theme.textSecondary}
+                  value={termoForm.nomeNotificado}
+                  onChangeText={t => setTermoForm(f => ({ ...f, nomeNotificado: t }))}
+                />
+
+                <Text style={[s.modalLabel, { color: theme.textSecondary }]}>CPF</Text>
+                <TextInput
+                  style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  placeholder="000.000.000-00"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="numeric"
+                  maxLength={14}
+                  value={termoForm.cpfNotificado}
+                  onChangeText={handleCpfChange}
+                />
+
+                <View style={s.modalRow}>
+                  <View style={{ flex: 3 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Rua</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Logradouro"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.enderecoRua}
+                      onChangeText={t => setTermoForm(f => ({ ...f, enderecoRua: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Nº</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Nº"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="numeric"
+                      value={termoForm.enderecoNumero}
+                      onChangeText={t => setTermoForm(f => ({ ...f, enderecoNumero: t }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={s.modalRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Complemento</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Apto, Bloco..."
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.complemento}
+                      onChangeText={t => setTermoForm(f => ({ ...f, complemento: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Bairro</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Bairro"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.bairro}
+                      onChangeText={t => setTermoForm(f => ({ ...f, bairro: t }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={s.modalRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Cidade</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Município"
+                      placeholderTextColor={theme.textSecondary}
+                      value={termoForm.cidade}
+                      onChangeText={t => setTermoForm(f => ({ ...f, cidade: t }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[s.modalLabel, { color: theme.textSecondary }]}>Telefone</Text>
+                    <TextInput
+                      style={[s.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                      placeholder="(00) 00000-0000"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                      value={termoForm.telefone}
+                      onChangeText={handlePhoneChange}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={[s.modalActions, { borderTopColor: theme.border }]}>
+                <TouchableOpacity
+                  style={[s.modalCancelBtn, { borderColor: theme.border }]}
+                  onPress={() => setShowTermoModal(false)}
+                >
+                  <Text style={[s.modalCancelText, { color: theme.textSecondary }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.modalGerarBtn}
+                  onPress={gerarTermoInterdicao}
+                >
+                  <Feather name="file-text" size={18} color="#FFF" />
+                  <Text style={s.modalGerarText}>Gerar Termo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
 
+// ─── InfoItem ──────────────────────────────────────────────────────────────────
 function InfoItem({ label, value, theme }: { label: string; value: string; theme: any }) {
   return (
-    <View style={styles.infoItem}>
-      <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>{label.toUpperCase()}</Text>
-      <Text style={[styles.infoValue, { color: theme.text }]}>{value || '—'}</Text>
+    <View style={s.infoItem}>
+      <Text style={[s.infoLabel, { color: theme.textSecondary }]}>{label.toUpperCase()}</Text>
+      <Text style={[s.infoValue, { color: theme.text }]}>{value || '—'}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+// ─── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
-  },
+
+  // Header
+  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1 },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
   headerSub: { fontSize: 12, fontWeight: '500', marginTop: 1 },
@@ -360,51 +742,117 @@ const styles = StyleSheet.create({
   riscoBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   scroll: { padding: 20, paddingBottom: 60 },
 
-  // Card de preview
+  // Card
   card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', marginBottom: 24 },
-  laudoHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    padding: 20, borderBottomWidth: 1,
-  },
-  orgName: { fontSize: 18, fontWeight: '900', letterSpacing: -0.3 },
-  orgSub: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, marginTop: 2, textTransform: 'uppercase' },
-  protocolLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
-  protocolNum: { fontSize: 16, fontWeight: '900', marginTop: 2 },
 
+  // Brand header
+  brandHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, gap: 12 },
+  brandLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  logo: { width: 44, height: 44, borderRadius: 10 },
+  brandName: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
+  brandSub: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, marginTop: 1 },
+  protoLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  protoNum: { fontSize: 16, fontWeight: '900', marginTop: 2 },
+  // Protocolo em partes
+  protoBox: { borderWidth: 1, borderRadius: 12, padding: 10, alignItems: 'center', minWidth: 150 },
+  protoBoxLabel: { fontSize: 8, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
+  protoPartes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  protoParte: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6 },
+  protoParteText: { fontSize: 11, fontWeight: '800', color: '#FFF' },
+  protoDot: { fontSize: 12, fontWeight: '900' },
+
+  // Risk banner
   riscoBanner: { padding: 20, alignItems: 'center' },
-  riscoBannerLabel: { color: '#FFF', fontSize: 9, fontWeight: '800', letterSpacing: 2, opacity: .85, textTransform: 'uppercase' },
-  riscoBannerVal: { color: '#FFF', fontSize: 30, fontWeight: '900', letterSpacing: -1, marginVertical: 4 },
-  riscoBannerPts: { color: '#FFF', fontSize: 12, opacity: .8 },
+  bannerLabel: { color: '#FFF', fontSize: 9, fontWeight: '800', letterSpacing: 2, opacity: 0.85 },
+  bannerNivel: { color: '#FFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5, marginVertical: 4 },
+  bannerPts:   { color: '#FFF', fontSize: 12, opacity: 0.8 },
 
+  // Section
   section: { padding: 18, borderBottomWidth: 1 },
-  sectionTitle: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 14 },
+  secTitle: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 14 },
+
+  // Info grid
   infoGrid: { gap: 12 },
   infoItem: { gap: 3 },
-  infoLabel: { fontSize: 9, fontWeight: '700', letterSpacing: .5, textTransform: 'uppercase' },
+  infoLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   infoValue: { fontSize: 14, fontWeight: '600' },
 
-  respostaRow: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, gap: 12 },
-  respostaKey: { flex: 2, fontSize: 12, fontWeight: '700' },
-  respostaVal: { flex: 3, fontSize: 12 },
+  // Coverage summary
+  coverageRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  coverageText: { fontSize: 13, flex: 1 },
 
-  assinaturaCard: { borderWidth: 1, borderRadius: 12, padding: 16, alignItems: 'stretch', gap: 12 },
+  // Grupos de perguntas
+  grupo: { paddingBottom: 0 },
+  grupoHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 },
+  grupoTitulo: { fontSize: 13, fontWeight: '800', flex: 1 },
+  pesoTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  pesoText: { fontSize: 10, fontWeight: '800' },
+
+  // Item de resposta
+  itemRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 12, gap: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0, marginTop: 2 },
+  itemPergunta: { fontSize: 11, fontWeight: '600', marginBottom: 3 },
+  itemResposta: { fontSize: 14, fontWeight: '700' },
+  pesoBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  pesoBadgeText: { fontSize: 11, fontWeight: '800' },
+
+  // Assinatura
+  assinaturaCard: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 12 },
   assinaturaLinha: { width: 160, borderTopWidth: 1, marginBottom: 4 },
 
   // Exportação
-  exportTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12 },
-  exportBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, height: 56, borderRadius: 14, marginBottom: 10,
-  },
+  exportLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 56, borderRadius: 14, marginBottom: 10 },
   exportBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-  exportBtnOutline: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, height: 52, borderRadius: 14, borderWidth: 1.5, marginBottom: 10,
-  },
+  exportBtnOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 52, borderRadius: 14, borderWidth: 1.5, marginBottom: 10 },
   exportBtnOutlineText: { fontSize: 14, fontWeight: '600' },
 
-  // Empty state
+  // Empty
   emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24, marginTop: 16, marginBottom: 28 },
-  backBtnCenter: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5 },
-  backBtnText: { fontSize: 14, fontWeight: '700' },
+  emptyBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5 },
+
+  // Modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalKav: { flex: 1, justifyContent: 'flex-end' },
+  modalCard: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  modalHeaderIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(220,38,38,0.1)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalSubtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  modalScroll: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 10 },
+  modalLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
+  modalInput: {
+    height: 52, borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 14, fontSize: 15, fontWeight: '500',
+  },
+  modalRow: { flexDirection: 'row' },
+  modalActions: {
+    flexDirection: 'row', gap: 12, padding: 20, paddingBottom: 36,
+    borderTopWidth: 1,
+  },
+  modalCancelBtn: {
+    flex: 1, height: 52, borderRadius: 14, borderWidth: 1.5,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 14, fontWeight: '700' },
+  modalGerarBtn: {
+    flex: 2, height: 52, borderRadius: 14,
+    backgroundColor: '#DC2626',
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+  },
+  modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
 });

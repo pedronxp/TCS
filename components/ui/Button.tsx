@@ -19,7 +19,8 @@ type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps {
   onPress: () => void;
-  label: string;
+  label?: string;
+  children?: string;
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
@@ -38,6 +39,7 @@ interface ButtonProps {
 export const Button = React.memo(function Button({
   onPress,
   label,
+  children,
   variant = 'primary',
   size = 'md',
   loading = false,
@@ -97,7 +99,7 @@ export const Button = React.memo(function Button({
       ) : (
         <View style={styles.content}>
           {iconLeft ? <View style={styles.iconLeft}>{iconLeft}</View> : null}
-          <Text style={[textStyle, labelStyle]}>{label}</Text>
+          <Text style={[textStyle, labelStyle]}>{label ?? children}</Text>
           {iconRight ? <View style={styles.iconRight}>{iconRight}</View> : null}
         </View>
       )}

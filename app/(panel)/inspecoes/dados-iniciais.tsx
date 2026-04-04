@@ -8,6 +8,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { sanitizarTexto, validarNome, validarMunicipio } from '../../../utils/validationUtils';
 
 /** Estado interno do formulário de endereço */
 interface AddressForm {
@@ -24,14 +26,16 @@ interface AddressForm {
 
 export default function DadosIniciaisScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const isMasterAdmin = profile?.role === 'master_admin';
 
   const [form, setForm] = useState<AddressForm>({
     cep: '', rua: '', numero: '', bairro: '',
-    municipio: (!isMasterAdmin && profile?.municipio) ? profile.municipio : '',
+    municipio: profile?.municipio || '',
     responsavelNome: '', lat: null, lng: null, gpsAcuracia: null,
   });
+  const [municipioOrigem, setMunicipioOrigem] = useState<'perfil' | 'gps' | 'cep' | 'manual'>('perfil');
   const [detectandoGps, setDetectandoGps] = useState(false);
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [erroCep, setErroCep] = useState<string | null>(null);
@@ -43,7 +47,7 @@ export default function DadosIniciaisScreen() {
 
   // Sincroniza municipio do profile quando carrega (caso profile chegue depois do mount)
   useEffect(() => {
-    if (!isMasterAdmin && profile?.municipio) {
+    if (profile?.municipio) {
       setForm(f => f.municipio ? f : { ...f, municipio: profile.municipio });
     }
   }, [profile?.municipio]);
@@ -80,9 +84,10 @@ export default function DadosIniciaisScreen() {
         ...f,
         rua: f.rua || rua,
         bairro: f.bairro || bairro,
-        // Master admin: preenche cidade automaticamente pelo GPS
-        municipio: isMasterAdmin && !f.municipio ? cidade : f.municipio,
+        // Preenche município detectado pelo GPS para todos os roles
+        municipio: cidade || f.municipio,
       }));
+      if (cidade) setMunicipioOrigem('gps');
     } catch (_) { /* Silently ignore */ }
   };
 
@@ -130,11 +135,14 @@ export default function DadosIniciaisScreen() {
       if (json.erro) {
         setErroCep('CEP não encontrado');
       } else {
+        const cidadeCep = json.localidade || '';
         setForm(f => ({
           ...f,
           rua: json.logradouro || f.rua,
           bairro: json.bairro || f.bairro,
+          municipio: cidadeCep || f.municipio,
         }));
+        if (cidadeCep) setMunicipioOrigem('cep');
       }
     } catch {
       setErroCep('Erro ao consultar CEP. Verifique sua conexão.');
@@ -156,23 +164,32 @@ export default function DadosIniciaisScreen() {
       Alert.alert('Campos obrigatórios', 'Preencha Logradouro, Número e Bairro para continuar.');
       return;
     }
-    if (!form.municipio.trim()) {
-      Alert.alert(
-        'Município não identificado',
-        'Seu perfil não possui município associado. Contate um administrador para vincular seu município.',
-      );
+    const municipioCheck = validarMunicipio(form.municipio);
+    if (!municipioCheck.valido) {
+      Alert.alert('Município inválido', municipioCheck.erro || 'Município não identificado. Contate um administrador.');
       return;
     }
+    if (form.responsavelNome.trim()) {
+      const nomeCheck = validarNome(form.responsavelNome, 'Nome do Morador');
+      if (!nomeCheck.valido) {
+        Alert.alert('Nome inválido', nomeCheck.erro || 'Verifique o nome informado.');
+        return;
+      }
+    }
+    // Sanitizar campos de texto livre antes de avançar
+    const ruaLimpa = sanitizarTexto(form.rua).substring(0, 200);
+    const bairroLimpo = sanitizarTexto(form.bairro).substring(0, 100);
+    const responsavelLimpo = sanitizarTexto(form.responsavelNome).substring(0, 100);
     // Passa os dados para a próxima etapa via params
     router.push({
       pathname: '/(panel)/inspecoes/selecao-formulario',
       params: {
         cep: form.cep,
-        rua: form.rua,
-        numero: form.numero,
-        bairro: form.bairro,
-        municipio: form.municipio,
-        responsavelNome: form.responsavelNome,
+        rua: ruaLimpa,
+        numero: form.numero.trim().substring(0, 20),
+        bairro: bairroLimpo,
+        municipio: sanitizarTexto(form.municipio).substring(0, 80),
+        responsavelNome: responsavelLimpo,
         lat: form.lat?.toString() ?? '',
         lng: form.lng?.toString() ?? '',
       }
@@ -185,7 +202,7 @@ export default function DadosIniciaisScreen() {
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
           <Feather name="x" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
@@ -267,7 +284,7 @@ export default function DadosIniciaisScreen() {
           </View>
           <TouchableOpacity
             style={[styles.cepButton, { backgroundColor: theme.iconBackground, borderColor: theme.primary }]}
-            onPress={buscarCep}
+            onPress={() => buscarCep()}
             disabled={buscandoCep}
           >
             {buscandoCep
@@ -290,19 +307,22 @@ export default function DadosIniciaisScreen() {
           </View>
         </View>
 
-        <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Município {isMasterAdmin ? '(editável para master admin)' : '(automático)'}</Text>
-        {isMasterAdmin ? (
-          <TextInput
-            style={[styles.input, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }]}
-            placeholder="Digite o município"
-            placeholderTextColor={theme.textSecondary}
-            value={form.municipio}
-            onChangeText={t => setForm(f => ({ ...f, municipio: t }))}
-          />
-        ) : (
-          <View style={[styles.input, styles.readonlyField, { borderColor: theme.border, backgroundColor: theme.surfaceHighlight }]}>
-            <Text style={{ color: theme.textSecondary, flex: 1 }}>{form.municipio || 'Carregando...'}</Text>
-            <Feather name="lock" size={14} color={theme.textSecondary} />
+        <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+          Município {municipioOrigem === 'gps' ? '(detectado via GPS)' : municipioOrigem === 'cep' ? '(detectado via CEP)' : '(do seu perfil — editável)'}
+        </Text>
+        <TextInput
+          style={[styles.input, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }]}
+          placeholder="Município da ocorrência"
+          placeholderTextColor={theme.textSecondary}
+          value={form.municipio}
+          onChangeText={t => { setForm(f => ({ ...f, municipio: t })); setMunicipioOrigem('manual'); }}
+        />
+        {municipioOrigem !== 'manual' && form.municipio && profile?.municipio && form.municipio !== profile.municipio && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+            <Feather name="alert-circle" size={13} color="#F59E0B" />
+            <Text style={{ color: '#F59E0B', fontSize: 12, flex: 1 }}>
+              Diferente da sua cidade ({profile.municipio}). Os dados da vistoria serão registrados em {form.municipio}.
+            </Text>
           </View>
         )}
 
@@ -329,7 +349,7 @@ export default function DadosIniciaisScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
+  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
   closeBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' },
   title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },

@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../../utils/supabase';
+import { traduzirErroAuth } from '../../utils/authErrors';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
@@ -66,21 +67,17 @@ export default function RegisterScreen() {
     setError(null);
 
     try {
-      // 1. Validar token de convite — normalizar removendo espaços e hífens (formato XXXX-XXXX-XXXX)
-      const codigoNorm = token.trim().toUpperCase().replace(/[\s-]/g, '');
-      const { data: tokenData, error: tokenError } = await supabase
-        .from('invite_tokens')
-        .select('id, codigo, expiraEm, municipio, role, usado')
-        .eq('codigo', codigoNorm)
-        .eq('usado', false)
+      // 1. Validar token de convite via RPC server-side (evita bug de fuso horário — AUTH-01)
+      const codigoNorm = token.trim().toUpperCase().replace(/\s/g, '');
+      const { data: tokenValidation, error: validationError } = await supabase
+        .rpc('validate_invite_token', { p_codigo: codigoNorm })
         .single();
 
-      if (tokenError || !tokenData) throw new Error('Token inválido ou já utilizado.');
+      if (validationError || !tokenValidation) throw new Error('Token inválido ou já utilizado.');
+      if (!tokenValidation.valido) throw new Error(tokenValidation.motivo);
 
-      // Verificar expiração
-      if (tokenData.expiraEm && new Date(tokenData.expiraEm) < new Date()) {
-        throw new Error('Token expirado. Solicite um novo ao administrador.');
-      }
+      // tokenData é alias para tokenValidation — mantém compatibilidade com código downstream
+      const tokenData = tokenValidation;
 
       // Verificar domínio de email autorizado pelo município
       if (tokenData.municipio) {
@@ -120,21 +117,46 @@ export default function RegisterScreen() {
         email,
         role: tokenData.role,
         municipio: tokenData.municipio,
-        isApproved: false,
+        isApproved: true,
         createdAt: new Date().toISOString(),
       });
 
       if (insertError) throw insertError;
 
-      // 4. Deletar token somente após insert confirmado — single-use (Regra 3)
-      await supabase.from('invite_tokens').delete().eq('codigo', codigoNorm);
+      // 4. Marcar token como usado via RPC (SECURITY DEFINER ignora RLS)
+      // Captura IP do dispositivo para rastreio (best effort)
+      let deviceIp = '';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        deviceIp = ipData.ip || '';
+      } catch { /* silencioso — IP não é obrigatório */ }
 
-      // 5. Deslogar — conta precisa de aprovação antes de acessar
+      await supabase.rpc('mark_token_used', {
+        p_codigo: codigoNorm,
+        p_uid: uid,
+        p_nome: nome,
+        p_ip: deviceIp,
+      });
+
+      // 5. Notificar o admin que criou o token (best effort — nunca bloqueia o fluxo)
+      try {
+        if (tokenData.criadoPor) {
+          const { data: adminData } = await supabase
+            .rpc('get_push_token_by_uid', { p_uid: tokenData.criadoPor });
+          if (adminData) {
+            const { notificarNovoUsuarioCadastrado } = await import('../../services/NotificationService');
+            await notificarNovoUsuarioCadastrado(adminData, nome, tokenData.municipio || '');
+          }
+        }
+      } catch { /* silencioso — notificação nunca pode impedir o cadastro */ }
+
+      // 6. Deslogar — conta precisa de aprovação antes de acessar
       await supabase.auth.signOut();
 
       setSucesso(true);
     } catch (e: any) {
-      setError(e.message || 'Erro ao registrar.');
+      setError(traduzirErroAuth(e.message) || 'Erro ao registrar.');
     } finally {
       setLoading(false);
     }
@@ -206,7 +228,7 @@ export default function RegisterScreen() {
                 <Feather name="user" color={theme.textSecondary} size={20} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="John Doe"
+                  placeholder="Maria Silva"
                   placeholderTextColor={theme.textSecondary}
                   value={nome}
                   onChangeText={setNome}

@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Switch, Alert, TextInput
+  ActivityIndicator, Switch, Alert, TextInput, Modal
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -14,6 +14,7 @@ import { LoadingState } from '../../../components/ui/LoadingState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { Badge } from '../../../components/ui/Badge';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ROLE_LABELS: Record<string, string> = {
   agent: 'Agente', supervisor: 'Supervisor',
@@ -25,6 +26,7 @@ type Filtro = 'todos' | 'ativos' | 'pendentes';
 
 export default function UsuariosScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -34,6 +36,13 @@ export default function UsuariosScreen() {
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [busca, setBusca] = useState('');
   const [toggling, setToggling] = useState<string | null>(null);
+  
+  // States para redefinição de senha
+  const [passModalVisible, setPassModalVisible] = useState(false);
+  const [passUser, setPassUser] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [changingPass, setChangingPass] = useState(false);
+
   const meRef = useRef<any>(null);
 
   const loadUsers = async (append = false) => {
@@ -116,6 +125,45 @@ export default function UsuariosScreen() {
     );
   };
 
+  const handleOpenPasswordModal = (user: any) => {
+    setPassUser(user);
+    setNewPassword('');
+    setPassModalVisible(true);
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert('Atenção', 'A nova senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    setChangingPass(true);
+    try {
+      const { error } = await supabase.rpc('admin_reset_password', {
+        p_uid: passUser.uid,
+        p_new_password: newPassword
+      });
+      if (error) throw error;
+      
+      registrarAuditoria({
+        acao: 'usuario_aprovado', // Log proxy
+        adminUid: profile?.uid ?? '',
+        adminNome: profile?.name ?? '',
+        municipio: profile?.municipio ?? '',
+        alvoId: passUser.uid,
+        alvoNome: passUser.name,
+        detalhes: { msg: 'Senha de usuário redefinida pelo Admin' }
+      });
+
+      Alert.alert('Sucesso', 'A senha foi alterada com sucesso.');
+      setPassModalVisible(false);
+    } catch (e: any) {
+      logger.error('system', 'Erro resetar senha admin', { erro: String(e) });
+      Alert.alert('Erro', 'Houve uma falha ao tentar mudar a senha.');
+    } finally {
+      setChangingPass(false);
+    }
+  };
+
   const filtrados = users.filter(u => {
     const matchFiltro =
       filtro === 'todos' ||
@@ -152,7 +200,7 @@ export default function UsuariosScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -239,6 +287,14 @@ export default function UsuariosScreen() {
                     thumbColor={u.isApproved ? theme.primary : theme.textSecondary}
                   />
                 )}
+                {meRef.current?.role === 'master_admin' && (
+                   <TouchableOpacity 
+                     style={{ marginLeft: 12, padding: 8 }}
+                     onPress={() => handleOpenPasswordModal(u)}
+                   >
+                     <Feather name="key" size={20} color={theme.primary} />
+                   </TouchableOpacity>
+                )}
               </View>
             ))}
             {hasMore && (
@@ -255,6 +311,61 @@ export default function UsuariosScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Modal Redefinir Senha */}
+      <Modal
+        visible={passModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPassModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: `${theme.primary}15` }]}>
+                <Feather name="key" size={24} color={theme.primary} />
+              </View>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Redefinir Senha</Text>
+              <Text style={[styles.modalDesc, { color: theme.textSecondary }]}>
+                Alterando a senha de {passUser?.name}
+              </Text>
+            </View>
+            
+            <TextInput
+              style={[styles.inputPass, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="Digite a nova senha"
+              placeholderTextColor={theme.textSecondary}
+              secureTextEntry
+              autoCapitalize="none"
+              autoFocus
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, { borderColor: theme.border, borderWidth: 1 }]}
+                onPress={() => setPassModalVisible(false)}
+                disabled={changingPass}
+              >
+                <Text style={{ color: theme.text, fontWeight: '600' }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+                onPress={handleChangePassword}
+                disabled={changingPass}
+              >
+                {changingPass ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={{ color: '#FFF', fontWeight: '700' }}>Salvar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -262,7 +373,7 @@ export default function UsuariosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24,
+    paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   backButton: {
@@ -299,9 +410,17 @@ const styles = StyleSheet.create({
   userStatus: { fontSize: 12, fontWeight: '600' },
   emptyCard: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: 'center' },
   emptyText: { fontSize: 14, fontWeight: '600' },
-  loadMoreBtn: {
-    borderRadius: 14, borderWidth: 1, padding: 16,
-    alignItems: 'center', marginTop: 4,
-  },
+  loadMoreBtn: { borderRadius: 14, borderWidth: 1, padding: 16, alignItems: 'center', marginTop: 4 },
   loadMoreText: { fontSize: 14, fontWeight: '700' },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '85%', maxWidth: 400, borderRadius: 20, borderWidth: 1, padding: 24, elevation: 4 },
+  modalHeader: { alignItems: 'center', marginBottom: 20 },
+  modalIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
+  modalDesc: { fontSize: 13, textAlign: 'center', paddingHorizontal: 10 },
+  inputPass: { height: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, fontSize: 16, marginBottom: 24 },
+  modalActions: { flexDirection: 'row', gap: 12 },
+  modalBtn: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
 });

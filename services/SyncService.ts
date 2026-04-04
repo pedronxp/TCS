@@ -15,29 +15,59 @@ import {
 import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri } from './StorageService';
 
-/**
- * Wrapper de notificação — importação dinâmica para evitar crash do expo-notifications
- * no Expo Go (onde push remoto não é suportado no SDK 53+).
- */
-async function notificarSincronizacao(count: number): Promise<void> {
-  if (Constants.appOwnership === 'expo') return;
-  try {
-    const { notificarSincronizacao: notify } = await import('./NotificationService');
-    await notify(count);
-  } catch { /* não crítico */ }
-}
+// ─── Configuração ──────────────────────────────────────────────────────────
 
 const MAX_TENTATIVAS_SYNC = 5;
-const BATCH_SIZE = 20; // Máximo de vistorias por request ao Supabase
+const BATCH_SIZE = 20;
 const VACUUM_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas
 const VACUUM_LAST_KEY = '@vacuum_last_run';
 
 const BACKGROUND_TASK_ID = 'DEFESA_CIVIL_SYNC';
 const APP_STATE_DEBOUNCE_MS = 3000;
 
+// Auto-retry config
+const MAX_AUTO_RETRIES = 3;
+const RETRY_DELAYS_MS = [30_000, 60_000, 120_000]; // 30s, 1min, 2min
+
+// ─── Wrappers de notificação ───────────────────────────────────────────────
+
+async function notificarSucesso(count: number): Promise<void> {
+  if (Constants.appOwnership === 'expo') return;
+  try {
+    const { notificarSincronizacao } = await import('./NotificationService');
+    await notificarSincronizacao(count);
+  } catch { /* não crítico */ }
+}
+
+async function notificarFalha(falhas: number, proxRetrySegundos: number): Promise<void> {
+  if (Constants.appOwnership === 'expo') return;
+  try {
+    const { notificarSyncFalha } = await import('./NotificationService');
+    await notificarSyncFalha(falhas, proxRetrySegundos);
+  } catch { /* não crítico */ }
+}
+
+async function notificarRetrying(tentativa: number): Promise<void> {
+  if (Constants.appOwnership === 'expo') return;
+  try {
+    const { notificarSyncRetrying } = await import('./NotificationService');
+    await notificarSyncRetrying(tentativa);
+  } catch { /* não crítico */ }
+}
+
+async function notificarDesistiu(falhas: number): Promise<void> {
+  if (Constants.appOwnership === 'expo') return;
+  try {
+    const { notificarSyncDesistiu } = await import('./NotificationService');
+    await notificarSyncDesistiu(falhas);
+  } catch { /* não crítico */ }
+}
+
 // ─── Guard de concorrência ─────────────────────────────────────────────────
 
 let _syncInProgress = false;
+let _retryTimer: ReturnType<typeof setTimeout> | null = null;
+let _currentRetryAttempt = 0;
 
 // ─── Controle de VACUUM ────────────────────────────────────────────────────
 
@@ -48,7 +78,7 @@ async function shouldRunVacuum(): Promise<boolean> {
     const last = parseInt(raw, 10);
     return Date.now() - last >= VACUUM_INTERVAL_MS;
   } catch {
-    return false; // Em caso de erro, não executar VACUUM
+    return false;
   }
 }
 
@@ -64,8 +94,10 @@ async function markVacuumRun(): Promise<void> {
  * Envia todas as vistorias pendentes para o Supabase.
  * Chamado manualmente, ao reconectar, ou via background task.
  * Protegido contra execuções simultâneas.
+ *
+ * @param isRetry se true, este é um auto-retry (não agenda outro retry em cascata)
  */
-export async function syncPendentes(): Promise<{ sucesso: number; falha: number }> {
+export async function syncPendentes(isRetry = false): Promise<{ sucesso: number; falha: number }> {
   if (_syncInProgress) return { sucesso: 0, falha: 0 };
   _syncInProgress = true;
 
@@ -76,7 +108,7 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
     const pendentes = getVistoriasNaoSincronizadas();
 
     if (pendentes.length === 0) return { sucesso: 0, falha: 0 };
-    logger.info('sync', `Iniciando sync: ${pendentes.length} pendente(s)`);
+    logger.info('sync', `Iniciando sync: ${pendentes.length} pendente(s)${isRetry ? ` (retry #${_currentRetryAttempt})` : ''}`);
 
     // Separar elegíveis (dentro do limite de tentativas) de esgotados
     const elegiveis = pendentes.filter(v => (v.tentativas_sync ?? 0) < MAX_TENTATIVAS_SYNC);
@@ -99,7 +131,6 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
             v = await processarImagensVistoria(v);
             loteProntoParaSync.push(v);
         } catch (err: any) {
-            // Se falhou o upload de fotos de uma vistoria específica, incrementa tentativas de sync 
             const tentativaAtual = (v.tentativas_sync ?? 0) + 1;
             incrementTentativasSync(v.id);
             markErroSync(v.id, `Erro Upload Imagem: ${err.message ?? 'Desconhecido'}`);
@@ -107,7 +138,6 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
             logger.error('sync', `Falha Mídia individual (tentativa ${tentativaAtual}/${MAX_TENTATIVAS_SYNC})`, {
                 id: v.id, erro: err.message,
             });
-            // Omitir do lote pronto para evitar upsert no Supabase
         }
       }
 
@@ -120,16 +150,16 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
         if (error) throw error;
 
         // Marcar todos do lote como sincronizados
-        lote.forEach(v => {
+        loteProntoParaSync.forEach(v => {
           markSincronizado(v.id);
           sucesso++;
         });
-        logger.info('sync', `Lote sincronizado: ${lote.length} vistoria(s)`, {
-          indices: `${i}–${i + lote.length - 1}`,
+        logger.info('sync', `Lote sincronizado: ${loteProntoParaSync.length} vistoria(s)`, {
+          indices: `${i}–${i + loteProntoParaSync.length - 1}`,
         });
       } catch (e: any) {
         // Lote falhou — tentar individualmente para isolar o registro problemático
-        for (const vistoria of lote) {
+        for (const vistoria of loteProntoParaSync) {
           try {
             const { error: errSingle } = await supabase.from('vistorias').upsert(buildSupabasePayload(vistoria));
             if (errSingle) throw errSingle;
@@ -148,8 +178,10 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
       }
     }
 
+    // ── Notificações & Auto-retry ──────────────────────────────────────────
+
     if (sucesso > 0) {
-      // VACUUM limitado a 1x/dia — evita travar SQLite a cada sync
+      // VACUUM limitado a 1x/dia
       const vacuum = await shouldRunVacuum();
       if (vacuum) {
         try {
@@ -158,10 +190,29 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
           logger.info('sync', 'VACUUM executado');
         } catch { /* não crítico */ }
       }
-      notificarSincronizacao(sucesso).catch(() => null);
+
+      // Reset retry counter on success
+      _currentRetryAttempt = 0;
+      notificarSucesso(sucesso).catch(() => null);
       logger.info('sync', `Sync concluído — sucesso: ${sucesso}, falha: ${falha}`);
-    } else if (falha > 0) {
-      logger.warn('sync', `Sync concluído com falhas — sucesso: ${sucesso}, falha: ${falha}`);
+    }
+
+    if (falha > 0) {
+      logger.warn('sync', `Sync com falhas — sucesso: ${sucesso}, falha: ${falha}`);
+
+      if (!isRetry) {
+        // Primeira falha: iniciar cadeia de auto-retry
+        _currentRetryAttempt = 0;
+        scheduleAutoRetry(falha);
+      } else if (_currentRetryAttempt < MAX_AUTO_RETRIES) {
+        // Retry ainda tem tentativas restantes
+        scheduleAutoRetry(falha);
+      } else {
+        // Esgotou auto-retries: notificar que desistiu
+        _currentRetryAttempt = 0;
+        notificarDesistiu(falha).catch(() => null);
+        logger.error('sync', `Auto-retry esgotado após ${MAX_AUTO_RETRIES} tentativas. ${falha} vistorias não sincronizadas.`);
+      }
     }
   } finally {
     _syncInProgress = false;
@@ -170,7 +221,50 @@ export async function syncPendentes(): Promise<{ sucesso: number; falha: number 
   return { sucesso, falha };
 }
 
-/** Mapeia campos snake_case do SQLite para o schema camelCase do Supabase */
+/**
+ * Agenda um auto-retry com backoff exponencial.
+ * Padrão: 30s → 60s → 120s
+ */
+function scheduleAutoRetry(falhasAtual: number): void {
+  // Limpar timer anterior se existir
+  if (_retryTimer) {
+    clearTimeout(_retryTimer);
+    _retryTimer = null;
+  }
+
+  const delayMs = RETRY_DELAYS_MS[_currentRetryAttempt] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1];
+  const delaySec = Math.round(delayMs / 1000);
+  _currentRetryAttempt++;
+
+  logger.info('sync', `Auto-retry #${_currentRetryAttempt} agendado em ${delaySec}s`, { falhas: falhasAtual });
+
+  // Notificar falha + próximo retry
+  notificarFalha(falhasAtual, delaySec).catch(() => null);
+
+  _retryTimer = setTimeout(async () => {
+    _retryTimer = null;
+    notificarRetrying(_currentRetryAttempt).catch(() => null);
+    await syncPendentes(true);
+  }, delayMs);
+}
+
+/** Cancela qualquer auto-retry pendente */
+export function cancelAutoRetry(): void {
+  if (_retryTimer) {
+    clearTimeout(_retryTimer);
+    _retryTimer = null;
+    _currentRetryAttempt = 0;
+  }
+}
+
+/**
+ * Mapeia campos snake_case do SQLite para o schema camelCase do Supabase.
+ *
+ * Payload verificado contra schema Supabase em 2026-04-03: todas as chaves
+ * correspondem às colunas da tabela vistorias (camelCase confirmado via
+ * buscas em .eq('agenteUid'), .eq('nivelRisco'), .eq('dataVistoria'), etc.).
+ * Campo 'status' adicionado — coluna existe no schema (usada em .eq('status', 'pendente')).
+ */
 function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
   const fotosUrls = (() => {
     try { return v.fotos_urls ? JSON.parse(v.fotos_urls) : []; }
@@ -197,6 +291,7 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     fotoUrl: v.foto_url,
     fotosUrls: fotosUrls,
     endereco: `${v.endereco_rua}, ${v.endereco_numero} - ${v.endereco_bairro}`,
+    status: 'sincronizado',
   };
 }
 
@@ -306,7 +401,6 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
   }
 
   // Se fizemos upload de pelo menos uma foto com sucesso, atualizamos a vistoria_offline SQLite.
-  // Isso evita que, se outra requisição de fotos falhar e a thread morrer, percamos as URLs das fotos que já subiram, causando duplicação no Storage.
   if (sofreuAlteracao) {
     db.runSync(
       `UPDATE vistorias_offline SET foto_url = ?, fotos_urls = ? WHERE id = ?`,

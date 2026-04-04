@@ -11,7 +11,14 @@ export type AuditAction =
   | 'formulario_despublicado'
   | 'formulario_excluido'
   | 'formulario_criado'
-  | 'formulario_duplicado';
+  | 'formulario_duplicado'
+  // Ações de campo (18-05)
+  | 'laudo_gerado'
+  | 'vistoria_acessada'
+  | 'vistoria_criada'
+  | 'login_falhou'
+  | 'agendamento_criado'
+  | 'token_usado';
 
 export interface AuditEntry {
   acao: AuditAction;

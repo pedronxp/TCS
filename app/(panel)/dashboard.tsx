@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { countAgendamentosPendentesAgente } from '../../utils/database';
+import { verificarLaudosExpirando } from '../../utils/laudoExpiracaoNotif';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
 import { router } from 'expo-router';
@@ -19,6 +21,7 @@ export default function DashboardScreen() {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
   const cacheTs = useRef<number>(0);
   const CACHE_TTL = 60_000;
 
@@ -34,6 +37,10 @@ export default function DashboardScreen() {
     if (profile.role === 'master_admin') { router.replace('/(panel)/master'); return; }
     if (profile.role === 'admin') { router.replace('/(panel)/admin'); return; }
     if (profile.role === 'supervisor') { router.replace('/(panel)/supervisor'); return; }
+    // For agents: load pending agendamentos badge
+    setPendingAgendamentos(countAgendamentosPendentesAgente(profile.uid));
+    // Verificar laudos expirando (digest diário)
+    verificarLaudosExpirando().catch(() => null);
     const now = Date.now();
     if (now - cacheTs.current < CACHE_TTL) return;
     fetchMetrics(profile.uid, profile.role, profile.municipio);
@@ -116,13 +123,29 @@ export default function DashboardScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={[styles.avatarBtn, { backgroundColor: theme.primary }]}
-          onPress={() => router.push('/(panel)/perfil')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.avatarInitial}>{initial}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <View>
+            <TouchableOpacity
+              style={[styles.calendarBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+              onPress={() => router.push('/(panel)/agendamentos')}
+              activeOpacity={0.8}
+            >
+              <Feather name="calendar" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+            {pendingAgendamentos > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{pendingAgendamentos > 9 ? '9+' : pendingAgendamentos}</Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[styles.avatarBtn, { backgroundColor: theme.primary }]}
+            onPress={() => router.push('/(panel)/perfil')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.avatarInitial}>{initial}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -135,10 +158,13 @@ export default function DashboardScreen() {
           <ErrorState message={metricsError} onRetry={onRefresh} />
         ) : (
           <View style={styles.kpiRow}>
-            <Card style={styles.kpiCardBase}>
+            <Card style={styles.kpiCardBase} onPress={() => router.push('/(panel)/inspecoes')}>
               <View style={styles.kpiInner}>
-                <View style={[styles.kpiIcon, { backgroundColor: `${theme.primary}15` }]}>
-                  <Feather name="clipboard" size={20} color={theme.primary} />
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', position: 'relative' }}>
+                  <View style={[styles.kpiIcon, { backgroundColor: `${theme.primary}15`, marginBottom: 0 }]}>
+                    <Feather name="clipboard" size={20} color={theme.primary} />
+                  </View>
+                  <Feather name="arrow-up-right" size={14} color={theme.primary} style={{ position: 'absolute', right: 0, top: 0, opacity: 0.4 }} />
                 </View>
                 {metricsLoading
                   ? <ActivityIndicator size="small" color={theme.primary} style={styles.kpiLoader} />
@@ -147,10 +173,13 @@ export default function DashboardScreen() {
               </View>
             </Card>
 
-            <Card style={styles.kpiCardBase}>
+            <Card style={styles.kpiCardBase} onPress={() => router.push('/(panel)/inspecoes')}>
               <View style={styles.kpiInner}>
-                <View style={[styles.kpiIcon, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                  <Feather name="alert-triangle" size={20} color="#EF4444" />
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', position: 'relative' }}>
+                  <View style={[styles.kpiIcon, { backgroundColor: 'rgba(239,68,68,0.1)', marginBottom: 0 }]}>
+                    <Feather name="alert-triangle" size={20} color="#EF4444" />
+                  </View>
+                  <Feather name="arrow-up-right" size={14} color="#EF4444" style={{ position: 'absolute', right: 0, top: 0, opacity: 0.4 }} />
                 </View>
                 {metricsLoading
                   ? <ActivityIndicator size="small" color="#EF4444" style={styles.kpiLoader} />
@@ -160,10 +189,13 @@ export default function DashboardScreen() {
             </Card>
 
             {isAdmin && (
-              <Card style={styles.kpiCardBase}>
+              <Card style={styles.kpiCardBase} onPress={() => router.push('/(panel)/admin/usuarios')}>
                 <View style={styles.kpiInner}>
-                  <View style={[styles.kpiIcon, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                    <Feather name="users" size={20} color="#10B981" />
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', position: 'relative' }}>
+                    <View style={[styles.kpiIcon, { backgroundColor: 'rgba(16,185,129,0.1)', marginBottom: 0 }]}>
+                      <Feather name="users" size={20} color="#10B981" />
+                    </View>
+                    <Feather name="arrow-up-right" size={14} color="#10B981" style={{ position: 'absolute', right: 0, top: 0, opacity: 0.4 }} />
                   </View>
                   {metricsLoading
                     ? <ActivityIndicator size="small" color="#10B981" style={styles.kpiLoader} />
@@ -272,6 +304,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarInitial: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  calendarBtn: {
+    width: 40, height: 40, borderRadius: 12, borderWidth: 1,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  badge: {
+    position: 'absolute', top: -4, right: -4,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
 
   // Scroll
   scrollContent: { padding: 20, paddingBottom: 110 },

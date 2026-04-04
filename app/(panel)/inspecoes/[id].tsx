@@ -9,12 +9,16 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { getVistoriaById } from '../../../utils/database';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { generateProtocolo } from '../../../utils/uuid';
 import { formatarData } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { tracarRota } from '../../../utils/routingUtils';
 
 export default function VistoriaDetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { initReport } = useReport();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -27,7 +31,7 @@ export default function VistoriaDetalhesScreen() {
     try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: data.id,
-      protocolo: (data.id || '').slice(0, 8).toUpperCase(),
+      protocolo: generateProtocolo(data.id || '', data.dataVistoria, data.municipio),
       endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
       municipio: data.municipio || '',
       agenteNome: data.agenteNome || '',
@@ -47,7 +51,7 @@ export default function VistoriaDetalhesScreen() {
       // Construir query com filtros de segurança por role
       let query = supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status')
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status, latitude, longitude')
         .eq('id', id as string);
 
       // Agentes só veem suas próprias vistorias
@@ -91,6 +95,8 @@ export default function VistoriaDetalhesScreen() {
           respostasJson: local.respostas_json,
           formularioId: local.formulario_id,
           status: 'Pendente Sync',
+          latitude: local.latitude,
+          longitude: local.longitude,
         });
         return;
       }
@@ -125,10 +131,11 @@ export default function VistoriaDetalhesScreen() {
   const cor = riscoColor(vistoria.nivelRisco);
   const nivel = riscoLabel(vistoria.nivelRisco);
   const endereco = vistoria.endereco || `${vistoria.enderecoRua || ''}, ${vistoria.enderecoNumero || ''} — ${vistoria.enderecoBairro || ''}`;
+  const hasCoords = vistoria.latitude && vistoria.latitude !== 0 && vistoria.longitude && vistoria.longitude !== 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
           <Feather name="arrow-left" color={theme.textSecondary} size={24} />
         </TouchableOpacity>
@@ -226,6 +233,16 @@ export default function VistoriaDetalhesScreen() {
           </View>
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />
         </TouchableOpacity>
+
+        {hasCoords && (
+          <TouchableOpacity
+            style={[styles.rotaBtn, { backgroundColor: theme.primary }]}
+            onPress={() => tracarRota(vistoria.latitude!, vistoria.longitude!)}
+          >
+            <Feather name="navigation" size={18} color="#FFF" />
+            <Text style={styles.rotaBtnText}>Como Chegar</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
@@ -234,7 +251,7 @@ export default function VistoriaDetalhesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20,
+    paddingBottom: 16, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
   },
   backButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, borderWidth: 1 },
@@ -267,4 +284,6 @@ const styles = StyleSheet.create({
   actionIconWrap: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   actionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
   actionDesc: { fontSize: 12 },
+  rotaBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16, borderRadius: 14, marginTop: 12, justifyContent: 'center' },
+  rotaBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
 });

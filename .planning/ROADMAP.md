@@ -1,168 +1,165 @@
 # Roadmap — Defesa Civil Expo
 
-## Milestone: v1.1.0 — Build Estável + UI Redesign + Qualidade
-**Objetivo:** Tornar o app pronto para distribuição APK com build estável, interface consistente e moderna, bugs críticos corrigidos e dívida técnica reduzida.
+## Milestones
 
-**Contexto:** App com fases PDR 0–5 concluídas (~99%). Análise completa identificou 6 itens críticos que bloqueiam o build de produção, problemas de consistência visual em todas as telas, e dívida técnica com funções duplicadas em 6+ arquivos.
-
----
-
-## Phase 1: Correções de Build e Dependências
-**Goal:** Garantir que o projeto compila sem erros e todas as dependências estão alinhadas ao SDK 54.
-
-**Scope:**
-- Alinhar todas as dependências ao Expo SDK 54 (7 pacotes com versão SDK 55 errada)
-- Remover `expo-crypto` canary e substituir pela versão estável ou remover se não usada
-- Remover `lucide-react-native` (dependência morta — nunca importada)
-- Criar assets de ícone Android faltando (`android-icon-foreground.png`, `android-icon-background.png`, `android-icon-monochrome.png`, `icon.png`, `splash-icon.png`)
-- Corrigir configuração do Jest (`setupAfterEnv`, `testMatch`)
-- Remover permissões Android não usadas (`ACCESS_BACKGROUND_LOCATION`, `USE_BIOMETRIC`, `USE_FINGERPRINT`)
-
-**Must-haves:**
-- `npx expo install --check` passa sem erros
-- Build Android não falha por assets faltando
-- Zero dependências canary/pré-release em produção
+- ✅ **v1.1.0** — Build Estável + UI Redesign + Qualidade (shipped 2026-03-31)
+- 🚧 **v1.2.0** — Correções Críticas + Funcionalidades Core (em andamento)
 
 ---
 
-## Phase 2: Design System — Base Visual
-**Goal:** Criar fundação de design consistente (cores, tipografia, espaçamento, componentes base) que será usada por todas as telas nas fases seguintes.
+<details>
+<summary>✅ v1.1.0 — Build Estável + UI Redesign + Qualidade — CONCLUÍDO 2026-03-31</summary>
 
-**Scope:**
-- Expandir `constants/Colors.ts` — adicionar tokens `success`, `warning`, `error`, `surface`, `surfaceVariant`, `muted`, `onSurface`, melhorar contraste (WCAG AA)
-- Criar `constants/Typography.ts` — escala tipográfica completa (display, heading, body, caption, label) com fontSizes, fontWeights, lineHeights
-- Criar `constants/Spacing.ts` — escala de espaçamento consistente (4, 8, 12, 16, 20, 24, 32, 40, 48)
-- Criar componentes reutilizáveis em `components/ui/`:
-  - `Card.tsx` — container com sombra, border-radius, padding padronizados
-  - `Button.tsx` — variantes (primary, secondary, ghost, danger) com loading state e feedback visual
-  - `Badge.tsx` — para status de risco (R1/R2/R3/R4) e roles
-  - `EmptyState.tsx` — estado vazio padronizado com ícone, título e ação opcional
-  - `LoadingState.tsx` — skeleton e spinner padronizados
-  - `ErrorState.tsx` — estado de erro com mensagem e botão retry
-  - `SectionHeader.tsx` — cabeçalho de seção consistente
-- Atualizar `BottomNavBar.tsx` — memoizar com `React.memo`, refinamento visual
+- [x] Fase 01: Correções de Build e Dependências (1/1 plano) — SDK 54 alinhado, assets criados, canary removido
+- [x] Fase 02: Design System — Base Visual (3/3 planos) — tokens, tipografia, espaçamento, 7 componentes UI
+- [x] Fase 03: UI Redesign — Auth + Agente (14/14 planos) — todas as telas redesenhadas com design system
+- [x] Fase 04: UI Admin + Supervisor + Master (4/4 planos) — painéis administrativos padronizados
+- [x] Fase 05: Segurança + Dívida Técnica (1/1 plano) — SecureStore, utils consolidados, imports dinâmicos
 
-**Must-haves:**
-- Todos os componentes base implementados e funcionando
-- `Colors.ts` com contraste mínimo WCAG AA (4.5:1)
-- `BottomNavBar` memoizado
+Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
+
+</details>
 
 ---
 
-## Phase 3: UI Redesign — Auth + Agente
-**Goal:** Aplicar o novo design system em todas as telas da jornada de autenticação e do painel do agente (telas mais usadas).
+## v1.2.0 — Correções Críticas + Funcionalidades Core
 
-**Scope:**
+### Phases
 
-**Auth (4 telas):**
-- `onboarding.tsx` — redesign dos slides, hierarquia visual melhor, botão "Ver introdução" no perfil
-- `(auth)/index.tsx` — tela de boas-vindas mais limpa
-- `login.tsx` — feedback visual em loading, mensagens de erro inline
-- `register.tsx` + `forgot-password.tsx` — consistência com login
+- [x] **Phase 06: Mapa + Autenticação** - Corrigir tela branca do mapa e fluxos de token/município (completed 2026-04-02)
+- [x] **Phase 07: Formulários + Classificação de Risco** - Refazer campos do formulário alinhados ao R1/R2/R3/R4 com persistência SQLite (completed 2026-04-02)
+- [x] **Phase 08: Sincronização Offline** - Garantir upload de dados offline ao Supabase sem duplicatas (completed 2026-04-03)
+- [x] **Phase 09: UX + Correções Finais** - Traduzir erros para pt-br e corrigir exibição de logs admin (completed 2026-04-03)
+- [x] **Phase 10: Formulário Estrutural Inteligente** - Formulário de campo com skip automático, imagens contextuais e classificação R1/R4 (completed 2026-04-02)
+- [x] **Phase 11: Mapa Nativo** - Substituir WebView+Leaflet por react-native-maps (Google Maps / Apple Maps) (completed 2026-04-03)
+- [x] **Phase 12: Formulário Completo — 10 Elementos** - Adaptar os JSONs de `json form/` para o formato nativo do app e registrar como novo formulário built-in
+- [x] **Phase 13: Deslizamento SVG + Thresholds** - Adicionar ilustrações SVG inline nas Q5–Q10 do formulário de deslizamento e corrigir limites de classificação conforme planilha técnica (completed 2026-04-03)
+- [x] **Phase 14: Bug Fixes Críticos** - Município errado nos relatórios, fotos não salvas no PDF, banner offline sobrepondo tela, responsividade com safe area (completed 2026-04-03)
+- [x] **Phase 15: Vistorias Agendadas** - Supervisor/Admin/Master criam agendamentos; Agente visualiza; ícone no header de todas as telas (completed 2026-04-03)
+- [x] **Phase 16: Sistema de Rotas** - Botão "Como Chegar" na vistoria abre Google Maps/Apple Maps com GPS → destino (completed 2026-04-03)
+- [x] **Phase 17: Storage + Protocolo + Mensagem Rica** - Upload foto/PDF para Supabase Storage, protocolo sequencial TCS-CGS-2026-00001, mensagem WhatsApp rica, notificação digest laudos (completed 2026-04-03)
+- [x] **Phase 18: Segurança** - RLS audit, rate limiting, token seguro, validação de input, audit log expandido, proteção de sessão (completed 2026-04-03)
 
-**Painel Agente (3 telas + fluxo de inspeções):**
-- `dashboard.tsx` — usar `useMemo` para data/hora, Cards com breathing room, hierarquia clara
-- `mapas.tsx` — estados de loading/erro melhorados
-- `perfil.tsx` — hierarquia visual melhorada, queries com `count: exact`
+### Phase Details
 
-**Fluxo de Inspeções (9 telas):**
-- `inspecoes/index.tsx` — lista com `EmptyState`, feedback de erro
-- `dados-iniciais.tsx` — validação de CEP antes da request
-- `selecao-formulario.tsx` — cards de formulário mais claros
-- `wizard.tsx` — feedback visual nas ações, corrigir closure stale de `step`
-- `risco.tsx`, `resultado.tsx`, `foto.tsx` — design consistente
-- `[id].tsx` — adicionar fallback SQLite para vistorias offline
-- `laudo.tsx` — sem mudanças funcionais, apenas visual
+#### Phase 06: Mapa + Autenticação
+**Goal**: Agentes conseguem visualizar o mapa funcional e admins conseguem gerenciar tokens de convite e municípios sem erros
+**Depends on**: Phase 05 (v1.1.0 — stack estável)
+**Requirements**: MAPA-01, MAPA-02, AUTH-01, AUTH-02
+**Success Criteria** (what must be TRUE):
+  1. Agente abre a tela de mapa e vê o mapa renderizado sem tela branca em Android e iOS
+  2. Tiles do OpenStreetMap carregam dentro da WebView sem erros de console
+  3. Admin cria um token de convite e o usuário consegue usá-lo imediatamente (no mesmo dia) sem receber "Token expirado"
+  4. Master admin consegue cadastrar um novo município e o registro aparece na lista sem mensagem de erro
+**Plans**: TBD
+**UI hint**: yes
 
-**Must-haves:**
-- Todas as telas auth + agente usando componentes do design system
-- `inspecoes/[id].tsx` funciona offline (fallback SQLite implementado)
-- Wizard com feedback visual em cada ação
+#### Phase 07: Formulários + Classificação de Risco
+**Goal**: Agente preenche um formulário de vistoria com campos corretos, recebe classificação de risco automática R1/R2/R3/R4 e o formulário persiste offline
+**Depends on**: Phase 06
+**Requirements**: FORM-01, FORM-02, FORM-03
+**Success Criteria** (what must be TRUE):
+  1. Agente visualiza formulário de vistoria com campos alinhados ao sistema R1/R2/R3/R4 (sem campos obsoletos ou ausentes)
+  2. Ao preencher o formulário, o sistema exibe automaticamente o nível de risco calculado (R1, R2, R3 ou R4) com base nas respostas
+  3. Agente preenche formulário offline, fecha o app e ao reabrir os dados estão intactos no SQLite
+  4. Formulário salvo offline aparece na lista de vistorias do agente com status "pendente de sincronização"
+**Plans**: TBD
+**UI hint**: yes
 
-**Plans:** 14 plans
-
+#### Phase 08: Sincronização Offline
+**Goal**: Dados de vistoria coletados offline sobem automaticamente ao Supabase quando a conexão é restaurada
+**Depends on**: Phase 07
+**Requirements**: SYNC-01
+**Success Criteria** (what must be TRUE):
+  1. Formulário preenchido offline aparece no Supabase após o app recuperar conexão com a internet
+  2. Sincronizar o mesmo formulário duas vezes não cria registros duplicados no Supabase
+  3. Se a sincronização falhar (rede instável), os dados permanecem no SQLite e são retentados sem intervenção do agente
+**Plans**: 2 planos
 Plans:
-- [x] 03-01-PLAN.md — onboarding.tsx: swipe habilitado + hierarquia visual + Button
-- [x] 03-02-PLAN.md — (auth)/index.tsx: ícone shield + título Defesa Civil + Button
-- [x] 03-03-PLAN.md — login.tsx: banner de erro + email.trim() + Button
-- [x] 03-04-PLAN.md — register.tsx: formatação token XXXX-XXXX-XXXX + select restrito + força de senha
-- [x] 03-05-PLAN.md — forgot-password.tsx: layout consistente + estado de sucesso + Button
-- [x] 03-06-PLAN.md — dashboard.tsx: useMemo data/hora + Card KPIs + ErrorState
-- [x] 03-07-PLAN.md — perfil.tsx: count:exact queries + Badge role + Ver Introdução + ErrorState
-- [x] 03-08-PLAN.md — inspecoes/index.tsx: EmptyState + LoadingState + ErrorState + Card
-- [x] 03-09-PLAN.md — wizard.tsx: stepRef fix (BUG-M9) + foto_url (BUG-A6) + fade + feedback
-- [x] 03-10-PLAN.md — [id].tsx: fallback SQLite (BUG-C4) + badge offline + ErrorState
-- [x] 03-11-PLAN.md — dados-iniciais.tsx: validação CEP (BUG-UX-05) + máscara XXXXX-XXX
-- [x] 03-12-PLAN.md — selecao-formulario.tsx: Card + Badge tipo + 3 estados async
-- [x] 03-13-PLAN.md — risco.tsx + resultado.tsx + foto.tsx: header consistente + Button + EmptyState
-- [x] 03-14-PLAN.md — laudo.tsx: header consistente + Button + LoadingState (sem mudança funcional)
+- [x] 08-01-PLAN.md — Auditar payload Supabase + corrigir mount sync gap em _layout.tsx
+- [x] 08-02-PLAN.md — Expandir suite de testes: deduplicação, foto offline, backoff, esgotado
 
----
-
-## Phase 4: UI Redesign — Admin + Supervisor + Master
-**Goal:** Aplicar o design system nas telas administrativas, com estados de erro/vazio implementados em todas as telas que hoje falham silenciosamente.
-
-**Scope:**
-
-**Admin (10 telas):**
-- `admin/index.tsx` — ErrorState quando KPIs falham, layout menos denso
-- `usuarios.tsx`, `tokens.tsx`, `gerar-token.tsx` — consistência visual
-- `estatisticas.tsx` — melhorar visualização de dados (barras, distribuição risco)
-- `relatorios.tsx` — otimizar `select('*')` para campos necessários apenas
-- `form-editor.tsx`, `editor-perguntas.tsx` — sem mudanças funcionais, visual
-- `risco-config.tsx` — adicionar TTL de 24h ao cache AsyncStorage
-- `logs.tsx` — exportação básica de logs (CSV)
-
-**Supervisor (4 telas):**
-- `supervisor/index.tsx` — ErrorState quando lista falha
-- `equipe.tsx`, `agente.tsx` — hierarquia visual melhorada
-- `atribuicao.tsx` — notificação push ao agente ao criar atribuição
-
-**Master (3 telas):**
-- `master/index.tsx` — design consistente
-- `municipios.tsx` — substituir query sem LIMIT por RPC com GROUP BY
-- `master/logs.tsx` — consistência com admin/logs
-
-**Must-haves:**
-- Zero telas com falha silenciosa (todas têm ErrorState)
-- `municipios.tsx` sem query sem LIMIT
-- Notificação push ao criar atribuição no supervisor
-- TTL de 24h no cache de risco-config
-
-**Plans:** 4 plans
-
+#### Phase 09: UX + Correções Finais
+**Goal**: Todas as mensagens de erro estão em português e admin consegue visualizar logs corretamente
+**Depends on**: Phase 06
+**Requirements**: UX-01, UX-02
+**Success Criteria** (what must be TRUE):
+  1. Todas as mensagens de erro exibidas ao usuário final estão em português (nenhuma mensagem em inglês visível na UI)
+  2. Admin abre a aba de logs e vê os registros de atividade renderizados corretamente (sem lista vazia ou layout quebrado)
+  3. Erros de autenticação, sync e formulários exibem mensagens descritivas em pt-br que orientam o usuário sobre a ação a tomar
+**Plans**: 2 planos
 Plans:
-- [ ] 04-01-PLAN.md — Dashboards ErrorStates em Admin, Supervisor e Master
-- [ ] 04-02-PLAN.md — Funcionalidades Pendentes (Push, TTL Risco Config, CSV)
-- [ ] 04-03-PLAN.md — Otimização Master Municipios e Hierarquia Visual de Admin (Tokens, Usuarios, Estatísticas)
-- [ ] 04-04-PLAN.md — Hierarquia Visual Supervisor (Equipe, Agente) e Editores (Admin)
+- [x] 09-01-PLAN.md — utils/authErrors.ts + fix e.message em auth e painel (UX-01)
+- [x] 09-02-PLAN.md — master/logs.tsx: substituir Supabase system_logs por getLogs() SQLite (UX-02)
+**UI hint**: yes
 
----
+#### Phase 10: Formulário Estrutural Inteligente
+**Goal**: Agente preenche vistoria estrutural em campo com formulário enxuto (7-35 perguntas com skip automático), imagens PNG contextuais por resposta e classificação R1/R4 automática fiel à planilha
+**Depends on**: Phase 07
+**Requirements**: FORM-04, FORM-05
+**Success Criteria** (what must be TRUE):
+  1. Agente conclui uma vistoria estrutural completa respondendo no máximo 7 perguntas quando todos os elementos estão em bom estado (vs 60 do formulário atual)
+  2. Cada opção de resposta exibe imagem PNG criada especificamente para aquele tipo de dano (fissura capilar, trinca, rachadura, extensão) — sem barras de cor genéricas
+  3. Se o elemento está em bom estado, as perguntas de Gravidade/Extensão/Ativa/Foto são puladas automaticamente
+  4. A pontuação calculada segue a fórmula da planilha original: (Estado + Gravidade + Extensão + Ativa) × Peso
+  5. Formulário funciona 100% offline (JSON built-in, imagens PNG locais, sem dependência de rede)
+**Plans**: 3 planos
+Plans:
+- [x] 10-01-PLAN.md — Lógica condicional skipSe no wizard + progresso por elemento
+- [x] 10-02-PLAN.md — 11 imagens PNG contextuais (est_*, grav_*, ext_*) + FORM_IMAGES
+- [x] 10-03-PLAN.md — risco_estrutural_v2.json + integração na seleção e wizard
+**UI hint**: yes
 
-## Phase 5: Segurança + Dívida Técnica
-**Goal:** Corrigir vulnerabilidades de segurança identificadas e eliminar duplicação de código com extração para utils compartilhados.
+#### Phase 11: Mapa Nativo
+**Goal**: Agente consegue visualizar o mapa funcional sem tela branca no Android e iOS
+**Depends on**: Phase 06
+**Requirements**: MAPA-01, MAPA-02
+**Success Criteria** (what must be TRUE):
+  1. Agente abre a tela de mapa e vê tiles do Google Maps renderizados sem tela branca no Android
+  2. Marcadores de vistoria aparecem no mapa com coordenadas corretas e cores por nível de risco
+  3. Filtros por risco e período, heatmap, popup de marcador e modal de estilo continuam funcionando
+**Plans**: 1 plano
+Plans:
+- [ ] 11-01-PLAN.md — Substituir ClusteredMapView por MapView + remover dependências leaflet/map-clustering
 
-**Scope:**
+#### Phase 12: Formulário Completo — 10 Elementos
+**Goal**: Agente consegue selecionar e preencher o novo formulário completo de risco estrutural com 10 elementos (4 estruturais + 6 complementares), com pontuação ponderada e classificação R1/R4 automática
+**Depends on**: Phase 07
+**Requirements**: FORM-06, FORM-07
+**Success Criteria** (what must be TRUE):
+  1. Formulário "Avaliação Completa — 10 Elementos" aparece na tela de seleção de formulários
+  2. Agente consegue preencher todos os 10 elementos com 4 critérios cada (estado, gravidade, extensão, ativa)
+  3. Pontuação por elemento = (estado + gravidade + extensão + ativa) × peso é calculada corretamente
+  4. Classificação global R1/R2/R3/R4 é gerada ao final com base no maior elemento e média
+**Plans**: 1 plano
+Plans:
+- [ ] 12-01-PLAN.md — Converter form1+form2 JSON para formato nativo + registrar como built-in
 
-**Segurança:**
-- Migrar JWT de `AsyncStorage` para `expo-secure-store`
-- Restringir campos retornados em `register.tsx` (select específico em vez de `select('*')`)
-- Substituir `console.log` por `logger.warn` em `NotificationService.ts`
-- Mover rate-limit de token para Supabase (RPC ou trigger)
-- Adicionar filtros de município/agenteUid em `inspecoes/[id].tsx`
+#### Phase 13: Deslizamento SVG + Thresholds
+**Goal**: Formulário "Vistoria de Risco de Deslizamento" exibe ilustrações SVG inline nas questões Q5–Q10 e limites de classificação correspondem à planilha técnica original (R1≤1, R2≤3, R3≤5, R4>5)
+**Depends on**: Phase 07
+**Requirements**: FORM-08
+**Success Criteria** (what must be TRUE):
+  1. Questões Q5–Q10 exibem SVGs específicos ao contexto (trincas, degraus, muros, escorregamento) — não mais ícones genéricos de sim/não
+  2. Pontuação 0–1 classifica como R1 Baixo; 6+ classifica como R4 Muito Alto (alinhado à planilha)
+  3. SVGs renderizam sem erro em Android e iOS (react-native-svg já instalado)
+  4. Formulários risco_estrutural_v1/v2/completo_v1 continuam funcionando normalmente (sem svgKey, usam PNG)
+**Plans**: 1 plano
+Plans:
+- [ ] 13-01-PLAN.md — Fix thresholds JSON + criar DESL_SVGS catalog + SvgXml no wizard
 
-**Dívida Técnica:**
-- Criar `utils/riscoUtils.ts` — consolidar `riscoLabel()`, `riscoColor()` dos 6+ arquivos
-- Criar `utils/htmlUtils.ts` — consolidar `escapeHtml()`, `tempoRelativo()`, `formatarData()`
-- Criar `utils/laudoPdfBuilder.ts` — unificar os 3 geradores de HTML para PDF
-- Criar `types/vistoria.ts` — interfaces TypeScript compartilhadas (eliminar `any[]`)
-- Corrigir botão "Compartilhar" em `resultado.tsx` (implementar flow separado de share)
-- Limitar `VACUUM` SQLite a 1x/dia com timestamp
-- Corrigir foto do wizard para persistir no SQLite
+### Progress
 
-**Must-haves:**
-- JWT em `expo-secure-store` (não AsyncStorage)
-- Zero funções `riscoLabel/riscoColor/escapeHtml` duplicadas
-- Um único gerador de PDF compartilhado
-- Botão "Compartilhar" com comportamento distinto do "Baixar PDF"
-- `VACUUM` com limite de frequência
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 06. Mapa + Autenticação | 2/3 | Complete    | 2026-04-02 |
+| 07. Formulários + Classificação de Risco | 1/3 | Complete    | 2026-04-02 |
+| 08. Sincronização Offline | 2/2 | Complete    | 2026-04-03 |
+| 09. UX + Correções Finais | 2/2 | Complete   | 2026-04-03 |
+| 10. Formulário Estrutural Inteligente | 3/3 | Complete    | 2026-04-02 |
+| 11. Mapa Nativo | 0/1 | Complete    | 2026-04-03 |
+| 12. Formulário Completo — 10 Elementos | 1/1 | Complete | 2026-04-03 |
+| 13. Deslizamento SVG + Thresholds | 0/1 | Complete    | 2026-04-03 |
+| 14. Bug Fixes Críticos | 2/2 | Complete | 2026-04-03 |
+| 15. Vistorias Agendadas | 0/3 | Pending | — |
+| 16. Sistema de Rotas | 0/1 | Pending | — |

@@ -10,22 +10,21 @@ import {
 } from '../../services/SyncService';
 import { logger } from '../../utils/logger';
 import { BottomNavBar } from '../../components/BottomNavBar';
+import { SessionGuardProvider, useSessionGuard } from '../../context/SessionGuardContext';
+import { SessionLockScreen } from '../../components/SessionLockScreen';
 
-export default function PanelLayout() {
+function PanelContent() {
+  const { isLocked } = useSessionGuard();
   const { isOnlineReal } = useConnectivity();
-
-  const prevConnected = useRef(true);
+  const prevConnected = useRef(false);
 
   useEffect(() => {
-    // Registrar background task e listener de AppState ao entrar no painel
     registerBackgroundSync();
     startAppStateSyncListener();
-
     return () => stopAppStateSyncListener();
   }, []);
 
   useEffect(() => {
-    // Disparar sync imediato ao voltar online (verificação real, não só interface)
     if (isOnlineReal && !prevConnected.current) {
       logger.info('network', 'Conectividade restaurada — iniciando sync automático');
       syncPendentes().catch(() => null);
@@ -35,41 +34,54 @@ export default function PanelLayout() {
     prevConnected.current = isOnlineReal;
   }, [isOnlineReal]);
 
+  if (isLocked) {
+    return <SessionLockScreen />;
+  }
+
   return (
     <View style={{ flex: 1 }}>
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="dashboard" />
-      <Stack.Screen name="perfil" />
-      <Stack.Screen name="mapas" />
-      <Stack.Screen name="inspecoes/index" />
-      <Stack.Screen name="inspecoes/dados-iniciais" />
-      <Stack.Screen name="inspecoes/selecao-formulario" />
-      <Stack.Screen name="inspecoes/wizard" />
-      <Stack.Screen name="inspecoes/risco" />
-      <Stack.Screen name="inspecoes/resultado" />
-      <Stack.Screen name="inspecoes/relatorio" />
-      <Stack.Screen name="inspecoes/foto" />
-      <Stack.Screen name="inspecoes/[id]" />
-      <Stack.Screen name="supervisor/index" />
-      <Stack.Screen name="supervisor/equipe" />
-      <Stack.Screen name="supervisor/agente" />
-      <Stack.Screen name="supervisor/atribuicao" />
-      <Stack.Screen name="admin/index" />
-      <Stack.Screen name="admin/usuarios" />
-      <Stack.Screen name="admin/tokens" />
-      <Stack.Screen name="admin/gerar-token" />
-      <Stack.Screen name="admin/estatisticas" />
-      <Stack.Screen name="admin/relatorios" />
-      <Stack.Screen name="admin/form-editor" />
-      <Stack.Screen name="admin/risco-config" />
-      <Stack.Screen name="admin/logs" />
-      <Stack.Screen name="admin/editor-perguntas" />
-      <Stack.Screen name="inspecoes/laudo" />
-      <Stack.Screen name="master/index" />
-      <Stack.Screen name="master/municipios" />
-      <Stack.Screen name="master/logs" />
-    </Stack>
-    <BottomNavBar />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="dashboard" />
+        <Stack.Screen name="perfil" />
+        <Stack.Screen name="mapas" />
+        <Stack.Screen name="inspecoes/index" />
+        <Stack.Screen name="inspecoes/dados-iniciais" />
+        <Stack.Screen name="inspecoes/selecao-formulario" />
+        <Stack.Screen name="inspecoes/wizard" />
+        <Stack.Screen name="inspecoes/risco" />
+        <Stack.Screen name="inspecoes/resultado" />
+        <Stack.Screen name="inspecoes/relatorio" />
+        <Stack.Screen name="inspecoes/foto" />
+        <Stack.Screen name="inspecoes/[id]" />
+        <Stack.Screen name="supervisor/index" />
+        <Stack.Screen name="supervisor/equipe" />
+        <Stack.Screen name="supervisor/agente" />
+        <Stack.Screen name="supervisor/atribuicao" />
+        <Stack.Screen name="admin/index" />
+        <Stack.Screen name="admin/usuarios" />
+        <Stack.Screen name="admin/tokens" />
+        <Stack.Screen name="admin/gerar-token" />
+        <Stack.Screen name="admin/estatisticas" />
+        <Stack.Screen name="admin/relatorios" />
+        <Stack.Screen name="admin/form-editor" />
+        <Stack.Screen name="admin/risco-config" />
+        <Stack.Screen name="admin/logs" />
+        <Stack.Screen name="admin/editor-perguntas" />
+        <Stack.Screen name="inspecoes/laudo" />
+        <Stack.Screen name="master/index" />
+        <Stack.Screen name="master/municipios" />
+        <Stack.Screen name="master/logs" />
+        <Stack.Screen name="modulos" />
+      </Stack>
+      <BottomNavBar />
     </View>
+  );
+}
+
+export default function PanelLayout() {
+  return (
+    <SessionGuardProvider>
+      <PanelContent />
+    </SessionGuardProvider>
   );
 }

@@ -11,6 +11,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PAGE_SIZE = 50;
 
@@ -57,6 +58,12 @@ const VistoriaCard = React.memo(({ item: v, theme }: CardProps) => {
           {v.agenteNome || '—'} · {formatarData(v.dataVistoria)}
           {v.pontuacaoTotal ? ` · ${v.pontuacaoTotal}pts` : ''}
         </Text>
+        {v.municipio && (
+          <View style={[styles.munBadge, { backgroundColor: theme.border, alignSelf: 'flex-start', marginTop: 4 }]}>
+            <Feather name="map-pin" size={10} color={theme.textSecondary} />
+            <Text style={[styles.munText, { color: theme.textSecondary }]}>{v.municipio}</Text>
+          </View>
+        )}
       </View>
       <View style={{ alignItems: 'flex-end', gap: 4 }}>
         <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
@@ -70,6 +77,7 @@ const VistoriaCard = React.memo(({ item: v, theme }: CardProps) => {
 
 export default function RelatoriosScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -77,6 +85,7 @@ export default function RelatoriosScreen() {
   const [vistorias, setVistorias] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [busca, setBusca] = useState('');
+  const [filtroMun, setFiltroMun] = useState('');
   const [periodo, setPeriodo] = useState<FiltroPeriodo>('30d');
   const [risco, setRisco] = useState<FiltroRisco>('todos');
 
@@ -134,13 +143,20 @@ export default function RelatoriosScreen() {
   };
 
   const filtradas = useMemo(() => vistorias.filter(v => {
-    if (!busca) return true;
-    const addr = (v.endereco || `${v.enderecoRua || ''} ${v.enderecoNumero || ''}`).toLowerCase();
-    const agente = (v.agenteNome || '').toLowerCase();
-    const mun = (v.municipio || '').toLowerCase();
-    const q = busca.toLowerCase();
-    return addr.includes(q) || agente.includes(q) || mun.includes(q);
-  }), [vistorias, busca]);
+    let match = true;
+    if (busca) {
+      const q = busca.toLowerCase();
+      const addr = (v.endereco || `${v.enderecoRua || ''} ${v.enderecoNumero || ''}`).toLowerCase();
+      const agente = (v.agenteNome || '').toLowerCase();
+      match = match && (addr.includes(q) || agente.includes(q));
+    }
+    if (filtroMun) {
+      const m = filtroMun.toLowerCase();
+      const mun = (v.municipio || '').toLowerCase();
+      match = match && mun.includes(m);
+    }
+    return match;
+  }), [vistorias, busca, filtroMun]);
 
   const stats = useMemo(() => ({
     total: filtradas.length,
@@ -160,7 +176,7 @@ export default function RelatoriosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -197,7 +213,7 @@ export default function RelatoriosScreen() {
 
       {/* Search */}
       <View style={[styles.searchRow, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-        <View style={[styles.searchBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <View style={[styles.searchBox, { backgroundColor: theme.background, borderColor: theme.border, marginBottom: 8 }]}>
           <Feather name="search" size={15} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
@@ -207,6 +223,18 @@ export default function RelatoriosScreen() {
             placeholderTextColor={theme.textSecondary}
           />
         </View>
+        {profile?.role === 'master_admin' && (
+          <View style={[styles.searchBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <Feather name="map" size={15} color={theme.textSecondary} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.text }]}
+              value={filtroMun}
+              onChangeText={setFiltroMun}
+              placeholder="Filtrar por município..."
+              placeholderTextColor={theme.textSecondary}
+            />
+          </View>
+        )}
       </View>
 
       {/* Filters */}
@@ -277,7 +305,7 @@ export default function RelatoriosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20,
+    paddingBottom: 16, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
   },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
@@ -300,6 +328,8 @@ const styles = StyleSheet.create({
   riscoBadge: { width: 42, height: 42, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   cardAddr: { fontSize: 15, fontWeight: '700', marginBottom: 3 },
   cardMeta: { fontSize: 12 },
+  munBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 4 },
+  munText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
   nivelBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   nivelText: { fontSize: 10, fontWeight: '900' },
   empty: { borderRadius: 20, borderWidth: 1, padding: 40, alignItems: 'center', marginTop: 20 },

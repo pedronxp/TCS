@@ -1,25 +1,25 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1.0
-milestone_name: — Build Estável + UI Redesign + Qualidade
-status: executing
-stopped_at: Completed 05-seguranca-divida-tecnica/05-PLAN.md
-last_updated: "2026-03-31T05:16:24.974Z"
+milestone: v1.2.0
+milestone_name: — Correções Críticas + Funcionalidades Core
+status: planning
+stopped_at: Completado 13-01-PLAN.md — Deslizamento SVG + Thresholds
+last_updated: "2026-04-03T21:59:33.878Z"
 progress:
-  total_phases: 5
-  completed_phases: 2
-  total_plans: 21
-  completed_plans: 13
+  total_phases: 8
+  completed_phases: 8
+  total_plans: 18
+  completed_plans: 18
 ---
 
 # State — Defesa Civil Expo
 
 ## Current Position
 
-Phase: 03 (ui-auth-agente) — EXECUTING
-Plan: 2 of 14
-**Phase 01:** Correções de Build e Dependências
-**Status:** Ready to execute
+Phase: 12
+Plan: Not started
+**Phase 13:** Deslizamento SVG + Thresholds
+**Status:** Ready to plan
 
 ## Phase Progress
 
@@ -45,6 +45,20 @@ Plan: 2 of 14
 - [Phase 02-design-system-gap-01]: primaryText (#1E40AF) separate from primaryDark (#1D4ED8) — different surfaces, both AA compliant
 - [Phase 02-design-system-gap-01]: *Text token suffix convention established: text-on-*Light backgrounds always use dedicated *Text high-contrast token
 - [Phase 05-seguranca-divida-tecnica]: laudoPdfBuilder.ts uses resultado.tsx design as canonical; SyncService uses dynamic import for NotificationService guarded by Constants.appOwnership to prevent Expo Go crash
+- [Phase 06-mapa-autentica-o]: removerDominio incluido no tratamento RLS para consistencia entre todos os catch blocks de escrita em municipios.tsx
+- [Phase 06-mapa-autentica-o-04]: Função validate_invite_token recriada sem t.id (inexistente) — retorna codigo, municipio, role, criadoPor, valido, motivo
+- [Phase 06-mapa-autentica-o-04]: codigoNorm em register.tsx preserva hífens (.replace(/\s/g,'')) — formato XXXX-XXXX-XXXX deve ser mantido antes do RPC
+- [Phase 07-formularios-classificacao-risco]: limites[] do estrutural_avancado derivados das regrasGlobal existentes para fallback soma_total enquanto pontuacao_por_item nao e suportado
+- [Phase 07-formularios-classificacao-risco]: versao incrementada para 2 para invalidar rascunhos antigos automaticamente via novo draftKey
+- [Phase 07-formularios-classificacao-risco]: useMemo de riscoAtual posicionado após calcularNivelRisco para evitar ReferenceError com const
+- [Phase 07-formularios-classificacao-risco]: Footer wizard mudado para flexDirection:column; botões envolvidos em View row interna
+- [Phase 07-formularios-classificacao-risco]: profile.uid substitui getSession() em finalizar() — nao depende de rede, disponivel em memoria
+- [Phase 10-formul-rio-estrutural-inteligente]: calcularNivelRisco recebe visiveis como argumento explicito para evitar closure inconsistente no useMemo
+- [Phase 10-formul-rio-estrutural-inteligente]: elementoAtual usa Set para deduplicar faseIds na ordem de aparicao em perguntasVisiveis
+- [Phase 09-ux-correcoes-finais]: includes-based matching em traduzirErroAuth para resiliência a variações de wording do Supabase
+- [Phase 13-deslizamento-svg-ilustracoes]: svgKey coexiste com imagemLocal — PNG mantido como fallback para retrocompatibilidade com laudos/relatórios
+- [Phase 13-deslizamento-svg-ilustracoes]: DESL_SVGS como Record<string,string> em arquivo separado para isolar catálogo SVG específico do formulário deslizamento
+- [Phase 13-deslizamento-svg-ilustracoes]: Thresholds corrigidos R1≤1/R2≤3/R3≤5/R4>5 conforme planilha técnica (anteriores 2/4/9 estavam incorretos)
 
 ## Performance Metrics
 
@@ -55,8 +69,16 @@ Plan: 2 of 14
 | Phase 02-design-system Pgap-02 | 120 | 1 tasks | 1 files |
 | Phase 02-design-system Pgap-01 | 600 | 2 tasks | 3 files |
 | Phase 05-seguranca-divida-tecnica P05 | 1800 | 12 tasks | 22 files |
+| Phase 06-mapa-autentica-o P03 | 120 | 1 tasks | 1 files |
+| Phase 06-mapa-autentica-o P04 | 3600 | 2 tasks | 1 files |
+| Phase 07-formularios-classificacao-risco P01 | 120 | 3 tasks | 3 files |
+| Phase 07-formularios-classificacao-risco P02 | 125 | 2 tasks | 1 files |
+| Phase 07-formularios-classificacao-risco P03 | 420 | 3 tasks | 3 files |
+| Phase 10-formul-rio-estrutural-inteligente P01 | 360 | 2 tasks | 1 files |
+| Phase 09-ux-correcoes-finais P01 | 15 | 2 tasks | 7 files |
+| Phase 13-deslizamento-svg-ilustracoes P01 | 1500 | 4 tasks | 4 files |
 
 ## Last Session
 
-- **Stopped at:** Completed 05-seguranca-divida-tecnica/05-PLAN.md
-- **Timestamp:** 2026-03-29T23:15:00Z
+- **Stopped at:** Completado 13-01-PLAN.md — Deslizamento SVG + Thresholds
+- **Timestamp:** 2026-04-03T00:30:00Z

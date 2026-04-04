@@ -11,10 +11,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../../utils/supabase';
+import { traduzirErroAuth } from '../../utils/authErrors';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
+import { recordLoginAttempt, getLoginBlockedUntil, clearLoginAttempts } from '../../utils/loginRateLimit';
+import { registrarAuditoria } from '../../utils/auditLogger';
 
 export default function LoginScreen() {
   const { theme } = useTheme();
@@ -30,31 +33,61 @@ export default function LoginScreen() {
       return;
     }
 
+    // Verificar bloqueio por excesso de tentativas
+    const emailNorm = email.trim().toLowerCase();
+    const blockedUntil = await getLoginBlockedUntil(emailNorm);
+    if (blockedUntil) {
+      const minutos = Math.ceil((blockedUntil - Date.now()) / 60000);
+      setError(`Acesso bloqueado por excesso de tentativas. Tente novamente em ${minutos} min.`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: emailNorm,
         password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        await recordLoginAttempt(emailNorm);
+        registrarAuditoria({
+          acao: 'login_falhou',
+          adminUid: emailNorm,
+          adminNome: emailNorm,
+          municipio: '',
+          detalhes: { motivo: authError.message },
+        });
+        throw authError;
+      }
 
       // Verificar aprovação antes de liberar acesso (Regra 9 do AGENTS.md)
       // O roteamento para /(panel) é feito automaticamente pelo AuthContext
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('isApproved')
-        .eq('email', email.trim().toLowerCase())
+        .eq('email', emailNorm)
         .single();
 
       if (userError || !userData || !userData.isApproved) {
         await supabase.auth.signOut();
+        await recordLoginAttempt(emailNorm);
+        registrarAuditoria({
+          acao: 'login_falhou',
+          adminUid: data?.user?.id || emailNorm,
+          adminNome: emailNorm,
+          municipio: '',
+          detalhes: { motivo: 'conta_nao_aprovada' },
+        });
         throw new Error('Conta aguardando aprovação do administrador.');
       }
+
+      // Login bem-sucedido — limpar contador de tentativas
+      await clearLoginAttempts(emailNorm);
     } catch (e: any) {
-      setError(e.message || 'Erro ao realizar login.');
+      setError(traduzirErroAuth(e.message) || 'Erro ao realizar login.');
     } finally {
       setLoading(false);
     }
@@ -156,9 +189,7 @@ export default function LoginScreen() {
               <Text style={[styles.registerText, { color: theme.primary }]}>Validar Token de Acesso</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.registerButton} onPress={() => router.push('/test-ui')}>
-              <Text style={[styles.registerText, { color: theme.success }]}>🔧 Acessar UI Sandbox</Text>
-            </TouchableOpacity>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -4,6 +4,14 @@
  */
 
 // Mock dependências externas
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  setItem: jest.fn().mockResolvedValue(undefined),
+  removeItem: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../../services/StorageService', () => ({
+  uploadImageFromLocalUri: jest.fn().mockResolvedValue('https://storage.example.com/foto.jpg'),
+}));
 jest.mock('expo-task-manager', () => ({
   defineTask: jest.fn(),
 }));
@@ -113,5 +121,118 @@ describe('syncPendentes', () => {
     const [r1, r2] = await Promise.all([syncPendentes(), syncPendentes()]);
     expect(r1).toEqual({ sucesso: 0, falha: 0 });
     expect(r2).toEqual({ sucesso: 0, falha: 0 });
+  });
+
+  it('deduplicação: mesmo id nunca gera upsert duplo', async () => {
+    const { supabase } = require('../../utils/supabase');
+    const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+    supabase.from.mockReturnValue({ upsert: mockUpsert });
+
+    // Primeira chamada: retorna a vistoria pendente
+    mockGetVistoriasNaoSincronizadas.mockReturnValueOnce([makeVistoria()]);
+    // Segunda chamada: fila vazia (primeiro sync já marcou como sincronizado)
+    mockGetVistoriasNaoSincronizadas.mockReturnValueOnce([]);
+
+    const { syncPendentes } = require('../SyncService');
+    await syncPendentes();
+    await syncPendentes();
+
+    // upsert deve ter sido chamado exatamente 1 vez (só no primeiro sync)
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('foto file:// dispara upload via StorageService antes do upsert', async () => {
+    const { uploadImageFromLocalUri } = require('../../services/StorageService');
+    const { supabase } = require('../../utils/supabase');
+    const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+    supabase.from.mockReturnValue({ upsert: mockUpsert });
+
+    const vistoriaComFoto = makeVistoria({ foto_url: 'file:///cache/foto.jpg' });
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([vistoriaComFoto]);
+
+    const { syncPendentes } = require('../SyncService');
+    const resultado = await syncPendentes();
+
+    // uploadImageFromLocalUri deve ter sido chamado com a URI local
+    expect(uploadImageFromLocalUri).toHaveBeenCalledWith(
+      'file:///cache/foto.jpg',
+      expect.any(String)
+    );
+
+    // O payload enviado ao upsert deve conter a URL pública (https://), não file://
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    const payload = mockUpsert.mock.calls[0][0];
+    const fotoUrlNoPayload = Array.isArray(payload) ? payload[0].fotoUrl : payload.fotoUrl;
+    expect(fotoUrlNoPayload).toMatch(/^https:\/\//);
+    expect(fotoUrlNoPayload).not.toMatch(/^file:\/\//);
+
+    expect(resultado.sucesso).toBe(1);
+  });
+
+  it('falha de upsert incrementa tentativas e marca erro', async () => {
+    const { supabase } = require('../../utils/supabase');
+    const mockUpsert = jest
+      .fn()
+      .mockResolvedValue({ error: { message: 'network error' } });
+    supabase.from.mockReturnValue({ upsert: mockUpsert });
+
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
+
+    const { syncPendentes } = require('../SyncService');
+    const resultado = await syncPendentes();
+
+    expect(resultado.sucesso).toBe(0);
+    expect(resultado.falha).toBe(1);
+    expect(mockIncrementTentativas).toHaveBeenCalledWith('v-1');
+    expect(mockMarkErroSync).toHaveBeenCalledWith('v-1', 'network error');
+  });
+
+  it('backoff: retry agendado em 30s após falha', async () => {
+    jest.useFakeTimers();
+    try {
+      const { supabase } = require('../../utils/supabase');
+      // Batch upsert falha (1ª vez) → individual fallback também falha (2ª vez)
+      // → sucesso=0, falha=1 → scheduleAutoRetry agenda timer de 30s
+      // Após 30s retry dispara → getVistoriasNaoSincronizadas é chamado novamente
+      const mockUpsert = jest
+        .fn()
+        .mockResolvedValueOnce({ error: { message: 'network error' } }) // batch falha
+        .mockResolvedValueOnce({ error: { message: 'network error' } }) // individual fallback falha
+        .mockResolvedValue({ error: null }); // chamadas subsequentes ok
+      supabase.from.mockReturnValue({ upsert: mockUpsert });
+
+      mockGetVistoriasNaoSincronizadas.mockReturnValueOnce([makeVistoria()]);
+      mockGetVistoriasNaoSincronizadas.mockReturnValue([]);
+
+      const { syncPendentes } = require('../SyncService');
+      const resultado = await syncPendentes();
+      // Confirma que houve falha (scheduleAutoRetry foi disparado)
+      expect(resultado.falha).toBe(1);
+
+      const chamatasAntes = mockGetVistoriasNaoSincronizadas.mock.calls.length;
+
+      // 29.999ms: nenhum timer disparou ainda — retry NÃO executado
+      await jest.advanceTimersByTimeAsync(29_999);
+      expect(mockGetVistoriasNaoSincronizadas.mock.calls.length).toBe(chamatasAntes);
+
+      // +1ms = 30.000ms total: timer dispara, syncPendentes(true) é chamado
+      await jest.advanceTimersByTimeAsync(1);
+      await jest.runAllTimersAsync();
+      expect(mockGetVistoriasNaoSincronizadas.mock.calls.length).toBeGreaterThan(chamatasAntes);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('vistoria esgotada (5 tentativas) é ignorada sem incrementar', async () => {
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([
+      makeVistoria({ tentativas_sync: 5 }),
+    ]);
+    const { syncPendentes } = require('../SyncService');
+    const resultado = await syncPendentes();
+
+    expect(resultado).toEqual({ sucesso: 0, falha: 0 });
+    expect(mockIncrementTentativas).not.toHaveBeenCalled();
+    expect(mockMarkErroSync).not.toHaveBeenCalled();
   });
 });

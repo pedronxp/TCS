@@ -14,9 +14,11 @@ import { LoadingState } from '../../../components/ui/LoadingState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Button } from '../../../components/ui/Button';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FormEditorScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,7 +88,7 @@ export default function FormEditorScreen() {
       });
       Alert.alert('Criado!', 'Formulário criado como rascunho. Adicione perguntas na edição.');
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível criar o formulário.');
+      Alert.alert('Erro', 'Não foi possível criar o formulário. Tente novamente.');
     } finally {
       setSalvando(false);
     }
@@ -156,7 +158,7 @@ export default function FormEditorScreen() {
               carregar();
               Alert.alert('Duplicado!', 'Cópia criada como rascunho.');
             } catch (e: any) {
-              Alert.alert('Erro', e.message || 'Não foi possível duplicar.');
+              Alert.alert('Erro', 'Não foi possível duplicar. Tente novamente.');
             }
           }
         }
@@ -198,7 +200,7 @@ export default function FormEditorScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => router.back()}
@@ -312,7 +314,7 @@ export default function FormEditorScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20,
+    paddingBottom: 16, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
   },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
