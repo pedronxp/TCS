@@ -312,7 +312,7 @@ export function DashboardGuide({ role }: DashboardGuideProps) {
               <View style={[styles.footer, { borderTopColor: theme.border }]}>
                 <Feather name="shield" size={14} color={theme.textSecondary} />
                 <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                  Defesa Civil TCS · Versão do app
+                  TCS · Relatório de Risco
                 </Text>
               </View>
             </ScrollView>

@@ -30,6 +30,7 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
   const isPendente = item.sincronizado === 0;
   const hasErro = isPendente && !!item.erro_sync;
   const maxTentativas = (item.tentativas_sync ?? 0) >= 5;
+  const feitoOffline = item.origem === 'offline';
   return (
     <Card
       style={{ marginBottom: 12 }}
@@ -44,7 +45,7 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
             {isPendente && !hasErro && !maxTentativas && (
               <View style={styles.pendenteBadge}>
                 <Feather name="cloud-off" size={10} color="#F59E0B" />
-                <Text style={styles.pendenteText}>Pendente de sincronização</Text>
+                <Text style={styles.pendenteText}>Pendente de sync</Text>
               </View>
             )}
             {hasErro && !maxTentativas && (
@@ -59,12 +60,13 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
                 <Text style={styles.erroText}>Falhou</Text>
               </View>
             )}
-            {!isPendente && (
-              <View style={styles.sincronizadoBadge}>
-                <Feather name="check-circle" size={10} color="#10B981" />
-                <Text style={styles.sincronizadoText}>Sincronizado</Text>
+            {!isPendente && feitoOffline && (
+              <View style={styles.offlineBadge}>
+                <Feather name="wifi-off" size={10} color="#8B5CF6" />
+                <Text style={styles.offlineBadgeText}>Feito offline</Text>
               </View>
             )}
+            {/* Sem badge para vistorias feitas online — não precisa de marcação */}
             <Text style={[styles.dateText, { color: theme.textSecondary }]}>
               {item.data_vistoria ? new Date(item.data_vistoria).toLocaleDateString('pt-BR') : '---'}
             </Text>
@@ -118,6 +120,9 @@ export default function InspecoesListScreen() {
       const pendentes = locais.filter(v => v.sincronizado === 0).length;
       setPendentesCount(pendentes);
 
+      // Marcar vistorias locais como 'offline' (criadas no dispositivo)
+      setVistorias(locais.map(v => ({ ...v, origem: 'offline' as const })));
+
       // 2. Se online, buscar do Supabase e mesclar
       if (isConnected) {
         let query = supabase
@@ -166,10 +171,16 @@ export default function InspecoesListScreen() {
           }));
 
           // Mesclar: locais pendentes + remotas (sem duplicatas)
+          // idsLocais: todos IDs que existem no SQLite local (criados offline)
+          const idsLocais = new Set(locais.map(v => v.id));
           const idsPendentes = new Set(locais.filter(v => v.sincronizado === 0).map(v => v.id));
           const merged = [
-            ...locais.filter(v => v.sincronizado === 0),
-            ...remotas.filter(r => !idsPendentes.has(r.id)),
+            ...locais.filter(v => v.sincronizado === 0).map(v => ({ ...v, origem: 'offline' as const })),
+            ...remotas.filter(r => !idsPendentes.has(r.id)).map(r => ({
+              ...r,
+              // Se o ID existe localmente = foi criado offline e sincronizado; senão = criado online
+              origem: idsLocais.has(r.id) ? 'offline' as const : 'online' as const,
+            })),
           ].sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
 
           setVistorias(merged);
@@ -288,8 +299,8 @@ const styles = StyleSheet.create({
   pendenteText: { color: '#F59E0B', fontSize: 10, fontWeight: '700' },
   erroBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   erroText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
-  sincronizadoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(16,185,129,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  sincronizadoText: { color: '#10B981', fontSize: 10, fontWeight: '700' },
+  offlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(139,92,246,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  offlineBadgeText: { color: '#8B5CF6', fontSize: 10, fontWeight: '700' },
   dateText: { fontSize: 12, fontWeight: '500' },
   address: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
   agente: { fontSize: 12, fontWeight: '400' },
