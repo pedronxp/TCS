@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { useTheme } from '../../context/ThemeContext';
@@ -21,7 +20,7 @@ export default function WelcomeScreen() {
   const headerAnim = useRef(new Animated.Value(0)).current;
   const ctaAnim    = useRef(new Animated.Value(0)).current;
   const footerAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim  = useRef(new Animated.Value(1)).current;
+  const breatheAnim = useRef(new Animated.Value(1)).current;
   const dotAnim    = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -30,14 +29,15 @@ export default function WelcomeScreen() {
       Animated.timing(headerAnim, { toValue: 1, duration: 520, useNativeDriver: true }),
       Animated.timing(ctaAnim,    { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.timing(footerAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-    ]).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.1,  duration: 2200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1,    duration: 2200, useNativeDriver: true }),
-      ])
-    ).start();
+    ]).start(() => {
+      // Após entrada, logo respira suavemente
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(breatheAnim, { toValue: 1.08, duration: 2400, useNativeDriver: true }),
+          Animated.timing(breatheAnim, { toValue: 1,    duration: 2400, useNativeDriver: true }),
+        ])
+      ).start();
+    });
 
     Animated.loop(
       Animated.sequence([
@@ -87,24 +87,25 @@ export default function WelcomeScreen() {
             styles.logoBlock,
             {
               opacity: logoAnim,
-              transform: [{
-                translateY: logoAnim.interpolate({
-                  inputRange: [0, 1], outputRange: [28, 0],
-                }),
-              }],
+              transform: [
+                {
+                  translateY: logoAnim.interpolate({
+                    inputRange: [0, 1], outputRange: [28, 0],
+                  }),
+                },
+                {
+                  scale: logoAnim.interpolate({
+                    inputRange: [0, 1], outputRange: [0.82, 1],
+                  }),
+                },
+              ],
             },
           ]}
         >
-          <Animated.View
-            style={[
-              styles.pulseRing,
-              { borderColor: primary + '28', transform: [{ scale: pulseAnim }] },
-            ]}
-          />
-          <Image
+          <Animated.Image
             source={require('../../assets/logo.png')}
-            style={styles.logo}
-            contentFit="contain"
+            style={[styles.logo, { transform: [{ scale: breatheAnim }] }]}
+            resizeMode="contain"
           />
         </Animated.View>
 
@@ -240,13 +241,6 @@ const styles = StyleSheet.create({
   logoBlock: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  pulseRing: {
-    position: 'absolute',
-    width: 124,
-    height: 124,
-    borderRadius: 62,
-    borderWidth: 1.5,
   },
   logo: {
     width: 104,

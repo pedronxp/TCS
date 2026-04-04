@@ -36,15 +36,21 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [senha, setSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
   const [senhaForca, setSenhaForca] = useState<0 | 1 | 2>(0);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
 
   const handleRegister = async () => {
-    if (!nome || !email || !token || !senha) {
+    if (!nome || !email || !token || !senha || !confirmarSenha) {
       setError('Preencha todos os campos.');
+      return;
+    }
+    if (senha !== confirmarSenha) {
+      setError('As senhas não coincidem. Verifique e tente novamente.');
       return;
     }
     // Validação básica de email
@@ -237,7 +243,7 @@ export default function RegisterScreen() {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>E-mail Corporativo</Text>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>E-mail</Text>
               <View style={[styles.inputContainer, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
                 <Feather name="mail" color={theme.textSecondary} size={20} style={styles.inputIcon} />
                 <TextInput
@@ -287,6 +293,40 @@ export default function RegisterScreen() {
                     />
                   ))}
                 </View>
+              )}
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Confirmar Senha</Text>
+              <View style={[
+                styles.inputContainer,
+                {
+                  backgroundColor: theme.surfaceHighlight,
+                  borderColor: confirmarSenha.length > 0 && confirmarSenha !== senha
+                    ? '#EF4444'
+                    : confirmarSenha.length > 0 && confirmarSenha === senha
+                    ? '#10B981'
+                    : theme.border,
+                },
+              ]}>
+                <Feather name="lock" color={theme.textSecondary} size={20} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="••••••••"
+                  placeholderTextColor={theme.textSecondary}
+                  value={confirmarSenha}
+                  onChangeText={setConfirmarSenha}
+                  secureTextEntry={!showConfirm}
+                />
+                <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)} style={styles.eyeIcon}>
+                  <Feather name={showConfirm ? 'eye-off' : 'eye'} color={theme.textSecondary} size={20} />
+                </TouchableOpacity>
+              </View>
+              {confirmarSenha.length > 0 && confirmarSenha !== senha && (
+                <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>As senhas não coincidem</Text>
+              )}
+              {confirmarSenha.length > 0 && confirmarSenha === senha && (
+                <Text style={{ color: '#10B981', fontSize: 12, marginTop: 4 }}>Senhas conferem ✓</Text>
               )}
             </View>
 
