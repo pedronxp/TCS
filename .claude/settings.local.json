@@ -41,7 +41,29 @@
       "Bash(npm uninstall:*)",
       "Bash(node -e \"require\\(''crypto''\\).randomUUID\\(\\)\")",
       "Bash(find \"/c/Users/User/Desktop/Projeto/app_defasaCivil/app_defesa_civil_expo/app/\\(panel\\)\" -name \"_layout*\")",
-      "Bash(grep -rn expo-background-fetch /c/Users/User/Desktop/Projeto/app_defasaCivil/app_defesa_civil_expo --include=*.ts --include=*.tsx)"
+      "Bash(grep -rn expo-background-fetch /c/Users/User/Desktop/Projeto/app_defasaCivil/app_defesa_civil_expo --include=*.ts --include=*.tsx)",
+      "Bash(npx jest:*)",
+      "Bash(git stash:*)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(rtk git:*)",
+      "Bash(git commit:*)",
+      "Bash(node -e \"require\\(''''canvas''''\\)\")",
+      "Skill(gsd:plan-phase)",
+      "Bash(\"C:/Users/User/Desktop/Projeto/app_defesa_civil_expo/.planning/phases/10-formul-rio-estrutural-inteligente/10-02-SUMMARY.md\":*)",
+      "Bash(rtk tsc:*)",
+      "Bash(grav_)",
+      "Bash(ext_ \")",
+      "Skill(gsd:progress)",
+      "Bash(xargs grep:*)",
+      "Bash(find C:UsersUserDesktopProjetoapp_defesa_civil_expo/app -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(grep -rn \"//.*test\\\\|//.*demo\\\\|//.*debug\" \"C:\\\\Users\\\\User\\\\Desktop\\\\Projeto\\\\app_defesa_civil_expo/app\" --include=\"*.tsx\" --include=\"*.ts\" -i)",
+      "Bash(find C:UsersUserDesktopProjetoapp_defesa_civil_exposervices -type f -name *.ts -o -name *.tsx)",
+      "Bash(find C:UsersUserDesktopProjetoapp_defesa_civil_expocontext -type f -name *.ts -o -name *.tsx)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__execute_sql",
+      "WebSearch",
+      "Skill(gsd:execute-phase)"
     ]
   }
 }

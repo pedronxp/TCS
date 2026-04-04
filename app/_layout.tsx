@@ -70,6 +70,10 @@ function RootNavigator() {
       const inOnboarding = segs[0] === 'onboarding';
       const isAuthenticated = !!session && !!profile;
 
+      // Fluxo de recuperação de senha: não redirecionar para dashboard mesmo com sessão temporária
+      const inResetFlow = inAuth && (segs[1] === 'verify-otp' || segs[1] === 'reset-password');
+      if (inResetFlow) return;
+
       if (!done && !inOnboarding) {
         router.replace('/onboarding');
         return;

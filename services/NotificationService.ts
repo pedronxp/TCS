@@ -21,7 +21,7 @@ Notifications.setNotificationHandler({
 // que existam antes de qualquer notificação ser agendada.
 if (Platform.OS === 'android') {
   Notifications.setNotificationChannelAsync('default', {
-    name: 'Defesa Civil',
+    name: 'TCS - Relatório de Risco',
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#3B82F6',
@@ -237,7 +237,7 @@ export async function notificarNovaAtribuicao(endereco: string, prioridade: stri
 export async function notificarLembrete(mensagem: string, segundos: number): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🔔 Lembrete — Defesa Civil',
+      title: '🔔 Lembrete — TCS - Relatório de Risco',
       body: mensagem,
       data: { tipo: 'lembrete' },
       sound: 'default',

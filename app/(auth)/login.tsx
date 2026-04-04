@@ -146,22 +146,25 @@ export default function LoginScreen() {
 
           {/* Tabs de modo */}
           <View style={[styles.tabRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-            {(['email', 'whatsapp'] as Modo[]).map(m => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.tab, modo === m && { backgroundColor: theme.primary, borderRadius: 10 }]}
-                onPress={() => { setModo(m); setError(null); setOtpEnviado(false); }}
-              >
-                <Feather
-                  name={m === 'email' ? 'mail' : 'message-circle'}
-                  size={15}
-                  color={modo === m ? '#FFF' : theme.textSecondary}
-                />
-                <Text style={[styles.tabText, { color: modo === m ? '#FFF' : theme.textSecondary }]}>
-                  {m === 'email' ? 'E-mail' : 'WhatsApp'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {/* E-mail */}
+            <TouchableOpacity
+              style={[styles.tab, modo === 'email' && { backgroundColor: theme.primary, borderRadius: 10 }]}
+              onPress={() => { setModo('email'); setError(null); setOtpEnviado(false); }}
+            >
+              <Feather name="mail" size={15} color={modo === 'email' ? '#FFF' : theme.textSecondary} />
+              <Text style={[styles.tabText, { color: modo === 'email' ? '#FFF' : theme.textSecondary }]}>
+                E-mail
+              </Text>
+            </TouchableOpacity>
+
+            {/* WhatsApp — em manutenção */}
+            <TouchableOpacity style={[styles.tab, { opacity: 0.45 }]} disabled>
+              <Feather name="message-circle" size={15} color={theme.textSecondary} />
+              <Text style={[styles.tabText, { color: theme.textSecondary }]}>WhatsApp</Text>
+              <View style={styles.manutencaoBadge}>
+                <Text style={styles.manutencaoText}>Manutenção</Text>
+              </View>
+            </TouchableOpacity>
           </View>
 
           {/* ── Form E-mail ── */}
@@ -365,4 +368,9 @@ const styles = StyleSheet.create({
 
   linkBtn: { alignItems: 'center' },
   linkText: { fontSize: 14, fontWeight: '500' },
+
+  manutencaoBadge: {
+    backgroundColor: '#F59E0B22', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, marginLeft: 2,
+  },
+  manutencaoText: { fontSize: 9, fontWeight: '700', color: '#F59E0B' },
 });

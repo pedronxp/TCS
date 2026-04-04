@@ -54,11 +54,12 @@ export default function DadosIniciaisScreen() {
 
   /** Reverse geocode via Nominatim (OpenStreetMap).
    * Tenta vários campos de bairro em ordem de prioridade para endereços BR.
+   * zoom=16 retorna dados no nível de bairro (mais estável que zoom=18 no OSM BR).
    */
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
       const resp = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`,
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=16`,
         { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'DefesaCivilApp/1.0' } }
       );
       const json = await resp.json();
@@ -70,17 +71,19 @@ export default function DadosIniciaisScreen() {
       const ruaCandidata = addr.road || addr.pedestrian || addr.footway || addr.path || '';
       const rua = TERMOS_INVALIDOS_RUA.includes(ruaCandidata.toLowerCase().trim()) ? '' : ruaCandidata;
 
-      // Bairro: suburb é o campo mais preciso para bairros BR no Nominatim
+      // Bairro: no OSM Brasil, neighbourhood mapeia o bairro individual real.
+      // suburb frequentemente retorna agrupamentos maiores (ex: "Zona Norte").
+      // city_district e district são áreas administrativas, não bairros.
       const bairro =
-        addr['suburb'] ||
         addr['neighbourhood'] ||
+        addr['suburb'] ||
         addr['quarter'] ||
-        addr['city_district'] ||
-        addr['district'] ||
         addr['hamlet'] ||
         addr['village'] ||
+        addr['city_district'] ||
+        addr['district'] ||
         '';
-      // Cidade/Município (só para master_admin)
+      // Cidade/Município
       const cidade = addr.city || addr.town || addr.municipality || addr.county || '';
 
       setForm(f => ({
