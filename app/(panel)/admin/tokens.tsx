@@ -7,6 +7,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { LoadingState } from '../../../components/ui/LoadingState';
@@ -38,6 +39,8 @@ function getTempoRestante(expiresAt: string | null) {
 export default function TokensScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { profile } = useAuth();
+  const isMasterAdmin = profile?.role === 'master_admin';
   const [loading, setLoading] = useState(true);
   const [tokens, setTokens] = useState<any[]>([]);
   const [erro, setErro] = useState<string | null>(null);
@@ -363,6 +366,52 @@ export default function TokensScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Resumo por admin — apenas para master_admin */}
+        {isMasterAdmin && Object.keys(tokensPorAdmin).length > 0 && (
+          <>
+            <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginBottom: 8 }]}>
+              POR ADMINISTRADOR
+            </Text>
+            {Object.entries(tokensPorAdmin).map(([uid, stats]) => (
+              <View
+                key={uid}
+                style={[styles.adminSummaryCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              >
+                <View style={[styles.adminSummaryIcon, { backgroundColor: `${theme.primary}15` }]}>
+                  <Feather name="shield" size={16} color={theme.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.adminSummaryNome, { color: theme.text }]} numberOfLines={1}>
+                    {stats.nome}
+                  </Text>
+                  <Text style={[styles.adminSummaryMun, { color: theme.textSecondary }]}>{stats.municipio}</Text>
+                </View>
+                <View style={styles.adminSummaryStats}>
+                  {stats.ativos > 0 && (
+                    <View style={[styles.adminStat, { backgroundColor: `${theme.primary}15` }]}>
+                      <Text style={[styles.adminStatNum, { color: theme.primary }]}>{stats.ativos}</Text>
+                      <Text style={[styles.adminStatLabel, { color: theme.primary }]}>ativos</Text>
+                    </View>
+                  )}
+                  {stats.usados > 0 && (
+                    <View style={[styles.adminStat, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+                      <Text style={[styles.adminStatNum, { color: '#10B981' }]}>{stats.usados}</Text>
+                      <Text style={[styles.adminStatLabel, { color: '#10B981' }]}>usados</Text>
+                    </View>
+                  )}
+                  {stats.expirados > 0 && (
+                    <View style={[styles.adminStat, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                      <Text style={[styles.adminStatNum, { color: '#EF4444' }]}>{stats.expirados}</Text>
+                      <Text style={[styles.adminStatLabel, { color: '#EF4444' }]}>expirados</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ))}
+            <View style={[styles.divider, { backgroundColor: theme.border, marginVertical: 16 }]} />
+          </>
+        )}
+
         {tokens.length === 0 ? (
           <EmptyState
             icon="key"
@@ -459,6 +508,17 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center',
   },
   scrollContent: { padding: 20, paddingBottom: 60 },
+  adminSummaryCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 8,
+  },
+  adminSummaryIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  adminSummaryNome: { fontSize: 14, fontWeight: '700' },
+  adminSummaryMun: { fontSize: 11, marginTop: 1 },
+  adminSummaryStats: { flexDirection: 'row', gap: 6 },
+  adminStat: { alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  adminStatNum: { fontSize: 14, fontWeight: '800' },
+  adminStatLabel: { fontSize: 9, fontWeight: '600' },
   sectionLabel: {
     fontSize: 11, fontWeight: '700', letterSpacing: 1,
     textTransform: 'uppercase', marginBottom: 12, marginTop: 4,
