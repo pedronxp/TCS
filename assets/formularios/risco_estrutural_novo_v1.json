@@ -1,0 +1,159 @@
+{
+  "id": "risco_estrutural_novo_v1",
+  "titulo": "Avaliação de Risco Estrutural",
+  "versao": 1,
+  "ativo": true,
+  "tipoCalculo": "soma_total",
+  "descricao": "Formulário de inspeção técnica para avaliação de risco estrutural de edificações.",
+  "classificacao": {
+    "limites": [
+      { "max": 8,    "nivel": "baixo",    "label": "R1 — BAIXO — Edificação em bom estado",                   "cor": "verde"   },
+      { "max": 22,   "nivel": "medio",    "label": "R2 — MÉDIO — Problemas detectados, monitorar",            "cor": "amarelo" },
+      { "max": 44,   "nivel": "alto",     "label": "R3 — ALTO — Intervenções urgentes necessárias",           "cor": "laranja" },
+      { "max": 9999, "nivel": "iminente", "label": "R4 — CRÍTICO — Edificação em estado crítico",             "cor": "vermelho"}
+    ]
+  },
+  "fases": [
+    {
+      "id": "fase_estrutural",
+      "titulo": "Inspeção Estrutural da Edificação",
+      "instrucao": "Avalie cada elemento estrutural conforme condições observadas in loco.",
+      "perguntas": [
+        {
+          "id": "est_foto_geral",
+          "texto": "Foto geral da edificação",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "opcoes": []
+        },
+        {
+          "id": "est_q1",
+          "texto": "Fundação",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q1_a", "texto": "Bom",     "descricao": "Fundação em bom estado, sem sinais de deterioração", "svgKey": "est_q1_bom",     "pesoRisco": 0 },
+            { "id": "q1_b", "texto": "Regular", "descricao": "Fundação com pequenos problemas, deterioração leve", "svgKey": "est_q1_regular", "pesoRisco": 3 },
+            { "id": "q1_c", "texto": "Ruim",    "descricao": "Fundação com problemas significativos",              "svgKey": "est_q1_ruim",    "pesoRisco": 6 },
+            { "id": "q1_d", "texto": "Péssimo", "descricao": "Fundação em estado crítico",                         "svgKey": "est_q1_pessimo", "pesoRisco": 9 }
+          ]
+        },
+        {
+          "id": "est_q2",
+          "texto": "Estrutura (pilares, vigas, lajes)",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q2_a", "texto": "Bom",     "descricao": "Estrutura íntegra sem danos visíveis",                      "svgKey": "est_q2_bom",     "pesoRisco": 0 },
+            { "id": "q2_b", "texto": "Regular", "descricao": "Estrutura com pequenas fissuras ou deformações",            "svgKey": "est_q2_regular", "pesoRisco": 3 },
+            { "id": "q2_c", "texto": "Ruim",    "descricao": "Estrutura com fissuras/deformações significativas",         "svgKey": "est_q2_ruim",    "pesoRisco": 6 },
+            { "id": "q2_d", "texto": "Péssimo", "descricao": "Estrutura comprometida, risco iminente",                    "svgKey": "est_q2_pessimo", "pesoRisco": 9 }
+          ]
+        },
+        {
+          "id": "est_q3",
+          "texto": "Alvenaria / Vedação",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q3_a", "texto": "Bom",     "descricao": "Alvenaria íntegra e bem conservada",    "svgKey": "est_q3_bom",     "pesoRisco": 0 },
+            { "id": "q3_b", "texto": "Regular", "descricao": "Alvenaria com pequenas fissuras",       "svgKey": "est_q3_regular", "pesoRisco": 2 },
+            { "id": "q3_c", "texto": "Ruim",    "descricao": "Alvenaria com fissuras ou desaprumo",   "svgKey": "est_q3_ruim",    "pesoRisco": 4 },
+            { "id": "q3_d", "texto": "Péssimo", "descricao": "Alvenaria com risco de colapso",        "svgKey": "est_q3_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "est_q4",
+          "texto": "Cobertura / Telhado",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q4_a", "texto": "Bom",     "descricao": "Cobertura íntegra sem vazamentos",         "svgKey": "est_q4_bom",     "pesoRisco": 0 },
+            { "id": "q4_b", "texto": "Regular", "descricao": "Cobertura com pequenas infiltrações",      "svgKey": "est_q4_regular", "pesoRisco": 2 },
+            { "id": "q4_c", "texto": "Ruim",    "descricao": "Cobertura com vazamentos significativos",  "svgKey": "est_q4_ruim",    "pesoRisco": 4 },
+            { "id": "q4_d", "texto": "Péssimo", "descricao": "Cobertura com risco de desabamento",       "svgKey": "est_q4_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "est_q5",
+          "texto": "Piso / Contrapiso",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q5_a", "texto": "Bom",     "descricao": "Piso íntegro e bem conservado",  "svgKey": "est_q5_bom",     "pesoRisco": 0 },
+            { "id": "q5_b", "texto": "Regular", "descricao": "Piso com pequenos danos",        "svgKey": "est_q5_regular", "pesoRisco": 2 },
+            { "id": "q5_c", "texto": "Ruim",    "descricao": "Piso com danos significativos",  "svgKey": "est_q5_ruim",    "pesoRisco": 3 },
+            { "id": "q5_d", "texto": "Péssimo", "descricao": "Piso com risco de colapso",      "svgKey": "est_q5_pessimo", "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "est_q6",
+          "texto": "Escadas / Circulação",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q6_a", "texto": "Bom",     "descricao": "Escadas e circulação seguras",                "svgKey": "est_q6_bom",     "pesoRisco": 0 },
+            { "id": "q6_b", "texto": "Regular", "descricao": "Escadas com pequenos danos",                  "svgKey": "est_q6_regular", "pesoRisco": 2 },
+            { "id": "q6_c", "texto": "Ruim",    "descricao": "Escadas com danos que afetam segurança",      "svgKey": "est_q6_ruim",    "pesoRisco": 4 },
+            { "id": "q6_d", "texto": "Péssimo", "descricao": "Escadas com risco iminente",                  "svgKey": "est_q6_pessimo", "pesoRisco": 6 }
+          ]
+        },
+        {
+          "id": "est_q7",
+          "texto": "Muro de arrimo / contenção",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q7_a", "texto": "Bom",     "descricao": "Muro íntegro e bem conservado",   "svgKey": "est_q7_bom",     "pesoRisco": 0 },
+            { "id": "q7_b", "texto": "Regular", "descricao": "Muro com pequenas fissuras",      "svgKey": "est_q7_regular", "pesoRisco": 3 },
+            { "id": "q7_c", "texto": "Ruim",    "descricao": "Muro com fissuras ou desaprumo",  "svgKey": "est_q7_ruim",    "pesoRisco": 6 },
+            { "id": "q7_d", "texto": "Péssimo", "descricao": "Muro com risco de colapso",       "svgKey": "est_q7_pessimo", "pesoRisco": 8 }
+          ]
+        },
+        {
+          "id": "est_q8",
+          "texto": "Fachada / Revestimento",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q8_a", "texto": "Bom",     "descricao": "Fachada íntegra e bem conservada",       "svgKey": "est_q8_bom",     "pesoRisco": 0 },
+            { "id": "q8_b", "texto": "Regular", "descricao": "Fachada com pequenos danos",             "svgKey": "est_q8_regular", "pesoRisco": 2 },
+            { "id": "q8_c", "texto": "Ruim",    "descricao": "Fachada com danos significativos",       "svgKey": "est_q8_ruim",    "pesoRisco": 3 },
+            { "id": "q8_d", "texto": "Péssimo", "descricao": "Fachada com risco de queda de material", "svgKey": "est_q8_pessimo", "pesoRisco": 5 }
+          ]
+        },
+        {
+          "id": "est_q9",
+          "texto": "Drenagem / Águas pluviais",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q9_a", "texto": "Bom",     "descricao": "Drenagem funcional e bem mantida",            "svgKey": "est_q9_bom",     "pesoRisco": 0 },
+            { "id": "q9_b", "texto": "Regular", "descricao": "Drenagem com pequenos problemas",             "svgKey": "est_q9_regular", "pesoRisco": 2 },
+            { "id": "q9_c", "texto": "Ruim",    "descricao": "Drenagem com problemas significativos",       "svgKey": "est_q9_ruim",    "pesoRisco": 4 },
+            { "id": "q9_d", "texto": "Péssimo", "descricao": "Drenagem ineficiente ou ausente",             "svgKey": "est_q9_pessimo", "pesoRisco": 7 }
+          ]
+        },
+        {
+          "id": "est_q10",
+          "texto": "Talude / Encosta próxima",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "q10_a", "texto": "Estável",         "descricao": "Talude estável sem sinais de movimento",      "svgKey": "est_q10_estavel",  "pesoRisco": 0 },
+            { "id": "q10_b", "texto": "Sinais Leves",    "descricao": "Talude com pequenos sinais de instabilidade", "svgKey": "est_q10_leve",     "pesoRisco": 3 },
+            { "id": "q10_c", "texto": "Sinais Moderados","descricao": "Talude com sinais moderados de movimento",    "svgKey": "est_q10_moderado", "pesoRisco": 6 },
+            { "id": "q10_d", "texto": "Crítico",         "descricao": "Talude com risco iminente de deslizamento",   "svgKey": "est_q10_critico",  "pesoRisco": 8 }
+          ]
+        },
+        {
+          "id": "est_observacoes",
+          "texto": "Observações técnicas do vistoriador",
+          "tipo": "texto",
+          "obrigatoria": false,
+          "opcoes": []
+        }
+      ]
+    }
+  ]
+}

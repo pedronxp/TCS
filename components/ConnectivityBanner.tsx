@@ -1,26 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useConnectivity } from '../context/ConnectivityContext';
-import { useTheme } from '../context/ThemeContext';
 
-const PILL_HEIGHT = 36;
-const ANIM_DURATION = 300;
+const STRIP_HEIGHT = 34;
+const ANIM_DURATION = 280;
 
 export function ConnectivityBanner() {
-  const { isOnlineReal } = useConnectivity();
-  const { theme } = useTheme();
+  // isConnected = NetInfo (instantâneo), sem delay de HTTP check
+  const { isConnected } = useConnectivity();
   const insets = useSafeAreaInsets();
 
-  // Bottom position: above the bottom nav bar (approx 60px) + safe area
-  const pillBottom = insets.bottom + 68;
-  // Slide from below the screen (hidden position)
-  const hiddenOffset = PILL_HEIGHT + pillBottom + 16;
-
-  const translateY = useRef(new Animated.Value(hiddenOffset)).current;
+  // Posição acima da barra de navegação
+  const bottomOffset = insets.bottom + 72;
+  const translateY = useRef(new Animated.Value(STRIP_HEIGHT + 10)).current;
   const [bannerState, setBannerState] = useState<'offline' | 'restored' | 'hidden'>('hidden');
-  const prevOnline = useRef(true);
+  const prevConnected = useRef<boolean | null>(null); // null = ainda não inicializado
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showBanner = (state: 'offline' | 'restored') => {
@@ -29,13 +25,14 @@ export function ConnectivityBanner() {
     Animated.spring(translateY, {
       toValue: 0,
       useNativeDriver: true,
-      bounciness: 6,
+      bounciness: 4,
+      speed: 14,
     }).start();
   };
 
   const hideBanner = () => {
     Animated.timing(translateY, {
-      toValue: hiddenOffset,
+      toValue: STRIP_HEIGHT + 10,
       duration: ANIM_DURATION,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -44,12 +41,14 @@ export function ConnectivityBanner() {
   };
 
   useEffect(() => {
-    const wasOnline = prevOnline.current;
-    prevOnline.current = isOnlineReal;
+    const wasConnected = prevConnected.current;
+    prevConnected.current = isConnected;
 
-    if (!isOnlineReal && wasOnline) {
+    if (!isConnected) {
+      // Mostra offline sempre que desconectado (inclusive no boot do app)
       showBanner('offline');
-    } else if (isOnlineReal && !wasOnline) {
+    } else if (isConnected && wasConnected === false) {
+      // Só mostra "restaurado" se antes estava offline (não na inicialização)
       showBanner('restored');
       hideTimer.current = setTimeout(() => hideBanner(), 2500);
     }
@@ -57,57 +56,63 @@ export function ConnectivityBanner() {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [isOnlineReal]);
+  }, [isConnected]);
 
   if (bannerState === 'hidden') return null;
 
   const isOffline = bannerState === 'offline';
-  const backgroundColor = isOffline ? theme.warning : theme.success;
 
   return (
     <Animated.View
       style={[
-        styles.pill,
+        styles.strip,
         {
-          bottom: pillBottom,
-          backgroundColor,
+          bottom: bottomOffset,
+          backgroundColor: isOffline ? '#92400E' : '#065F46',
           transform: [{ translateY }],
         },
       ]}
       pointerEvents="none"
     >
-      <Feather name={isOffline ? 'wifi-off' : 'wifi'} size={13} color="#fff" />
+      <Feather name={isOffline ? 'wifi-off' : 'wifi'} size={12} color="#fff" />
       <Text style={styles.text}>
-        {isOffline
-          ? 'Sem conexão — dados sincronizados ao reconectar'
-          : 'Conexão restaurada'}
+        {isOffline ? 'Modo offline · dados locais' : 'Conexão restaurada'}
       </Text>
+      {isOffline && (
+        <View style={styles.dot} />
+      )}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: {
+  strip: {
     position: 'absolute',
     alignSelf: 'center',
-    // Left/right not set — pill width is determined by content + padding
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    minHeight: PILL_HEIGHT,
+    gap: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
+    height: STRIP_HEIGHT,
     zIndex: 9999,
-    elevation: 6,
+    elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
   },
   text: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.1,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FCA5A5',
   },
 });

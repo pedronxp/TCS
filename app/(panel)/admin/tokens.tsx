@@ -7,6 +7,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { LoadingState } from '../../../components/ui/LoadingState';
@@ -38,8 +39,11 @@ function getTempoRestante(expiresAt: string | null) {
 export default function TokensScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { profile } = useAuth();
+  const isMasterAdmin = profile?.role === 'master_admin';
   const [loading, setLoading] = useState(true);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [adminLimites, setAdminLimites] = useState<Record<string, number>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [limpando, setLimpando] = useState(false);
@@ -88,6 +92,22 @@ export default function TokensScreen() {
         : (data || []).filter(t => t.criadoPor === session.user.id);
 
       setTokens(tokensSeguro);
+
+      // Para master_admin: buscar limites de cada admin que gerou tokens
+      if (me.role === 'master_admin') {
+        const adminUids = [...new Set(tokensSeguro.map((t: any) => t.criadoPor).filter(Boolean))];
+        if (adminUids.length > 0) {
+          const { data: limiteData } = await supabase
+            .from('users')
+            .select('uid, token_limit')
+            .in('uid', adminUids);
+          if (limiteData) {
+            const mapa: Record<string, number> = {};
+            limiteData.forEach((u: any) => { mapa[u.uid] = u.token_limit ?? 20; });
+            setAdminLimites(mapa);
+          }
+        }
+      }
       setErro(null);
     } catch (e: any) {
       logger.error('token', 'Erro ao carregar tokens', { erro: String(e) });
@@ -111,6 +131,32 @@ export default function TokensScreen() {
     return new Date(t.expiraEm).getTime() <= Date.now();
   });
   const usados = tokens.filter(t => t.usado === true);
+
+  // Para master_admin: agrupar por admin criador
+  const tokensPorAdmin = React.useMemo(() => {
+    if (tokens.length === 0) return {};
+    const grupos: Record<string, { nome: string; municipio: string; ativos: number; usados: number; expirados: number; limite: number }> = {};
+    tokens.forEach(t => {
+      const key = t.criadoPor || 'unknown';
+      if (!grupos[key]) {
+        grupos[key] = {
+          nome: t.criadoPorNome || 'Desconhecido',
+          municipio: t.municipio || '',
+          ativos: 0, usados: 0, expirados: 0,
+          limite: adminLimites[key] ?? 20,
+        };
+      } else {
+        // Atualizar limite caso já carregado
+        grupos[key].limite = adminLimites[key] ?? grupos[key].limite;
+      }
+      const isUsado = t.usado === true;
+      const isExpirado = !isUsado && t.expiraEm && new Date(t.expiraEm).getTime() <= Date.now();
+      if (isUsado) grupos[key].usados++;
+      else if (isExpirado) grupos[key].expirados++;
+      else grupos[key].ativos++;
+    });
+    return grupos;
+  }, [tokens, adminLimites]);
 
   const copiarToken = async (codigo: string) => {
     await Clipboard.setStringAsync(codigo);
@@ -341,6 +387,87 @@ export default function TokensScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Resumo por admin — apenas para master_admin */}
+        {isMasterAdmin && Object.keys(tokensPorAdmin).length > 0 && (
+          <>
+            <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginBottom: 10 }]}>
+              POR ADMINISTRADOR
+            </Text>
+            {Object.entries(tokensPorAdmin).map(([uid, stats]) => {
+              const totalGerado = stats.ativos + stats.usados + stats.expirados;
+              const pct = stats.limite > 0 ? Math.min(totalGerado / stats.limite, 1) : 0;
+              const corBarra = pct >= 1 ? '#EF4444' : pct >= 0.8 ? '#F59E0B' : '#10B981';
+              return (
+                <View
+                  key={uid}
+                  style={[styles.adminSummaryCard, {
+                    backgroundColor: theme.surfaceHighlight,
+                    borderColor: pct >= 1 ? 'rgba(239,68,68,0.3)' : theme.cardBorder,
+                  }]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                    <View style={[styles.adminSummaryIcon, { backgroundColor: `${theme.primary}15` }]}>
+                      <Feather name="shield" size={16} color={theme.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.adminSummaryNome, { color: theme.text }]} numberOfLines={1}>
+                        {stats.nome}
+                      </Text>
+                      <Text style={[styles.adminSummaryMun, { color: theme.textSecondary }]}>
+                        {stats.municipio}
+                      </Text>
+                    </View>
+                    {/* Quota numérica */}
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[styles.adminQuotaNum, { color: pct >= 1 ? '#EF4444' : theme.text }]}>
+                        {totalGerado}/{stats.limite}
+                      </Text>
+                      <Text style={[styles.adminQuotaLabel, { color: theme.textSecondary }]}>este mês</Text>
+                    </View>
+                  </View>
+
+                  {/* Barra de progresso */}
+                  <View style={[styles.adminProgressBg, { backgroundColor: theme.iconBackground }]}>
+                    <View style={[styles.adminProgressFill, {
+                      width: `${pct * 100}%`,
+                      backgroundColor: corBarra,
+                    }]} />
+                  </View>
+
+                  {/* Badges contagem */}
+                  <View style={[styles.adminSummaryStats, { marginTop: 10 }]}>
+                    {stats.ativos > 0 && (
+                      <View style={[styles.adminStat, { backgroundColor: `${theme.primary}15` }]}>
+                        <Text style={[styles.adminStatNum, { color: theme.primary }]}>{stats.ativos}</Text>
+                        <Text style={[styles.adminStatLabel, { color: theme.primary }]}>ativos</Text>
+                      </View>
+                    )}
+                    {stats.usados > 0 && (
+                      <View style={[styles.adminStat, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+                        <Text style={[styles.adminStatNum, { color: '#10B981' }]}>{stats.usados}</Text>
+                        <Text style={[styles.adminStatLabel, { color: '#10B981' }]}>usados</Text>
+                      </View>
+                    )}
+                    {stats.expirados > 0 && (
+                      <View style={[styles.adminStat, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                        <Text style={[styles.adminStatNum, { color: '#EF4444' }]}>{stats.expirados}</Text>
+                        <Text style={[styles.adminStatLabel, { color: '#EF4444' }]}>expirados</Text>
+                      </View>
+                    )}
+                    {pct >= 1 && (
+                      <View style={[styles.adminStat, { backgroundColor: 'rgba(239,68,68,0.1)', marginLeft: 'auto' }]}>
+                        <Feather name="alert-circle" size={11} color="#EF4444" />
+                        <Text style={[styles.adminStatLabel, { color: '#EF4444' }]}>limite atingido</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+            <View style={[styles.divider, { backgroundColor: theme.border, marginVertical: 16 }]} />
+          </>
+        )}
+
         {tokens.length === 0 ? (
           <EmptyState
             icon="key"
@@ -437,6 +564,20 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center',
   },
   scrollContent: { padding: 20, paddingBottom: 60 },
+  adminSummaryCard: {
+    borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10,
+  },
+  adminSummaryIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  adminSummaryNome: { fontSize: 14, fontWeight: '700' },
+  adminSummaryMun: { fontSize: 11, marginTop: 1 },
+  adminSummaryStats: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  adminStat: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  adminStatNum: { fontSize: 13, fontWeight: '800' },
+  adminStatLabel: { fontSize: 10, fontWeight: '600' },
+  adminQuotaNum: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3 },
+  adminQuotaLabel: { fontSize: 10, fontWeight: '500', marginTop: 1 },
+  adminProgressBg: { height: 5, borderRadius: 3, overflow: 'hidden' },
+  adminProgressFill: { height: 5, borderRadius: 3 },
   sectionLabel: {
     fontSize: 11, fontWeight: '700', letterSpacing: 1,
     textTransform: 'uppercase', marginBottom: 12, marginTop: 4,

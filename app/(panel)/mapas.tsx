@@ -12,7 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
-import { getVistoriasByAgente, getVistoriasByMunicipio } from '../../utils/database';
+import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias } from '../../utils/database';
 import { logger } from '../../utils/logger';
 import { tracarRota } from '../../utils/routingUtils';
 
@@ -189,9 +189,11 @@ export default function MapasScreen() {
       }
 
       // Offline: SQLite
-      const locais = isAdmin
-        ? getVistoriasByMunicipio(profile.municipio)
-        : getVistoriasByAgente(profile.uid);
+      const locais = profile.role === 'master_admin'
+        ? getAllVistorias()
+        : isAdmin
+          ? getVistoriasByMunicipio(profile.municipio)
+          : getVistoriasByAgente(profile.uid);
 
       setMarkers(locais.filter((v: any) => v.latitude && v.longitude).map((v: any) => ({
         id: v.id,

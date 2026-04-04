@@ -13,6 +13,8 @@ import { logger } from '../../../utils/logger';
 import { riscoColor } from '../../../utils/riscoUtils';
 import { tempoRelativo } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
+import { useConnectivity } from '../../../context/ConnectivityContext';
+import { DashboardGuide } from '../../../components/DashboardGuide';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Atribuicao {
@@ -34,6 +36,7 @@ export default function SupervisorDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
+  const { isConnected } = useConnectivity();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [vistorias, setVistorias] = useState<VistoriaNormalizada[]>([]);
@@ -126,12 +129,7 @@ export default function SupervisorDashboardScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-            onPress={() => router.push('/(panel)/mapas')}
-          >
-            <Feather name="map" size={18} color={theme.primary} />
-          </TouchableOpacity>
+          <DashboardGuide role="supervisor" />
           <View>
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
@@ -158,6 +156,17 @@ export default function SupervisorDashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {/* Banner offline */}
+        {!isConnected && (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
+            <Feather name="wifi-off" size={15} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>Modo offline ativo</Text>
+              <Text style={{ color: '#F59E0B', fontSize: 12, marginTop: 2, opacity: 0.85 }}>Dados de equipe indisponíveis. Vistorias locais acessíveis.</Text>
+            </View>
+          </View>
+        )}
+
         {/* Alerta alto risco */}
         {altoRisco > 0 && (
           <TouchableOpacity

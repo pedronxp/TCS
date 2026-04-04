@@ -258,6 +258,20 @@ export function cancelAutoRetry(): void {
 }
 
 /**
+ * Reseta tentativas de vistorias esgotadas e sincroniza tudo.
+ * Usado pelo botão de sync manual do usuário.
+ */
+export async function forceSyncAll(): Promise<{ sucesso: number; falha: number }> {
+  try {
+    const { getDb } = await import('../utils/database');
+    getDb().runSync(
+      `UPDATE vistorias_offline SET tentativas_sync = 0, erro_sync = NULL WHERE sincronizado = 0`
+    );
+  } catch { /* não crítico */ }
+  return syncPendentes();
+}
+
+/**
  * Mapeia campos snake_case do SQLite para o schema camelCase do Supabase.
  *
  * Payload verificado contra schema Supabase em 2026-04-03: todas as chaves

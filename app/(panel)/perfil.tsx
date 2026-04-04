@@ -23,7 +23,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function PerfilScreen() {
   const { theme, themeMode, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
-  const { session, profile: authProfile, loading: authLoading, signOut } = useAuth();
+  const { session, profile: authProfile, loading: authLoading, signOut, refreshProfile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(authProfile?.name || '');
@@ -101,19 +101,18 @@ export default function PerfilScreen() {
     }
   };
 
-  const nameAlreadyChanged = authProfile?.nameChanged === true;
-
   const saveName = async () => {
     if (!newName.trim() || !authProfile) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from('users')
-        .update({ name: newName.trim(), nameChanged: true })
+        .update({ name: newName.trim() })
         .eq('uid', authProfile.uid);
       if (error) throw error;
+      await refreshProfile();
       setEditingName(false);
-      Alert.alert('Nome atualizado', 'Atenção: o nome só pode ser alterado uma vez.');
+      Alert.alert('Nome atualizado', 'Seu nome foi alterado com sucesso.');
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar o nome.');
     } finally {
@@ -192,12 +191,7 @@ export default function PerfilScreen() {
           </View>
 
           {/* ── Nome ── */}
-          {nameAlreadyChanged ? (
-            <View style={styles.nameRow}>
-              <Text style={[styles.name, { color: theme.text }]}>{authProfile?.name || 'Nome não definido'}</Text>
-              <Feather name="lock" size={14} color={theme.textSecondary} style={{ marginLeft: 8 }} />
-            </View>
-          ) : editingName ? (
+          {editingName ? (
             <View style={styles.editRow}>
               <TextInput
                 style={[styles.nameInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
@@ -222,12 +216,6 @@ export default function PerfilScreen() {
               <Text style={[styles.name, { color: theme.text }]}>{authProfile?.name || 'Nome não definido'}</Text>
               <Feather name="edit-2" size={15} color={theme.textSecondary} style={{ marginLeft: 8 }} />
             </TouchableOpacity>
-          )}
-
-          {nameAlreadyChanged && (
-            <Text style={[styles.nameLockedHint, { color: theme.textSecondary }]}>
-              O nome só pode ser alterado uma vez
-            </Text>
           )}
 
           {/* Badge de cargo */}
@@ -472,7 +460,7 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 32, fontWeight: '800', color: '#FFF' },
   nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   name: { fontSize: 22, fontWeight: '700' },
-  nameLockedHint: { fontSize: 11, fontWeight: '500', marginBottom: 14, fontStyle: 'italic' },
+
   editRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8, width: '100%' },
   nameInput: {
     flex: 1, height: 44, borderRadius: 12, borderWidth: 1,

@@ -16,6 +16,52 @@ import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData } from '../../../ut
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { notificarDocumentoGerado } from '../../../services/NotificationService';
+
+// ─── Form JSONs ──────────────────────────────────────────────────────────────
+const FORM_JSONS: Record<string, any> = {
+  vistoria_deslizamento_v2: require('../../../assets/formularios/vistoria_deslizamento_v2.json'),
+  risco_estrutural_novo_v1: require('../../../assets/formularios/risco_estrutural_novo_v1.json'),
+};
+
+function resolverItensVistoriados(
+  formularioId: string,
+  respostasJson: any,
+): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }[] {
+  let respostas: Record<string, string> = {};
+  try {
+    respostas = typeof respostasJson === 'string'
+      ? JSON.parse(respostasJson || '{}')
+      : (respostasJson || {});
+  } catch { return []; }
+
+  const form = FORM_JSONS[formularioId];
+  if (!form) {
+    const itens = Object.entries(respostas)
+      .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+      .map(([k, v]) => ({ pergunta: k, resposta: String(v), pesoRisco: 0 }));
+    return itens.length ? [{ grupo: 'Respostas', itens }] : [];
+  }
+
+  const grupos: { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }[] = [];
+  for (const fase of form.fases || []) {
+    const itens: { pergunta: string; resposta: string; pesoRisco: number }[] = [];
+    for (const p of fase.perguntas || []) {
+      if (p.tipo === 'foto') continue;
+      const raw = respostas[p.id];
+      if (raw === undefined || raw === null || raw === '') continue;
+      let respostaTexto = String(raw);
+      let pesoRisco = 0;
+      if (p.tipo === 'cards' || p.tipo === 'multipla_escolha') {
+        const op = (p.opcoes || []).find((o: any) => o.id === raw);
+        if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
+      }
+      itens.push({ pergunta: p.texto, resposta: respostaTexto, pesoRisco });
+    }
+    if (itens.length) grupos.push({ grupo: fase.titulo, itens });
+  }
+  return grupos;
+}
 
 export default function LaudoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,6 +73,7 @@ export default function LaudoScreen() {
   const [vistoria, setVistoria] = useState<any>(null);
 
   const [showTermoModal, setShowTermoModal] = useState(false);
+  const [termoNomeErro, setTermoNomeErro] = useState(false);
   const [termoForm, setTermoForm] = useState({
     nomeNotificado: '',
     cpfNotificado: '',
@@ -81,6 +128,22 @@ export default function LaudoScreen() {
 
   const gerarPDF = async () => {
     if (!vistoria) return;
+    if (vistoria.laudo_gerado_em) {
+      Alert.alert(
+        'Documento já gerado',
+        `Este laudo foi gerado em ${formatarData(vistoria.laudo_gerado_em)}.\nGerar novamente criará um novo arquivo no seu dispositivo.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Gerar novamente', onPress: executarGerarPDF },
+        ],
+      );
+      return;
+    }
+    await executarGerarPDF();
+  };
+
+  const executarGerarPDF = async () => {
+    if (!vistoria) return;
     setGerando(true);
     try {
       const dados: LaudoData = {
@@ -97,20 +160,21 @@ export default function LaudoScreen() {
           : JSON.stringify(vistoria.respostasJson || {}),
         bairro: vistoria.enderecoBairro,
         responsavelNome: vistoria.responsavelNome,
-        foto_url: vistoria.fotoUri || null, // Ensure fotoUri or equivalent field is passed if available 
+        foto_url: vistoria.fotoUri || null,
       };
       const html = await buildLaudoHtml(dados);
-
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Compartilhar Laudo Técnico',
-        });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Laudo Técnico' });
       } else {
         Alert.alert('PDF Gerado', `Arquivo salvo em: ${uri}`);
       }
+      // Registrar geração no Supabase
+      const agora = new Date().toISOString();
+      supabase.from('vistorias').update({ laudo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
+      setVistoria(v => v ? { ...v, laudo_gerado_em: agora } : v);
+      notificarDocumentoGerado('laudo', vistoria.endereco || '').catch(() => null);
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o PDF.');
       logger.error('vistoria', 'Erro PDF', { erro: String(e) });
@@ -122,11 +186,30 @@ export default function LaudoScreen() {
   const gerarTermoInterdicao = async () => {
     if (!vistoria) return;
     if (!termoForm.nomeNotificado.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
+      setTermoNomeErro(true);
       return;
     }
-    setGerando(true);
+    setTermoNomeErro(false);
+
+    if (vistoria.termo_gerado_em) {
+      Alert.alert(
+        'Termo já gerado',
+        `O Termo de Interdição foi gerado em ${formatarData(vistoria.termo_gerado_em)}.\nGerar novamente criará um novo arquivo.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Gerar novamente', onPress: executarGerarTermo },
+        ],
+      );
+      return;
+    }
+    await executarGerarTermo();
+  };
+
+  const executarGerarTermo = async () => {
+    if (!vistoria) return;
     setShowTermoModal(false);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    setGerando(true);
     try {
       const laudoData = {
         id: vistoria.id || '',
@@ -137,20 +220,19 @@ export default function LaudoScreen() {
         pontuacaoTotal: vistoria.pontuacaoTotal || 0,
         endereco: vistoria.endereco || '—',
       };
-
       const html = buildTermoInterdicaoHtml(laudoData, termoForm);
-
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Compartilhar Termo de Interdição',
-          UTI: 'com.adobe.pdf'
-        });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Termo de Interdição', UTI: 'com.adobe.pdf' });
       } else {
         Alert.alert('PDF Gerado', `Arquivo salvo em: ${uri}`);
       }
+      // Registrar geração no Supabase
+      const agora = new Date().toISOString();
+      supabase.from('vistorias').update({ termo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
+      setVistoria(v => v ? { ...v, termo_gerado_em: agora } : v);
+      notificarDocumentoGerado('termo', vistoria.endereco || '').catch(() => null);
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
       logger.error('vistoria', 'Erro PDF Interdição', { erro: String(e) });
@@ -227,6 +309,19 @@ export default function LaudoScreen() {
           <Text style={[styles.pontuacao, { color: cor }]}>{vistoria.pontuacaoTotal ?? '—'}<Text style={{ fontSize: 14 }}>pts</Text></Text>
         </View>
 
+        {/* Banner — laudo já gerado */}
+        {vistoria.laudo_gerado_em && (
+          <View style={[styles.docBanner, { backgroundColor: '#10B98112', borderColor: '#10B98130' }]}>
+            <Feather name="check-circle" size={15} color="#10B981" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.docBannerTitle, { color: '#10B981' }]}>Laudo já gerado</Text>
+              <Text style={[styles.docBannerSub, { color: theme.textSecondary }]}>
+                {formatarData(vistoria.laudo_gerado_em)} · arquivo no seu dispositivo
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Identificação */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Identificação</Text>
         <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
@@ -247,30 +342,66 @@ export default function LaudoScreen() {
           ))}
         </View>
 
-        {/* Respostas */}
+        {/* Itens Vistoriados */}
         {vistoria.respostasJson && (() => {
-          try {
-            const r = typeof vistoria.respostasJson === 'string'
-              ? JSON.parse(vistoria.respostasJson) : vistoria.respostasJson;
-            const entries = Object.entries(r);
-            if (entries.length === 0) return null;
-            return (
-              <>
-                <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Respostas do Formulário</Text>
-                <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-                  {entries.map(([k, v], i) => (
-                    <View key={k} style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>{k}</Text>
-                        <Text style={[styles.rowValue, { color: theme.text }]}>{String(v)}</Text>
+          const grupos = resolverItensVistoriados(vistoria.formularioId || '', vistoria.respostasJson);
+          if (grupos.length === 0) return null;
+          const riscoColors: Record<string, string> = {
+            r1: '#10B981', r2: '#F59E0B', r3: '#F97316', r4: '#EF4444',
+            baixo: '#10B981', médio: '#F59E0B', alto: '#EF4444', iminente: '#EF4444',
+          };
+          let itemIndex = 0;
+          return (
+            <>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Itens Vistoriados</Text>
+              {grupos.map((grupo, gi) => (
+                <View key={gi}>
+                  {grupos.length > 1 && (
+                    <Text style={[styles.grupoTitle, { color: theme.textSecondary }]}>{grupo.grupo}</Text>
+                  )}
+                  {grupo.itens.map((item, ii) => {
+                    const idx = ++itemIndex;
+                    const isRisco = ['r1', 'r2', 'r3', 'r4', 'alto', 'médio', 'baixo', 'iminente'].includes(item.resposta.toLowerCase());
+                    const rCor = riscoColors[item.resposta.toLowerCase()];
+                    return (
+                      <View
+                        key={ii}
+                        style={[styles.respostaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                      >
+                        <View style={styles.respostaNumero}>
+                          <Text style={[styles.respostaNumeroText, { color: theme.textSecondary }]}>{idx}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.respostaPergunta, { color: theme.textSecondary }]} numberOfLines={3}>{item.pergunta}</Text>
+                          {isRisco && rCor ? (
+                            <View style={[styles.respostaBadge, { backgroundColor: `${rCor}18` }]}>
+                              <Text style={[styles.respostaBadgeText, { color: rCor }]}>{item.resposta.toUpperCase()}</Text>
+                            </View>
+                          ) : (
+                            <Text style={[styles.respostaValor, { color: theme.text }]}>{item.resposta}</Text>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
-              </>
-            );
-          } catch { return null; }
+              ))}
+            </>
+          );
         })()}
+
+        {/* Banner — termo já gerado */}
+        {vistoria.termo_gerado_em && (
+          <View style={[styles.docBanner, { backgroundColor: '#F9731612', borderColor: '#F9731630' }]}>
+            <Feather name="check-circle" size={15} color="#F97316" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.docBannerTitle, { color: '#F97316' }]}>Termo já gerado</Text>
+              <Text style={[styles.docBannerSub, { color: theme.textSecondary }]}>
+                {formatarData(vistoria.termo_gerado_em)} · arquivo no seu dispositivo
+              </Text>
+            </View>
+          </View>
+        )}
 
         {(vistoria.nivelRisco === 'r3' || vistoria.nivelRisco === 'r4') && (
           <TouchableOpacity
@@ -319,12 +450,17 @@ export default function LaudoScreen() {
               <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? '#EF4444' : theme.border, color: theme.text }]}
                   placeholder="Nome completo"
                   placeholderTextColor={theme.textSecondary}
                   value={termoForm.nomeNotificado}
-                  onChangeText={t => setTermoForm(f => ({ ...f, nomeNotificado: t }))}
+                  onChangeText={t => { setTermoForm(f => ({ ...f, nomeNotificado: t })); setTermoNomeErro(false); }}
                 />
+                {termoNomeErro && (
+                  <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 }}>
+                    Campo obrigatório
+                  </Text>
+                )}
 
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>CPF</Text>
                 <TextInput
@@ -465,6 +601,20 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', padding: 14 },
   rowLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   rowValue: { fontSize: 15, fontWeight: '600' },
+  respostaCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 8,
+  },
+  respostaNumero: {
+    width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(100,100,100,0.1)',
+  },
+  respostaNumeroText: { fontSize: 12, fontWeight: '800' },
+  grupoTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 8, marginBottom: 6 },
+  respostaPergunta: { fontSize: 12, fontWeight: '600', marginBottom: 6, lineHeight: 17 },
+  respostaValor: { fontSize: 14, fontWeight: '700' },
+  respostaBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  respostaBadgeText: { fontSize: 12, fontWeight: '800' },
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 12, height: 60, borderRadius: 18, marginTop: 8,
@@ -515,4 +665,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
   modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  docBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 12,
+  },
+  docBannerTitle: { fontSize: 13, fontWeight: '700' },
+  docBannerSub: { fontSize: 11, marginTop: 1 },
 });

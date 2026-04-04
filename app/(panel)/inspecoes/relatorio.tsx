@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image,
@@ -16,12 +16,13 @@ import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../ut
 import { buildShareMessage } from '../../../utils/shareUtils';
 import { useAuth } from '../../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from '../../../utils/supabase';
+import { notificarDocumentoGerado } from '../../../services/NotificationService';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
-  risco_estrutural_v1:      require('../../../assets/formularios/risco_estrutural_v1.json'),
-  risco_estrutural_v2:      require('../../../assets/formularios/risco_estrutural_v2.json'),
-  vistoria_deslizamento_v1: require('../../../assets/formularios/vistoria_deslizamento_v1.json'),
+  vistoria_deslizamento_v2: require('../../../assets/formularios/vistoria_deslizamento_v2.json'),
+  risco_estrutural_novo_v1: require('../../../assets/formularios/risco_estrutural_novo_v1.json'),
 };
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -169,6 +170,20 @@ export default function RelatorioScreen() {
   const { draft, updateField } = useReport();
   const { profile } = useAuth();
   const [gerando, setGerando] = useState(false);
+  const [docTracking, setDocTracking] = useState<{
+    relatorio_gerado_em?: string | null;
+    termo_gerado_em?: string | null;
+  }>({});
+
+  useEffect(() => {
+    if (!draft?.vistoriaId) return;
+    supabase
+      .from('vistorias')
+      .select('relatorio_gerado_em, termo_gerado_em')
+      .eq('id', draft.vistoriaId)
+      .single()
+      .then(({ data }) => { if (data) setDocTracking(data); });
+  }, [draft?.vistoriaId]);
 
   // Resolve respostas em textos legíveis agrupados por fase
   const grupos = useMemo<GrupoResolvido[]>(() => {
@@ -191,18 +206,33 @@ export default function RelatorioScreen() {
   });
 
   const abrirModalTermo = () => {
-    const r = draft?.respostas || {};
-    setTermoForm({
-      nomeNotificado: r['Responsável'] || r['Nome do Responsável'] || '',
-      cpfNotificado: r['CPF do Responsável'] || r['CPF'] || '',
-      enderecoRua: draft?.endereco || '',
-      enderecoNumero: r['Número'] || '',
-      bairro: r['Bairro'] || '',
-      cidade: draft?.municipio || '',
-      complemento: r['Complemento'] || '',
-      telefone: r['Telefone de Contato'] || r['Telefone'] || '',
-    });
-    setShowTermoModal(true);
+    const abrir = () => {
+      const r = draft?.respostas || {};
+      setTermoForm({
+        nomeNotificado: r['Responsável'] || r['Nome do Responsável'] || '',
+        cpfNotificado: r['CPF do Responsável'] || r['CPF'] || '',
+        enderecoRua: draft?.endereco || '',
+        enderecoNumero: r['Número'] || '',
+        bairro: r['Bairro'] || '',
+        cidade: draft?.municipio || '',
+        complemento: r['Complemento'] || '',
+        telefone: r['Telefone de Contato'] || r['Telefone'] || '',
+      });
+      setShowTermoModal(true);
+    };
+
+    if (docTracking.termo_gerado_em) {
+      Alert.alert(
+        'Termo já gerado',
+        `O Termo de Interdição foi gerado em ${fmtData(docTracking.termo_gerado_em)}.\nDeseja gerar um novo documento?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Gerar novamente', onPress: abrir },
+        ],
+      );
+      return;
+    }
+    abrir();
   };
 
   if (!draft) {
@@ -224,6 +254,21 @@ export default function RelatorioScreen() {
   const proto = parseProtocolo(draft.protocolo);
 
   const exportarPDF = async () => {
+    if (docTracking.relatorio_gerado_em) {
+      Alert.alert(
+        'Relatório já gerado',
+        `Este relatório foi gerado em ${fmtData(docTracking.relatorio_gerado_em)}.\nGerar novamente criará um novo arquivo no seu dispositivo.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Gerar novamente', onPress: executarExportarPDF },
+        ],
+      );
+      return;
+    }
+    await executarExportarPDF();
+  };
+
+  const executarExportarPDF = async () => {
     setGerando(true);
     try {
       const dados: LaudoData = {
@@ -240,7 +285,6 @@ export default function RelatorioScreen() {
         observacoesTecnicas: draft.observacoesTecnicas,
         cargo: draft.cargo,
         foto_url: draft.foto_url ?? null,
-        // Responsável e Bairro (tentativa map)
         responsavelNome: (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
         bairro: (draft.respostas || {})['Bairro'],
       };
@@ -265,6 +309,13 @@ export default function RelatorioScreen() {
           dataVistoria: draft.dataVistoria || new Date().toISOString(),
         });
         await Share.share({ message: mensagem, title: 'TCS — Relatório de Risco' });
+      }
+      // Registrar geração
+      if (draft.vistoriaId) {
+        const agora = new Date().toISOString();
+        supabase.from('vistorias').update({ relatorio_gerado_em: agora }).eq('id', draft.vistoriaId).then(() => {});
+        setDocTracking(t => ({ ...t, relatorio_gerado_em: agora }));
+        notificarDocumentoGerado('relatorio', draft.endereco || '').catch(() => null);
       }
     } catch {
       Alert.alert('Erro', 'Não foi possível gerar o PDF.');
@@ -299,6 +350,13 @@ export default function RelatorioScreen() {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Termo de Interdição', UTI: 'com.adobe.pdf' });
       } else {
         Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
+      }
+      // Registrar geração
+      if (draft?.vistoriaId) {
+        const agora = new Date().toISOString();
+        supabase.from('vistorias').update({ termo_gerado_em: agora }).eq('id', draft.vistoriaId).then(() => {});
+        setDocTracking(t => ({ ...t, termo_gerado_em: agora }));
+        notificarDocumentoGerado('termo', draft?.endereco || '').catch(() => null);
       }
     } catch {
       Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
@@ -546,6 +604,30 @@ export default function RelatorioScreen() {
             </View>
           </View>
         </View>
+
+        {/* Banners de rastreamento de documentos */}
+        {docTracking.relatorio_gerado_em && (
+          <View style={[s.docBanner, { backgroundColor: '#10B98112', borderColor: '#10B98130' }]}>
+            <Feather name="check-circle" size={15} color="#10B981" />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.docBannerTitle, { color: '#10B981' }]}>Relatório já gerado</Text>
+              <Text style={[s.docBannerSub, { color: theme.textSecondary }]}>
+                {fmtData(docTracking.relatorio_gerado_em)} · arquivo no seu dispositivo
+              </Text>
+            </View>
+          </View>
+        )}
+        {docTracking.termo_gerado_em && (
+          <View style={[s.docBanner, { backgroundColor: '#F9731612', borderColor: '#F9731630' }]}>
+            <Feather name="check-circle" size={15} color="#F97316" />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.docBannerTitle, { color: '#F97316' }]}>Termo de Interdição já gerado</Text>
+              <Text style={[s.docBannerSub, { color: theme.textSecondary }]}>
+                {fmtData(docTracking.termo_gerado_em)} · arquivo no seu dispositivo
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* ── Exportação ────────────────────────────────────────────────── */}
         <Text style={[s.exportLabel, { color: theme.textSecondary }]}>EXPORTAR RELATÓRIO</Text>
@@ -855,4 +937,10 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
   modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  docBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 8,
+  },
+  docBannerTitle: { fontSize: 13, fontWeight: '700' },
+  docBannerSub: { fontSize: 11, marginTop: 1 },
 });

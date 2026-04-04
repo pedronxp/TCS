@@ -21,7 +21,7 @@ Notifications.setNotificationHandler({
 // que existam antes de qualquer notificação ser agendada.
 if (Platform.OS === 'android') {
   Notifications.setNotificationChannelAsync('default', {
-    name: 'Defesa Civil',
+    name: 'TCS - Relatório de Risco',
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#3B82F6',
@@ -134,6 +134,27 @@ export async function notificarVistoriaSalva(endereco: string, nivel: string): P
   });
 }
 
+export async function notificarDocumentoGerado(
+  tipo: 'laudo' | 'relatorio' | 'termo',
+  endereco: string,
+): Promise<void> {
+  const labels: Record<string, string> = {
+    laudo: 'Laudo Técnico',
+    relatorio: 'Relatório de Vistoria',
+    termo: 'Termo de Interdição',
+  };
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `📄 ${labels[tipo]} Gerado`,
+      body: `Documento salvo — ${endereco || 'Local não informado'}`,
+      data: { tipo: 'documento_gerado', tipoDoc: tipo },
+      sound: 'default',
+      ...(Platform.OS === 'android' && { channelId: 'default' }),
+    },
+    trigger: null,
+  });
+}
+
 export async function notificarSincronizacao(count: number): Promise<void> {
   if (count === 0) return;
   await Notifications.scheduleNotificationAsync({
@@ -143,6 +164,53 @@ export async function notificarSincronizacao(count: number): Promise<void> {
       data: { tipo: 'sync' },
       sound: 'default',
       ...(Platform.OS === 'android' && { channelId: 'default' }),
+    },
+    trigger: null,
+  });
+}
+
+export async function notificarSyncFalha(falhas: number, proxRetrySegundos: number): Promise<void> {
+  if (falhas === 0) return;
+  const tempoTexto = proxRetrySegundos >= 60
+    ? `${Math.round(proxRetrySegundos / 60)} min`
+    : `${proxRetrySegundos}s`;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '⚠️ Sincronização Falhou',
+      body: `${falhas} vistoria${falhas !== 1 ? 's' : ''} não sincronizada${falhas !== 1 ? 's' : ''}. Nova tentativa em ${tempoTexto}.`,
+      data: { tipo: 'sync_falha', falhas },
+      sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+      color: '#F59E0B',
+      ...(Platform.OS === 'android' && { channelId: 'alertas' }),
+    },
+    trigger: null,
+  });
+}
+
+export async function notificarSyncRetrying(tentativa: number): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🔄 Tentando Sincronizar',
+      body: `Tentativa ${tentativa} de re-sincronização em andamento...`,
+      data: { tipo: 'sync_retry', tentativa },
+      sound: undefined,
+      ...(Platform.OS === 'android' && { channelId: 'default' }),
+    },
+    trigger: null,
+  });
+}
+
+export async function notificarSyncDesistiu(falhas: number): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '❌ Sincronização Falhou',
+      body: `${falhas} vistoria${falhas !== 1 ? 's' : ''} não puderam ser enviada${falhas !== 1 ? 's' : ''}. Tente manualmente quando houver conexão estável.`,
+      data: { tipo: 'sync_desistiu', falhas },
+      sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      color: '#EF4444',
+      ...(Platform.OS === 'android' && { channelId: 'alertas' }),
     },
     trigger: null,
   });
@@ -169,7 +237,7 @@ export async function notificarNovaAtribuicao(endereco: string, prioridade: stri
 export async function notificarLembrete(mensagem: string, segundos: number): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🔔 Lembrete — Defesa Civil',
+      title: '🔔 Lembrete — TCS - Relatório de Risco',
       body: mensagem,
       data: { tipo: 'lembrete' },
       sound: 'default',
@@ -209,6 +277,100 @@ export async function notificarNovoUsuarioCadastrado(
   } catch (e) {
     // Fire-and-forget — falha silenciosa
     logger.warn('notifications', 'Erro ao enviar push de novo usuário', { erro: String(e) });
+  }
+}
+
+export async function notificarMasterSolicitaTokens(
+  adminNome: string,
+  municipio: string,
+  usadoMes: number,
+  limiteTotal: number,
+): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('fcmToken')
+      .eq('role', 'master_admin')
+      .eq('isApproved', true)
+      .not('fcmToken', 'is', null);
+
+    if (!data || data.length === 0) return;
+
+    const payloads = data
+      .filter((u: any) => u.fcmToken)
+      .map((u: any) => ({
+        to: u.fcmToken,
+        title: '📊 Solicitação de aumento de limite',
+        body: `${adminNome} (${municipio}) usou ${usadoMes}/${limiteTotal} tokens e solicita aumento de limite.`,
+        data: { tipo: 'solicita_tokens', municipio },
+        sound: 'default',
+        channelId: 'tokens',
+        priority: 'high',
+        ttl: 86400,
+      }));
+
+    if (payloads.length === 0) return;
+
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
+    });
+  } catch (e) {
+    logger.warn('notifications', 'Erro ao notificar master sobre solicitação de tokens', { erro: String(e) });
+  }
+}
+
+export async function notificarMasterTokenGerado(
+  geradoPorNome: string,
+  municipio: string,
+  roleDestino: string,
+): Promise<void> {
+  try {
+    // Buscar tokens push de todos os master_admins
+    const { data } = await supabase
+      .from('users')
+      .select('fcmToken')
+      .eq('role', 'master_admin')
+      .eq('isApproved', true)
+      .not('fcmToken', 'is', null);
+
+    if (!data || data.length === 0) return;
+
+    const roleLabels: Record<string, string> = {
+      agent: 'Agente', supervisor: 'Supervisor', admin: 'Administrador',
+    };
+
+    const payloads = data
+      .filter((u: any) => u.fcmToken)
+      .map((u: any) => ({
+        to: u.fcmToken,
+        title: '🔑 Token de acesso gerado',
+        body: `${geradoPorNome} gerou um convite de ${roleLabels[roleDestino] ?? roleDestino} em ${municipio}.`,
+        data: { tipo: 'token_gerado', municipio },
+        sound: 'default',
+        channelId: 'tokens',
+        priority: 'normal',
+        ttl: 86400,
+      }));
+
+    if (payloads.length === 0) return;
+
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
+    });
+  } catch (e) {
+    logger.warn('notifications', 'Erro ao notificar master sobre token', { erro: String(e) });
   }
 }
 

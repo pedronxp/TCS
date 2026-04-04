@@ -15,6 +15,7 @@ import {
   insertAgendamento,
   getAgendamentosByMunicipio,
   getAgendamentosByAgente,
+  deleteAgendamento,
 } from '../../../utils/database';
 import { generateUUID } from '../../../utils/uuid';
 import { AgendamentoLocal } from '../../../types/agendamento';
@@ -22,6 +23,7 @@ import { AgendamentoLocal } from '../../../types/agendamento';
 interface AgentUser {
   uid: string;
   name: string;
+  municipio?: string;
 }
 
 const STATUS_COLORS = {
@@ -72,6 +74,8 @@ export default function AgendamentosScreen() {
   const [titulo, setTitulo] = useState('');
   const [endereco, setEndereco] = useState('');
   const [dataInput, setDataInput] = useState('');
+  const [horaInput, setHoraInput] = useState('');
+  const [dataErro, setDataErro] = useState<string | null>(null);
   const [agenteUid, setAgenteUid] = useState('');
   const [agenteSelecionado, setAgenteSelecionado] = useState<AgentUser | null>(null);
   const [observacoes, setObservacoes] = useState('');
@@ -145,15 +149,18 @@ export default function AgendamentosScreen() {
   };
 
   const carregarAgentes = async () => {
-    if (!profile?.municipio) return;
     setAgentesLoading(true);
     try {
-      const { data } = await supabase
+      let query = supabase
         .from('users')
-        .select('uid, name')
+        .select('uid, name, municipio')
         .eq('role', 'agent')
-        .eq('municipio', profile.municipio)
         .eq('isApproved', true);
+      // master_admin vê agentes de todos os municípios
+      if (profile?.role !== 'master_admin' && profile?.municipio) {
+        query = query.eq('municipio', profile.municipio);
+      }
+      const { data } = await query;
       if (data) setAgentes(data as AgentUser[]);
     } catch {
       // sem agentes
@@ -162,12 +169,40 @@ export default function AgendamentosScreen() {
     }
   };
 
+  const handleDelete = (a: AgendamentoLocal) => {
+    if (!canCreate) return;
+    Alert.alert(
+      'Excluir agendamento?',
+      `"${a.titulo}" será removido permanentemente.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (isConnected) {
+                await supabase.from('agendamentos').delete().eq('id', a.id);
+              }
+              deleteAgendamento(a.id);
+              setAgendamentos(prev => prev.filter(x => x.id !== a.id));
+            } catch {
+              Alert.alert('Erro', 'Não foi possível excluir o agendamento.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   useFocusEffect(useCallback(() => { carregar(); }, [profile]));
 
   const abrirModal = () => {
     setTitulo('');
     setEndereco('');
     setDataInput('');
+    setHoraInput('');
+    setDataErro(null);
     setAgenteUid('');
     setAgenteSelecionado(null);
     setObservacoes('');
@@ -176,17 +211,39 @@ export default function AgendamentosScreen() {
     carregarAgentes();
   };
 
+  const handleDataChange = (text: string) => {
+    const nums = text.replace(/\D/g, '').slice(0, 8);
+    let formatted = nums;
+    if (nums.length > 4) formatted = `${nums.slice(0, 2)}/${nums.slice(2, 4)}/${nums.slice(4)}`;
+    else if (nums.length > 2) formatted = `${nums.slice(0, 2)}/${nums.slice(2)}`;
+    setDataInput(formatted);
+    setDataErro(null);
+  };
+
+  const handleHoraChange = (text: string) => {
+    const nums = text.replace(/\D/g, '').slice(0, 4);
+    let formatted = nums;
+    if (nums.length > 2) formatted = `${nums.slice(0, 2)}:${nums.slice(2)}`;
+    setHoraInput(formatted);
+    setDataErro(null);
+  };
+
   const salvarAgendamento = async () => {
     if (!titulo.trim()) {
       Alert.alert('Campo obrigatório', 'Informe o título do agendamento.');
       return;
     }
-    const dataISO = parseDateInput(dataInput);
+    const dataISO = parseDateInput(`${dataInput} ${horaInput}`);
     if (!dataISO) {
-      Alert.alert('Data inválida', 'Use o formato DD/MM/AAAA HH:MM (ex: 15/04/2026 09:00)');
+      setDataErro('Data ou hora inválida. Use DD/MM/AAAA e HH:MM.');
       return;
     }
     if (!profile) return;
+
+    // Para master_admin, usar o município do agente selecionado (se houver) ou deixar genérico
+    const municipioAgendamento = profile.role === 'master_admin'
+      ? (agenteSelecionado?.municipio ?? profile.municipio ?? '')
+      : (profile.municipio ?? '');
 
     setSaving(true);
     try {
@@ -195,7 +252,7 @@ export default function AgendamentosScreen() {
         id,
         titulo: titulo.trim(),
         endereco: endereco.trim() || undefined,
-        municipio: profile.municipio ?? '',
+        municipio: municipioAgendamento,
         data_agendada: dataISO,
         criado_por_uid: profile.uid,
         criado_por_nome: profile.name,
@@ -283,10 +340,20 @@ export default function AgendamentosScreen() {
                   <Text style={[styles.cardTitulo, { color: theme.text }]} numberOfLines={2}>
                     {a.titulo}
                   </Text>
-                  <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-                    <Text style={[styles.statusText, { color: colors.text }]}>
-                      {a.status.toUpperCase()}
-                    </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.statusText, { color: colors.text }]}>
+                        {a.status.toUpperCase()}
+                      </Text>
+                    </View>
+                    {canCreate && (
+                      <TouchableOpacity
+                        onPress={() => handleDelete(a)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="trash-2" size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
                 <View style={styles.cardMeta}>
@@ -378,14 +445,29 @@ export default function AgendamentosScreen() {
 
               {/* Data e hora */}
               <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Data e hora *</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-                placeholder="DD/MM/AAAA HH:MM"
-                placeholderTextColor={theme.textSecondary}
-                value={dataInput}
-                onChangeText={setDataInput}
-                keyboardType="numeric"
-              />
+              <View style={styles.dataHoraRow}>
+                <TextInput
+                  style={[styles.input, styles.dataInput, { backgroundColor: theme.background, borderColor: dataErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  placeholder="DD/MM/AAAA"
+                  placeholderTextColor={theme.textSecondary}
+                  value={dataInput}
+                  onChangeText={handleDataChange}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+                <TextInput
+                  style={[styles.input, styles.horaInput, { backgroundColor: theme.background, borderColor: dataErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  placeholder="HH:MM"
+                  placeholderTextColor={theme.textSecondary}
+                  value={horaInput}
+                  onChangeText={handleHoraChange}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
+              </View>
+              {dataErro ? (
+                <Text style={styles.fieldError}>{dataErro}</Text>
+              ) : null}
 
               {/* Agente atribuído */}
               <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Agente atribuído</Text>
@@ -418,10 +500,13 @@ export default function AgendamentosScreen() {
                           onPress={() => { setAgenteSelecionado(ag); setAgenteUid(ag.uid); setShowAgentePicker(false); }}
                         >
                           <Text style={{ color: theme.text }}>{ag.name}</Text>
+                          {ag.municipio ? (
+                            <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 2 }}>{ag.municipio}</Text>
+                          ) : null}
                         </TouchableOpacity>
                       ))}
-                      {agentes.length === 0 && (
-                        <Text style={{ color: theme.textSecondary, padding: 12 }}>Nenhum agente no município.</Text>
+                      {agentes.length === 0 && !agentesLoading && (
+                        <Text style={{ color: theme.textSecondary, padding: 12 }}>Nenhum agente disponível.</Text>
                       )}
                     </>
                   )}
@@ -520,6 +605,10 @@ const styles = StyleSheet.create({
     fontSize: 15, fontWeight: '500',
   },
   textArea: { minHeight: 90 },
+  dataHoraRow: { flexDirection: 'row', gap: 10 },
+  dataInput: { flex: 2 },
+  horaInput: { flex: 1 },
+  fieldError: { color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 },
   pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pickerList: {
     borderWidth: 1, borderRadius: 12, marginTop: 4, overflow: 'hidden',

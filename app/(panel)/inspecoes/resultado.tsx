@@ -42,6 +42,7 @@ function normalizar(v: any): any {
     formularioId: v.formularioId ?? v.formulario_id ?? 'Padrão',
     responsavelNome: v.responsavelNome ?? v.responsavel_nome ?? '',
     foto_url: v.foto_url ?? v.fotoUrl ?? null,
+    fotosUrls: v.fotosUrls ?? v.fotos_urls ?? null,
     protocolo: v.protocolo ?? null,
     laudo_url: v.laudo_url ?? null,
     laudo_gerado_em: v.laudo_gerado_em ?? null,
@@ -64,6 +65,7 @@ export default function ResultadoScreen() {
 
   // Modal Termo de Interdição
   const [showTermoModal, setShowTermoModal] = useState(false);
+  const [termoNomeErro, setTermoNomeErro] = useState(false);
   const [termoForm, setTermoForm] = useState<TermoInterdicaoData>({
     nomeNotificado: '',
     cpfNotificado: '',
@@ -104,7 +106,7 @@ export default function ResultadoScreen() {
       // 1. Tentar Supabase
       const { data, error } = await supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, municipio_agente, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, foto_url, protocolo, laudo_url, laudo_gerado_em')
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, municipio_agente, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, foto_url, fotosUrls, protocolo, laudo_url, laudo_gerado_em')
         .eq('id', id)
         .single();
 
@@ -191,7 +193,7 @@ export default function ResultadoScreen() {
     agenteNome: vistoria?.agenteNome || profile?.name || '—',
     formularioId: vistoria?.formularioId || 'Padrão',
     respostasJson: vistoria?.respostasJson || '{}',
-    foto_url: vistoria?.foto_url ?? null,
+    foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
   });
 
   const salvarLaudoNoStorage = async (uri: string) => {
@@ -316,11 +318,15 @@ export default function ResultadoScreen() {
   /** Gera o Termo de Interdição */
   const gerarTermoInterdicao = async () => {
     if (!termoForm.nomeNotificado.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
+      // Não usar Alert dentro de Modal no Android — usar estado inline
+      setTermoNomeErro(true);
       return;
     }
-    setGerando(true);
+    setTermoNomeErro(false);
     setShowTermoModal(false);
+    // Aguardar modal fechar antes de iniciar a geração
+    await new Promise(resolve => setTimeout(resolve, 300));
+    setGerando(true);
     try {
       const html = buildTermoInterdicaoHtml(buildDados(), termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -439,6 +445,18 @@ export default function ResultadoScreen() {
             <Text style={styles.reportBtnDesc}>Editar e personalizar o laudo</Text>
           </View>
           <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.reportBtn, { backgroundColor: theme.surfaceHighlight, borderWidth: 1, borderColor: theme.border }]}
+          onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+        >
+          <Feather name="camera" size={20} color={theme.primary} />
+          <View style={styles.reportBtnText}>
+            <Text style={[styles.reportBtnTitle, { color: theme.text }]}>Registrar Evidências</Text>
+            <Text style={[styles.reportBtnDesc, { color: theme.textSecondary }]}>Adicionar fotos da vistoria</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
         </TouchableOpacity>
 
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Exportar Laudo</Text>
@@ -572,12 +590,17 @@ export default function ResultadoScreen() {
               <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? '#EF4444' : theme.border, color: theme.text }]}
                   placeholder="Nome completo"
                   placeholderTextColor={theme.textSecondary}
                   value={termoForm.nomeNotificado}
-                  onChangeText={t => setTermoForm(f => ({ ...f, nomeNotificado: t }))}
+                  onChangeText={t => { setTermoForm(f => ({ ...f, nomeNotificado: t })); setTermoNomeErro(false); }}
                 />
+                {termoNomeErro && (
+                  <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 }}>
+                    Campo obrigatório
+                  </Text>
+                )}
 
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>CPF</Text>
                 <TextInput

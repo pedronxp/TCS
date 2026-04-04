@@ -54,30 +54,36 @@ export default function DadosIniciaisScreen() {
 
   /** Reverse geocode via Nominatim (OpenStreetMap).
    * Tenta vários campos de bairro em ordem de prioridade para endereços BR.
+   * zoom=16 retorna dados no nível de bairro (mais estável que zoom=18 no OSM BR).
    */
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
       const resp = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`,
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=16`,
         { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'DefesaCivilApp/1.0' } }
       );
       const json = await resp.json();
       const addr = json.address || {};
 
-      // Rua: priority order
-      const rua = addr.road || addr.pedestrian || addr.footway || addr.path || '';
-      // Bairro: tenta em ordem de especificidade para BR
-      // Nominatim BR: o campo correto geralmente é city_district ou suburb
+      // Rua: rejeitar valores genéricos que o Nominatim retorna no Brasil
+      // (ex: "Logradouro", "Rua", "Avenida" sem nome real)
+      const TERMOS_INVALIDOS_RUA = ['logradouro', 'rua', 'avenida', 'via', 'estrada', 'travessa', 'alameda', 'viela'];
+      const ruaCandidata = addr.road || addr.pedestrian || addr.footway || addr.path || '';
+      const rua = TERMOS_INVALIDOS_RUA.includes(ruaCandidata.toLowerCase().trim()) ? '' : ruaCandidata;
+
+      // Bairro: no OSM Brasil, neighbourhood mapeia o bairro individual real.
+      // suburb frequentemente retorna agrupamentos maiores (ex: "Zona Norte").
+      // city_district e district são áreas administrativas, não bairros.
       const bairro =
-        addr['city_district'] ||
-        addr['district'] ||
         addr['neighbourhood'] ||
-        addr['quarter'] ||
         addr['suburb'] ||
+        addr['quarter'] ||
         addr['hamlet'] ||
         addr['village'] ||
+        addr['city_district'] ||
+        addr['district'] ||
         '';
-      // Cidade/Município (só para master_admin)
+      // Cidade/Município
       const cidade = addr.city || addr.town || addr.municipality || addr.county || '';
 
       setForm(f => ({

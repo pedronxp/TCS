@@ -1,12 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator,
-  Alert, RefreshControl, LayoutAnimation, Platform, UIManager,
+  RefreshControl, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { useAuth } from '../../../context/AuthContext';
@@ -109,35 +107,6 @@ export default function AdminLogsScreen() {
   // Ações únicas para filtro
   const acoesUnicas = ['todas', ...new Set(auditLogs.map(l => l.acao).filter(Boolean))];
 
-  const exportarCSV = async () => {
-    if (auditLogs.length === 0) {
-      Alert.alert('Sem dados', 'Não há logs de auditoria para exportar.');
-      return;
-    }
-    try {
-      const cabecalho = 'id,acao,ator_nome,alvo_tipo,criado_em,municipio';
-      const linhas = auditLogs.map(l => [
-        l.id ?? '',
-        l.acao ?? '',
-        (l.ator_nome ?? '').replace(/,/g, ';'),
-        l.alvo_tipo ?? '',
-        l.criado_em ?? '',
-        l.detalhes?.municipio ?? '',
-      ].join(','));
-      const csvContent = [cabecalho, ...linhas].join('\n');
-      const fileName = `auditoria_${profile?.municipio || 'geral'}_${new Date().toISOString().split('T')[0]}.csv`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(filePath, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(filePath, { mimeType: 'text/csv', dialogTitle: 'Exportar Auditoria' });
-      } else {
-        Alert.alert('Exportado', `Arquivo salvo em:\n${filePath}`);
-      }
-    } catch {
-      Alert.alert('Erro', 'Não foi possível exportar o CSV.');
-    }
-  };
-
   const renderAudit = ({ item }: { item: any }) => {
     const cfg = AUDIT_ACTION_LABELS[item.acao] ?? { label: item.acao, color: theme.primary, icon: 'activity', desc: '' };
     const isExpanded = expandedId === String(item.id);
@@ -204,8 +173,29 @@ export default function AdminLogsScreen() {
               {item.ator_uid && (
                 <View style={styles.detailRow}>
                   <Feather name="hash" size={12} color={theme.textSecondary} />
-                  <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>UID:</Text>
+                  <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>UID do Ator:</Text>
                   <Text style={[styles.detailValue, { color: theme.text }]} numberOfLines={1}>{item.ator_uid}</Text>
+                </View>
+              )}
+              {item.detalhes?.municipio && (
+                <View style={styles.detailRow}>
+                  <Feather name="map-pin" size={12} color={theme.textSecondary} />
+                  <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Município:</Text>
+                  <Text style={[styles.detailValue, { color: theme.text }]}>{item.detalhes.municipio}</Text>
+                </View>
+              )}
+              {item.detalhes?.protocolo && (
+                <View style={styles.detailRow}>
+                  <Feather name="file-text" size={12} color={theme.textSecondary} />
+                  <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Protocolo:</Text>
+                  <Text style={[styles.detailValue, { color: theme.text }]}>{item.detalhes.protocolo}</Text>
+                </View>
+              )}
+              {item.detalhes?.nivel_risco && (
+                <View style={styles.detailRow}>
+                  <Feather name="alert-triangle" size={12} color={theme.textSecondary} />
+                  <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Nível de Risco:</Text>
+                  <Text style={[styles.detailValue, { color: theme.text }]}>{String(item.detalhes.nivel_risco).toUpperCase()}</Text>
                 </View>
               )}
               {item.detalhes?.ip && (
@@ -213,13 +203,6 @@ export default function AdminLogsScreen() {
                   <Feather name="wifi" size={12} color={theme.textSecondary} />
                   <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>IP:</Text>
                   <Text style={[styles.detailValue, { color: theme.text }]}>{item.detalhes.ip}</Text>
-                </View>
-              )}
-              {item.detalhes && (
-                <View style={[styles.jsonBlock, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
-                  <Text style={[styles.jsonText, { color: theme.text }]}>
-                    {typeof item.detalhes === 'string' ? item.detalhes : JSON.stringify(item.detalhes, null, 2)}
-                  </Text>
                 </View>
               )}
             </View>
@@ -247,12 +230,6 @@ export default function AdminLogsScreen() {
         </View>
         <TouchableOpacity
           style={[styles.headerBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={exportarCSV}
-        >
-          <Feather name="download" size={18} color={theme.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.headerBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border, marginLeft: 8 }]}
           onPress={() => loadAuditLogs(true)}
         >
           <Feather name="refresh-cw" size={18} color={theme.textSecondary} />
@@ -449,13 +426,6 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   detailLabel: { fontSize: 11, fontWeight: '600' },
   detailValue: { fontSize: 12, fontWeight: '500', flex: 1 },
-  jsonBlock: {
-    borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 6,
-  },
-  jsonText: {
-    fontSize: 11, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    lineHeight: 16,
-  },
 
   // Empty
   empty: { alignItems: 'center', marginTop: 60, gap: 12, paddingHorizontal: 32 },

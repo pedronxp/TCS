@@ -47,6 +47,9 @@ export interface VistoriaNormalizada {
   enderecoRua?: string;
   enderecoNumero?: string;
   enderecoBairro?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  fotosUrls?: string[] | null;
 }
 
 /** Item de atividade recente (admin/supervisor dashboard) */

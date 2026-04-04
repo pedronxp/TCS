@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -161,6 +161,33 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN municipio_agente TEXT`); } catch { /* já existe */ }
     }
 
+    if (currentVersion < 8) {
+      // Grupos de agentes e membros
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS grupos (
+          id TEXT PRIMARY KEY,
+          nome TEXT NOT NULL,
+          municipio TEXT NOT NULL,
+          criado_em TEXT NOT NULL
+        )
+      `);
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS grupo_membros (
+          grupo_id TEXT NOT NULL,
+          agente_uid TEXT NOT NULL,
+          agente_nome TEXT NOT NULL,
+          PRIMARY KEY (grupo_id, agente_uid),
+          FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
+        )
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_grupos_municipio ON grupos (municipio)
+      `);
+      database.runSync(`
+        CREATE INDEX IF NOT EXISTS idx_grupo_membros_grupo ON grupo_membros (grupo_id)
+      `);
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -197,6 +224,7 @@ export interface VistoriaLocal {
   erro_sync: string | null;
   tentativas_sync: number;      // contador de tentativas falhas
   criado_em: string;
+  origem?: 'offline' | 'online'; // campo computado, não persiste no SQLite
 }
 
 // ─── CRUD ──────────────────────────────────────────────────────────────────
@@ -286,6 +314,13 @@ export function getVistoriasByMunicipio(municipio: string): VistoriaLocal[] {
   return database.getAllSync<VistoriaLocal>(
     `SELECT * FROM vistorias_offline WHERE municipio = ? ORDER BY criado_em DESC LIMIT 50`,
     [municipio]
+  );
+}
+
+export function getAllVistorias(): VistoriaLocal[] {
+  const database = getDb();
+  return database.getAllSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline ORDER BY criado_em DESC LIMIT 200`
   );
 }
 
@@ -453,6 +488,11 @@ export function updateAgendamentoStatus(id: string, status: string): void {
   );
 }
 
+export function deleteAgendamento(id: string): void {
+  const database = getDb();
+  database.runSync(`DELETE FROM agendamentos WHERE id = ?`, [id]);
+}
+
 export function countAgendamentosPendentes(municipio: string): number {
   const database = getDb();
   const row = database.getFirstSync<{ total: number }>(
@@ -484,4 +524,74 @@ export function markAgendamentoSincronizado(id: string): void {
     `UPDATE agendamentos SET sincronizado = 1 WHERE id = ?`,
     [id]
   );
+}
+
+// ─── Grupos ──────────────────────────────────────────────────────────────────
+
+export interface GrupoLocal {
+  id: string;
+  nome: string;
+  municipio: string;
+  criado_em: string;
+}
+
+export interface GrupoMembro {
+  grupo_id: string;
+  agente_uid: string;
+  agente_nome: string;
+}
+
+export function insertGrupo(g: GrupoLocal): void {
+  const database = getDb();
+  database.runSync(
+    `INSERT OR REPLACE INTO grupos (id, nome, municipio, criado_em) VALUES (?, ?, ?, ?)`,
+    [g.id, g.nome, g.municipio, g.criado_em]
+  );
+}
+
+export function getGruposByMunicipio(municipio: string): GrupoLocal[] {
+  const database = getDb();
+  return database.getAllSync<GrupoLocal>(
+    `SELECT * FROM grupos WHERE municipio = ? ORDER BY criado_em DESC`,
+    [municipio]
+  );
+}
+
+export function deleteGrupo(id: string): void {
+  const database = getDb();
+  database.runSync(`DELETE FROM grupo_membros WHERE grupo_id = ?`, [id]);
+  database.runSync(`DELETE FROM grupos WHERE id = ?`, [id]);
+}
+
+export function addMembroGrupo(m: GrupoMembro): void {
+  const database = getDb();
+  database.runSync(
+    `INSERT OR REPLACE INTO grupo_membros (grupo_id, agente_uid, agente_nome) VALUES (?, ?, ?)`,
+    [m.grupo_id, m.agente_uid, m.agente_nome]
+  );
+}
+
+export function removeMembroGrupo(grupoId: string, agenteUid: string): void {
+  const database = getDb();
+  database.runSync(
+    `DELETE FROM grupo_membros WHERE grupo_id = ? AND agente_uid = ?`,
+    [grupoId, agenteUid]
+  );
+}
+
+export function getMembrosGrupo(grupoId: string): GrupoMembro[] {
+  const database = getDb();
+  return database.getAllSync<GrupoMembro>(
+    `SELECT * FROM grupo_membros WHERE grupo_id = ?`,
+    [grupoId]
+  );
+}
+
+export function getGrupoMemberCount(grupoId: string): number {
+  const database = getDb();
+  const row = database.getFirstSync<{ total: number }>(
+    `SELECT COUNT(*) as total FROM grupo_membros WHERE grupo_id = ?`,
+    [grupoId]
+  );
+  return row?.total ?? 0;
 }

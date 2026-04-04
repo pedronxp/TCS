@@ -18,31 +18,32 @@ const TABS_AGENT: NavTab[] = [
   { key: 'home',     label: 'Início',   icon: 'home',      route: '/(panel)/dashboard',  matchPaths: ['/dashboard'] },
   { key: 'inspecoes',label: 'Vistorias',icon: 'clipboard', route: '/(panel)/inspecoes',  matchPaths: ['/inspecoes'] },
   { key: 'mapas',    label: 'Mapa',     icon: 'map',       route: '/(panel)/mapas',      matchPaths: ['/mapas'] },
-  { key: 'perfil',   label: 'Perfil',   icon: 'user',      route: '/(panel)/perfil',     matchPaths: ['/perfil'] },
+  { key: 'modulos',  label: 'Módulos',  icon: 'grid',      route: '/(panel)/modulos',    matchPaths: ['/modulos'] },
 ];
 
 const TABS_SUPERVISOR: NavTab[] = [
   { key: 'home',     label: 'Início',   icon: 'home',      route: '/(panel)/supervisor', matchPaths: ['/supervisor'] },
   { key: 'inspecoes',label: 'Vistorias',icon: 'clipboard', route: '/(panel)/inspecoes',  matchPaths: ['/inspecoes'] },
   { key: 'mapas',    label: 'Mapa',     icon: 'map',       route: '/(panel)/mapas',      matchPaths: ['/mapas'] },
-  { key: 'perfil',   label: 'Perfil',   icon: 'user',      route: '/(panel)/perfil',     matchPaths: ['/perfil'] },
+  { key: 'modulos',  label: 'Módulos',  icon: 'grid',      route: '/(panel)/modulos',    matchPaths: ['/modulos'] },
 ];
 
 const TABS_ADMIN: NavTab[] = [
   { key: 'home',      label: 'Início',    icon: 'home',        route: '/(panel)/admin',           matchPaths: ['/admin'] },
   { key: 'mapas',     label: 'Mapa',      icon: 'map',         route: '/(panel)/mapas',           matchPaths: ['/mapas'] },
   { key: 'relatorios',label: 'Relatórios',icon: 'bar-chart-2', route: '/(panel)/admin/relatorios', matchPaths: ['/admin/relatorios'] },
-  { key: 'perfil',    label: 'Perfil',    icon: 'user',        route: '/(panel)/perfil',          matchPaths: ['/perfil'] },
+  { key: 'modulos',   label: 'Módulos',   icon: 'grid',        route: '/(panel)/modulos',         matchPaths: ['/modulos'] },
 ];
 
 const TABS_MASTER: NavTab[] = [
-  { key: 'home',  label: 'Início', icon: 'home',    route: '/(panel)/master', matchPaths: ['/master'] },
-  { key: 'mapas', label: 'Mapa',   icon: 'map',     route: '/(panel)/mapas',  matchPaths: ['/mapas'] },
-  { key: 'perfil',label: 'Perfil', icon: 'user',    route: '/(panel)/perfil', matchPaths: ['/perfil'] },
+  { key: 'home',     label: 'Início',   icon: 'home',      route: '/(panel)/master',    matchPaths: ['/master'] },
+  { key: 'inspecoes',label: 'Vistorias',icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
+  { key: 'mapas',    label: 'Mapa',     icon: 'map',       route: '/(panel)/mapas',     matchPaths: ['/mapas'] },
+  { key: 'modulos',  label: 'Módulos',  icon: 'grid',      route: '/(panel)/modulos',   matchPaths: ['/modulos'] },
 ];
 
 const NAVBAR_VISIBLE_PATHS = [
-  '/dashboard', '/inspecoes', '/mapas', '/perfil',
+  '/dashboard', '/inspecoes', '/perfil', '/modulos',
   '/admin', '/supervisor', '/master',
   '/admin/relatorios', '/admin/estatisticas',
 ];

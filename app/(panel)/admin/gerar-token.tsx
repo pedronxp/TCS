@@ -11,6 +11,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import { notificarMasterTokenGerado, notificarMasterSolicitaTokens } from '../../../services/NotificationService';
 import { Button } from '../../../components/ui/Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -58,8 +59,12 @@ export default function GerarTokenScreen() {
   const [gerando, setGerando] = useState(false);
   const [tokenGerado, setTokenGerado] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [usadoMes, setUsadoMes] = useState(0);
+  const [limiteTotal, setLimiteTotal] = useState(20);
   const [municipios, setMunicipios] = useState<string[]>([]);
   const [loadingMunicipios, setLoadingMunicipios] = useState(false);
+  const [solicitando, setSolicitando] = useState(false);
+  const [solicitacaoEnviada, setSolicitacaoEnviada] = useState(false);
 
   useEffect(() => {
     if (!isMasterAdmin) return;
@@ -70,6 +75,22 @@ export default function GerarTokenScreen() {
     });
   }, [isMasterAdmin]);
 
+  useEffect(() => {
+    if (!profile?.uid || isMasterAdmin) return;
+    // Carregar limite do usuário e uso no mês atual
+    const inicioMes = new Date();
+    inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
+    Promise.all([
+      supabase.from('users').select('token_limit').eq('uid', profile.uid).single(),
+      supabase.from('invite_tokens').select('*', { count: 'exact', head: true })
+        .eq('criadoPor', profile.uid)
+        .gte('criadoEm', inicioMes.toISOString()),
+    ]).then(([limiteRes, countRes]) => {
+      if (limiteRes.data?.token_limit) setLimiteTotal(limiteRes.data.token_limit);
+      if (typeof countRes.count === 'number') setUsadoMes(countRes.count);
+    }).catch(() => {});
+  }, [profile?.uid, isMasterAdmin]);
+
   const roles = ROLES_LIST;
   const horasSelecionadas = DURACOES.find(d => d.key === duracao)?.horas ?? 48;
   const labelDuracao = DURACOES.find(d => d.key === duracao)?.label ?? '48h';
@@ -77,6 +98,13 @@ export default function GerarTokenScreen() {
   const gerarToken = async () => {
     if (!municipio) {
       Alert.alert('Município obrigatório', 'Selecione para qual município este token é válido.');
+      return;
+    }
+    if (!isMasterAdmin && usadoMes >= limiteTotal) {
+      Alert.alert(
+        'Limite mensal atingido',
+        `Você já usou ${usadoMes} de ${limiteTotal} tokens este mês. Solicite ao Master Admin para aumentar seu limite.`,
+      );
       return;
     }
     setGerando(true);
@@ -103,6 +131,7 @@ export default function GerarTokenScreen() {
         usado: false,
         expiraEm: expira,
         criadoPor: profile?.uid,
+        criadoPorNome: profile?.name ?? null,
       });
 
       if (error) throw error;
@@ -118,6 +147,15 @@ export default function GerarTokenScreen() {
 
       setTokenGerado(codigo);
       setShowModal(true);
+      setUsadoMes(prev => prev + 1);
+      // Notificar master_admins sobre o token gerado (fire-and-forget)
+      if (!isMasterAdmin) {
+        notificarMasterTokenGerado(
+          profile?.name ?? 'Usuário',
+          municipio || profile?.municipio || '',
+          role,
+        ).catch(() => null);
+      }
     } catch (e) {
       Alert.alert('Erro', 'Não foi possível gerar o token. Tente novamente.');
       logger.error('token', 'Erro gerar token', { erro: String(e) });
@@ -140,6 +178,25 @@ export default function GerarTokenScreen() {
     });
   };
 
+  const solicitarAumento = async () => {
+    if (solicitando || solicitacaoEnviada) return;
+    setSolicitando(true);
+    try {
+      await notificarMasterSolicitaTokens(
+        profile?.name ?? 'Administrador',
+        municipio || profile?.municipio || '',
+        usadoMes,
+        limiteTotal,
+      );
+      setSolicitacaoEnviada(true);
+      Alert.alert('Solicitação enviada', 'O Master Admin foi notificado sobre sua solicitação de aumento de limite.');
+    } catch {
+      Alert.alert('Erro', 'Não foi possível enviar a solicitação. Tente novamente.');
+    } finally {
+      setSolicitando(false);
+    }
+  };
+
   const selectedRole = roles.find(r => r.key === role);
 
   return (
@@ -159,6 +216,85 @@ export default function GerarTokenScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+              {/* Banner de quota — apenas para admin (não master) */}
+              {!isMasterAdmin && (
+                <View style={[styles.quotaBanner, {
+                  backgroundColor: usadoMes >= limiteTotal
+                    ? 'rgba(239,68,68,0.08)'
+                    : usadoMes >= limiteTotal * 0.8
+                      ? 'rgba(245,158,11,0.08)'
+                      : `${theme.primary}0D`,
+                  borderColor: usadoMes >= limiteTotal
+                    ? 'rgba(239,68,68,0.35)'
+                    : usadoMes >= limiteTotal * 0.8
+                      ? 'rgba(245,158,11,0.35)'
+                      : `${theme.primary}35`,
+                }]}>
+                  <View style={{ flex: 1 }}>
+                    {/* Linha de título */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Feather
+                        name={usadoMes >= limiteTotal ? 'alert-circle' : 'key'}
+                        size={14}
+                        color={usadoMes >= limiteTotal ? '#EF4444' : usadoMes >= limiteTotal * 0.8 ? '#F59E0B' : theme.primary}
+                      />
+                      <Text style={[styles.quotaTitle, {
+                        color: usadoMes >= limiteTotal ? '#EF4444' : usadoMes >= limiteTotal * 0.8 ? '#F59E0B' : theme.text
+                      }]}>
+                        {usadoMes >= limiteTotal
+                          ? 'Limite mensal atingido'
+                          : `${usadoMes} de ${limiteTotal} tokens usados este mês`}
+                      </Text>
+                    </View>
+
+                    {/* Barra de progresso */}
+                    <View style={[styles.quotaProgressBg, { backgroundColor: `${theme.border}` }]}>
+                      <View style={[styles.quotaProgressFill, {
+                        width: `${Math.min((usadoMes / limiteTotal) * 100, 100)}%`,
+                        backgroundColor: usadoMes >= limiteTotal ? '#EF4444' : usadoMes >= limiteTotal * 0.8 ? '#F59E0B' : theme.primary,
+                      }]} />
+                    </View>
+
+                    {/* Mensagem + botão solicitar */}
+                    {usadoMes >= limiteTotal * 0.8 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                        <Text style={[styles.quotaSub, {
+                          color: usadoMes >= limiteTotal ? '#EF4444' : '#F59E0B', flex: 1
+                        }]}>
+                          {usadoMes >= limiteTotal
+                            ? 'Nenhum token disponível neste mês.'
+                            : 'Você está perto do limite mensal.'}
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.solicitarBtn, {
+                            backgroundColor: solicitacaoEnviada
+                              ? 'rgba(16,185,129,0.15)'
+                              : usadoMes >= limiteTotal
+                                ? 'rgba(239,68,68,0.12)'
+                                : 'rgba(245,158,11,0.12)',
+                            borderColor: solicitacaoEnviada ? 'rgba(16,185,129,0.4)' : usadoMes >= limiteTotal ? 'rgba(239,68,68,0.4)' : 'rgba(245,158,11,0.4)',
+                            opacity: solicitando ? 0.6 : 1,
+                          }]}
+                          onPress={solicitarAumento}
+                          disabled={solicitando || solicitacaoEnviada}
+                          activeOpacity={0.75}
+                        >
+                          <Feather
+                            name={solicitacaoEnviada ? 'check' : 'send'}
+                            size={11}
+                            color={solicitacaoEnviada ? '#10B981' : usadoMes >= limiteTotal ? '#EF4444' : '#F59E0B'}
+                          />
+                          <Text style={[styles.solicitarBtnText, {
+                            color: solicitacaoEnviada ? '#10B981' : usadoMes >= limiteTotal ? '#EF4444' : '#F59E0B'
+                          }]}>
+                            {solicitacaoEnviada ? 'Enviado' : 'Solicitar aumento'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
         {/* Seleção de role */}
         <Text style={[styles.label, { color: theme.textSecondary }]}>PERFIL DE ACESSO</Text>
         {roles.map(r => (
@@ -379,4 +515,16 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 24,
   },
   municipioLockedText: { fontSize: 15, fontWeight: '600' },
+  quotaBanner: {
+    borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 8,
+  },
+  quotaTitle: { fontSize: 13, fontWeight: '700' },
+  quotaSub: { fontSize: 11, fontWeight: '500', lineHeight: 15 },
+  quotaProgressBg: { height: 5, borderRadius: 3, overflow: 'hidden' },
+  quotaProgressFill: { height: 5, borderRadius: 3 },
+  solicitarBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 10,
+  },
+  solicitarBtnText: { fontSize: 11, fontWeight: '700' },
 });
