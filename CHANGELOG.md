@@ -319,5 +319,5 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ---
 
 <div align="center">
-  <sub>TCS — Relatório e Vistoria · Desenvolvido por <strong>Pedronxp</strong></sub>
+  <sub>TCS — Relatório e Risco · Desenvolvido por <strong>Pedronxp — Pedro Paulo</strong> para uso exclusivo do TCS — Relatório e Risco © 2026</sub>
 </div>
