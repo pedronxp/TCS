@@ -105,8 +105,10 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "seu-project-id-aqui"
-      }
-    }
+        "projectId": "87a0211d-3965-48dd-a3bd-4b737f844de1"
+      },
+      "router": {}
+    },
+    "owner": "pedronxp"
   }
 }
