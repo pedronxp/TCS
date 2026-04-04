@@ -487,6 +487,11 @@ export function updateAgendamentoStatus(id: string, status: string): void {
   );
 }
 
+export function deleteAgendamento(id: string): void {
+  const database = getDb();
+  database.runSync(`DELETE FROM agendamentos_offline WHERE id = ?`, [id]);
+}
+
 export function countAgendamentosPendentes(municipio: string): number {
   const database = getDb();
   const row = database.getFirstSync<{ total: number }>(

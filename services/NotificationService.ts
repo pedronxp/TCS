@@ -280,6 +280,55 @@ export async function notificarNovoUsuarioCadastrado(
   }
 }
 
+export async function notificarMasterTokenGerado(
+  geradoPorNome: string,
+  municipio: string,
+  roleDestino: string,
+): Promise<void> {
+  try {
+    // Buscar tokens push de todos os master_admins
+    const { data } = await supabase
+      .from('users')
+      .select('fcmToken')
+      .eq('role', 'master_admin')
+      .eq('isApproved', true)
+      .not('fcmToken', 'is', null);
+
+    if (!data || data.length === 0) return;
+
+    const roleLabels: Record<string, string> = {
+      agent: 'Agente', supervisor: 'Supervisor', admin: 'Administrador',
+    };
+
+    const payloads = data
+      .filter((u: any) => u.fcmToken)
+      .map((u: any) => ({
+        to: u.fcmToken,
+        title: '🔑 Token de acesso gerado',
+        body: `${geradoPorNome} gerou um convite de ${roleLabels[roleDestino] ?? roleDestino} em ${municipio}.`,
+        data: { tipo: 'token_gerado', municipio },
+        sound: 'default',
+        channelId: 'tokens',
+        priority: 'normal',
+        ttl: 86400,
+      }));
+
+    if (payloads.length === 0) return;
+
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
+    });
+  } catch (e) {
+    logger.warn('notifications', 'Erro ao notificar master sobre token', { erro: String(e) });
+  }
+}
+
 // ─── Listeners ────────────────────────────────────────────────────────────────
 
 export function addNotificationReceivedListener(

@@ -14,6 +14,7 @@ import {
   getAgendamentoById,
   updateAgendamentoStatus,
   markAgendamentoSincronizado,
+  deleteAgendamento,
 } from '../../../utils/database';
 import { AgendamentoLocal } from '../../../types/agendamento';
 
@@ -162,6 +163,34 @@ export default function AgendamentoDetalheScreen() {
     );
   };
 
+  const excluirAgendamento = () => {
+    Alert.alert(
+      'Excluir agendamento?',
+      'Esta ação não pode ser desfeita. O agendamento será removido permanentemente.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              if (isConnected) {
+                await supabase.from('agendamentos').delete().eq('id', id);
+              }
+              deleteAgendamento(id as string);
+              router.back();
+            } catch {
+              Alert.alert('Erro', 'Não foi possível excluir o agendamento.');
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -202,7 +231,17 @@ export default function AgendamentoDetalheScreen() {
           <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>Detalhe</Text>
-        <View style={{ width: 36 }} />
+        {canAct ? (
+          <TouchableOpacity
+            onPress={excluirAgendamento}
+            style={styles.deleteBtn}
+            disabled={actionLoading}
+          >
+            <Feather name="trash-2" size={18} color="#EF4444" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 36 }} />
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -381,6 +420,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 1,
   },
   backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  deleteBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 60 },
 

@@ -7,7 +7,7 @@ import { Card, EmptyState, LoadingState, ErrorState } from '../../../components/
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
-import { getVistoriasByAgente, getVistoriasByMunicipio, VistoriaLocal } from '../../../utils/database';
+import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, VistoriaLocal } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
 import { syncPendentes, forceSyncAll } from '../../../services/SyncService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -107,9 +107,11 @@ export default function InspecoesListScreen() {
       const isAdmin = perfil.role === 'admin' || perfil.role === 'master_admin';
 
       // 1. Carregar do SQLite local imediatamente (offline-first)
-      const locais = isAdmin
-        ? getVistoriasByMunicipio(perfil.municipio)
-        : getVistoriasByAgente(perfil.uid);
+      const locais = perfil.role === 'master_admin'
+        ? getAllVistorias()
+        : isAdmin
+          ? getVistoriasByMunicipio(perfil.municipio)
+          : getVistoriasByAgente(perfil.uid);
 
       setVistorias(locais);
 
@@ -126,9 +128,10 @@ export default function InspecoesListScreen() {
 
         if (!isAdmin) {
           query = query.eq('agenteUid', perfil.uid);
-        } else if (perfil.municipio) {
+        } else if (perfil.role !== 'master_admin' && perfil.municipio) {
           query = query.eq('municipio', perfil.municipio);
         }
+        // master_admin: sem filtro — vê todas as vistorias do sistema
 
         const { data } = await query;
         if (data && data.length > 0) {

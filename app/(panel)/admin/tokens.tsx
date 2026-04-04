@@ -112,6 +112,28 @@ export default function TokensScreen() {
   });
   const usados = tokens.filter(t => t.usado === true);
 
+  // Para master_admin: agrupar por criadoPorNome
+  const tokensPorAdmin = React.useMemo(() => {
+    if (tokens.length === 0) return {};
+    const grupos: Record<string, { nome: string; municipio: string; ativos: number; usados: number; expirados: number }> = {};
+    tokens.forEach(t => {
+      const key = t.criadoPor || 'unknown';
+      if (!grupos[key]) {
+        grupos[key] = {
+          nome: t.criadoPorNome || 'Desconhecido',
+          municipio: t.municipio || '',
+          ativos: 0, usados: 0, expirados: 0,
+        };
+      }
+      const isUsado = t.usado === true;
+      const isExpirado = !isUsado && t.expiraEm && new Date(t.expiraEm).getTime() <= Date.now();
+      if (isUsado) grupos[key].usados++;
+      else if (isExpirado) grupos[key].expirados++;
+      else grupos[key].ativos++;
+    });
+    return grupos;
+  }, [tokens]);
+
   const copiarToken = async (codigo: string) => {
     await Clipboard.setStringAsync(codigo);
     Alert.alert('Copiado!', 'Código de convite copiado para a área de transferência.');

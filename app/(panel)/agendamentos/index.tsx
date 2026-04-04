@@ -15,6 +15,7 @@ import {
   insertAgendamento,
   getAgendamentosByMunicipio,
   getAgendamentosByAgente,
+  deleteAgendamento,
 } from '../../../utils/database';
 import { generateUUID } from '../../../utils/uuid';
 import { AgendamentoLocal } from '../../../types/agendamento';
@@ -168,6 +169,32 @@ export default function AgendamentosScreen() {
     }
   };
 
+  const handleDelete = (a: AgendamentoLocal) => {
+    if (!canCreate) return;
+    Alert.alert(
+      'Excluir agendamento?',
+      `"${a.titulo}" será removido permanentemente.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (isConnected) {
+                await supabase.from('agendamentos').delete().eq('id', a.id);
+              }
+              deleteAgendamento(a.id);
+              setAgendamentos(prev => prev.filter(x => x.id !== a.id));
+            } catch {
+              Alert.alert('Erro', 'Não foi possível excluir o agendamento.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   useFocusEffect(useCallback(() => { carregar(); }, [profile]));
 
   const abrirModal = () => {
@@ -313,10 +340,20 @@ export default function AgendamentosScreen() {
                   <Text style={[styles.cardTitulo, { color: theme.text }]} numberOfLines={2}>
                     {a.titulo}
                   </Text>
-                  <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-                    <Text style={[styles.statusText, { color: colors.text }]}>
-                      {a.status.toUpperCase()}
-                    </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.statusText, { color: colors.text }]}>
+                        {a.status.toUpperCase()}
+                      </Text>
+                    </View>
+                    {canCreate && (
+                      <TouchableOpacity
+                        onPress={() => handleDelete(a)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="trash-2" size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
                 <View style={styles.cardMeta}>
