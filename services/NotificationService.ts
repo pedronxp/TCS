@@ -134,6 +134,27 @@ export async function notificarVistoriaSalva(endereco: string, nivel: string): P
   });
 }
 
+export async function notificarDocumentoGerado(
+  tipo: 'laudo' | 'relatorio' | 'termo',
+  endereco: string,
+): Promise<void> {
+  const labels: Record<string, string> = {
+    laudo: 'Laudo Técnico',
+    relatorio: 'Relatório de Vistoria',
+    termo: 'Termo de Interdição',
+  };
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `📄 ${labels[tipo]} Gerado`,
+      body: `Documento salvo — ${endereco || 'Local não informado'}`,
+      data: { tipo: 'documento_gerado', tipoDoc: tipo },
+      sound: 'default',
+      ...(Platform.OS === 'android' && { channelId: 'default' }),
+    },
+    trigger: null,
+  });
+}
+
 export async function notificarSincronizacao(count: number): Promise<void> {
   if (count === 0) return;
   await Notifications.scheduleNotificationAsync({
@@ -143,6 +164,53 @@ export async function notificarSincronizacao(count: number): Promise<void> {
       data: { tipo: 'sync' },
       sound: 'default',
       ...(Platform.OS === 'android' && { channelId: 'default' }),
+    },
+    trigger: null,
+  });
+}
+
+export async function notificarSyncFalha(falhas: number, proxRetrySegundos: number): Promise<void> {
+  if (falhas === 0) return;
+  const tempoTexto = proxRetrySegundos >= 60
+    ? `${Math.round(proxRetrySegundos / 60)} min`
+    : `${proxRetrySegundos}s`;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '⚠️ Sincronização Falhou',
+      body: `${falhas} vistoria${falhas !== 1 ? 's' : ''} não sincronizada${falhas !== 1 ? 's' : ''}. Nova tentativa em ${tempoTexto}.`,
+      data: { tipo: 'sync_falha', falhas },
+      sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+      color: '#F59E0B',
+      ...(Platform.OS === 'android' && { channelId: 'alertas' }),
+    },
+    trigger: null,
+  });
+}
+
+export async function notificarSyncRetrying(tentativa: number): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🔄 Tentando Sincronizar',
+      body: `Tentativa ${tentativa} de re-sincronização em andamento...`,
+      data: { tipo: 'sync_retry', tentativa },
+      sound: undefined,
+      ...(Platform.OS === 'android' && { channelId: 'default' }),
+    },
+    trigger: null,
+  });
+}
+
+export async function notificarSyncDesistiu(falhas: number): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '❌ Sincronização Falhou',
+      body: `${falhas} vistoria${falhas !== 1 ? 's' : ''} não puderam ser enviada${falhas !== 1 ? 's' : ''}. Tente manualmente quando houver conexão estável.`,
+      data: { tipo: 'sync_desistiu', falhas },
+      sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      color: '#EF4444',
+      ...(Platform.OS === 'android' && { channelId: 'alertas' }),
     },
     trigger: null,
   });

@@ -28,6 +28,7 @@ export default function MasterDashboardScreen() {
   });
   const [municipios, setMunicipios] = useState<{ nome: string; count: number }[]>([]);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [rankingGlobal, setRankingGlobal] = useState<{ nome: string; municipio: string; count: number }[]>([]);
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
 
   const carregar = async (showRefresh = false) => {
@@ -59,6 +60,29 @@ export default function MasterDashboardScreen() {
       }
       if (logsRes.data) {
         setRecentLogs(logsRes.data || []);
+      }
+
+      // Top agentes globais do mês
+      const inicioMes = new Date();
+      inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
+      const { data: rankData } = await supabase
+        .from('vistorias')
+        .select('agenteNome, municipio')
+        .gte('dataVistoria', inicioMes.toISOString())
+        .limit(500);
+      if (rankData) {
+        const contagem: Record<string, { count: number; municipio: string }> = {};
+        rankData.forEach((v: any) => {
+          const n = v.agenteNome || '?';
+          if (!contagem[n]) contagem[n] = { count: 0, municipio: v.municipio || '' };
+          contagem[n].count++;
+        });
+        setRankingGlobal(
+          Object.entries(contagem)
+            .sort((a, b) => b[1].count - a[1].count)
+            .slice(0, 5)
+            .map(([nome, d]) => ({ nome, municipio: d.municipio, count: d.count }))
+        );
       }
     } catch (e) {
       logger.error('system', 'Erro master dashboard', { erro: String(e) });
@@ -122,6 +146,21 @@ export default function MasterDashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {/* Alerta global alto risco */}
+        {stats.altoRisco > 0 && (
+          <TouchableOpacity
+            style={styles.alertBanner}
+            onPress={() => router.push('/(panel)/inspecoes')}
+          >
+            <Feather name="alert-triangle" size={20} color="#EF4444" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.alertTitle}>{stats.altoRisco} ALERTA{stats.altoRisco > 1 ? 'S' : ''} CRÍTICO{stats.altoRisco > 1 ? 'S' : ''} GLOBAL</Text>
+              <Text style={styles.alertDesc}>Vistorias de alto risco em todo o sistema.</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="#EF4444" />
+          </TouchableOpacity>
+        )}
+
         {erro && !loading && stats.totalVistorias === 0 && (
           <ErrorState
             title="Erro ao carregar dados"
@@ -204,6 +243,23 @@ export default function MasterDashboardScreen() {
             </View>
           );
         })}
+
+        {/* Ranking global de agentes */}
+        {rankingGlobal.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 12 }]}>Top Agentes do Mês</Text>
+            {rankingGlobal.map(({ nome, municipio, count }, i) => (
+              <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                <Text style={[styles.rankPos, { color: i < 3 ? theme.primary : theme.textSecondary }]}>#{i + 1}</Text>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.rankName, { color: theme.text }]} numberOfLines={1}>{nome}</Text>
+                  <Text style={[styles.rankMun, { color: theme.textSecondary }]}>{municipio}</Text>
+                </View>
+                <Text style={[styles.rankCount, { color: theme.primary }]}>{count}</Text>
+              </View>
+            ))}
+          </>
+        )}
 
         {/* Recentes do Sistema */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 12 }]}>Atividade Recente</Text>
@@ -340,6 +396,20 @@ const styles = StyleSheet.create({
   },
   logAcao: { fontSize: 13, fontWeight: '700' },
   logMeta: { fontSize: 11, marginTop: 2, fontWeight: '500' },
-
-
+  alertBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    padding: 14, marginBottom: 20,
+  },
+  alertTitle: { color: '#EF4444', fontSize: 13, fontWeight: '800' },
+  alertDesc: { color: '#EF4444', fontSize: 12, opacity: 0.8, marginTop: 1 },
+  rankCard: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 8,
+  },
+  rankPos: { fontSize: 16, fontWeight: '800', width: 28 },
+  rankName: { fontSize: 14, fontWeight: '700' },
+  rankMun: { fontSize: 11, marginTop: 1 },
+  rankCount: { fontSize: 18, fontWeight: '900' },
 });

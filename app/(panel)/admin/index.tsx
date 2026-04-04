@@ -34,6 +34,7 @@ export default function AdminDashboardScreen() {
   const [kpis, setKpis] = useState<KPI[]>([]);
   const [atividade, setAtividade] = useState<AtividadeItem[]>([]);
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
+  const [ranking, setRanking] = useState<{ nome: string; count: number }[]>([]);
 
   const carregar = async (showRefresh = false) => {
     if (!profile) return;
@@ -60,7 +61,26 @@ export default function AdminDashboardScreen() {
           { label: 'Agentes', value: k.agentes || 0, icon: 'users', color: '#8B5CF6' },
         ]);
       }
-      setAtividade(vistoriasRes.data || []);
+      if (vistoriasRes.error) {
+        logger.error('system', 'Erro ao carregar atividades recentes', { erro: vistoriasRes.error.message });
+        setErro(true);
+      } else {
+        setAtividade(vistoriasRes.data || []);
+      }
+
+      // Ranking de agentes do mês
+      const inicioMes = new Date();
+      inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
+      const { data: rankData } = await supabase
+        .from('vistorias')
+        .select('agenteNome')
+        .eq('municipio', profile.municipio)
+        .gte('dataVistoria', inicioMes.toISOString());
+      if (rankData) {
+        const contagem: Record<string, number> = {};
+        rankData.forEach((v: any) => { const n = v.agenteNome || '?'; contagem[n] = (contagem[n] || 0) + 1; });
+        setRanking(Object.entries(contagem).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([nome, count]) => ({ nome, count })));
+      }
     } catch (e) {
       logger.error('system', 'Erro admin dashboard', { erro: String(e) });
       setErro(true);
@@ -126,6 +146,21 @@ export default function AdminDashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {/* Alerta alto risco */}
+        {(kpis[2]?.value || 0) > 0 && (
+          <TouchableOpacity
+            style={styles.alertBanner}
+            onPress={() => router.push('/(panel)/inspecoes')}
+          >
+            <Feather name="alert-triangle" size={20} color="#EF4444" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.alertTitle}>{kpis[2].value} ALERTA{kpis[2].value > 1 ? 'S' : ''} CRÍTICO{kpis[2].value > 1 ? 'S' : ''}</Text>
+              <Text style={styles.alertDesc}>Vistorias de alto risco requerem atenção imediata.</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="#EF4444" />
+          </TouchableOpacity>
+        )}
+
         {/* KPI Grid */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Métricas do Município</Text>
         {erro && kpis.length === 0 ? (
@@ -196,6 +231,39 @@ export default function AdminDashboardScreen() {
               </View>
             </View>
           </View>
+        )}
+
+        {/* Ranking de agentes (mês atual) */}
+        {ranking.length > 0 && (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Desempenho da Equipe</Text>
+              <TouchableOpacity onPress={() => router.push('/(panel)/admin/usuarios')}>
+                <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe</Text>
+              </TouchableOpacity>
+            </View>
+            {ranking.map(({ nome, count }) => {
+              const META = 10;
+              const progresso = Math.min(count / META, 1);
+              const cor = count >= META ? '#10B981' : count >= META / 2 ? theme.primary : '#F59E0B';
+              return (
+                <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                  <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
+                    <Text style={[styles.rankAvatarText, { color: theme.primary }]}>{nome[0]?.toUpperCase() || '?'}</Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={styles.rankRow}>
+                      <Text style={[styles.rankName, { color: theme.text }]} numberOfLines={1}>{nome}</Text>
+                      <Text style={[styles.rankCount, { color: cor }]}>{count}/{META}</Text>
+                    </View>
+                    <View style={[styles.progressBg, { backgroundColor: theme.iconBackground }]}>
+                      <View style={[styles.progressFill, { width: `${progresso * 100}%`, backgroundColor: cor }]} />
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </>
         )}
 
         {/* Atividade recente */}
@@ -322,6 +390,25 @@ const styles = StyleSheet.create({
   riskLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   riskDot: { width: 8, height: 8, borderRadius: 4 },
   riskLegendText: { fontSize: 12, fontWeight: '600' },
-
-
+  alertBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    padding: 14, marginBottom: 20,
+  },
+  alertTitle: { color: '#EF4444', fontSize: 13, fontWeight: '800' },
+  alertDesc: { color: '#EF4444', fontSize: 12, opacity: 0.8, marginTop: 1 },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, marginTop: 4 },
+  seeAll: { fontSize: 12, fontWeight: '700' },
+  rankCard: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 8,
+  },
+  rankAvatar: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  rankAvatarText: { fontSize: 16, fontWeight: '800' },
+  rankRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  rankName: { fontSize: 14, fontWeight: '700', flex: 1 },
+  rankCount: { fontSize: 13, fontWeight: '800' },
+  progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 2 },
 });
