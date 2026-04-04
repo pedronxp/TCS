@@ -316,6 +316,13 @@ export function getVistoriasByMunicipio(municipio: string): VistoriaLocal[] {
   );
 }
 
+export function getAllVistorias(): VistoriaLocal[] {
+  const database = getDb();
+  return database.getAllSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline ORDER BY criado_em DESC LIMIT 200`
+  );
+}
+
 export function updateLaudoUrl(id: string, laudoUrl: string, laudoGeradoEm: string): void {
   const database = getDb();
   database.runSync(

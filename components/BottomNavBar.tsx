@@ -36,9 +36,10 @@ const TABS_ADMIN: NavTab[] = [
 ];
 
 const TABS_MASTER: NavTab[] = [
-  { key: 'home',  label: 'Início', icon: 'home',    route: '/(panel)/master', matchPaths: ['/master'] },
-  { key: 'mapas',   label: 'Mapa',    icon: 'map',     route: '/(panel)/mapas',    matchPaths: ['/mapas'] },
-  { key: 'modulos', label: 'Módulos', icon: 'grid',    route: '/(panel)/modulos',  matchPaths: ['/modulos'] },
+  { key: 'home',     label: 'Início',   icon: 'home',      route: '/(panel)/master',    matchPaths: ['/master'] },
+  { key: 'inspecoes',label: 'Vistorias',icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
+  { key: 'mapas',    label: 'Mapa',     icon: 'map',       route: '/(panel)/mapas',     matchPaths: ['/mapas'] },
+  { key: 'modulos',  label: 'Módulos',  icon: 'grid',      route: '/(panel)/modulos',   matchPaths: ['/modulos'] },
 ];
 
 const NAVBAR_VISIBLE_PATHS = [

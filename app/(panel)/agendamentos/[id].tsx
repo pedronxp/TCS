@@ -344,6 +344,18 @@ export default function AgendamentoDetalheScreen() {
           </View>
         )}
 
+        {/* Iniciar Vistoria — para o agente atribuído */}
+        {profile?.role === 'agent' && agendamento.agente_uid === profile.uid && isPendente && (
+          <TouchableOpacity
+            style={[styles.iniciarBtn, { backgroundColor: theme.primary }]}
+            onPress={() => router.push('/(panel)/inspecoes/dados-iniciais')}
+            activeOpacity={0.85}
+          >
+            <Feather name="clipboard" size={18} color="#FFF" />
+            <Text style={styles.iniciarBtnText}>Iniciar Vistoria</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Status final */}
         {!isPendente && (
           <View style={[styles.finalStatus, { backgroundColor: statusColors.bg, borderColor: statusColors.text + '40' }]}>
@@ -409,6 +421,12 @@ const styles = StyleSheet.create({
     borderRadius: 14, borderWidth: 1, padding: 16, marginTop: 8,
   },
   finalStatusText: { fontSize: 15, fontWeight: '700' },
+
+  iniciarBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, borderRadius: 16, padding: 18, marginTop: 8,
+  },
+  iniciarBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
 
   emptyTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
   emptyDesc: { fontSize: 14, textAlign: 'center', lineHeight: 20 },

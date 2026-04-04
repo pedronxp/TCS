@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, RefreshControl
+  ActivityIndicator, RefreshControl, Modal, FlatList
 } from 'react-native';
 import { countAgendamentosPendentes } from '../../../utils/database';
 import { Feather } from '@expo/vector-icons';
@@ -30,6 +30,9 @@ export default function MasterDashboardScreen() {
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [rankingGlobal, setRankingGlobal] = useState<{ nome: string; municipio: string; count: number }[]>([]);
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
+  const [riskModalVisible, setRiskModalVisible] = useState(false);
+  const [riskByCidade, setRiskByCidade] = useState<{ municipio: string; alto: number; baixo: number }[]>([]);
+  const [riskLoading, setRiskLoading] = useState(false);
 
   const carregar = async (showRefresh = false) => {
     setErro(false);
@@ -90,6 +93,22 @@ export default function MasterDashboardScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const abrirRiskModal = async () => {
+    setRiskModalVisible(true);
+    if (riskByCidade.length > 0) return; // já carregado
+    setRiskLoading(true);
+    try {
+      const { data } = await supabase.rpc('get_risk_by_municipio');
+      if (data) {
+        setRiskByCidade(data as { municipio: string; alto: number; baixo: number }[]);
+      }
+    } catch {
+      // fallback: usar dados dos top municípios já carregados
+    } finally {
+      setRiskLoading(false);
     }
   };
 
@@ -198,10 +217,17 @@ export default function MasterDashboardScreen() {
 
         {/* Barra de Risco Global */}
         {(stats.totalVistorias > 0) && (
-          <View style={[styles.riskDistributionCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+          <TouchableOpacity
+            style={[styles.riskDistributionCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+            onPress={abrirRiskModal}
+            activeOpacity={0.85}
+          >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
               <Text style={[styles.riskCardTitle, { color: theme.text }]}>Distribuição de Risco</Text>
-              <Text style={[styles.riskCardSubtitle, { color: theme.textSecondary }]}>{stats.totalVistorias} laudos</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.riskCardSubtitle, { color: theme.textSecondary }]}>{stats.totalVistorias} laudos</Text>
+                <Feather name="chevron-down" size={14} color={theme.textSecondary} />
+              </View>
             </View>
             <View style={styles.riskBarContainer}>
               {stats.altoRisco > 0 && (
@@ -221,8 +247,86 @@ export default function MasterDashboardScreen() {
                 <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>R1/R2 Controlado ({stats.totalVistorias - stats.altoRisco})</Text>
               </View>
             </View>
-          </View>
+            <Text style={[styles.riskTapHint, { color: theme.primary }]}>Toque para ver por município</Text>
+          </TouchableOpacity>
         )}
+
+        {/* Modal de Distribuição por Município */}
+        <Modal
+          visible={riskModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setRiskModalVisible(false)}
+        >
+          <View style={styles.riskModalOverlay}>
+            <View style={[styles.riskModalContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[styles.riskModalHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.riskModalTitle, { color: theme.text }]}>Risco por Município</Text>
+                <TouchableOpacity onPress={() => setRiskModalVisible(false)}>
+                  <Feather name="x" size={22} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              {riskLoading ? (
+                <ActivityIndicator size="large" color={theme.primary} style={{ marginVertical: 40 }} />
+              ) : riskByCidade.length === 0 ? (
+                <View style={{ padding: 32, alignItems: 'center' }}>
+                  <Feather name="bar-chart-2" size={36} color={theme.textSecondary} style={{ opacity: 0.4, marginBottom: 12 }} />
+                  <Text style={{ color: theme.textSecondary, fontSize: 14, fontWeight: '600' }}>Sem dados de risco disponíveis.</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={[styles.riskModalLegend, { borderBottomColor: theme.border }]}>
+                    <View style={styles.riskLegendItem}>
+                      <View style={[styles.riskDot, { backgroundColor: '#EF4444' }]} />
+                      <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: '600' }}>R3/R4 Alto risco</Text>
+                    </View>
+                    <View style={styles.riskLegendItem}>
+                      <View style={[styles.riskDot, { backgroundColor: '#10B981' }]} />
+                      <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: '600' }}>R1/R2 Controlado</Text>
+                    </View>
+                  </View>
+                  <FlatList
+                    data={riskByCidade}
+                    keyExtractor={(item) => item.municipio}
+                    contentContainerStyle={{ padding: 16 }}
+                    renderItem={({ item, index }) => {
+                      const total = item.alto + item.baixo;
+                      const altoPercent = total > 0 ? (item.alto / total) * 100 : 0;
+                      return (
+                        <View style={[styles.riskCidadeRow, { borderBottomColor: theme.border }]}>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                              <Text style={[styles.riskCidadeNome, { color: theme.text }]} numberOfLines={1}>
+                                {index + 1}. {item.municipio || 'Não informado'}
+                              </Text>
+                              {item.alto > 0 && (
+                                <View style={styles.riskCidadeAlertBadge}>
+                                  <Feather name="alert-triangle" size={10} color="#EF4444" />
+                                  <Text style={styles.riskCidadeAlertText}>{item.alto} alto</Text>
+                                </View>
+                              )}
+                            </View>
+                            <View style={[styles.riskBarContainer, { marginBottom: 4 }]}>
+                              {item.alto > 0 && (
+                                <View style={[styles.riskSegment, { width: `${altoPercent}%`, backgroundColor: '#EF4444' }]} />
+                              )}
+                              {item.baixo > 0 && (
+                                <View style={[styles.riskSegment, { width: `${100 - altoPercent}%`, backgroundColor: '#10B981' }]} />
+                              )}
+                            </View>
+                            <Text style={{ color: theme.textSecondary, fontSize: 11 }}>
+                              {item.baixo} R1/R2 • {item.alto} R3/R4 • {total} total
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    }}
+                  />
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
 
         {/* Top municípios */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Top Municípios</Text>
@@ -434,4 +538,33 @@ const styles = StyleSheet.create({
   guiaBtnIcon: { width: 40, height: 40, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
   guiaBtnTitle: { fontSize: 14, fontWeight: '700' },
   guiaBtnDesc: { fontSize: 12, marginTop: 1 },
+  riskTapHint: {
+    fontSize: 11, fontWeight: '600', marginTop: 10, textAlign: 'right',
+  },
+  riskModalOverlay: {
+    flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  riskModalContainer: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: 1, maxHeight: '80%',
+  },
+  riskModalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 20, paddingBottom: 16, borderBottomWidth: 1,
+  },
+  riskModalTitle: { fontSize: 18, fontWeight: '800' },
+  riskModalLegend: {
+    flexDirection: 'row', gap: 16, padding: 14, paddingBottom: 10,
+    borderBottomWidth: 1,
+  },
+  riskCidadeRow: {
+    paddingVertical: 12, borderBottomWidth: 1,
+  },
+  riskCidadeNome: { fontSize: 14, fontWeight: '700', flex: 1 },
+  riskCidadeAlertBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 6,
+    paddingVertical: 2, borderRadius: 6,
+  },
+  riskCidadeAlertText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
 });

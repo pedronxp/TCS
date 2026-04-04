@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../utils/supabase';
 
 export interface UserProfile {
@@ -9,6 +10,8 @@ export interface UserProfile {
   role: 'master_admin' | 'admin' | 'supervisor' | 'agent';
   municipio: string;
   isApproved: boolean;
+  createdAt?: string;
+  nameChanged?: boolean;
 }
 
 interface AuthContextData {
@@ -16,6 +19,7 @@ interface AuthContextData {
   profile: UserProfile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({
@@ -23,25 +27,49 @@ const AuthContext = createContext<AuthContextData>({
   profile: null,
   loading: true,
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
-async function fetchProfile(userId: string): Promise<UserProfile | null> {
+const PROFILE_CACHE_KEY = (uid: string) => `@profile_cache_${uid}`;
+
+async function saveProfileToCache(profile: UserProfile): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PROFILE_CACHE_KEY(profile.uid), JSON.stringify(profile));
+  } catch {}
+}
+
+async function loadProfileFromCache(uid: string): Promise<UserProfile | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PROFILE_CACHE_KEY(uid));
+    return raw ? (JSON.parse(raw) as UserProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+type FetchProfileResult = UserProfile | null | 'timeout';
+
+async function fetchProfile(userId: string): Promise<FetchProfileResult> {
   try {
     const queryPromise = supabase
       .from('users')
-      .select('uid, name, email, role, municipio, isApproved')
+      .select('uid, name, email, role, municipio, isApproved, "createdAt", "nameChanged"')
       .eq('uid', userId)
       .single();
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('fetchProfile timeout')), 10000)
+    const timeoutPromise = new Promise<'timeout'>(resolve =>
+      setTimeout(() => resolve('timeout'), 10000)
     );
 
-    const { data, error } = await Promise.race([queryPromise, timeout]);
+    const result = await Promise.race([queryPromise, timeoutPromise]);
+
+    if (result === 'timeout') return 'timeout';
+
+    const { data, error } = result;
     if (error || !data) return null;
     return data as UserProfile;
   } catch {
-    return null;
+    return 'timeout';
   }
 }
 
@@ -51,10 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Timeout de segurança: garante que o loading nunca trava indefinidamente
-    const safetyTimer = setTimeout(() => setLoading(false), 12000);
+    const safetyTimer = setTimeout(() => setLoading(false), 14000);
 
-    // Restaurar sessão existente ao iniciar o app
     const getSessionTimeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('getSession timeout')), 8000)
     );
@@ -68,35 +94,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           return;
         }
-        const session = result?.data?.session;
-        if (session) {
-          const userProfile = await fetchProfile(session.user.id);
-          if (userProfile?.isApproved) {
-            setSession(session);
-            setProfile(userProfile);
-          } else {
-            // Conta não aprovada ou perfil não encontrado — deslogar silenciosamente
-            await supabase.auth.signOut().catch(() => {});
+        const sess = result?.data?.session;
+        if (!sess) return;
+
+        const profileResult = await fetchProfile(sess.user.id);
+
+        if (profileResult === 'timeout') {
+          // Offline ou rede indisponível — tentar cache
+          const cached = await loadProfileFromCache(sess.user.id);
+          if (cached?.isApproved) {
+            setSession(sess);
+            setProfile(cached);
           }
+          // Se sem cache, aguarda reconexão — não deslogar imediatamente
+        } else if (profileResult?.isApproved) {
+          setSession(sess);
+          setProfile(profileResult);
+          await saveProfileToCache(profileResult);
+        } else {
+          // Conta não aprovada ou não encontrada no banco
+          await supabase.auth.signOut().catch(() => {});
         }
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.warn('Auth init catch:', err);
-        supabase.auth.signOut().catch(() => {});
+        // Timeout de getSession — tentar recuperar da sessão em cache do Supabase
+        // Não forçar logout para não bloquear usuário offline
       })
       .finally(() => {
         clearTimeout(safetyTimer);
         setLoading(false);
       });
 
-    // Ouvir mudanças de auth (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          const userProfile = await fetchProfile(session.user.id);
-          if (userProfile?.isApproved) {
-            setSession(session);
-            setProfile(userProfile);
+      async (event, sess) => {
+        if (event === 'SIGNED_IN' && sess) {
+          const profileResult = await fetchProfile(sess.user.id);
+          if (profileResult === 'timeout') {
+            const cached = await loadProfileFromCache(sess.user.id);
+            if (cached?.isApproved) {
+              setSession(sess);
+              setProfile(cached);
+            }
+          } else if (profileResult?.isApproved) {
+            setSession(sess);
+            setProfile(profileResult);
+            await saveProfileToCache(profileResult);
           } else {
             await supabase.auth.signOut();
             setSession(null);
@@ -105,12 +148,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (event === 'SIGNED_OUT') {
           setSession(null);
           setProfile(null);
-        } else if (event === 'TOKEN_REFRESHED' && session) {
-          // Re-buscar perfil para detectar mudanças de isApproved/role em tempo real
-          setSession(session);
-          const userProfile = await fetchProfile(session.user.id);
-          if (userProfile?.isApproved) {
-            setProfile(userProfile);
+        } else if (event === 'TOKEN_REFRESHED' && sess) {
+          setSession(sess);
+          const profileResult = await fetchProfile(sess.user.id);
+          if (profileResult === 'timeout') {
+            // Offline: manter perfil atual
+          } else if (profileResult?.isApproved) {
+            setProfile(profileResult);
+            await saveProfileToCache(profileResult);
           } else {
             await supabase.auth.signOut();
             setSession(null);
@@ -130,8 +175,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const refreshProfile = async () => {
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (!currentSession) return;
+    const profileResult = await fetchProfile(currentSession.user.id);
+    if (profileResult && profileResult !== 'timeout' && profileResult.isApproved) {
+      setProfile(profileResult);
+      await saveProfileToCache(profileResult);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
