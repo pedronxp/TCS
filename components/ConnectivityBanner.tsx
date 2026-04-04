@@ -4,14 +4,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useConnectivity } from '../context/ConnectivityContext';
 
-const STRIP_HEIGHT = 32;
+const STRIP_HEIGHT = 34;
 const ANIM_DURATION = 280;
 
 export function ConnectivityBanner() {
   const { isOnlineReal } = useConnectivity();
   const insets = useSafeAreaInsets();
 
-  const translateY = useRef(new Animated.Value(-STRIP_HEIGHT)).current;
+  // Posição abaixo da barra de navegação (76px aprox) + safe area bottom
+  const bottomOffset = insets.bottom + 72;
+  const translateY = useRef(new Animated.Value(STRIP_HEIGHT + 10)).current;
   const [bannerState, setBannerState] = useState<'offline' | 'restored' | 'hidden'>('hidden');
   const prevOnline = useRef(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -19,16 +21,17 @@ export function ConnectivityBanner() {
   const showBanner = (state: 'offline' | 'restored') => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     setBannerState(state);
-    Animated.timing(translateY, {
+    Animated.spring(translateY, {
       toValue: 0,
-      duration: ANIM_DURATION,
       useNativeDriver: true,
+      bounciness: 4,
+      speed: 14,
     }).start();
   };
 
   const hideBanner = () => {
     Animated.timing(translateY, {
-      toValue: -STRIP_HEIGHT,
+      toValue: STRIP_HEIGHT + 10,
       duration: ANIM_DURATION,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -61,8 +64,8 @@ export function ConnectivityBanner() {
       style={[
         styles.strip,
         {
-          top: insets.top,
-          backgroundColor: isOffline ? '#B45309' : '#059669',
+          bottom: bottomOffset,
+          backgroundColor: isOffline ? '#92400E' : '#065F46',
           transform: [{ translateY }],
         },
       ]}
@@ -70,10 +73,11 @@ export function ConnectivityBanner() {
     >
       <Feather name={isOffline ? 'wifi-off' : 'wifi'} size={12} color="#fff" />
       <Text style={styles.text}>
-        {isOffline
-          ? 'Sem conexão — modo offline ativo'
-          : 'Conexão restaurada'}
+        {isOffline ? 'Modo offline · dados locais' : 'Conexão restaurada'}
       </Text>
+      {isOffline && (
+        <View style={styles.dot} />
+      )}
     </Animated.View>
   );
 }
@@ -81,21 +85,31 @@ export function ConnectivityBanner() {
 const styles = StyleSheet.create({
   strip: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    height: STRIP_HEIGHT,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    gap: 7,
     paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
+    height: STRIP_HEIGHT,
     zIndex: 9999,
-    elevation: 10,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
   },
   text: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FCA5A5',
   },
 });

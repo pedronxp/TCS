@@ -1,5 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, RefreshControl,
+} from 'react-native';
 import { countAgendamentosPendentesAgente } from '../../utils/database';
 import { verificarLaudosExpirando } from '../../utils/laudoExpiracaoNotif';
 import { Feather } from '@expo/vector-icons';
@@ -7,17 +10,22 @@ import { supabase } from '../../utils/supabase';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useConnectivity } from '../../context/ConnectivityContext';
 import { logger } from '../../utils/logger';
-import { Card, ErrorState } from '../../components/ui';
+import { ErrorState } from '../../components/ui';
+import { DashboardGuide } from '../../components/DashboardGuide';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DIAS_SEMANA = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 export default function DashboardScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { profile, loading: authLoading } = useAuth();
+  const { isOnlineReal } = useConnectivity();
 
-  const [metrics, setMetrics] = useState({ atividadesHoje: 0, requerAtencao: 0, equipeAtiva: 0 });
+  const [metrics, setMetrics] = useState({ atividadesHoje: 0, requerAtencao: 0, minhasTotal: 0 });
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,75 +35,56 @@ export default function DashboardScreen() {
 
   const { diaSemana, dataFormatada } = useMemo(() => {
     const hoje = new Date();
-    const diaSemana = DIAS_SEMANA[hoje.getDay()];
-    const dataFormatada = `${hoje.getDate()} de ${MESES[hoje.getMonth()]}`;
-    return { diaSemana, dataFormatada };
-  }, []); // dependência vazia: recalcular só na montagem
+    return {
+      diaSemana: DIAS_SEMANA[hoje.getDay()],
+      dataFormatada: `${hoje.getDate()} de ${MESES[hoje.getMonth()]}`,
+    };
+  }, []);
 
   useEffect(() => {
     if (!profile) return;
     if (profile.role === 'master_admin') { router.replace('/(panel)/master'); return; }
     if (profile.role === 'admin') { router.replace('/(panel)/admin'); return; }
     if (profile.role === 'supervisor') { router.replace('/(panel)/supervisor'); return; }
-    // For agents: load pending agendamentos badge
     setPendingAgendamentos(countAgendamentosPendentesAgente(profile.uid));
-    // Verificar laudos expirando (digest diário)
     verificarLaudosExpirando().catch(() => null);
     const now = Date.now();
     if (now - cacheTs.current < CACHE_TTL) return;
-    fetchMetrics(profile.uid, profile.role, profile.municipio);
-  }, [profile]);
+    if (isOnlineReal) fetchMetrics(profile.uid, profile.municipio);
+  }, [profile, isOnlineReal]);
 
-  const fetchMetrics = async (uid: string, role: string, municipio: string) => {
+  const fetchMetrics = async (uid: string, municipio: string) => {
     setMetricsLoading(true);
     setMetricsError(null);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const isAdmin = role === 'admin' || role === 'master_admin';
 
-      let qAtividades = supabase
-        .from('vistorias')
-        .select('*', { count: 'exact', head: true })
-        .gte('dataVistoria', `${today}T00:00:00.000Z`);
-      if (!isAdmin) qAtividades = qAtividades.eq('agenteUid', uid);
-      else if (municipio) qAtividades = qAtividades.eq('municipio', municipio);
+      const [{ count: countHoje }, { count: countAtencao }, { count: countTotal }] = await Promise.all([
+        supabase.from('vistorias').select('*', { count: 'exact', head: true })
+          .eq('agenteUid', uid).gte('dataVistoria', `${today}T00:00:00.000Z`),
+        supabase.from('vistorias').select('*', { count: 'exact', head: true })
+          .eq('agenteUid', uid).in('nivelRisco', ['r3', 'r4']),
+        supabase.from('vistorias').select('*', { count: 'exact', head: true })
+          .eq('agenteUid', uid),
+      ]);
 
-      let qAtencao = supabase
-        .from('vistorias')
-        .select('*', { count: 'exact', head: true })
-        .in('nivelRisco', ['r3', 'r4']);
-      if (!isAdmin) qAtencao = qAtencao.eq('agenteUid', uid);
-      else if (municipio) qAtencao = qAtencao.eq('municipio', municipio);
-
-      const [{ count: countAtividades }, { count: countAtencao }] = await Promise.all([qAtividades, qAtencao]);
-
-      let equipeCount = 0;
-      if (isAdmin && municipio) {
-        const { count } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('municipio', municipio)
-          .eq('isApproved', true);
-        equipeCount = count || 0;
-      }
-
-      setMetrics({ atividadesHoje: countAtividades || 0, requerAtencao: countAtencao || 0, equipeAtiva: equipeCount });
+      setMetrics({ atividadesHoje: countHoje || 0, requerAtencao: countAtencao || 0, minhasTotal: countTotal || 0 });
       cacheTs.current = Date.now();
     } catch (e) {
       logger.error('system', 'Erro ao carregar métricas', { erro: String(e) });
-      setMetricsError('Não foi possível carregar as métricas');
+      setMetricsError('Erro ao carregar métricas');
     } finally {
       setMetricsLoading(false);
       setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     if (!profile) return;
     setRefreshing(true);
     cacheTs.current = 0;
-    fetchMetrics(profile.uid, profile.role, profile.municipio);
-  };
+    fetchMetrics(profile.uid, profile.municipio);
+  }, [profile]);
 
   if (authLoading) {
     return (
@@ -105,36 +94,47 @@ export default function DashboardScreen() {
     );
   }
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'master_admin';
   const firstName = profile?.name?.split(' ')[0] ?? '—';
   const initial = firstName[0]?.toUpperCase() ?? '?';
+  const roleLabel = profile?.role === 'agent' ? 'Agente' : profile?.role ?? '—';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 14 }]}>
         <View style={styles.headerLeft}>
           <Text style={[styles.dateText, { color: theme.textSecondary }]}>{diaSemana}, {dataFormatada}</Text>
           <Text style={[styles.greeting, { color: theme.text }]}>Olá, {firstName}</Text>
-          <View style={[styles.municipioBadge, { backgroundColor: `${theme.primary}18`, borderColor: `${theme.primary}30` }]}>
-            <Feather name="map-pin" size={11} color={theme.primary} />
-            <Text style={[styles.municipioText, { color: theme.primary }]}>
-              {profile?.municipio ?? '—'}
-            </Text>
+          <View style={styles.badgeRow}>
+            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+              <Feather name="map-pin" size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>{profile?.municipio ?? '—'}</Text>
+            </View>
+            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+              <Feather name="shield" size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>{roleLabel}</Text>
+            </View>
+            {!isOnlineReal && (
+              <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+                <Feather name="wifi-off" size={10} color="#F59E0B" />
+                <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.headerRight}>
+          <DashboardGuide role={profile?.role ?? 'agent'} />
           <View>
             <TouchableOpacity
-              style={[styles.calendarBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+              style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
               onPress={() => router.push('/(panel)/agendamentos')}
               activeOpacity={0.8}
             >
               <Feather name="calendar" size={18} color={theme.textSecondary} />
             </TouchableOpacity>
             {pendingAgendamentos > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{pendingAgendamentos > 9 ? '9+' : pendingAgendamentos}</Text>
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>{pendingAgendamentos > 9 ? '9+' : pendingAgendamentos}</Text>
               </View>
             )}
           </View>
@@ -149,61 +149,48 @@ export default function DashboardScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* Banner offline */}
+        {!isOnlineReal && (
+          <View style={[styles.offlineBanner, { borderColor: 'rgba(245,158,11,0.3)' }]}>
+            <Feather name="wifi-off" size={15} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.offlineBannerTitle}>Modo offline ativo</Text>
+              <Text style={styles.offlineBannerDesc}>
+                Você pode criar vistorias normalmente. Tudo será sincronizado quando a conexão voltar.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* KPIs */}
-        {metricsError !== null ? (
+        {metricsError ? (
           <ErrorState message={metricsError} onRetry={onRefresh} />
         ) : (
           <View style={styles.kpiRow}>
-            <Card style={styles.kpiCardBase} onPress={() => router.push('/(panel)/inspecoes')}>
-              <View style={styles.kpiInner}>
-                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', position: 'relative' }}>
-                  <View style={[styles.kpiIcon, { backgroundColor: `${theme.primary}15`, marginBottom: 0 }]}>
-                    <Feather name="clipboard" size={20} color={theme.primary} />
-                  </View>
-                  <Feather name="arrow-up-right" size={14} color={theme.primary} style={{ position: 'absolute', right: 0, top: 0, opacity: 0.4 }} />
+            {[
+              { label: 'Hoje', value: metrics.atividadesHoje, color: theme.primary, icon: 'clipboard', route: '/(panel)/inspecoes' },
+              { label: 'Alto Risco', value: metrics.requerAtencao, color: '#EF4444', icon: 'alert-triangle', route: '/(panel)/inspecoes' },
+              { label: 'Total', value: metrics.minhasTotal, color: '#10B981', icon: 'check-circle', route: '/(panel)/inspecoes' },
+            ].map(k => (
+              <TouchableOpacity
+                key={k.label}
+                style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                onPress={() => router.push(k.route as any)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.kpiIcon, { backgroundColor: `${k.color}15` }]}>
+                  <Feather name={k.icon as any} size={18} color={k.color} />
                 </View>
                 {metricsLoading
-                  ? <ActivityIndicator size="small" color={theme.primary} style={styles.kpiLoader} />
-                  : <Text style={[styles.kpiValue, { color: theme.text }]}>{metrics.atividadesHoje}</Text>}
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Hoje</Text>
-              </View>
-            </Card>
-
-            <Card style={styles.kpiCardBase} onPress={() => router.push('/(panel)/inspecoes')}>
-              <View style={styles.kpiInner}>
-                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', position: 'relative' }}>
-                  <View style={[styles.kpiIcon, { backgroundColor: 'rgba(239,68,68,0.1)', marginBottom: 0 }]}>
-                    <Feather name="alert-triangle" size={20} color="#EF4444" />
-                  </View>
-                  <Feather name="arrow-up-right" size={14} color="#EF4444" style={{ position: 'absolute', right: 0, top: 0, opacity: 0.4 }} />
-                </View>
-                {metricsLoading
-                  ? <ActivityIndicator size="small" color="#EF4444" style={styles.kpiLoader} />
-                  : <Text style={[styles.kpiValue, { color: theme.text }]}>{metrics.requerAtencao}</Text>}
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Alto Risco</Text>
-              </View>
-            </Card>
-
-            {isAdmin && (
-              <Card style={styles.kpiCardBase} onPress={() => router.push('/(panel)/admin/usuarios')}>
-                <View style={styles.kpiInner}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', position: 'relative' }}>
-                    <View style={[styles.kpiIcon, { backgroundColor: 'rgba(16,185,129,0.1)', marginBottom: 0 }]}>
-                      <Feather name="users" size={20} color="#10B981" />
-                    </View>
-                    <Feather name="arrow-up-right" size={14} color="#10B981" style={{ position: 'absolute', right: 0, top: 0, opacity: 0.4 }} />
-                  </View>
-                  {metricsLoading
-                    ? <ActivityIndicator size="small" color="#10B981" style={styles.kpiLoader} />
-                    : <Text style={[styles.kpiValue, { color: theme.text }]}>{metrics.equipeAtiva}</Text>}
-                  <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Equipe</Text>
-                </View>
-              </Card>
-            )}
+                  ? <ActivityIndicator size="small" color={k.color} />
+                  : <Text style={[styles.kpiValue, { color: theme.text }]}>{k.value}</Text>}
+                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
 
@@ -215,54 +202,42 @@ export default function DashboardScreen() {
         >
           <View style={styles.heroLeft}>
             <View style={styles.heroIconWrap}>
-              <Feather name="plus-circle" size={32} color="rgba(255,255,255,0.95)" />
+              <Feather name="plus-circle" size={30} color="rgba(255,255,255,0.95)" />
             </View>
             <View>
               <Text style={styles.heroTitle}>Nova Vistoria</Text>
-              <Text style={styles.heroSub}>Iniciar inspeção técnica agora</Text>
+              <Text style={styles.heroSub}>
+                {isOnlineReal ? 'Iniciar inspeção técnica agora' : 'Disponível offline · salva localmente'}
+              </Text>
             </View>
           </View>
           <View style={styles.heroArrow}>
-            <Feather name="arrow-right" size={20} color="rgba(255,255,255,0.7)" />
+            <Feather name="arrow-right" size={18} color="rgba(255,255,255,0.7)" />
           </View>
         </TouchableOpacity>
 
-        {/* Atalhos */}
+        {/* Acesso Rápido */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Acesso Rápido</Text>
         <View style={styles.grid}>
-          <Card style={styles.gridCardBase} onPress={() => router.push('/(panel)/inspecoes')}>
-            <View style={[styles.gridIcon, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
-              <Feather name="list" size={26} color="#F59E0B" />
-            </View>
-            <Text style={[styles.gridLabel, { color: theme.text }]}>Vistorias</Text>
-            <Text style={[styles.gridDesc, { color: theme.textSecondary }]}>Histórico de laudos</Text>
-          </Card>
-
-          <Card style={styles.gridCardBase} onPress={() => router.push('/(panel)/mapas')}>
-            <View style={[styles.gridIcon, { backgroundColor: `${theme.primary}15` }]}>
-              <Feather name="map" size={26} color={theme.primary} />
-            </View>
-            <Text style={[styles.gridLabel, { color: theme.text }]}>Mapa Tático</Text>
-            <Text style={[styles.gridDesc, { color: theme.textSecondary }]}>Geo­rre­fe­ren­cia­do</Text>
-          </Card>
-
-          <Card style={styles.gridCardBase} onPress={() => router.push('/(panel)/perfil')}>
-            <View style={[styles.gridIcon, { backgroundColor: 'rgba(139,92,246,0.12)' }]}>
-              <Feather name="user" size={26} color="#8B5CF6" />
-            </View>
-            <Text style={[styles.gridLabel, { color: theme.text }]}>Meu Perfil</Text>
-            <Text style={[styles.gridDesc, { color: theme.textSecondary }]}>Dados e configurações</Text>
-          </Card>
-
-          {isAdmin && (
-            <Card style={styles.gridCardBase} onPress={() => router.push('/(panel)/admin')}>
-              <View style={[styles.gridIcon, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
-                <Feather name="shield" size={26} color="#10B981" />
+          {[
+            { label: 'Vistorias', desc: 'Histórico de laudos', icon: 'list', color: '#F59E0B', route: '/(panel)/inspecoes' },
+            { label: 'Mapa Tático', desc: 'Georeferenciado', icon: 'map', color: theme.primary, route: '/(panel)/mapas' },
+            { label: 'Agendamentos', desc: 'Tarefas atribuídas', icon: 'calendar', color: '#8B5CF6', route: '/(panel)/agendamentos' },
+            { label: 'Meu Perfil', desc: 'Dados e configurações', icon: 'user', color: '#10B981', route: '/(panel)/perfil' },
+          ].map(item => (
+            <TouchableOpacity
+              key={item.label}
+              style={[styles.gridCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              onPress={() => router.push(item.route as any)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.gridIcon, { backgroundColor: `${item.color}15` }]}>
+                <Feather name={item.icon as any} size={24} color={item.color} />
               </View>
-              <Text style={[styles.gridLabel, { color: theme.text }]}>Painel Admin</Text>
-              <Text style={[styles.gridDesc, { color: theme.textSecondary }]}>Gestão e relatórios</Text>
-            </Card>
-          )}
+              <Text style={[styles.gridLabel, { color: theme.text }]}>{item.label}</Text>
+              <Text style={[styles.gridDesc, { color: theme.textSecondary }]}>{item.desc}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
     </View>
@@ -271,135 +246,73 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  // Header
   header: {
-    paddingTop: 56,
-    paddingBottom: 20,
-    paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
+    paddingBottom: 20, paddingHorizontal: 20,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', borderBottomWidth: 1,
   },
-  headerLeft: { flex: 1, marginRight: 16 },
-  dateText: { fontSize: 12, fontWeight: '500', marginBottom: 4, letterSpacing: 0.2 },
-  greeting: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5, marginBottom: 8 },
-  municipioBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
+  headerLeft: { flex: 1, marginRight: 12 },
+  dateText: { fontSize: 11, fontWeight: '500', marginBottom: 3, letterSpacing: 0.2 },
+  greeting: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, marginBottom: 8 },
+  badgeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  chipBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, borderWidth: 1,
   },
-  municipioText: { fontSize: 12, fontWeight: '700' },
-  avatarBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitial: { fontSize: 20, fontWeight: '800', color: '#FFF' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  calendarBtn: {
+  chipText: { fontSize: 11, fontWeight: '700' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconBtn: {
     width: 40, height: 40, borderRadius: 12, borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',
   },
-  badge: {
+  avatarBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  avatarInitial: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+  notifBadge: {
     position: 'absolute', top: -4, right: -4,
-    minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 3,
+    minWidth: 17, height: 17, borderRadius: 9,
+    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3,
   },
-  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
-
-  // Scroll
-  scrollContent: { padding: 20, paddingBottom: 110 },
-
-  // KPIs
-  kpiRow: { flexDirection: 'row', gap: 16, marginBottom: 20 },
-  kpiCardBase: {
-    flex: 1,
-    padding: 0,
+  notifBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '800' },
+  scrollContent: { padding: 20 },
+  offlineBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1,
+    borderRadius: 14, padding: 14, marginBottom: 16,
   },
-  kpiInner: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 6,
+  offlineBannerTitle: { color: '#F59E0B', fontSize: 13, fontWeight: '700' },
+  offlineBannerDesc: { color: '#F59E0B', fontSize: 12, marginTop: 2, opacity: 0.85, lineHeight: 17 },
+  kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  kpiCard: {
+    flex: 1, borderRadius: 16, borderWidth: 1,
+    padding: 14, alignItems: 'center', gap: 6,
   },
-  kpiIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  kpiLoader: { marginVertical: 4 },
-  kpiValue: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  kpiIcon: { width: 38, height: 38, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  kpiValue: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
   kpiLabel: { fontSize: 11, fontWeight: '600' },
-
-  // Hero Action
   heroAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 22,
-    paddingVertical: 22,
-    paddingHorizontal: 24,
-    marginBottom: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderRadius: 20, paddingVertical: 20, paddingHorizontal: 22, marginBottom: 28,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16, shadowRadius: 12, elevation: 5,
   },
-  heroLeft: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  heroLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   heroIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 50, height: 50, borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center',
   },
-  heroTitle: { color: '#FFF', fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
-  heroSub: { color: 'rgba(255,255,255,0.72)', fontSize: 13, marginTop: 3 },
+  heroTitle: { color: '#FFF', fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
+  heroSub: { color: 'rgba(255,255,255,0.72)', fontSize: 12, marginTop: 2 },
   heroArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 34, height: 34, borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center',
   },
-
-  // Section title
   sectionTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: 14,
+    fontSize: 10, fontWeight: '800', textTransform: 'uppercase',
+    letterSpacing: 1.2, marginBottom: 12,
   },
-
-  // Grid
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  gridCardBase: {
-    width: '47%',
-    flexGrow: 1,
-    gap: 10,
-  },
-  gridIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gridLabel: { fontSize: 15, fontWeight: '700' },
-  gridDesc: { fontSize: 12, lineHeight: 17 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridCard: { width: '47%', flexGrow: 1, borderRadius: 16, borderWidth: 1, padding: 16, gap: 8 },
+  gridIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  gridLabel: { fontSize: 14, fontWeight: '700' },
+  gridDesc: { fontSize: 11, lineHeight: 16 },
 });

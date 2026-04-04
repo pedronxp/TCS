@@ -8,6 +8,8 @@ import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useConnectivity } from '../../../context/ConnectivityContext';
+import { DashboardGuide } from '../../../components/DashboardGuide';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
@@ -28,6 +30,7 @@ export default function AdminDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
+  const { isOnlineReal } = useConnectivity();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [erro, setErro] = useState(false);
@@ -120,6 +123,7 @@ export default function AdminDashboardScreen() {
         </View>
 
         <View style={styles.headerActions}>
+          <DashboardGuide role="admin" />
           <View>
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
@@ -146,6 +150,16 @@ export default function AdminDashboardScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {!isOnlineReal && (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
+            <Feather name="wifi-off" size={15} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>Modo offline ativo</Text>
+              <Text style={{ color: '#F59E0B', fontSize: 12, marginTop: 2, opacity: 0.85 }}>Dados do painel indisponíveis. Conecte para atualizar estatísticas.</Text>
+            </View>
+          </View>
+        )}
+
         {/* Alerta alto risco */}
         {(kpis[2]?.value || 0) > 0 && (
           <TouchableOpacity
