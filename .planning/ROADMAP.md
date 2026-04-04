@@ -39,6 +39,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 16: Sistema de Rotas** - Botão "Como Chegar" na vistoria abre Google Maps/Apple Maps com GPS → destino (completed 2026-04-03)
 - [x] **Phase 17: Storage + Protocolo + Mensagem Rica** - Upload foto/PDF para Supabase Storage, protocolo sequencial TCS-CGS-2026-00001, mensagem WhatsApp rica, notificação digest laudos (completed 2026-04-03)
 - [x] **Phase 18: Segurança** - RLS audit, rate limiting, token seguro, validação de input, audit log expandido, proteção de sessão (completed 2026-04-03)
+- [x] **Phase 20: Showcase + Onboarding** - Nova tela showcase + onboarding atualizado (completed 2026-04-03) - Nova tela de apresentação do sistema antes do login + atualização do onboarding
 - [x] **Phase 19: Bug Fixes + Melhorias** - Foto wizard, GPS logradouro, agendamento master_admin, NavBar mapa, Laudo visual, Auditoria, Estatísticas, Módulo Grupo, Municípios (completed 2026-04-03)
 
 ### Phase Details
