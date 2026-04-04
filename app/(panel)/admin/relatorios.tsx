@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  ActivityIndicator, RefreshControl, TextInput, Share, Alert, ScrollView
+  ActivityIndicator, RefreshControl, TextInput, ScrollView
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -15,17 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PAGE_SIZE = 50;
 
-function gerarCsv(vistorias: any[]): string {
-  const headers = 'ID,Endereço,Município,Nível Risco,Pontuação,Data,Agente';
-  const rows = vistorias.map(v => {
-    const addr = (v.endereco || `${v.enderecoRua || ''} ${v.enderecoNumero || ''}`).replace(/,/g, ' ');
-    const mun = (v.municipio || '').replace(/,/g, ' ');
-    const agente = (v.agenteNome || '').replace(/,/g, ' ');
-    const data = v.dataVistoria ? new Date(v.dataVistoria).toLocaleDateString('pt-BR') : '';
-    return `${v.id},${addr},${mun},${v.nivelRisco || ''},${v.pontuacaoTotal || ''},${data},${agente}`;
-  });
-  return [headers, ...rows].join('\n');
-}
 
 type FiltroPeriodo = '7d' | '30d' | '90d' | 'todos';
 type FiltroRisco = 'todos' | 'r1' | 'r2' | 'r3' | 'r4';
@@ -130,18 +119,6 @@ export default function RelatoriosScreen() {
 
   useFocusEffect(useCallback(() => { carregar(); }, [periodo, risco]));
 
-  const exportarCsv = async () => {
-    try {
-      const csv = gerarCsv(filtradas);
-      await Share.share({
-        message: csv,
-        title: `Relatório Defesa Civil — ${new Date().toLocaleDateString('pt-BR')}`,
-      });
-    } catch (e) {
-      Alert.alert('Erro', 'Não foi possível exportar o relatório.');
-    }
-  };
-
   const filtradas = useMemo(() => vistorias.filter(v => {
     let match = true;
     if (busca) {
@@ -187,12 +164,6 @@ export default function RelatoriosScreen() {
           <Text style={[styles.title, { color: theme.text }]}>Relatórios</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{filtradas.length} vistoria{filtradas.length !== 1 ? 's' : ''}</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={exportarCsv}
-        >
-          <Feather name="download" size={18} color={theme.primary} />
-        </TouchableOpacity>
       </View>
 
       {/* Stats bar */}
@@ -335,10 +306,6 @@ const styles = StyleSheet.create({
   empty: { borderRadius: 20, borderWidth: 1, padding: 40, alignItems: 'center', marginTop: 20 },
   emptyTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  exportBtn: {
-    width: 40, height: 40, borderRadius: 10, borderWidth: 1,
-    justifyContent: 'center', alignItems: 'center',
-  },
   loadMore: {
     borderRadius: 14, borderWidth: 1, padding: 16,
     alignItems: 'center', marginTop: 8,
