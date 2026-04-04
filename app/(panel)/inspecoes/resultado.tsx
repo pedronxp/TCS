@@ -12,10 +12,13 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
-import { getVistoriaById } from '../../../utils/database';
+import { getVistoriaById, updateLaudoUrl } from '../../../utils/database';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
+import { buildShareMessage } from '../../../utils/shareUtils';
+import { uploadLaudoPdf } from '../../../services/StorageService';
+import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Normaliza dados de qualquer fonte (Supabase camelCase ou SQLite snake_case) */
@@ -30,12 +33,16 @@ function normalizar(v: any): any {
     enderecoNumero: v.enderecoNumero ?? v.endereco_numero ?? '',
     enderecoBairro: v.enderecoBairro ?? v.endereco_bairro ?? '',
     municipio: v.municipio ?? '',
+    municipio_agente: v.municipio_agente ?? null,
     dataVistoria: v.dataVistoria ?? v.data_vistoria ?? v.created_at ?? null,
     agenteNome: v.agenteNome ?? v.agente_nome ?? '—',
     respostasJson: v.respostasJson ?? v.respostas_json ?? '{}',
     formularioId: v.formularioId ?? v.formulario_id ?? 'Padrão',
     responsavelNome: v.responsavelNome ?? v.responsavel_nome ?? '',
     foto_url: v.foto_url ?? v.fotoUrl ?? null,
+    protocolo: v.protocolo ?? null,
+    laudo_url: v.laudo_url ?? null,
+    laudo_gerado_em: v.laudo_gerado_em ?? null,
   };
 }
 
@@ -47,6 +54,7 @@ export default function ResultadoScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
+  const { isConnected } = useConnectivity();
   const { initReport } = useReport();
   const [loading, setLoading] = useState(true);
   const [gerando, setGerando] = useState(false);
@@ -73,7 +81,7 @@ export default function ResultadoScreen() {
     try { respostas = JSON.parse(v.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: v.id || '',
-      protocolo: generateProtocolo(v.id || '', v.dataVistoria, v.municipio),
+      protocolo: v.protocolo || generateProtocolo(v.id || '', v.dataVistoria, v.municipio),
       endereco: v.endereco || '',
       municipio: v.municipio || '',
       agenteNome: nome,
@@ -94,7 +102,7 @@ export default function ResultadoScreen() {
       // 1. Tentar Supabase
       const { data, error } = await supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, foto_url')
+        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, municipio_agente, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, foto_url, protocolo, laudo_url, laudo_gerado_em')
         .eq('id', id)
         .single();
 
@@ -175,11 +183,35 @@ export default function ResultadoScreen() {
     foto_url: vistoria?.foto_url ?? null,
   });
 
+  const salvarLaudoNoStorage = async (uri: string) => {
+    if (!isConnected || !vistoria?.id) return;
+    const municipio = vistoria.municipio || municipioParam || profile?.municipio || 'geral';
+    const laudoUrl = await uploadLaudoPdf(uri, vistoria.id, municipio);
+    if (laudoUrl) {
+      const agora = new Date().toISOString();
+      updateLaudoUrl(vistoria.id, laudoUrl, agora);
+      await supabase
+        .from('vistorias')
+        .update({ laudo_url: laudoUrl, laudo_gerado_em: agora })
+        .eq('id', vistoria.id);
+      setVistoria((prev: any) => prev ? { ...prev, laudo_url: laudoUrl, laudo_gerado_em: agora } : prev);
+    }
+  };
+
+  const laudoExpirado = (): boolean => {
+    if (!vistoria?.laudo_gerado_em) return false;
+    const geradoEm = new Date(vistoria.laudo_gerado_em).getTime();
+    return (Date.now() - geradoEm) / (1000 * 60 * 60 * 24) >= 7;
+  };
+
   const gerarPdf = async () => {
     setGerando(true);
     try {
       const html = await buildLaudoHtml(buildDados());
       const { uri } = await Print.printToFileAsync({ html, base64: false });
+
+      // Upload para Storage em background (não bloqueia share)
+      salvarLaudoNoStorage(uri).catch(() => null);
 
       const disponivel = await Sharing.isAvailableAsync();
       if (disponivel) {
@@ -216,16 +248,30 @@ export default function ResultadoScreen() {
       const html = await buildLaudoHtml(buildDados());
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
+      const protocolo = vistoria?.protocolo || generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria, vistoria?.municipio);
+      const mensagem = buildShareMessage({
+        protocolo,
+        endereco: vistoria?.endereco || 'Endereço não informado',
+        municipio: vistoria?.municipio || municipioParam || '',
+        municipio_agente: vistoria?.municipio_agente ?? null,
+        nivelRisco: vistoria?.nivelRisco || 'r1',
+        agenteNome: vistoria?.agenteNome || profile?.name || 'Agente',
+        dataVistoria: vistoria?.dataVistoria || new Date().toISOString(),
+      });
+
+      // Upload para Storage em background
+      salvarLaudoNoStorage(uri).catch(() => null);
+
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `TCS — ${generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria, vistoria?.municipio)}`,
+          dialogTitle: `TCS — ${protocolo}`,
           UTI: 'com.adobe.pdf',
         });
       } else {
         await Share.share({
-          message: `TCS — Relatório de Risco\n${vistoria?.endereco || 'Endereço não informado'}\nNível de Risco: ${riscoLabel(vistoria?.nivelRisco || 'r1')}`,
+          message: mensagem,
           title: 'TCS — Relatório de Risco',
         });
       }
@@ -308,7 +354,7 @@ export default function ResultadoScreen() {
         <View style={styles.titleSection}>
           <Text style={[styles.title, { color: theme.text }]}>Resultado Final</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {generateProtocolo(id?.toString() || '', vistoria?.dataVistoria, vistoria?.municipio)}
+            {vistoria?.protocolo || generateProtocolo(id?.toString() || '', vistoria?.dataVistoria, vistoria?.municipio)}
           </Text>
         </View>
       </View>
@@ -365,6 +411,47 @@ export default function ResultadoScreen() {
         </TouchableOpacity>
 
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Exportar Laudo</Text>
+
+        {/* Botão Baixar do Storage (se laudo válido) ou Regenerar (se expirado) */}
+        {vistoria?.laudo_url && !laudoExpirado() && (
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: '#10B981' }]}
+            onPress={() => {
+              const { Linking } = require('react-native');
+              Linking.openURL(vistoria.laudo_url);
+            }}
+          >
+            <View style={[styles.exportIcon, { backgroundColor: '#10B981' }]}>
+              <Feather name="download" size={22} color="#FFF" />
+            </View>
+            <View style={styles.exportTextWrap}>
+              <Text style={[styles.exportTitle, { color: theme.text }]}>Baixar Laudo Salvo</Text>
+              <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
+                PDF armazenado (válido por 7 dias)
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {vistoria?.laudo_url && laudoExpirado() && (
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: '#F59E0B' }]}
+            onPress={gerarPdf}
+            disabled={gerando}
+          >
+            <View style={[styles.exportIcon, { backgroundColor: '#F59E0B' }]}>
+              {gerando ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="refresh-cw" size={22} color="#FFF" />}
+            </View>
+            <View style={styles.exportTextWrap}>
+              <Text style={[styles.exportTitle, { color: theme.text }]}>
+                {gerando ? 'Regenerando...' : 'Regenerar Laudo'}
+              </Text>
+              <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
+                Laudo expirado — gerar novamente
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.primary }]}

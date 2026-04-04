@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { countAgendamentosPendentesAgente } from '../../utils/database';
+import { verificarLaudosExpirando } from '../../utils/laudoExpiracaoNotif';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
 import { router } from 'expo-router';
@@ -38,6 +39,8 @@ export default function DashboardScreen() {
     if (profile.role === 'supervisor') { router.replace('/(panel)/supervisor'); return; }
     // For agents: load pending agendamentos badge
     setPendingAgendamentos(countAgendamentosPendentesAgente(profile.uid));
+    // Verificar laudos expirando (digest diário)
+    verificarLaudosExpirando().catch(() => null);
     const now = Date.now();
     if (now - cacheTs.current < CACHE_TTL) return;
     fetchMetrics(profile.uid, profile.role, profile.municipio);

@@ -3,6 +3,8 @@ import * as FileSystem from 'expo-file-system';
 import { logger } from '../utils/logger';
 
 const BUCKET_NAME = 'vistorias';
+const BUCKET_FOTOS = 'fotos';
+const BUCKET_LAUDOS = 'laudos';
 
 /**
  * Faz upload de um arquivo local (file:///) para o Supabase Storage
@@ -40,7 +42,7 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
       type: mimeType,
     } as any);
 
-    logger.info('storage', `Iniciando upload de imagem: ${remotePath}`, { size: fileInfo.size });
+    logger.info('sync', `Iniciando upload de imagem: ${remotePath}`, { size: fileInfo.size });
 
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
@@ -50,7 +52,7 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
       });
 
     if (error) {
-      logger.error('storage', `Falha no upload supabase: ${error.message}`, { path: remotePath });
+      logger.error('sync', `Falha no upload supabase: ${error.message}`, { path: remotePath });
       throw error;
     }
 
@@ -59,12 +61,88 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
       .from(BUCKET_NAME)
       .getPublicUrl(remotePath);
 
-    logger.info('storage', `Upload concluído com sucesso`, { url: publicData.publicUrl });
+    logger.info('sync', `Upload concluído com sucesso`, { url: publicData.publicUrl });
     
     return publicData.publicUrl;
 
   } catch (error: any) {
-    logger.error('storage', `Erro completo no uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
+    logger.error('sync', `Erro completo no uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
     throw error;
+  }
+}
+
+/**
+ * Faz upload da foto de uma vistoria para o bucket `fotos/`.
+ * Retorna a URL pública ou null em caso de falha (não lança exceção).
+ */
+export async function uploadFotoVistoria(
+  localUri: string,
+  vistoriaId: string,
+  municipio: string
+): Promise<string | null> {
+  try {
+    const fileInfo = await FileSystem.getInfoAsync(localUri);
+    if (!fileInfo.exists) return null;
+
+    const remotePath = `${municipio}/${vistoriaId}.jpg`;
+    const formData = new FormData();
+    formData.append('file', {
+      uri: localUri,
+      name: `${vistoriaId}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+
+    const { error } = await supabase.storage
+      .from(BUCKET_FOTOS)
+      .upload(remotePath, formData, { cacheControl: '86400', upsert: true });
+
+    if (error) {
+      logger.warn('sync', `Falha upload foto: ${error.message}`, { remotePath });
+      return null;
+    }
+
+    const { data } = supabase.storage.from(BUCKET_FOTOS).getPublicUrl(remotePath);
+    return data.publicUrl;
+  } catch (e: any) {
+    logger.warn('sync', `Erro upload foto vistoria: ${e?.message}`, { vistoriaId });
+    return null;
+  }
+}
+
+/**
+ * Faz upload do PDF de laudo para o bucket `laudos/`.
+ * Retorna URL signed de 7 dias ou null em caso de falha.
+ */
+export async function uploadLaudoPdf(
+  localUri: string,
+  vistoriaId: string,
+  municipio: string
+): Promise<string | null> {
+  try {
+    const remotePath = `${municipio}/${vistoriaId}.pdf`;
+    const formData = new FormData();
+    formData.append('file', {
+      uri: localUri,
+      name: `${vistoriaId}.pdf`,
+      type: 'application/pdf',
+    } as any);
+
+    const { error } = await supabase.storage
+      .from(BUCKET_LAUDOS)
+      .upload(remotePath, formData, { cacheControl: '3600', upsert: true });
+
+    if (error) {
+      logger.warn('sync', `Falha upload laudo: ${error.message}`, { remotePath });
+      return null;
+    }
+
+    const { data } = await supabase.storage
+      .from(BUCKET_LAUDOS)
+      .createSignedUrl(remotePath, 60 * 60 * 24 * 7);
+
+    return data?.signedUrl ?? null;
+  } catch (e: any) {
+    logger.warn('sync', `Erro upload laudo PDF: ${e?.message}`, { vistoriaId });
+    return null;
   }
 }

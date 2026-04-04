@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -154,6 +154,13 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       `);
     }
 
+    if (currentVersion < 7) {
+      // Storage URLs e município de origem do agente
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN laudo_url TEXT`); } catch { /* já existe */ }
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN laudo_gerado_em TEXT`); } catch { /* já existe */ }
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN municipio_agente TEXT`); } catch { /* já existe */ }
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -183,6 +190,9 @@ export interface VistoriaLocal {
   pontuacao_total: number;
   foto_url: string | null;
   fotos_urls: string | null;    // JSON array de URLs (["url1","url2"])
+  municipio_agente: string | null; // município de origem do agente
+  laudo_url: string | null;     // URL signed do PDF no Storage
+  laudo_gerado_em: string | null; // ISO timestamp da última geração
   sincronizado: number;         // 0 = pendente, 1 = sincronizado
   erro_sync: string | null;
   tentativas_sync: number;      // contador de tentativas falhas
@@ -192,23 +202,24 @@ export interface VistoriaLocal {
 // ─── CRUD ──────────────────────────────────────────────────────────────────
 
 export function insertVistoria(
-  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync'>
+  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em'> & { municipio_agente?: string | null; laudo_url?: string | null; laudo_gerado_em?: string | null }
 ): void {
   const database = getDb();
   database.runSync(
     `INSERT OR REPLACE INTO vistorias_offline (
-      id, agente_uid, agente_nome, municipio,
+      id, agente_uid, agente_nome, municipio, municipio_agente,
       endereco_rua, endereco_numero, endereco_bairro, endereco_cep,
       responsavel_nome, latitude, longitude, data_vistoria,
       formulario_id, formulario_versao, respostas_json,
       nivel_risco, pontuacao_total, foto_url, fotos_urls,
-      sincronizado, criado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
+      laudo_url, laudo_gerado_em, sincronizado, criado_em
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
     [
       vistoria.id,
       vistoria.agente_uid,
       vistoria.agente_nome,
       vistoria.municipio,
+      vistoria.municipio_agente ?? null,
       vistoria.endereco_rua,
       vistoria.endereco_numero,
       vistoria.endereco_bairro,
@@ -224,6 +235,8 @@ export function insertVistoria(
       vistoria.pontuacao_total,
       vistoria.foto_url ?? null,
       null, // fotos_urls — preenchido separadamente pela FotoScreen
+      vistoria.laudo_url ?? null,
+      vistoria.laudo_gerado_em ?? null,
       vistoria.criado_em,
     ]
   );
@@ -273,6 +286,22 @@ export function getVistoriasByMunicipio(municipio: string): VistoriaLocal[] {
   return database.getAllSync<VistoriaLocal>(
     `SELECT * FROM vistorias_offline WHERE municipio = ? ORDER BY criado_em DESC LIMIT 50`,
     [municipio]
+  );
+}
+
+export function updateLaudoUrl(id: string, laudoUrl: string, laudoGeradoEm: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET laudo_url = ?, laudo_gerado_em = ? WHERE id = ?`,
+    [laudoUrl, laudoGeradoEm, id]
+  );
+}
+
+export function updateFotoUrl(id: string, fotoUrl: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET foto_url = ? WHERE id = ?`,
+    [fotoUrl, id]
   );
 }
 

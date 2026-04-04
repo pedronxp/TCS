@@ -13,6 +13,8 @@ import { insertVistoria, markSincronizado } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
+import { uploadFotoVistoria } from '../../../services/StorageService';
+import { updateFotoUrl } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { WizardParams } from '../../../types/vistoria';
@@ -367,11 +369,13 @@ export default function WizardAvaliacaoScreen() {
       const perguntaFoto = perguntas.find(p => p.tipo === 'foto');
       const fotoUri = perguntaFoto ? (respostas[perguntaFoto.id] || null) : null;
 
+      const municipioVistoria = params.municipio || profile?.municipio || '';
       const vistoriaLocal = {
         id,
         agente_uid: profile.uid,
         agente_nome: profile.name || 'Agente',
-        municipio: params.municipio || profile?.municipio || '',
+        municipio: municipioVistoria,
+        municipio_agente: profile?.municipio || null,
         endereco_rua: params.rua || '',
         endereco_numero: params.numero || '',
         endereco_bairro: params.bairro || '',
@@ -386,6 +390,8 @@ export default function WizardAvaliacaoScreen() {
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
         foto_url: fotoUri,
+        laudo_url: null,
+        laudo_gerado_em: null,
         criado_em: agora,
       };
 
@@ -404,11 +410,21 @@ export default function WizardAvaliacaoScreen() {
 
       // 2. Tentar sync imediato se online
       if (isConnected) {
+        // Upload da foto para Storage (não bloqueia o fluxo principal)
+        let fotoStorageUrl: string | null = null;
+        if (fotoUri && fotoUri.startsWith('file://')) {
+          fotoStorageUrl = await uploadFotoVistoria(fotoUri, id, municipioVistoria);
+          if (fotoStorageUrl) {
+            updateFotoUrl(id, fotoStorageUrl);
+          }
+        }
+
         const { error } = await supabase.from('vistorias').upsert({
           id,
           agenteUid: vistoriaLocal.agente_uid,
           agenteNome: vistoriaLocal.agente_nome,
           municipio: vistoriaLocal.municipio,
+          municipio_agente: vistoriaLocal.municipio_agente,
           enderecoRua: vistoriaLocal.endereco_rua,
           enderecoNumero: vistoriaLocal.endereco_numero,
           enderecoBairro: vistoriaLocal.endereco_bairro,
@@ -423,6 +439,7 @@ export default function WizardAvaliacaoScreen() {
           nivelRisco: nivel,
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
+          fotoUrl: fotoStorageUrl ?? fotoUri,
         });
         if (!error) {
           markSincronizado(id);

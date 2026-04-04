@@ -13,6 +13,8 @@ import { useReport } from '../../../context/ReportContext';
 import { riscoLabel, riscoColor, riscoConduta } from '../../../utils/riscoUtils';
 import { parseProtocolo } from '../../../utils/uuid';
 import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
+import { buildShareMessage } from '../../../utils/shareUtils';
+import { useAuth } from '../../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
@@ -165,6 +167,7 @@ export default function RelatorioScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { draft, updateField } = useReport();
+  const { profile } = useAuth();
   const [gerando, setGerando] = useState(false);
 
   // Resolve respostas em textos legíveis agrupados por fase
@@ -243,11 +246,25 @@ export default function RelatorioScreen() {
       };
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const protocolo = draft.protocolo || '';
       const ok = await Sharing.isAvailableAsync();
       if (ok) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'TCS — Relatório de Risco', UTI: 'com.adobe.pdf' });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: protocolo ? `TCS — ${protocolo}` : 'TCS — Relatório de Risco',
+          UTI: 'com.adobe.pdf',
+        });
       } else {
-        Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
+        const { Share } = require('react-native');
+        const mensagem = buildShareMessage({
+          protocolo,
+          endereco: draft.endereco || 'Endereço não informado',
+          municipio: draft.municipio || '',
+          nivelRisco: draft.nivelRisco || 'r1',
+          agenteNome: draft.agenteNome || profile?.name || 'Agente',
+          dataVistoria: draft.dataVistoria || new Date().toISOString(),
+        });
+        await Share.share({ message: mensagem, title: 'TCS — Relatório de Risco' });
       }
     } catch {
       Alert.alert('Erro', 'Não foi possível gerar o PDF.');
