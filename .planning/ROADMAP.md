@@ -38,7 +38,7 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 15: Vistorias Agendadas** - Supervisor/Admin/Master criam agendamentos; Agente visualiza; ícone no header de todas as telas (completed 2026-04-03)
 - [x] **Phase 16: Sistema de Rotas** - Botão "Como Chegar" na vistoria abre Google Maps/Apple Maps com GPS → destino (completed 2026-04-03)
 - [x] **Phase 17: Storage + Protocolo + Mensagem Rica** - Upload foto/PDF para Supabase Storage, protocolo sequencial TCS-CGS-2026-00001, mensagem WhatsApp rica, notificação digest laudos (completed 2026-04-03)
-- [ ] **Phase 18: Segurança** - RLS audit, rate limiting, token seguro, validação de input, audit log expandido, proteção de sessão
+- [x] **Phase 18: Segurança** - RLS audit, rate limiting, token seguro, validação de input, audit log expandido, proteção de sessão (completed 2026-04-03)
 
 ### Phase Details
 
