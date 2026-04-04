@@ -64,16 +64,19 @@ export default function DadosIniciaisScreen() {
       const json = await resp.json();
       const addr = json.address || {};
 
-      // Rua: priority order
-      const rua = addr.road || addr.pedestrian || addr.footway || addr.path || '';
-      // Bairro: tenta em ordem de especificidade para BR
-      // Nominatim BR: o campo correto geralmente é city_district ou suburb
+      // Rua: rejeitar valores genéricos que o Nominatim retorna no Brasil
+      // (ex: "Logradouro", "Rua", "Avenida" sem nome real)
+      const TERMOS_INVALIDOS_RUA = ['logradouro', 'rua', 'avenida', 'via', 'estrada', 'travessa', 'alameda', 'viela'];
+      const ruaCandidata = addr.road || addr.pedestrian || addr.footway || addr.path || '';
+      const rua = TERMOS_INVALIDOS_RUA.includes(ruaCandidata.toLowerCase().trim()) ? '' : ruaCandidata;
+
+      // Bairro: suburb é o campo mais preciso para bairros BR no Nominatim
       const bairro =
-        addr['city_district'] ||
-        addr['district'] ||
+        addr['suburb'] ||
         addr['neighbourhood'] ||
         addr['quarter'] ||
-        addr['suburb'] ||
+        addr['city_district'] ||
+        addr['district'] ||
         addr['hamlet'] ||
         addr['village'] ||
         '';

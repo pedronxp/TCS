@@ -187,7 +187,10 @@ export default function EstatisticasScreen() {
                 <View style={[styles.riskBarBg, { backgroundColor: theme.iconBackground }]}>
                   <View style={[styles.riskBarFill, { width: `${pct}%`, backgroundColor: item.color }]} />
                 </View>
-                <Text style={[styles.riskCount, { color: item.color }]}>{item.value}</Text>
+                <Text style={[styles.riskCount, { color: item.color }]}>
+                  {item.value}
+                  <Text style={{ fontSize: 10, fontWeight: '600' }}> ({pct.toFixed(0)}%)</Text>
+                </Text>
               </View>
             );
           })}
@@ -218,6 +221,32 @@ export default function EstatisticasScreen() {
             ))}
           </View>
         </View>
+
+        {/* Resumo de agentes */}
+        {rankingAgentes.length > 0 && (
+          <View style={[styles.mediaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <View style={styles.mediaItem}>
+              <Text style={[styles.mediaValue, { color: theme.primary }]}>
+                {rankingAgentes.length}
+              </Text>
+              <Text style={[styles.mediaLabel, { color: theme.textSecondary }]}>Agentes ativos</Text>
+            </View>
+            <View style={[styles.mediaDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.mediaItem}>
+              <Text style={[styles.mediaValue, { color: theme.primary }]}>
+                {rankingAgentes.length > 0 ? (total / rankingAgentes.length).toFixed(1) : '0'}
+              </Text>
+              <Text style={[styles.mediaLabel, { color: theme.textSecondary }]}>Média por agente</Text>
+            </View>
+            <View style={[styles.mediaDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.mediaItem}>
+              <Text style={[styles.mediaValue, { color: rankingAgentes[0] ? theme.primary : theme.textSecondary }]}>
+                {rankingAgentes[0]?.count ?? 0}
+              </Text>
+              <Text style={[styles.mediaLabel, { color: theme.textSecondary }]}>Recorde do período</Text>
+            </View>
+          </View>
+        )}
 
         {/* Ranking agentes */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Top Agentes</Text>
@@ -300,4 +329,12 @@ const styles = StyleSheet.create({
   rankCount: { fontSize: 13, fontWeight: '700' },
   emptyCard: { borderRadius: 14, borderWidth: 1, padding: 30, alignItems: 'center' },
   emptyText: { fontSize: 14, fontWeight: '600' },
+  mediaCard: {
+    borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 24,
+    flexDirection: 'row', alignItems: 'center',
+  },
+  mediaItem: { flex: 1, alignItems: 'center', gap: 4 },
+  mediaValue: { fontSize: 22, fontWeight: '900' },
+  mediaLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+  mediaDivider: { width: 1, height: 40, marginHorizontal: 8 },
 });

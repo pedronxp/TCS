@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
@@ -343,7 +344,17 @@ export default function WizardAvaliacaoScreen() {
       allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
-      setResposta(perguntaId, result.assets[0].uri);
+      // Copiar para documentDirectory para garantir URI persistente entre ciclos de atividade
+      try {
+        const fotoDir = (FileSystem.documentDirectory ?? '') + 'fotos/';
+        await FileSystem.makeDirectoryAsync(fotoDir, { intermediates: true });
+        const destino = fotoDir + `foto_${Date.now()}.jpg`;
+        await FileSystem.copyAsync({ from: result.assets[0].uri, to: destino });
+        setResposta(perguntaId, destino);
+      } catch {
+        // Fallback: usar URI temporária original
+        setResposta(perguntaId, result.assets[0].uri);
+      }
     }
   };
 

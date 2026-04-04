@@ -27,6 +27,7 @@ export default function LaudoScreen() {
   const [vistoria, setVistoria] = useState<any>(null);
 
   const [showTermoModal, setShowTermoModal] = useState(false);
+  const [termoNomeErro, setTermoNomeErro] = useState(false);
   const [termoForm, setTermoForm] = useState({
     nomeNotificado: '',
     cpfNotificado: '',
@@ -122,11 +123,13 @@ export default function LaudoScreen() {
   const gerarTermoInterdicao = async () => {
     if (!vistoria) return;
     if (!termoForm.nomeNotificado.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
+      setTermoNomeErro(true);
       return;
     }
-    setGerando(true);
+    setTermoNomeErro(false);
     setShowTermoModal(false);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    setGerando(true);
     try {
       const laudoData = {
         id: vistoria.id || '',
@@ -247,26 +250,45 @@ export default function LaudoScreen() {
           ))}
         </View>
 
-        {/* Respostas */}
+        {/* Respostas do Formulário */}
         {vistoria.respostasJson && (() => {
           try {
             const r = typeof vistoria.respostasJson === 'string'
               ? JSON.parse(vistoria.respostasJson) : vistoria.respostasJson;
-            const entries = Object.entries(r);
+            const entries = Object.entries(r).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '');
             if (entries.length === 0) return null;
             return (
               <>
-                <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Respostas do Formulário</Text>
-                <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-                  {entries.map(([k, v], i) => (
-                    <View key={k} style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}>
+                <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Itens Vistoriados</Text>
+                {entries.map(([k, v], i) => {
+                  const valor = String(v);
+                  const isRisco = ['r1', 'r2', 'r3', 'r4', 'alto', 'médio', 'baixo', 'iminente'].includes(valor.toLowerCase());
+                  const riscoColors: Record<string, string> = {
+                    r1: '#10B981', r2: '#F59E0B', r3: '#F97316', r4: '#EF4444',
+                    baixo: '#10B981', médio: '#F59E0B', alto: '#EF4444', iminente: '#EF4444',
+                  };
+                  const rCor = riscoColors[valor.toLowerCase()];
+                  return (
+                    <View
+                      key={k}
+                      style={[styles.respostaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                    >
+                      <View style={styles.respostaNumero}>
+                        <Text style={[styles.respostaNumeroText, { color: theme.textSecondary }]}>{i + 1}</Text>
+                      </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>{k}</Text>
-                        <Text style={[styles.rowValue, { color: theme.text }]}>{String(v)}</Text>
+                        <Text style={[styles.respostaPergunta, { color: theme.textSecondary }]} numberOfLines={3}>{k}</Text>
+                        {isRisco && rCor ? (
+                          <View style={[styles.respostaBadge, { backgroundColor: `${rCor}18` }]}>
+                            <Text style={[styles.respostaBadgeText, { color: rCor }]}>{valor.toUpperCase()}</Text>
+                          </View>
+                        ) : (
+                          <Text style={[styles.respostaValor, { color: theme.text }]}>{valor}</Text>
+                        )}
                       </View>
                     </View>
-                  ))}
-                </View>
+                  );
+                })}
               </>
             );
           } catch { return null; }
@@ -319,12 +341,17 @@ export default function LaudoScreen() {
               <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? '#EF4444' : theme.border, color: theme.text }]}
                   placeholder="Nome completo"
                   placeholderTextColor={theme.textSecondary}
                   value={termoForm.nomeNotificado}
-                  onChangeText={t => setTermoForm(f => ({ ...f, nomeNotificado: t }))}
+                  onChangeText={t => { setTermoForm(f => ({ ...f, nomeNotificado: t })); setTermoNomeErro(false); }}
                 />
+                {termoNomeErro && (
+                  <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 }}>
+                    Campo obrigatório
+                  </Text>
+                )}
 
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>CPF</Text>
                 <TextInput
@@ -465,6 +492,19 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', padding: 14 },
   rowLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   rowValue: { fontSize: 15, fontWeight: '600' },
+  respostaCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 8,
+  },
+  respostaNumero: {
+    width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(100,100,100,0.1)',
+  },
+  respostaNumeroText: { fontSize: 12, fontWeight: '800' },
+  respostaPergunta: { fontSize: 12, fontWeight: '600', marginBottom: 6, lineHeight: 17 },
+  respostaValor: { fontSize: 14, fontWeight: '700' },
+  respostaBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  respostaBadgeText: { fontSize: 12, fontWeight: '800' },
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 12, height: 60, borderRadius: 18, marginTop: 8,

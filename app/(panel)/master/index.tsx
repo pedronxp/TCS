@@ -161,7 +161,7 @@ export default function MasterDashboardScreen() {
         {(stats.totalVistorias > 0) && (
           <View style={[styles.riskDistributionCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={[styles.riskCardTitle, { color: theme.text }]}>Severidade Global</Text>
+              <Text style={[styles.riskCardTitle, { color: theme.text }]}>Distribuição de Risco</Text>
               <Text style={[styles.riskCardSubtitle, { color: theme.textSecondary }]}>{stats.totalVistorias} laudos</Text>
             </View>
             <View style={styles.riskBarContainer}>
@@ -175,11 +175,11 @@ export default function MasterDashboardScreen() {
             <View style={styles.riskLegend}>
               <View style={styles.riskLegendItem}>
                 <View style={[styles.riskDot, { backgroundColor: '#EF4444' }]} />
-                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Alto ({stats.altoRisco})</Text>
+                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>R3/R4 Alto ({stats.altoRisco})</Text>
               </View>
               <View style={styles.riskLegendItem}>
                 <View style={[styles.riskDot, { backgroundColor: theme.border }]} />
-                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Moderado/Baixo ({stats.totalVistorias - stats.altoRisco})</Text>
+                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>R1/R2 Controlado ({stats.totalVistorias - stats.altoRisco})</Text>
               </View>
             </View>
           </View>
@@ -206,25 +206,40 @@ export default function MasterDashboardScreen() {
         })}
 
         {/* Recentes do Sistema */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 12 }]}>Eventos Recentes do Sistema</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 12 }]}>Atividade Recente</Text>
         {recentLogs.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Sem logs recentes.</Text>
           </View>
         ) : (
-          recentLogs.map((lg) => (
-            <View key={lg.id} style={[styles.logCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-              <View style={[styles.logIcon, { backgroundColor: `${theme.primary}15` }]}>
-                <Feather name="activity" size={16} color={theme.primary} />
+          recentLogs.map((lg) => {
+            const acaoIconMap: Record<string, { icon: string; color: string; label: string }> = {
+              usuario_aprovado:     { icon: 'user-check',   color: '#10B981', label: 'Usuário aprovado' },
+              usuario_bloqueado:    { icon: 'user-x',       color: '#EF4444', label: 'Usuário bloqueado' },
+              token_gerado:         { icon: 'key',          color: '#8B5CF6', label: 'Token gerado' },
+              token_revogado:       { icon: 'x-circle',     color: '#F59E0B', label: 'Token revogado' },
+              formulario_publicado: { icon: 'upload',       color: '#3B82F6', label: 'Formulário publicado' },
+              vistoria_criada:      { icon: 'clipboard',    color: '#06B6D4', label: 'Vistoria criada' },
+              laudo_gerado:         { icon: 'file-text',    color: '#10B981', label: 'Laudo gerado' },
+              sync_sucesso:         { icon: 'upload-cloud', color: '#10B981', label: 'Sync realizado' },
+              sync_falha:           { icon: 'cloud-off',    color: '#EF4444', label: 'Falha de sync' },
+              login_falhou:         { icon: 'alert-circle', color: '#EF4444', label: 'Login falhou' },
+            };
+            const cfg = acaoIconMap[lg.acao] ?? { icon: 'activity', color: theme.primary, label: lg.acao };
+            return (
+              <View key={lg.id} style={[styles.logCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                <View style={[styles.logIcon, { backgroundColor: `${cfg.color}15` }]}>
+                  <Feather name={cfg.icon as any} size={16} color={cfg.color} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.logAcao, { color: theme.text }]}>{cfg.label}</Text>
+                  <Text style={[styles.logMeta, { color: theme.textSecondary }]}>
+                    {lg.municipio === '*' ? 'Sistema Global' : lg.municipio} • {tempoRelativo(lg.created_at)}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.logAcao, { color: theme.text }]}>{lg.acao}</Text>
-                <Text style={[styles.logMeta, { color: theme.textSecondary }]}>
-                  {lg.municipio === '*' ? 'Sistema Global' : lg.municipio} • {tempoRelativo(lg.created_at)}
-                </Text>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
 

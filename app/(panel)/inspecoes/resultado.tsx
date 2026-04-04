@@ -64,6 +64,7 @@ export default function ResultadoScreen() {
 
   // Modal Termo de Interdição
   const [showTermoModal, setShowTermoModal] = useState(false);
+  const [termoNomeErro, setTermoNomeErro] = useState(false);
   const [termoForm, setTermoForm] = useState<TermoInterdicaoData>({
     nomeNotificado: '',
     cpfNotificado: '',
@@ -316,11 +317,15 @@ export default function ResultadoScreen() {
   /** Gera o Termo de Interdição */
   const gerarTermoInterdicao = async () => {
     if (!termoForm.nomeNotificado.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
+      // Não usar Alert dentro de Modal no Android — usar estado inline
+      setTermoNomeErro(true);
       return;
     }
-    setGerando(true);
+    setTermoNomeErro(false);
     setShowTermoModal(false);
+    // Aguardar modal fechar antes de iniciar a geração
+    await new Promise(resolve => setTimeout(resolve, 300));
+    setGerando(true);
     try {
       const html = buildTermoInterdicaoHtml(buildDados(), termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -572,12 +577,17 @@ export default function ResultadoScreen() {
               <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? '#EF4444' : theme.border, color: theme.text }]}
                   placeholder="Nome completo"
                   placeholderTextColor={theme.textSecondary}
                   value={termoForm.nomeNotificado}
-                  onChangeText={t => setTermoForm(f => ({ ...f, nomeNotificado: t }))}
+                  onChangeText={t => { setTermoForm(f => ({ ...f, nomeNotificado: t })); setTermoNomeErro(false); }}
                 />
+                {termoNomeErro && (
+                  <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 }}>
+                    Campo obrigatório
+                  </Text>
+                )}
 
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>CPF</Text>
                 <TextInput

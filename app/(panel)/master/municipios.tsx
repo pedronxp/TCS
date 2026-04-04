@@ -373,6 +373,21 @@ export default function MunicipiosScreen() {
                       <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Agentes</Text>
                     </View>
                   </View>
+                  {m.totalVistorias > 0 && (
+                    <View style={styles.riskBarWrap}>
+                      <View style={[styles.riskBarBg, { backgroundColor: `${theme.border}` }]}>
+                        <View
+                          style={[
+                            styles.riskBarFill,
+                            { width: `${Math.round((m.altoRisco / m.totalVistorias) * 100)}%` },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.riskBarLabel, { color: theme.textSecondary }]}>
+                        {Math.round((m.altoRisco / m.totalVistorias) * 100)}% alto risco
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
 
                 {expanded && (
@@ -505,4 +520,8 @@ const styles = StyleSheet.create({
   },
   emptyCard: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: 'center' },
   emptyText: { fontSize: 14, fontWeight: '600' },
+  riskBarWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  riskBarBg: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
+  riskBarFill: { height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  riskBarLabel: { fontSize: 11, fontWeight: '600', minWidth: 80, textAlign: 'right' },
 });
