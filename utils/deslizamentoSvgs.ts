@@ -1,149 +1,187 @@
 /**
  * utils/deslizamentoSvgs.ts
- * Catálogo de SVG inline para as opções Q5–Q10 do formulário Vistoria de Risco de Deslizamento.
+ * Catálogo de SVGs inline para formulários de vistoria.
  * Usado pelo wizard.tsx via SvgXml do react-native-svg.
+ *
+ * Prefixos:
+ *   desl2_*  — Vistoria de Risco de Deslizamento v2
+ *   est_*    — Avaliação de Risco Estrutural
  */
 export const DESL_SVGS: Record<string, string> = {
 
-  /* ── Q5: Trincas ─────────────────────────────────────────────────── */
-  desl_trincas_nao: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#E8F5E9" rx="8"/>
-    <rect x="0" y="55" width="80" height="25" fill="#6D4C41"/>
-    <rect x="0" y="48" width="80" height="9" fill="#8BC34A"/>
-    <circle cx="60" cy="18" r="12" fill="#4CAF50"/>
-    <path d="M53,18 L57,22 L67,12" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="22" y="44" text-anchor="middle" font-size="7" fill="#2E7D32" font-weight="600">Sem trincas</text>
-  </svg>`,
+  /* ── DESLIZAMENTO v2 — Q1: Caracterização do local ──────────────────────── */
 
-  desl_trincas_sim: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFEBEE" rx="8"/>
-    <rect x="0" y="55" width="80" height="25" fill="#6D4C41"/>
-    <rect x="0" y="48" width="80" height="9" fill="#8BC34A"/>
-    <path d="M30,48 L36,54 L28,60 L34,66 L40,56 L36,50 L44,48" stroke="#B71C1C" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="60" cy="18" r="12" fill="#EF4444"/>
-    <path d="M54,12 L66,24 M66,12 L54,24" stroke="white" stroke-width="3" stroke-linecap="round"/>
-    <text x="14" y="44" text-anchor="middle" font-size="7" fill="#B71C1C" font-weight="600">Trincas</text>
-  </svg>`,
+  desl2_q1_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky1)" rx="8"/><path d="M0 75 Q25 30 50 45 Q75 60 100 40 L100 100 L0 100 Z" fill="#4CAF50"/><rect x="18" y="52" width="4" height="10" fill="#5D4037"/><polygon points="20,35 13,55 27,55" fill="#1B5E20"/><rect x="68" y="48" width="4" height="10" fill="#5D4037"/><polygon points="70,32 63,51 77,51" fill="#1B5E20"/><circle cx="82" cy="18" r="8" fill="#FDD835"/></svg>`,
 
-  /* ── Q6: Degraus de abatimento ────────────────────────────────────── */
-  desl_degraus_nao: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#E8F5E9" rx="8"/>
-    <path d="M0,72 Q40,32 80,22 L80,80 L0,80 Z" fill="#6D4C41"/>
-    <path d="M0,70 Q40,30 80,20" stroke="#8BC34A" stroke-width="4" fill="none" stroke-linecap="round"/>
-    <circle cx="60" cy="14" r="10" fill="#4CAF50"/>
-    <path d="M54,14 L58,18 L66,8" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  </svg>`,
+  desl2_q1_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#B0BEC5"/><stop offset="1" stop-color="#ECEFF1"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky2)" rx="8"/><path d="M5 85 L30 55 L70 55 L95 85 Z" fill="#8D6E63"/><path d="M10 85 L32 60 L68 60 L90 85 Z" fill="#A1887F"/><path d="M15 85 L34 65 L66 65 L85 85 Z" fill="#BCAAA4"/><rect x="0" y="85" width="100" height="15" fill="#6D4C41"/><path d="M50 20 L50 45" stroke="#F57F17" stroke-width="3" stroke-linecap="round"/><polygon points="50,50 44,38 56,38" fill="#F57F17"/><rect x="60" y="38" width="28" height="14" fill="#455A64" rx="2"/></svg>`,
 
-  desl_degraus_sim: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFEBEE" rx="8"/>
-    <path d="M5,78 L5,62 L22,62 L22,50 L42,50 L42,38 L62,38 L62,26 L75,26 L75,80 L5,80 Z" fill="#6D4C41"/>
-    <path d="M5,62 L22,62 L22,50 L42,50 L42,38 L62,38 L62,26 L75,26" stroke="#EF4444" stroke-width="2" fill="none"/>
-    <circle cx="60" cy="14" r="10" fill="#EF4444"/>
-    <path d="M54,8 L66,20 M66,8 L54,20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  </svg>`,
+  /* ── DESLIZAMENTO v2 — Q2: Inclinação da encosta ────────────────────────── */
 
-  /* ── Q7: Inclinação de estruturas ─────────────────────────────────── */
-  desl_incl_est_nao: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#E8F5E9" rx="8"/>
-    <rect x="0" y="65" width="80" height="15" fill="#6D4C41"/>
-    <rect x="37" y="14" width="6" height="53" fill="#78909C" rx="2"/>
-    <circle cx="40" cy="10" r="5" fill="#546E7A"/>
-    <line x1="10" y1="65" x2="70" y2="65" stroke="#8BC34A" stroke-width="2"/>
-    <circle cx="62" cy="14" r="10" fill="#4CAF50"/>
-    <path d="M56,14 L60,18 L68,8" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  </svg>`,
+  desl2_q2_a: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/><rect x="0" y="80" width="100" height="20" fill="#8D6E63"/><line x1="10" y1="80" x2="90" y2="80" stroke="#22C55E" stroke-width="3" stroke-linecap="round"/><text x="50" y="72" font-size="11" fill="#22C55E" font-weight="bold" text-anchor="middle">10°</text></svg>`,
 
-  desl_incl_est_sim: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFEBEE" rx="8"/>
-    <rect x="0" y="65" width="80" height="15" fill="#6D4C41"/>
-    <rect x="28" y="10" width="6" height="54" fill="#78909C" rx="2" transform="rotate(18 31 65)"/>
-    <line x1="10" y1="65" x2="70" y2="65" stroke="#BDBDBD" stroke-width="2"/>
-    <circle cx="62" cy="14" r="10" fill="#EF4444"/>
-    <path d="M56,8 L68,20 M68,8 L56,20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  </svg>`,
+  desl2_q2_b: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/><rect x="0" y="80" width="100" height="20" fill="#8D6E63"/><line x1="10" y1="80" x2="85" y2="50" stroke="#84CC16" stroke-width="3" stroke-linecap="round"/><text x="50" y="72" font-size="11" fill="#84CC16" font-weight="bold" text-anchor="middle">17°</text></svg>`,
 
-  /* ── Q8: Muros embarrigados ───────────────────────────────────────── */
-  desl_muros_nao: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#E8F5E9" rx="8"/>
-    <rect x="0" y="65" width="80" height="15" fill="#6D4C41"/>
-    <rect x="12" y="18" width="18" height="48" fill="#CFD8DC" rx="2"/>
-    <line x1="12" y1="28" x2="30" y2="28" stroke="#90A4AE" stroke-width="1"/>
-    <line x1="12" y1="38" x2="30" y2="38" stroke="#90A4AE" stroke-width="1"/>
-    <line x1="12" y1="48" x2="30" y2="48" stroke="#90A4AE" stroke-width="1"/>
-    <line x1="12" y1="58" x2="30" y2="58" stroke="#90A4AE" stroke-width="1"/>
-    <line x1="21" y1="18" x2="21" y2="65" stroke="#90A4AE" stroke-width="0.5" stroke-dasharray="3,2"/>
-    <circle cx="62" cy="18" r="10" fill="#4CAF50"/>
-    <path d="M56,18 L60,22 L68,12" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  </svg>`,
+  desl2_q2_c: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/><rect x="0" y="80" width="100" height="20" fill="#8D6E63"/><line x1="10" y1="80" x2="80" y2="30" stroke="#F59E0B" stroke-width="3" stroke-linecap="round"/><text x="50" y="72" font-size="11" fill="#F59E0B" font-weight="bold" text-anchor="middle">30°</text></svg>`,
 
-  desl_muros_sim: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFEBEE" rx="8"/>
-    <rect x="0" y="65" width="80" height="15" fill="#6D4C41"/>
-    <path d="M12,18 C12,28 34,36 34,42 C34,48 12,56 12,65" stroke="#90A4AE" stroke-width="16" fill="none" stroke-linecap="butt"/>
-    <path d="M12,18 C12,28 34,36 34,42 C34,48 12,56 12,65" stroke="#CFD8DC" stroke-width="14" fill="none" stroke-linecap="butt"/>
-    <path d="M34,42 L46,42" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M43,38 L48,42 L43,46" stroke="#EF4444" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="62" cy="18" r="10" fill="#EF4444"/>
-    <path d="M56,12 L68,24 M68,12 L56,24" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  </svg>`,
+  desl2_q2_d: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/><rect x="0" y="80" width="100" height="20" fill="#8D6E63"/><line x1="10" y1="80" x2="70" y2="10" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><text x="50" y="72" font-size="11" fill="#EF4444" font-weight="bold" text-anchor="middle">60°</text></svg>`,
 
-  /* ── Q9: Trinca de escorregamento próxima ─────────────────────────── */
-  desl_escorr_sem_risco: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#E8F5E9" rx="8"/>
-    <path d="M0,78 Q25,42 50,52 Q75,62 80,48 L80,80 L0,80 Z" fill="#6D4C41"/>
-    <path d="M0,75 Q25,38 50,48 Q75,58 80,44" stroke="#8BC34A" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <rect x="22" y="46" width="3" height="10" fill="#5D4037"/>
-    <polygon points="23.5,30 17,46 30,46" fill="#2E7D32"/>
-    <circle cx="62" cy="14" r="12" fill="#4CAF50"/>
-    <path d="M55,14 L59,18 L69,8" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`,
+  desl2_q2_e: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/><rect x="0" y="80" width="100" height="20" fill="#8D6E63"/><line x1="50" y1="80" x2="50" y2="10" stroke="#7F1D1D" stroke-width="3" stroke-linecap="round"/><text x="50" y="72" font-size="11" fill="#7F1D1D" font-weight="bold" text-anchor="middle">90°</text></svg>`,
 
-  desl_escorr_esperado: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFF8E1" rx="8"/>
-    <path d="M0,78 Q25,42 50,52 Q75,62 80,48 L80,80 L0,80 Z" fill="#6D4C41"/>
-    <path d="M0,75 Q25,38 50,48 Q75,58 80,44" stroke="#F59E0B" stroke-width="2.5" fill="none" stroke-dasharray="5,3" stroke-linecap="round"/>
-    <path d="M32,62 L38,50 L30,44" stroke="#F59E0B" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M50,55 L56,46" stroke="#F59E0B" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <polygon points="62,4 74,24 50,24" fill="#F59E0B"/>
-    <text x="62" y="21" font-size="13" fill="white" font-weight="bold" text-anchor="middle">!</text>
-  </svg>`,
+  /* ── DESLIZAMENTO v2 — Q3: Drenagem superficial ─────────────────────────── */
 
-  desl_escorr_ocorrido: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFEBEE" rx="8"/>
-    <path d="M0,78 Q25,42 50,52 Q75,62 80,48 L80,80 L0,80 Z" fill="#6D4C41"/>
-    <path d="M32,46 Q48,62 52,73 Q40,67 26,74 Q16,69 32,46 Z" fill="#8D6E63" opacity="0.85"/>
-    <path d="M18,56 Q32,64 36,74 Q26,72 16,73 Z" fill="#795548" opacity="0.75"/>
-    <circle cx="62" cy="14" r="12" fill="#EF4444"/>
-    <path d="M55,8 L69,20 M69,8 L55,20" stroke="white" stroke-width="3" stroke-linecap="round"/>
-  </svg>`,
+  desl2_q3_a: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E3F2FD" rx="8"/><rect x="0" y="70" width="100" height="30" fill="#8D6E63"/><path d="M10 70 Q50 60 90 70" fill="none" stroke="#1565C0" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="50" r="4" fill="#42A5F5"/><path d="M50 50 L50 60" stroke="#1565C0" stroke-width="2" stroke-linecap="round"/><circle cx="80" cy="20" r="12" fill="#22C55E"/><path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
 
-  /* ── Q10: Processos de instabilização ─────────────────────────────── */
-  desl_instab_sem_risco: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#E8F5E9" rx="8"/>
-    <path d="M0,78 L38,28 L80,48 L80,80 L0,80 Z" fill="#4CAF50" opacity="0.35"/>
-    <path d="M0,76 L38,26 L80,46" stroke="#2E7D32" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-    <rect x="34" y="44" width="3" height="10" fill="#5D4037"/>
-    <polygon points="35.5,28 29,44 42,44" fill="#1B5E20"/>
-    <circle cx="62" cy="14" r="12" fill="#4CAF50"/>
-    <path d="M55,14 L59,18 L69,8" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`,
+  desl2_q3_b: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><rect x="0" y="70" width="100" height="30" fill="#8D6E63"/><path d="M10 70 Q50 60 90 70" fill="none" stroke="#F59E0B" stroke-width="4" stroke-linecap="round" stroke-dasharray="6,3"/><ellipse cx="50" cy="68" rx="20" ry="6" fill="#42A5F5" opacity="0.6"/><polygon points="80,8 92,28 68,28" fill="#F59E0B"/><text x="80" y="24" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
 
-  desl_instab_esperado: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFF8E1" rx="8"/>
-    <path d="M0,78 L38,32 L80,52 L80,80 L0,80 Z" fill="#F59E0B" opacity="0.25"/>
-    <path d="M0,76 L38,30 L80,50" stroke="#F59E0B" stroke-width="2.5" fill="none" stroke-dasharray="5,3" stroke-linecap="round"/>
-    <path d="M36,46 L42,34 L34,26" stroke="#F59E0B" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M54,54 L60,44" stroke="#F59E0B" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <polygon points="62,4 74,24 50,24" fill="#F59E0B"/>
-    <text x="62" y="21" font-size="13" fill="white" font-weight="bold" text-anchor="middle">!</text>
-  </svg>`,
+  desl2_q3_c: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><rect x="0" y="70" width="100" height="30" fill="#8D6E63"/><ellipse cx="50" cy="68" rx="40" ry="10" fill="#1565C0" opacity="0.7"/><circle cx="80" cy="20" r="12" fill="#EF4444"/><line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
 
-  desl_instab_ocorrido: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" fill="#FFEBEE" rx="8"/>
-    <path d="M0,80 L0,58 L18,38 L48,32 L80,46 L80,80 Z" fill="#6D4C41"/>
-    <path d="M14,54 Q34,70 54,64 Q58,78 28,80 Z" fill="#8D6E63" opacity="0.9"/>
-    <path d="M4,66 L18,40 L48,34" stroke="#B71C1C" stroke-width="2" fill="none" stroke-dasharray="4,2" stroke-linecap="round"/>
-    <circle cx="62" cy="14" r="12" fill="#EF4444"/>
-    <path d="M55,8 L69,20 M69,8 L55,20" stroke="white" stroke-width="3" stroke-linecap="round"/>
-  </svg>`,
+  /* ── DESLIZAMENTO v2 — Q4: Vegetação no talude ──────────────────────────── */
+
+  desl2_q4_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky4a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky4a)" rx="8"/><rect x="0" y="75" width="100" height="25" fill="#8D6E63"/><rect x="15" y="55" width="4" height="20" fill="#5D4037"/><polygon points="17,35 5,55 29,55" fill="#1B5E20"/><polygon points="17,45 8,60 26,60" fill="#2E7D32"/><rect x="50" y="50" width="5" height="25" fill="#5D4037"/><polygon points="52.5,25 38,50 67,50" fill="#1B5E20"/><polygon points="52.5,38 40,58 65,58" fill="#2E7D32"/><rect x="78" y="58" width="4" height="17" fill="#5D4037"/><polygon points="80,40 70,58 90,58" fill="#1B5E20"/><polygon points="80,50 72,62 88,62" fill="#2E7D32"/><circle cx="85" cy="15" r="6" fill="#FDD835"/></svg>`,
+
+  desl2_q4_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky4b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky4b)" rx="8"/><rect x="0" y="70" width="100" height="30" fill="#8D6E63"/><ellipse cx="20" cy="68" rx="12" ry="8" fill="#4CAF50"/><ellipse cx="45" cy="70" rx="15" ry="6" fill="#4CAF50"/><ellipse cx="70" cy="68" rx="14" ry="7" fill="#4CAF50"/><ellipse cx="88" cy="70" rx="10" ry="6" fill="#4CAF50"/><circle cx="85" cy="20" r="6" fill="#FDD835"/></svg>`,
+
+  desl2_q4_c: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky4c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky4c)" rx="8"/><rect x="0" y="65" width="100" height="35" fill="#A1887F"/><ellipse cx="25" cy="75" rx="8" ry="6" fill="#8D6E63"/><ellipse cx="55" cy="80" rx="10" ry="7" fill="#8D6E63"/><ellipse cx="80" cy="73" rx="9" ry="5" fill="#8D6E63"/><line x1="10" y1="65" x2="30" y2="85" stroke="#6D4C41" stroke-width="1"/><line x1="40" y1="65" x2="60" y2="90" stroke="#6D4C41" stroke-width="1"/><line x1="70" y1="65" x2="85" y2="80" stroke="#6D4C41" stroke-width="1"/><circle cx="85" cy="20" r="6" fill="#FDD835"/></svg>`,
+
+  desl2_q4_d: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky4d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky4d)" rx="8"/><rect x="0" y="70" width="100" height="30" fill="#8B7355"/><line x1="0" y1="72" x2="100" y2="72" stroke="#7CB342" stroke-width="2"/><line x1="0" y1="78" x2="100" y2="78" stroke="#7CB342" stroke-width="2"/><line x1="0" y1="84" x2="100" y2="84" stroke="#7CB342" stroke-width="2"/><line x1="0" y1="90" x2="100" y2="90" stroke="#7CB342" stroke-width="2"/><circle cx="15" cy="75" r="3" fill="#558B2F"/><circle cx="35" cy="81" r="3" fill="#558B2F"/><circle cx="55" cy="75" r="3" fill="#558B2F"/><circle cx="75" cy="87" r="3" fill="#558B2F"/><circle cx="90" cy="81" r="3" fill="#558B2F"/><circle cx="85" cy="20" r="6" fill="#FDD835"/></svg>`,
+
+  /* ── DESLIZAMENTO v2 — Q5: Trincas ──────────────────────────────────────── */
+
+  desl2_q5_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky5n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky5n)" rx="8"/><rect x="0" y="70" width="100" height="30" fill="#A1887F"/><circle cx="80" cy="20" r="12" fill="#22C55E"/><path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  desl2_q5_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky5s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky5s)" rx="8"/><rect x="0" y="70" width="100" height="30" fill="#A1887F"/><path d="M15 75 Q20 80 25 75" fill="none" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><path d="M35 72 Q42 85 48 75" fill="none" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><path d="M60 75 Q68 82 75 75" fill="none" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><circle cx="80" cy="20" r="12" fill="#EF4444"/><line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── DESLIZAMENTO v2 — Q6: Degraus de abatimento ────────────────────────── */
+
+  desl2_q6_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky6n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky6n)" rx="8"/><path d="M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z" fill="#8D6E63"/><circle cx="80" cy="20" r="12" fill="#22C55E"/><path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  desl2_q6_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky6s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky6s)" rx="8"/><rect x="10" y="50" width="80" height="8" fill="#A1887F"/><rect x="10" y="62" width="80" height="8" fill="#8D6E63"/><rect x="10" y="74" width="80" height="8" fill="#6D4C41"/><line x1="10" y1="58" x2="90" y2="58" stroke="#5D4037" stroke-width="1"/><line x1="10" y1="70" x2="90" y2="70" stroke="#5D4037" stroke-width="1"/><circle cx="80" cy="20" r="12" fill="#EF4444"/><line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── DESLIZAMENTO v2 — Q7: Inclinação de estruturas ou árvores ──────────── */
+
+  desl2_q7_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky7n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky7n)" rx="8"/><rect x="0" y="75" width="100" height="25" fill="#8D6E63"/><rect x="20" y="30" width="4" height="45" fill="#455A64"/><rect x="50" y="25" width="4" height="50" fill="#455A64"/><rect x="78" y="35" width="4" height="40" fill="#455A64"/><circle cx="80" cy="20" r="12" fill="#22C55E"/><path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  desl2_q7_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky7s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky7s)" rx="8"/><rect x="0" y="75" width="100" height="25" fill="#8D6E63"/><line x1="22" y1="30" x2="15" y2="75" stroke="#455A64" stroke-width="4" stroke-linecap="round"/><line x1="52" y1="25" x2="65" y2="75" stroke="#455A64" stroke-width="4" stroke-linecap="round"/><line x1="80" y1="35" x2="88" y2="75" stroke="#455A64" stroke-width="4" stroke-linecap="round"/><circle cx="80" cy="20" r="12" fill="#EF4444"/><line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── DESLIZAMENTO v2 — Q8: Muros embarrigados ───────────────────────────── */
+
+  desl2_q8_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky8n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky8n)" rx="8"/><rect x="0" y="75" width="100" height="25" fill="#8D6E63"/><rect x="20" y="35" width="60" height="40" fill="#9E9E9E" stroke="#616161" stroke-width="2"/><line x1="20" y1="50" x2="80" y2="50" stroke="#616161" stroke-width="1" opacity="0.5"/><line x1="20" y1="60" x2="80" y2="60" stroke="#616161" stroke-width="1" opacity="0.5"/><circle cx="80" cy="20" r="12" fill="#22C55E"/><path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  desl2_q8_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky8s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky8s)" rx="8"/><rect x="0" y="75" width="100" height="25" fill="#8D6E63"/><path d="M20 35 Q50 25 80 35 L80 75 L20 75 Z" fill="#9E9E9E" stroke="#616161" stroke-width="2"/><path d="M20 50 Q50 45 80 50" fill="none" stroke="#616161" stroke-width="1" opacity="0.5"/><path d="M20 60 Q50 58 80 60" fill="none" stroke="#616161" stroke-width="1" opacity="0.5"/><circle cx="80" cy="20" r="12" fill="#EF4444"/><line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── DESLIZAMENTO v2 — Q9: Trinca de escorregamento próxima ─────────────── */
+
+  desl2_q9_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky9n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky9n)" rx="8"/><path d="M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z" fill="#8D6E63"/><circle cx="80" cy="20" r="12" fill="#22C55E"/><path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  desl2_q9_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky9e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky9e)" rx="8"/><path d="M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z" fill="#8D6E63"/><path d="M30 60 Q35 65 40 70" fill="none" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="4,2"/><polygon points="80,8 92,28 68,28" fill="#F59E0B"/><text x="80" y="24" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  desl2_q9_c: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky9j" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky9j)" rx="8"/><path d="M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z" fill="#8D6E63"/><path d="M25 55 Q32 65 40 75" fill="none" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="20" r="12" fill="#EF4444"/><line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── DESLIZAMENTO v2 — Q10: Processos de instabilização ─────────────────── */
+
+  desl2_q10_a: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky10n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky10n)" rx="8"/><path d="M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z" fill="#8D6E63"/><circle cx="80" cy="20" r="12" fill="#22C55E"/><path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  desl2_q10_b: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky10e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky10e)" rx="8"/><path d="M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z" fill="#8D6E63"/><circle cx="35" cy="55" r="3" fill="#F59E0B"/><circle cx="50" cy="65" r="3" fill="#F59E0B"/><circle cx="65" cy="70" r="3" fill="#F59E0B"/><polygon points="80,8 92,28 68,28" fill="#F59E0B"/><text x="80" y="24" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  desl2_q10_c: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="sky10j" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#sky10j)" rx="8"/><path d="M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z" fill="#8D6E63"/><path d="M20 65 L40 85" fill="none" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><path d="M50 55 L65 80" fill="none" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="20" r="12" fill="#EF4444"/><line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q1: Fundação ────────────────────────────────────── */
+
+  est_q1_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><rect x="15" y="55" width="70" height="20" fill="#90A4AE" rx="2"/><rect x="20" y="75" width="60" height="15" fill="#78909C" rx="2"/><rect x="10" y="45" width="80" height="12" fill="#A5D6A7" rx="2"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q1_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><rect x="15" y="55" width="70" height="20" fill="#90A4AE" rx="2"/><rect x="20" y="75" width="60" height="15" fill="#78909C" rx="2"/><rect x="10" y="45" width="80" height="12" fill="#A5D6A7" rx="2"/><line x1="35" y1="60" x2="38" y2="72" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q1_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><rect x="15" y="55" width="70" height="20" fill="#90A4AE" rx="2"/><rect x="20" y="75" width="60" height="15" fill="#78909C" rx="2"/><rect x="10" y="45" width="80" height="12" fill="#A5D6A7" rx="2"/><path d="M30 58 L34 68 L28 74" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M55 60 L58 70" stroke="#F97316" stroke-width="2" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q1_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><rect x="15" y="55" width="30" height="20" fill="#90A4AE" rx="2"/><rect x="55" y="58" width="28" height="17" fill="#90A4AE" rx="2"/><rect x="10" y="45" width="80" height="12" fill="#A5D6A7" rx="2"/><path d="M45 55 L50 75" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><path d="M25 58 L22 75" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/><path d="M70 60 L73 75" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q2: Estrutura (pilares, vigas, lajes) ───────────── */
+
+  est_q2_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><rect x="20" y="30" width="10" height="55" fill="#90A4AE" rx="2"/><rect x="70" y="30" width="10" height="55" fill="#90A4AE" rx="2"/><rect x="15" y="28" width="70" height="10" fill="#78909C" rx="2"/><rect x="15" y="82" width="70" height="6" fill="#78909C" rx="2"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q2_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><rect x="20" y="30" width="10" height="55" fill="#90A4AE" rx="2"/><rect x="70" y="30" width="10" height="55" fill="#90A4AE" rx="2"/><rect x="15" y="28" width="70" height="10" fill="#78909C" rx="2"/><rect x="15" y="82" width="70" height="6" fill="#78909C" rx="2"/><line x1="24" y1="50" x2="26" y2="60" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q2_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><rect x="20" y="30" width="10" height="55" fill="#90A4AE" rx="2"/><rect x="70" y="30" width="10" height="55" fill="#90A4AE" rx="2"/><rect x="15" y="28" width="70" height="10" fill="#78909C" rx="2"/><rect x="15" y="82" width="70" height="6" fill="#78909C" rx="2"/><path d="M22 45 L28 55 L22 65" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M72 48 L76 62" stroke="#F97316" stroke-width="2" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q2_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><rect x="20" y="30" width="10" height="35" fill="#90A4AE" rx="2" transform="rotate(8 25 47)"/><rect x="70" y="30" width="10" height="40" fill="#90A4AE" rx="2" transform="rotate(-6 75 50)"/><rect x="15" y="28" width="70" height="10" fill="#78909C" rx="2"/><path d="M20 50 L30 65 L22 75" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M70 45 L78 60 L70 72" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q3: Alvenaria / Vedação ──────────────────────────── */
+
+  est_q3_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><rect x="15" y="30" width="70" height="55" fill="#BCAAA4" rx="2"/><line x1="15" y1="44" x2="85" y2="44" stroke="#A1887F" stroke-width="1.5"/><line x1="15" y1="58" x2="85" y2="58" stroke="#A1887F" stroke-width="1.5"/><line x1="15" y1="72" x2="85" y2="72" stroke="#A1887F" stroke-width="1.5"/><line x1="35" y1="30" x2="35" y2="44" stroke="#A1887F" stroke-width="1.5"/><line x1="60" y1="30" x2="60" y2="44" stroke="#A1887F" stroke-width="1.5"/><line x1="25" y1="44" x2="25" y2="58" stroke="#A1887F" stroke-width="1.5"/><line x1="55" y1="44" x2="55" y2="58" stroke="#A1887F" stroke-width="1.5"/><line x1="75" y1="44" x2="75" y2="58" stroke="#A1887F" stroke-width="1.5"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q3_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><rect x="15" y="30" width="70" height="55" fill="#BCAAA4" rx="2"/><line x1="15" y1="44" x2="85" y2="44" stroke="#A1887F" stroke-width="1.5"/><line x1="15" y1="58" x2="85" y2="58" stroke="#A1887F" stroke-width="1.5"/><line x1="15" y1="72" x2="85" y2="72" stroke="#A1887F" stroke-width="1.5"/><line x1="40" y1="52" x2="72" y2="52" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q3_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><rect x="15" y="30" width="70" height="55" fill="#BCAAA4" rx="2"/><line x1="15" y1="44" x2="85" y2="44" stroke="#A1887F" stroke-width="1.5"/><line x1="15" y1="58" x2="85" y2="58" stroke="#A1887F" stroke-width="1.5"/><line x1="15" y1="72" x2="85" y2="72" stroke="#A1887F" stroke-width="1.5"/><path d="M30 35 L50 85" stroke="#F97316" stroke-width="2.5" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q3_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><rect x="15" y="30" width="30" height="55" fill="#BCAAA4" rx="2"/><rect x="55" y="35" width="30" height="50" fill="#BCAAA4" rx="2"/><path d="M45 30 L50 55 L42 85" stroke="#EF4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M25 40 L28 55 L22 70" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q4: Cobertura / Telhado ─────────────────────────── */
+
+  est_q4_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><polygon points="50,20 10,55 90,55" fill="#EF9A9A"/><polygon points="50,20 10,55 90,55" fill="none" stroke="#E53935" stroke-width="1.5"/><rect x="15" y="55" width="70" height="30" fill="#BCAAA4"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q4_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><polygon points="50,20 10,55 90,55" fill="#EF9A9A"/><polygon points="50,20 10,55 90,55" fill="none" stroke="#E53935" stroke-width="1.5"/><rect x="15" y="55" width="70" height="30" fill="#BCAAA4"/><line x1="38" y1="38" x2="44" y2="50" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q4_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><polygon points="50,20 10,55 90,55" fill="#EF9A9A"/><polygon points="50,20 10,55 90,55" fill="none" stroke="#E53935" stroke-width="1.5"/><rect x="15" y="55" width="70" height="30" fill="#BCAAA4"/><path d="M55 25 L62 40 L54 52" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q4_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><polygon points="50,20 10,55 90,55" fill="#EF9A9A" opacity="0.6"/><path d="M50 20 L30 55" stroke="#E53935" stroke-width="1.5"/><path d="M70 55 L90 55" stroke="#E53935" stroke-width="1.5"/><rect x="15" y="55" width="70" height="30" fill="#BCAAA4"/><path d="M45 28 L56 50" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><path d="M62 35 L70 50" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q5: Piso / Contrapiso ───────────────────────────── */
+
+  est_q5_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><rect x="10" y="55" width="80" height="15" fill="#B0BEC5" rx="2"/><rect x="10" y="68" width="80" height="8" fill="#90A4AE" rx="2"/><line x1="35" y1="55" x2="35" y2="70" stroke="#78909C" stroke-width="1"/><line x1="60" y1="55" x2="60" y2="70" stroke="#78909C" stroke-width="1"/><circle cx="82" cy="25" r="12" fill="#22C55E"/><path d="M76 25 L80 29 L88 21" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q5_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><rect x="10" y="55" width="80" height="15" fill="#B0BEC5" rx="2"/><rect x="10" y="68" width="80" height="8" fill="#90A4AE" rx="2"/><line x1="35" y1="55" x2="35" y2="70" stroke="#78909C" stroke-width="1"/><line x1="60" y1="55" x2="60" y2="70" stroke="#78909C" stroke-width="1"/><line x1="42" y1="57" x2="50" y2="68" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/><polygon points="82,13 94,33 70,33" fill="#F59E0B"/><text x="82" y="29" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q5_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><rect x="10" y="55" width="80" height="15" fill="#B0BEC5" rx="2"/><rect x="10" y="68" width="80" height="8" fill="#90A4AE" rx="2"/><path d="M25 57 L35 70 L25 82" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M55 57 L62 70" stroke="#F97316" stroke-width="2" stroke-linecap="round"/><polygon points="82,13 94,33 70,33" fill="#F97316"/><text x="82" y="29" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q5_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><rect x="10" y="55" width="30" height="15" fill="#B0BEC5" rx="2"/><rect x="58" y="60" width="30" height="10" fill="#B0BEC5" rx="2"/><path d="M40 55 L50 75 L60 60" stroke="#EF4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M20 58 L15 75" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/><circle cx="82" cy="25" r="12" fill="#EF4444"/><line x1="76" y1="19" x2="88" y2="31" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="19" x2="76" y2="31" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q6: Escadas / Circulação ────────────────────────── */
+
+  est_q6_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><rect x="10" y="80" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="30" y="68" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="50" y="56" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="70" y="44" width="20" height="10" fill="#90A4AE" rx="1"/><line x1="10" y1="80" x2="90" y2="44" stroke="#78909C" stroke-width="1"/><circle cx="82" cy="25" r="12" fill="#22C55E"/><path d="M76 25 L80 29 L88 21" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q6_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><rect x="10" y="80" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="30" y="68" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="50" y="56" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="70" y="44" width="20" height="10" fill="#90A4AE" rx="1"/><line x1="10" y1="80" x2="90" y2="44" stroke="#78909C" stroke-width="1"/><line x1="30" y1="70" x2="36" y2="76" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/><polygon points="82,13 94,33 70,33" fill="#F59E0B"/><text x="82" y="29" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q6_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><rect x="10" y="80" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="30" y="68" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="50" y="60" width="20" height="8" fill="#90A4AE" rx="1" transform="rotate(5 60 64)"/><rect x="70" y="44" width="20" height="10" fill="#90A4AE" rx="1"/><path d="M35 70 L42 80 L35 88" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polygon points="82,13 94,33 70,33" fill="#F97316"/><text x="82" y="29" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q6_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><rect x="10" y="80" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="32" y="72" width="18" height="8" fill="#90A4AE" rx="1" transform="rotate(15 41 76)"/><rect x="50" y="56" width="20" height="10" fill="#90A4AE" rx="1"/><rect x="70" y="44" width="20" height="10" fill="#90A4AE" rx="1"/><path d="M38 70 L48 88" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><path d="M55 58 L50 72" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><circle cx="82" cy="25" r="12" fill="#EF4444"/><line x1="76" y1="19" x2="88" y2="31" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="19" x2="76" y2="31" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q7: Muro de arrimo / contenção ─────────────────── */
+
+  est_q7_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><path d="M60 20 Q75 40 80 85" fill="#A5D6A7" stroke="#66BB6A" stroke-width="1"/><rect x="30" y="30" width="15" height="55" fill="#90A4AE" rx="2"/><rect x="28" y="82" width="19" height="6" fill="#78909C" rx="1"/><line x1="30" y1="45" x2="45" y2="45" stroke="#78909C" stroke-width="1"/><line x1="30" y1="58" x2="45" y2="58" stroke="#78909C" stroke-width="1"/><line x1="30" y1="71" x2="45" y2="71" stroke="#78909C" stroke-width="1"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q7_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><path d="M60 20 Q75 40 80 85" fill="#A5D6A7" stroke="#66BB6A" stroke-width="1"/><rect x="30" y="30" width="15" height="55" fill="#90A4AE" rx="2"/><rect x="28" y="82" width="19" height="6" fill="#78909C" rx="1"/><line x1="30" y1="45" x2="45" y2="45" stroke="#78909C" stroke-width="1"/><line x1="30" y1="58" x2="45" y2="58" stroke="#78909C" stroke-width="1"/><line x1="33" y1="52" x2="36" y2="62" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q7_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><path d="M60 20 Q75 40 80 85" fill="#A5D6A7" stroke="#66BB6A" stroke-width="1"/><rect x="30" y="30" width="15" height="55" fill="#90A4AE" rx="2" transform="rotate(4 37 57)"/><rect x="28" y="82" width="19" height="6" fill="#78909C" rx="1"/><path d="M32 40 L38 55 L31 70" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q7_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><path d="M60 20 Q75 40 80 85" fill="#FFCDD2" stroke="#EF9A9A" stroke-width="1"/><rect x="28" y="35" width="15" height="45" fill="#90A4AE" rx="2" transform="rotate(12 35 57)"/><path d="M30 38 L40 58 L30 75" stroke="#EF4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M36 45 L42 65" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q8: Fachada / Revestimento ──────────────────────── */
+
+  est_q8_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><rect x="15" y="30" width="65" height="55" fill="#CFD8DC" rx="2"/><rect x="22" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="58" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="36" y="63" width="22" height="22" fill="#A5D6A7" rx="1"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q8_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><rect x="15" y="30" width="65" height="55" fill="#CFD8DC" rx="2"/><rect x="22" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="58" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="36" y="63" width="22" height="22" fill="#A5D6A7" rx="1"/><line x1="40" y1="32" x2="44" y2="50" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q8_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><rect x="15" y="30" width="65" height="55" fill="#CFD8DC" rx="2"/><rect x="22" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="58" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="36" y="63" width="22" height="22" fill="#A5D6A7" rx="1"/><path d="M25 32 L30 55 L24 68" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M55 35 L60 50" stroke="#F97316" stroke-width="2" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q8_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><rect x="15" y="30" width="65" height="55" fill="#CFD8DC" rx="2"/><rect x="22" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="58" y="40" width="15" height="12" fill="#81D4FA" rx="1"/><rect x="36" y="63" width="22" height="22" fill="#A5D6A7" rx="1"/><path d="M20 32 L28 60 L20 82" stroke="#EF4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M50 32 L56 55 L50 75" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q9: Drenagem / Águas pluviais ───────────────────── */
+
+  est_q9_bom: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#E8F5E9" rx="8"/><path d="M15 35 Q50 28 85 35" fill="none" stroke="#78909C" stroke-width="6" stroke-linecap="round"/><path d="M50 35 L50 65" stroke="#78909C" stroke-width="5" stroke-linecap="round"/><ellipse cx="50" cy="70" rx="20" ry="6" fill="#42A5F5" opacity="0.5"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q9_regular: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/><path d="M15 35 Q50 28 85 35" fill="none" stroke="#78909C" stroke-width="6" stroke-linecap="round"/><path d="M50 35 L50 65" stroke="#78909C" stroke-width="5" stroke-linecap="round" stroke-dasharray="6,3"/><ellipse cx="50" cy="70" rx="20" ry="6" fill="#42A5F5" opacity="0.5"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q9_ruim: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFF3E0" rx="8"/><path d="M15 35 Q50 28 85 35" fill="none" stroke="#78909C" stroke-width="6" stroke-linecap="round"/><path d="M50 38 L48 55 L52 65" stroke="#F97316" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><ellipse cx="50" cy="72" rx="30" ry="10" fill="#42A5F5" opacity="0.6"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q9_pessimo: `<svg width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/><ellipse cx="50" cy="72" rx="40" ry="15" fill="#1565C0" opacity="0.5"/><path d="M15 35 Q50 28 85 35" fill="none" stroke="#78909C" stroke-width="6" stroke-linecap="round" opacity="0.4"/><circle cx="30" cy="60" r="4" fill="#42A5F5"/><circle cx="50" cy="55" r="5" fill="#42A5F5"/><circle cx="70" cy="62" r="4" fill="#42A5F5"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+
+  /* ── RISCO ESTRUTURAL — Q10: Talude / Encosta próxima ───────────────────── */
+
+  est_q10_estavel: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="skyE" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#skyE)" rx="8"/><path d="M0 75 Q30 45 60 55 Q80 62 100 55 L100 100 L0 100 Z" fill="#4CAF50"/><rect x="20" y="52" width="3" height="12" fill="#5D4037"/><polygon points="21.5,36 15,52 28,52" fill="#1B5E20"/><rect x="55" y="50" width="3" height="14" fill="#5D4037"/><polygon points="56.5,33 50,50 63,50" fill="#1B5E20"/><circle cx="82" cy="18" r="12" fill="#22C55E"/><path d="M76 18 L80 22 L88 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+
+  est_q10_leve: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="skyL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#skyL)" rx="8"/><path d="M0 75 Q30 45 60 55 Q80 62 100 55 L100 100 L0 100 Z" fill="#8D6E63"/><path d="M35 58 Q38 62 42 65" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-dasharray="3,2"/><polygon points="82,6 94,26 70,26" fill="#F59E0B"/><text x="82" y="22" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text></svg>`,
+
+  est_q10_moderado: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="skyM" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#skyM)" rx="8"/><path d="M0 75 Q30 45 60 55 Q80 62 100 55 L100 100 L0 100 Z" fill="#8D6E63"/><path d="M25 60 Q32 68 40 75" fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round"/><path d="M50 58 Q55 65 60 70" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round"/><polygon points="82,6 94,26 70,26" fill="#F97316"/><text x="82" y="22" font-size="10" fill="white" font-weight="bold" text-anchor="middle">!!</text></svg>`,
+
+  est_q10_critico: `<svg width="100" height="100" viewBox="0 0 100 100"><defs><linearGradient id="skyC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/></linearGradient></defs><rect x="0" y="0" width="100" height="100" fill="url(#skyC)" rx="8"/><path d="M0 75 Q30 45 60 55 Q80 62 100 55 L100 100 L0 100 Z" fill="#8D6E63"/><path d="M15 65 L35 85" fill="none" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><path d="M40 58 L60 82" fill="none" stroke="#EF4444" stroke-width="3" stroke-linecap="round"/><path d="M65 55 L80 75" fill="none" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><circle cx="82" cy="18" r="12" fill="#EF4444"/><line x1="76" y1="12" x2="88" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="88" y1="12" x2="76" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`,
 };
