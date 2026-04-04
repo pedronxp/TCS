@@ -36,7 +36,7 @@ export default function SupervisorDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
-  const { isOnlineReal } = useConnectivity();
+  const { isConnected } = useConnectivity();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [vistorias, setVistorias] = useState<VistoriaNormalizada[]>([]);
@@ -157,7 +157,7 @@ export default function SupervisorDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         {/* Banner offline */}
-        {!isOnlineReal && (
+        {!isConnected && (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
             <Feather name="wifi-off" size={15} color="#F59E0B" />
             <View style={{ flex: 1 }}>

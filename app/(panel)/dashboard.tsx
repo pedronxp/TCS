@@ -23,7 +23,7 @@ export default function DashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile, loading: authLoading } = useAuth();
-  const { isOnlineReal } = useConnectivity();
+  const { isConnected, isOnlineReal } = useConnectivity();
 
   const [metrics, setMetrics] = useState({ atividadesHoje: 0, requerAtencao: 0, minhasTotal: 0 });
   const [metricsLoading, setMetricsLoading] = useState(true);
@@ -114,7 +114,7 @@ export default function DashboardScreen() {
               <Feather name="shield" size={10} color={theme.primary} />
               <Text style={[styles.chipText, { color: theme.primary }]}>{roleLabel}</Text>
             </View>
-            {!isOnlineReal && (
+            {!isConnected && (
               <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
                 <Feather name="wifi-off" size={10} color="#F59E0B" />
                 <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
@@ -154,7 +154,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Banner offline */}
-        {!isOnlineReal && (
+        {!isConnected && (
           <View style={[styles.offlineBanner, { borderColor: 'rgba(245,158,11,0.3)' }]}>
             <Feather name="wifi-off" size={15} color="#F59E0B" />
             <View style={{ flex: 1 }}>

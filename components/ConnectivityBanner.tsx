@@ -8,14 +8,15 @@ const STRIP_HEIGHT = 34;
 const ANIM_DURATION = 280;
 
 export function ConnectivityBanner() {
-  const { isOnlineReal } = useConnectivity();
+  // isConnected = NetInfo (instantâneo), sem delay de HTTP check
+  const { isConnected } = useConnectivity();
   const insets = useSafeAreaInsets();
 
-  // Posição abaixo da barra de navegação (76px aprox) + safe area bottom
+  // Posição acima da barra de navegação
   const bottomOffset = insets.bottom + 72;
   const translateY = useRef(new Animated.Value(STRIP_HEIGHT + 10)).current;
   const [bannerState, setBannerState] = useState<'offline' | 'restored' | 'hidden'>('hidden');
-  const prevOnline = useRef(true);
+  const prevConnected = useRef<boolean | null>(null); // null = ainda não inicializado
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showBanner = (state: 'offline' | 'restored') => {
@@ -40,12 +41,14 @@ export function ConnectivityBanner() {
   };
 
   useEffect(() => {
-    const wasOnline = prevOnline.current;
-    prevOnline.current = isOnlineReal;
+    const wasConnected = prevConnected.current;
+    prevConnected.current = isConnected;
 
-    if (!isOnlineReal && wasOnline) {
+    if (!isConnected) {
+      // Mostra offline sempre que desconectado (inclusive no boot do app)
       showBanner('offline');
-    } else if (isOnlineReal && !wasOnline) {
+    } else if (isConnected && wasConnected === false) {
+      // Só mostra "restaurado" se antes estava offline (não na inicialização)
       showBanner('restored');
       hideTimer.current = setTimeout(() => hideBanner(), 2500);
     }
@@ -53,7 +56,7 @@ export function ConnectivityBanner() {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [isOnlineReal]);
+  }, [isConnected]);
 
   if (bannerState === 'hidden') return null;
 
