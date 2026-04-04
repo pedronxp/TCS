@@ -27,7 +27,7 @@
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease",
-        "applicationArchivePath": "android/app/build/outputs/apk/release/TCS-Relatorio-de-Risco-1.2.0.apk"
+        "applicationArchivePath": "android/app/build/outputs/apk/release/*.apk"
       },
       "env": {
         "EXPO_PUBLIC_ENV": "production"
