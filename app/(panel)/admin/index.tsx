@@ -307,6 +307,21 @@ export default function AdminDashboardScreen() {
             );
           })
         )}
+
+        {/* Link para guia de protocolo */}
+        <TouchableOpacity
+          style={[styles.guiaBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+          onPress={() => router.push('/(panel)/admin/protocolo-doc')}
+        >
+          <View style={[styles.guiaBtnIcon, { backgroundColor: `${theme.primary}15` }]}>
+            <Feather name="hash" size={18} color={theme.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.guiaBtnTitle, { color: theme.text }]}>Guia de Protocolo</Text>
+            <Text style={[styles.guiaBtnDesc, { color: theme.textSecondary }]}>Entenda os números dos laudos e vistorias</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
       </ScrollView>
 
 
@@ -411,4 +426,11 @@ const styles = StyleSheet.create({
   rankCount: { fontSize: 13, fontWeight: '800' },
   progressBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2 },
+  guiaBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 14, borderWidth: 1, padding: 14, marginTop: 20,
+  },
+  guiaBtnIcon: { width: 40, height: 40, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  guiaBtnTitle: { fontSize: 14, fontWeight: '700' },
+  guiaBtnDesc: { fontSize: 12, marginTop: 1 },
 });

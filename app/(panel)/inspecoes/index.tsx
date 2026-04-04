@@ -9,6 +9,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio, VistoriaLocal } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
+import { syncPendentes, forceSyncAll } from '../../../services/SyncService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RISCO_COLORS: Record<string, string> = {
@@ -90,6 +91,7 @@ export default function InspecoesListScreen() {
   const [vistorias, setVistorias] = useState<VistoriaLocal[]>([]);
   const [pendentesCount, setPendentesCount] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Recarregar ao voltar para esta tela (ex: após criar nova vistoria)
   useFocusEffect(
@@ -178,6 +180,17 @@ export default function InspecoesListScreen() {
     }
   };
 
+  const handleSync = async () => {
+    if (syncing || !isConnected) return;
+    setSyncing(true);
+    try {
+      await forceSyncAll();
+      if (profile) await fetchVistorias(profile);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const renderItem = useCallback(({ item }: { item: VistoriaLocal }) => (
     <InspecaoCard item={item} theme={theme} />
   ), [theme]);
@@ -205,6 +218,15 @@ export default function InspecoesListScreen() {
         >
           <Feather name="plus" color="#FFF" size={24} />
         </TouchableOpacity>
+        {pendentesCount > 0 && isConnected && (
+          <TouchableOpacity
+            style={[styles.syncButton, { backgroundColor: syncing ? theme.border : '#F59E0B' }]}
+            onPress={handleSync}
+            disabled={syncing}
+          >
+            <Feather name={syncing ? 'loader' : 'upload-cloud'} color="#FFF" size={18} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading && <LoadingState />}
@@ -249,6 +271,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
   subtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   addButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
+  syncButton: {
+    width: 42, height: 42, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center', marginLeft: 8,
+  },
   listContent: { padding: 24, paddingBottom: 100, gap: 16 },
   cardInner: { borderWidth: 0 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },

@@ -12,6 +12,7 @@ import { logger } from '../../utils/logger';
 import { BottomNavBar } from '../../components/BottomNavBar';
 import { SessionGuardProvider, useSessionGuard } from '../../context/SessionGuardContext';
 import { SessionLockScreen } from '../../components/SessionLockScreen';
+import { pingSupabaseKeepAlive } from '../../services/KeepAliveService';
 
 function PanelContent() {
   const { isLocked } = useSessionGuard();
@@ -21,6 +22,7 @@ function PanelContent() {
   useEffect(() => {
     registerBackgroundSync();
     startAppStateSyncListener();
+    pingSupabaseKeepAlive().catch(() => null); // keep-alive Supabase free tier
     return () => stopAppStateSyncListener();
   }, []);
 
@@ -66,6 +68,7 @@ function PanelContent() {
         <Stack.Screen name="admin/form-editor" />
         <Stack.Screen name="admin/risco-config" />
         <Stack.Screen name="admin/logs" />
+        <Stack.Screen name="admin/protocolo-doc" />
         <Stack.Screen name="admin/editor-perguntas" />
         <Stack.Screen name="inspecoes/laudo" />
         <Stack.Screen name="master/index" />

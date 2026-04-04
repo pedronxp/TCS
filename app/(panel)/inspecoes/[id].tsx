@@ -5,6 +5,8 @@ import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { useAuth } from '../../../context/AuthContext';
+import { forceSyncAll } from '../../../services/SyncService';
+import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { getVistoriaById } from '../../../utils/database';
@@ -21,6 +23,8 @@ export default function VistoriaDetalhesScreen() {
   const insets = useSafeAreaInsets();
   const { initReport } = useReport();
   const { profile } = useAuth();
+  const { isOnlineReal: isConnected } = useConnectivity();
+  const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [vistoria, setVistoria] = useState<VistoriaNormalizada | null>(null);
 
@@ -44,6 +48,17 @@ export default function VistoriaDetalhesScreen() {
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
     });
+  };
+
+  const handleSyncVistoria = async () => {
+    if (syncing || !isConnected) return;
+    setSyncing(true);
+    try {
+      await forceSyncAll();
+      await fetchDetalhes(); // recarregar após sync
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const fetchDetalhes = async () => {
@@ -194,6 +209,35 @@ export default function VistoriaDetalhesScreen() {
           ))}
         </View>
 
+        {/* Banner sync pendente */}
+        {vistoria.status === 'Pendente Sync' && (
+          <TouchableOpacity
+            style={[styles.syncBanner, {
+              backgroundColor: isConnected ? 'rgba(245,158,11,0.1)' : 'rgba(100,116,139,0.1)',
+              borderColor: isConnected ? 'rgba(245,158,11,0.3)' : 'rgba(100,116,139,0.3)',
+            }]}
+            onPress={handleSyncVistoria}
+            disabled={!isConnected || syncing}
+          >
+            <Feather
+              name={syncing ? 'loader' : isConnected ? 'upload-cloud' : 'cloud-off'}
+              size={20}
+              color={isConnected ? '#F59E0B' : '#64748B'}
+            />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[styles.syncBannerTitle, { color: isConnected ? '#F59E0B' : '#64748B' }]}>
+                {syncing ? 'Sincronizando...' : isConnected ? 'Toque para sincronizar agora' : 'Sem conexão — sync pendente'}
+              </Text>
+              <Text style={[styles.syncBannerSub, { color: '#64748B' }]}>
+                {isConnected
+                  ? 'Esta vistoria ainda não foi enviada ao servidor'
+                  : 'Será sincronizada automaticamente ao reconectar'}
+              </Text>
+            </View>
+            {isConnected && !syncing && <Feather name="chevron-right" size={16} color="#F59E0B" />}
+          </TouchableOpacity>
+        )}
+
         {/* Ações */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Ações</Text>
 
@@ -291,4 +335,10 @@ const styles = StyleSheet.create({
   actionDesc: { fontSize: 12 },
   rotaBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16, borderRadius: 14, marginTop: 12, justifyContent: 'center' },
   rotaBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  syncBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 16,
+  },
+  syncBannerTitle: { fontSize: 14, fontWeight: '700' },
+  syncBannerSub: { fontSize: 12, marginTop: 2 },
 });
