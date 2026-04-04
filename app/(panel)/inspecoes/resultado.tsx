@@ -185,7 +185,7 @@ export default function ResultadoScreen() {
       if (disponivel) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: 'Laudo Técnico — TCS',
+          dialogTitle: 'TCS — Relatório de Risco',
           UTI: 'com.adobe.pdf',
         });
       } else {
@@ -220,13 +220,13 @@ export default function ResultadoScreen() {
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `Laudo ${generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria, vistoria?.municipio)} — TCS`,
+          dialogTitle: `TCS — ${generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria, vistoria?.municipio)}`,
           UTI: 'com.adobe.pdf',
         });
       } else {
         await Share.share({
-          message: `Laudo Técnico TCS — ${vistoria?.endereco || 'Endereço não informado'}\nNível de Risco: ${riscoLabel(vistoria?.nivelRisco || 'r1')}\nArquivo: ${uri}`,
-          title: 'Laudo Técnico — TCS',
+          message: `TCS — Relatório de Risco\n${vistoria?.endereco || 'Endereço não informado'}\nNível de Risco: ${riscoLabel(vistoria?.nivelRisco || 'r1')}`,
+          title: 'TCS — Relatório de Risco',
         });
       }
     } catch {
@@ -251,7 +251,7 @@ export default function ResultadoScreen() {
       if (disponivel) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: 'Termo de Interdição — TCS',
+          dialogTitle: 'TCS — Termo de Interdição',
           UTI: 'com.adobe.pdf',
         });
       } else {

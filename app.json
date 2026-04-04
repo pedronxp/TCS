@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Defesa Civil",
-    "slug": "app_defesa_civil_expo",
-    "scheme": "defesacivil",
+    "name": "TCS - Relatório de Risco",
+    "slug": "tcs-relatorio-de-risco",
+    "scheme": "tcs",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "br.gov.defesacivil.app",
+      "bundleIdentifier": "com.tcs.relatorioderisco",
       "infoPlist": {
         "NSCameraUsageDescription": "O app precisa acessar a câmera para registrar evidências fotográficas das vistorias.",
         "NSPhotoLibraryUsageDescription": "O app precisa acessar a galeria para anexar fotos às vistorias.",
@@ -23,10 +23,10 @@
       }
     },
     "android": {
-      "package": "br.gov.defesacivil.app",
+      "package": "com.tcs.relatorioderisco",
       "config": {
         "googleMaps": {
-          "apiKey": "SUA_GOOGLE_MAPS_API_KEY_AQUI"
+          "apiKey": "AIzaSyD9THUSNNwA0aQ54cacCs9o0-SloWA9hPY"
         }
       },
       "versionCode": 1,

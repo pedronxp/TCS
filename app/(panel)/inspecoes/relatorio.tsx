@@ -245,7 +245,7 @@ export default function RelatorioScreen() {
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const ok = await Sharing.isAvailableAsync();
       if (ok) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Relatório TCS', UTI: 'com.adobe.pdf' });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'TCS — Relatório de Risco', UTI: 'com.adobe.pdf' });
       } else {
         Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
       }
@@ -368,7 +368,7 @@ export default function RelatorioScreen() {
               <Image source={require('../../../assets/logo.png')} style={s.logo} resizeMode="contain" />
               <View>
                 <Text style={[s.brandName, { color: theme.text }]}>TCS</Text>
-                <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE VISTORIA</Text>
+                <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE RISCO</Text>
               </View>
             </View>
 
