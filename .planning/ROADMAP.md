@@ -35,8 +35,10 @@ Detalhes: `.planning/milestones/v1.1.0-ROADMAP.md`
 - [x] **Phase 12: Formulário Completo — 10 Elementos** - Adaptar os JSONs de `json form/` para o formato nativo do app e registrar como novo formulário built-in
 - [x] **Phase 13: Deslizamento SVG + Thresholds** - Adicionar ilustrações SVG inline nas Q5–Q10 do formulário de deslizamento e corrigir limites de classificação conforme planilha técnica (completed 2026-04-03)
 - [x] **Phase 14: Bug Fixes Críticos** - Município errado nos relatórios, fotos não salvas no PDF, banner offline sobrepondo tela, responsividade com safe area (completed 2026-04-03)
-- [ ] **Phase 15: Vistorias Agendadas** - Supervisor/Admin/Master criam agendamentos; Agente visualiza; ícone no header de todas as telas
-- [ ] **Phase 16: Sistema de Rotas** - Botão "Traçar Rota" na vistoria abre Google Maps/Apple Maps com GPS → destino
+- [x] **Phase 15: Vistorias Agendadas** - Supervisor/Admin/Master criam agendamentos; Agente visualiza; ícone no header de todas as telas (completed 2026-04-03)
+- [x] **Phase 16: Sistema de Rotas** - Botão "Como Chegar" na vistoria abre Google Maps/Apple Maps com GPS → destino (completed 2026-04-03)
+- [x] **Phase 17: Storage + Protocolo + Mensagem Rica** - Upload foto/PDF para Supabase Storage, protocolo sequencial TCS-CGS-2026-00001, mensagem WhatsApp rica, notificação digest laudos (completed 2026-04-03)
+- [ ] **Phase 18: Segurança** - RLS audit, rate limiting, token seguro, validação de input, audit log expandido, proteção de sessão
 
 ### Phase Details
 

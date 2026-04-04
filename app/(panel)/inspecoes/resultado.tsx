@@ -20,6 +20,8 @@ import { buildShareMessage } from '../../../utils/shareUtils';
 import { uploadLaudoPdf } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { checkRateLimit } from '../../../utils/rateLimitUtils';
+import { registrarAuditoria } from '../../../utils/auditLogger';
 
 /** Normaliza dados de qualquer fonte (Supabase camelCase ou SQLite snake_case) */
 function normalizar(v: any): any {
@@ -110,8 +112,17 @@ export default function ResultadoScreen() {
         const norm = normalizar(data);
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || profile?.name || '—');
-        // Pré-preenche o form do Termo com dados da vistoria
         prefillTermoForm(norm);
+        if (profile?.uid) {
+          registrarAuditoria({
+            acao: 'vistoria_acessada',
+            adminUid: profile.uid,
+            adminNome: profile.name || '—',
+            adminRole: profile.role,
+            municipio: norm.municipio || profile.municipio || '',
+            alvoId: norm.id,
+          });
+        }
         return;
       }
 
@@ -205,6 +216,14 @@ export default function ResultadoScreen() {
   };
 
   const gerarPdf = async () => {
+    if (profile?.uid) {
+      const { allowed, message } = await checkRateLimit(profile.uid, 'gerar_pdf');
+      if (!allowed) {
+        Alert.alert('Limite atingido', message || 'Muitas gerações de PDF. Aguarde alguns minutos.');
+        return;
+      }
+    }
+
     setGerando(true);
     try {
       const html = await buildLaudoHtml(buildDados());
@@ -212,6 +231,18 @@ export default function ResultadoScreen() {
 
       // Upload para Storage em background (não bloqueia share)
       salvarLaudoNoStorage(uri).catch(() => null);
+
+      if (profile?.uid) {
+        registrarAuditoria({
+          acao: 'laudo_gerado',
+          adminUid: profile.uid,
+          adminNome: profile.name || '—',
+          adminRole: profile.role,
+          municipio: vistoria?.municipio || profile.municipio || '',
+          alvoId: vistoria?.id,
+          detalhes: { protocolo: vistoria?.protocolo, nivel_risco: vistoria?.nivelRisco },
+        });
+      }
 
       const disponivel = await Sharing.isAvailableAsync();
       if (disponivel) {

@@ -9,6 +9,7 @@ import * as Location from 'expo-location';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { sanitizarTexto, validarNome, validarMunicipio } from '../../../utils/validationUtils';
 
 /** Estado interno do formulário de endereço */
 interface AddressForm {
@@ -163,23 +164,32 @@ export default function DadosIniciaisScreen() {
       Alert.alert('Campos obrigatórios', 'Preencha Logradouro, Número e Bairro para continuar.');
       return;
     }
-    if (!form.municipio.trim()) {
-      Alert.alert(
-        'Município não identificado',
-        'Seu perfil não possui município associado. Contate um administrador para vincular seu município.',
-      );
+    const municipioCheck = validarMunicipio(form.municipio);
+    if (!municipioCheck.valido) {
+      Alert.alert('Município inválido', municipioCheck.erro || 'Município não identificado. Contate um administrador.');
       return;
     }
+    if (form.responsavelNome.trim()) {
+      const nomeCheck = validarNome(form.responsavelNome, 'Nome do Morador');
+      if (!nomeCheck.valido) {
+        Alert.alert('Nome inválido', nomeCheck.erro || 'Verifique o nome informado.');
+        return;
+      }
+    }
+    // Sanitizar campos de texto livre antes de avançar
+    const ruaLimpa = sanitizarTexto(form.rua).substring(0, 200);
+    const bairroLimpo = sanitizarTexto(form.bairro).substring(0, 100);
+    const responsavelLimpo = sanitizarTexto(form.responsavelNome).substring(0, 100);
     // Passa os dados para a próxima etapa via params
     router.push({
       pathname: '/(panel)/inspecoes/selecao-formulario',
       params: {
         cep: form.cep,
-        rua: form.rua,
-        numero: form.numero,
-        bairro: form.bairro,
-        municipio: form.municipio,
-        responsavelNome: form.responsavelNome,
+        rua: ruaLimpa,
+        numero: form.numero.trim().substring(0, 20),
+        bairro: bairroLimpo,
+        municipio: sanitizarTexto(form.municipio).substring(0, 80),
+        responsavelNome: responsavelLimpo,
         lat: form.lat?.toString() ?? '',
         lng: form.lng?.toString() ?? '',
       }

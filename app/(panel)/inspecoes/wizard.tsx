@@ -15,6 +15,8 @@ import { useAuth } from '../../../context/AuthContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { uploadFotoVistoria } from '../../../services/StorageService';
 import { updateFotoUrl } from '../../../utils/database';
+import { checkRateLimit } from '../../../utils/rateLimitUtils';
+import { registrarAuditoria } from '../../../utils/auditLogger';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { WizardParams } from '../../../types/vistoria';
@@ -355,6 +357,14 @@ export default function WizardAvaliacaoScreen() {
       return;
     }
 
+    if (profile?.uid) {
+      const { allowed, message } = await checkRateLimit(profile.uid, 'criar_vistoria');
+      if (!allowed) {
+        Alert.alert('Limite atingido', message || 'Muitas vistorias criadas hoje. Aguarde para continuar.');
+        return;
+      }
+    }
+
     setSalvando(true);
     try {
       if (!profile?.uid) throw new Error('Perfil não carregado — tente novamente.');
@@ -402,6 +412,15 @@ export default function WizardAvaliacaoScreen() {
         endereco: `${params.rua}, ${params.numero}`,
         pontuacao,
         formulario: params.formularioId,
+      });
+      registrarAuditoria({
+        acao: 'vistoria_criada',
+        adminUid: profile.uid,
+        adminNome: profile.name || '—',
+        adminRole: profile.role,
+        municipio: municipioVistoria,
+        alvoId: id,
+        detalhes: { nivel_risco: nivel, formulario_id: params.formularioId },
       });
       notificarVistoriaSalva(
         `${params.rua}, ${params.numero}`,
