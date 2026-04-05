@@ -26,6 +26,7 @@ const DURACOES = [
   { key: '48', label: '48h', horas: 48 },
   { key: '168', label: '7 dias', horas: 168 },
   { key: '720', label: '30 dias', horas: 720 },
+  { key: 'custom', label: 'Personalizado', horas: 0 },
 ];
 
 function formatarExpiracao(horas: number): string {
@@ -66,6 +67,13 @@ export default function GerarTokenScreen() {
   const [loadingMunicipios, setLoadingMunicipios] = useState(false);
   const [solicitando, setSolicitando] = useState(false);
   const [solicitacaoEnviada, setSolicitacaoEnviada] = useState(false);
+  // Data/hora customizada (formato dd/mm/aaaa e hh:mm)
+  const hoje = new Date();
+  const [customData, setCustomData] = useState(
+    `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`
+  );
+  const [customHora, setCustomHora] = useState('23:59');
+  const [customErro, setCustomErro] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isMasterAdmin) return;
@@ -93,13 +101,38 @@ export default function GerarTokenScreen() {
   }, [profile?.uid, isMasterAdmin]);
 
   const roles = ROLES_LIST;
-  const horasSelecionadas = DURACOES.find(d => d.key === duracao)?.horas ?? 48;
-  const labelDuracao = DURACOES.find(d => d.key === duracao)?.label ?? '48h';
+
+  // Para duração customizada, calcula horas até a data/hora informada
+  const calcularHorasCustom = (): number | null => {
+    try {
+      const [dia, mes, ano] = customData.split('/').map(Number);
+      const [hora, min] = customHora.split(':').map(Number);
+      if ([dia, mes, ano, hora, min].some(isNaN)) return null;
+      const alvo = new Date(ano, mes - 1, dia, hora, min, 0);
+      const diff = (alvo.getTime() - Date.now()) / 3600000;
+      return diff > 0 ? diff : null;
+    } catch { return null; }
+  };
+
+  const horasSelecionadas = duracao === 'custom'
+    ? (calcularHorasCustom() ?? 48)
+    : (DURACOES.find(d => d.key === duracao)?.horas ?? 48);
+  const labelDuracao = duracao === 'custom'
+    ? `até ${customData} ${customHora}`
+    : (DURACOES.find(d => d.key === duracao)?.label ?? '48h');
 
   const gerarToken = async () => {
     if (!municipio) {
       Alert.alert('Município obrigatório', 'Selecione para qual município este token é válido.');
       return;
+    }
+    if (duracao === 'custom') {
+      const horas = calcularHorasCustom();
+      if (!horas) {
+        setCustomErro('Data/hora inválida ou já passou. Informe uma data futura.');
+        return;
+      }
+      setCustomErro(null);
     }
     if (!isMasterAdmin && usadoMes >= limiteTotal) {
       Alert.alert(
@@ -404,6 +437,58 @@ export default function GerarTokenScreen() {
           ))}
         </View>
 
+        {/* Campos de data/hora para duração personalizada */}
+        {duracao === 'custom' && (
+          <View style={{ marginBottom: 24 }}>
+            <View style={styles.customRow}>
+              <View style={{ flex: 1.4 }}>
+                <Text style={[styles.customLabel, { color: theme.textSecondary }]}>DATA (dd/mm/aaaa)</Text>
+                <TextInput
+                  style={[styles.customInput, { backgroundColor: theme.surfaceHighlight, borderColor: customErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  value={customData}
+                  onChangeText={t => {
+                    // Formata automaticamente dd/mm/aaaa
+                    const digits = t.replace(/\D/g, '').substring(0, 8);
+                    let formatted = digits;
+                    if (digits.length > 2) formatted = digits.slice(0,2) + '/' + digits.slice(2);
+                    if (digits.length > 4) formatted = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
+                    setCustomData(formatted);
+                    setCustomErro(null);
+                  }}
+                  keyboardType="numeric"
+                  placeholder="dd/mm/aaaa"
+                  placeholderTextColor={theme.textSecondary}
+                  maxLength={10}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.customLabel, { color: theme.textSecondary }]}>HORA (hh:mm)</Text>
+                <TextInput
+                  style={[styles.customInput, { backgroundColor: theme.surfaceHighlight, borderColor: customErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  value={customHora}
+                  onChangeText={t => {
+                    const digits = t.replace(/\D/g, '').substring(0, 4);
+                    let formatted = digits;
+                    if (digits.length > 2) formatted = digits.slice(0,2) + ':' + digits.slice(2);
+                    setCustomHora(formatted);
+                    setCustomErro(null);
+                  }}
+                  keyboardType="numeric"
+                  placeholder="hh:mm"
+                  placeholderTextColor={theme.textSecondary}
+                  maxLength={5}
+                />
+              </View>
+            </View>
+            {customErro && (
+              <View style={styles.customErroBox}>
+                <Feather name="alert-circle" size={14} color="#EF4444" />
+                <Text style={styles.customErroText}>{customErro}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Info do token */}
         <View style={[styles.infoCard, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
           <Feather name="info" size={16} color={theme.primary} />
@@ -560,4 +645,17 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 10,
   },
   solicitarBtnText: { fontSize: 11, fontWeight: '700' },
+  customRow: { flexDirection: 'row', gap: 12 },
+  customLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 },
+  customInput: {
+    height: 52, borderRadius: 14, borderWidth: 1.5,
+    paddingHorizontal: 14, fontSize: 16, fontWeight: '600',
+  },
+  customErroBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)', borderRadius: 10,
+    padding: 10, marginTop: 8,
+  },
+  customErroText: { color: '#EF4444', fontSize: 13, flex: 1 },
 });
