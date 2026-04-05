@@ -29,12 +29,10 @@
           "apiKey": "AIzaSyD9THUSNNwA0aQ54cacCs9o0-SloWA9hPY"
         }
       },
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
-        "backgroundColor": "#0B0F19",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0B0F19"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
