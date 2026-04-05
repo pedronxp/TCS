@@ -470,6 +470,7 @@ export default function WizardAvaliacaoScreen() {
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
           fotoUrl: fotoStorageUrl ?? fotoUri,
+          status: 'concluida',
         });
         if (!error) {
           markSincronizado(id);

@@ -12,7 +12,7 @@ import { logger } from '../../../utils/logger';
 import { getVistoriaById } from '../../../utils/database';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
-import { formatarData } from '../../../utils/htmlUtils';
+import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracarRota } from '../../../utils/routingUtils';
@@ -161,7 +161,13 @@ export default function VistoriaDetalhesScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>Vistoria #{id?.toString().slice(0, 6)}</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{vistoria.status || 'Registrado'}</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{
+            vistoria.status === 'concluida' ? 'Concluída'
+            : vistoria.status === 'pendente' ? 'Registrada'
+            : vistoria.status === 'em_andamento' ? 'Em Andamento'
+            : vistoria.status === 'Pendente Sync' ? 'Aguardando Sincronização'
+            : 'Registrada'
+          }</Text>
         </View>
         <TouchableOpacity
           style={[styles.laudoBtn, { backgroundColor: theme.primary }]}
@@ -197,7 +203,7 @@ export default function VistoriaDetalhesScreen() {
             { icon: 'map', label: 'Município', value: vistoria.municipio || '—' },
             { icon: 'user', label: 'Responsável', value: vistoria.responsavelNome || '—' },
             { icon: 'shield', label: 'Agente', value: vistoria.agenteNome || '—' },
-            { icon: 'calendar', label: 'Data da Vistoria', value: formatarData(vistoria.dataVistoria) },
+            { icon: 'calendar', label: 'Data da Vistoria', value: formatarDataHora(vistoria.dataVistoria) },
           ].map((row, i) => (
             <View key={i} style={[styles.cardRow, i > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}>
               <Feather name={row.icon as any} size={18} color={theme.textSecondary} />

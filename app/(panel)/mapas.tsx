@@ -203,20 +203,31 @@ export default function MapasScreen() {
 
           if (loaded.length > 0) {
             if (isInitialLoadRef.current) {
-              // Carga inicial: ajusta câmera para mostrar todos os markers
+              // Carga inicial: ajusta câmera para zoom de bairro para garantir clusters visíveis
               isInitialLoadRef.current = false;
-              setTimeout(() => fitToMarkers(loaded), 600);
+              setTimeout(() => {
+                if (loaded.length === 1) {
+                  mapRef.current?.animateToRegion({
+                    latitude: loaded[0].lat, longitude: loaded[0].lng,
+                    latitudeDelta: 0.015, longitudeDelta: 0.015,
+                  }, 800);
+                } else {
+                  (mapRef.current as any)?.fitToCoordinates(
+                    loaded.map(m => ({ latitude: m.lat, longitude: m.lng })),
+                    { edgePadding: { top: 180, right: 60, bottom: 240, left: 60 }, animated: true }
+                  );
+                }
+              }, 600);
             } else {
-              // Refresh manual: usuário pode estar com zoom alto — não reposicionar.
-              // Micro-jiggle para forçar o supercluster a recalcular para o zoom atual.
+              // Refresh manual: micro-jiggle com delta maior para forçar recálculo do supercluster
               setTimeout(() => {
                 const r = currentRegionRef.current;
                 if (r) {
                   mapRef.current?.animateToRegion(
-                    { ...r, latitude: r.latitude + 0.000001 }, 80
+                    { ...r, latitude: r.latitude + 0.0002 }, 80
                   );
                   setTimeout(() =>
-                    mapRef.current?.animateToRegion(r, 80), 160
+                    mapRef.current?.animateToRegion(r, 80), 200
                   );
                 }
               }, 300);
@@ -326,10 +337,10 @@ export default function MapasScreen() {
         clusterColor="#3B82F6"
         clusterTextColor="#FFFFFF"
         clusterFontFamily={undefined}
-        radius={18}
-        maxZoom={19}
+        radius={55}
+        maxZoom={16}
         minPoints={2}
-        extent={256}
+        extent={512}
         nodeSize={32}
         animationEnabled
         spiralEnabled

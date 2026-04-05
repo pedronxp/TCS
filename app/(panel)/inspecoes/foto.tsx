@@ -36,6 +36,8 @@ export default function FotoScreen() {
 
   useEffect(() => {
     if (!id) return;
+
+    // Tentar SQLite primeiro
     const local = getVistoriaById(id as string);
     if (local?.fotos_urls) {
       try {
@@ -46,9 +48,28 @@ export default function FotoScreen() {
             uri,
             url: uri.startsWith('http') ? uri : undefined,
           })));
+          return;
         }
       } catch { /* noop */ }
     }
+
+    // Fallback: buscar fotosUrls do Supabase (vistorias já sincronizadas)
+    supabase
+      .from('vistorias')
+      .select('fotosUrls')
+      .eq('id', id as string)
+      .single()
+      .then(({ data }) => {
+        const urls: string[] = data?.fotosUrls ?? [];
+        if (urls.length > 0) {
+          setFotos(urls.map(uri => ({
+            localId: uri,
+            uri,
+            url: uri.startsWith('http') ? uri : undefined,
+          })));
+        }
+      })
+      .catch(() => { /* sem fotos remotas */ });
   }, [id]);
 
   const solicitarPermissaoCamera = async (): Promise<boolean> => {
