@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, Modal, Share
+  ActivityIndicator, Alert, Modal, Share, TextInput
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Feather } from '@expo/vector-icons';
@@ -54,7 +54,8 @@ export default function GerarTokenScreen() {
   const { profile } = useAuth();
   const isMasterAdmin = profile?.role === 'master_admin';
   const [role, setRole] = useState('agent');
-  const [municipio, setMunicipio] = useState(profile?.municipio || '');
+  const [municipio, setMunicipio] = useState(isMasterAdmin ? '' : (profile?.municipio || ''));
+  const [municipioSearch, setMunicipioSearch] = useState('');
   const [duracao, setDuracao] = useState('48');
   const [gerando, setGerando] = useState(false);
   const [tokenGerado, setTokenGerado] = useState<string | null>(null);
@@ -174,7 +175,7 @@ export default function GerarTokenScreen() {
     if (!tokenGerado) return;
     const roleLabel = roles.find(r => r.key === role)?.label || role;
     await Share.share({
-      message: `🔐 Convite Defesa Civil\n\nCódigo: ${tokenGerado}\nPerfil: ${roleLabel}\nMunicípio: ${municipio}\nVálido por: ${labelDuracao}\nExpira em: ${formatarExpiracao(horasSelecionadas)}\n\nAcesse o app e use este código para criar sua conta.`,
+      message: `🔐 Convite de Acesso — TCS Relatório de Risco\n\nVocê foi convidado para integrar a equipe de vistoria técnica.\n\nCódigo de acesso: ${tokenGerado}\nPerfil: ${roleLabel}\nMunicípio: ${municipio}\nValidade: ${labelDuracao} (expira em ${formatarExpiracao(horasSelecionadas)})\n\nBaixe o app TCS - Relatório de Risco e use este código na tela de validação de token para criar sua conta.`,
     });
   };
 
@@ -323,33 +324,58 @@ export default function GerarTokenScreen() {
         ))}
 
         {/* Seleção de município */}
-        <Text style={[styles.label, { color: theme.textSecondary, marginTop: 8 }]}>MUNICÍPIO</Text>
+        <Text style={[styles.label, { color: theme.textSecondary, marginTop: 8 }]}>
+          MUNICÍPIO <Text style={{ color: '#EF4444' }}>*</Text>
+        </Text>
         {isMasterAdmin ? (
           loadingMunicipios ? (
             <ActivityIndicator color={theme.primary} style={{ marginBottom: 24 }} />
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: 24 }}
-              contentContainerStyle={{ gap: 10 }}
-            >
-              {municipios.map(m => (
-                <TouchableOpacity
-                  key={m}
-                  style={[
-                    styles.municipioChip,
-                    { borderColor: municipio === m ? theme.primary : theme.cardBorder,
-                      backgroundColor: municipio === m ? `${theme.primary}15` : theme.surfaceHighlight },
-                  ]}
-                  onPress={() => setMunicipio(m)}
-                >
-                  <Text style={[styles.municipioText, { color: municipio === m ? theme.primary : theme.textSecondary }]}>
-                    {m}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={{ marginBottom: 24 }}>
+              {/* Campo de busca */}
+              <View style={[styles.searchBox, { backgroundColor: theme.surfaceHighlight, borderColor: municipio ? theme.primary : theme.cardBorder }]}>
+                <Feather name="search" size={16} color={theme.textSecondary} />
+                <TextInput
+                  style={[styles.searchInput, { color: theme.text }]}
+                  placeholder={municipio || 'Pesquisar município...'}
+                  placeholderTextColor={municipio ? theme.primary : theme.textSecondary}
+                  value={municipioSearch}
+                  onChangeText={setMunicipioSearch}
+                  autoCorrect={false}
+                />
+                {municipioSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setMunicipioSearch('')}>
+                    <Feather name="x" size={16} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              {/* Lista filtrada */}
+              <View style={styles.municipioList}>
+                {municipios
+                  .filter(m => m.toLowerCase().includes(municipioSearch.toLowerCase()))
+                  .map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      style={[
+                        styles.municipioChip,
+                        { borderColor: municipio === m ? theme.primary : theme.cardBorder,
+                          backgroundColor: municipio === m ? `${theme.primary}15` : theme.surfaceHighlight },
+                      ]}
+                      onPress={() => { setMunicipio(m); setMunicipioSearch(''); }}
+                    >
+                      {municipio === m && <Feather name="check" size={12} color={theme.primary} />}
+                      <Text style={[styles.municipioText, { color: municipio === m ? theme.primary : theme.textSecondary }]}>
+                        {m}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+              {!municipio && (
+                <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 6 }}>
+                  Selecione um município para continuar.
+                </Text>
+              )}
+            </View>
           )
         ) : (
           <View style={[styles.municipioLocked, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
@@ -505,11 +531,18 @@ const styles = StyleSheet.create({
   },
   duracaoText: { fontSize: 14, fontWeight: '700' },
   modalActions: { width: '100%' },
-  municipioChip: {
-    height: 40, borderRadius: 12, borderWidth: 1.5,
-    paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center',
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 14, height: 48, marginBottom: 12,
   },
-  municipioText: { fontSize: 14, fontWeight: '600' },
+  searchInput: { flex: 1, fontSize: 15, fontWeight: '500' },
+  municipioList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  municipioChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 12, borderWidth: 1.5,
+    paddingHorizontal: 14, paddingVertical: 8, justifyContent: 'center',
+  },
+  municipioText: { fontSize: 13, fontWeight: '600' },
   municipioLocked: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 24,

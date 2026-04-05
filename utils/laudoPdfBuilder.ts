@@ -351,7 +351,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   // Tratamento da imagem
   let imageHtml = '';
   if (dados.foto_url) {
-     let fotoBase64 = dados.foto_url;
+     let fotoBase64: string | null = null;
      if (dados.foto_url.startsWith('file://')) {
        try {
          const base64Str = await FileSystem.readAsStringAsync(dados.foto_url, { encoding: FileSystem.EncodingType.Base64 });
@@ -359,11 +359,21 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
        } catch (e) {
          console.warn("Erro ao ler foto do file system", e);
        }
+     } else if (dados.foto_url.startsWith('http://') || dados.foto_url.startsWith('https://')) {
+       try {
+         const tempUri = `${FileSystem.cacheDirectory}foto_laudo_${Date.now()}.jpg`;
+         const { uri: downloaded } = await FileSystem.downloadAsync(dados.foto_url, tempUri);
+         const base64Str = await FileSystem.readAsStringAsync(downloaded, { encoding: FileSystem.EncodingType.Base64 });
+         fotoBase64 = `data:image/jpeg;base64,${base64Str}`;
+         FileSystem.deleteAsync(downloaded, { idempotent: true }).catch(() => {});
+       } catch (e) {
+         console.warn("Erro ao baixar foto remota", e);
+       }
      }
      if (fotoBase64) {
         imageHtml = `
           <div class="section" style="page-break-inside: avoid;">
-            <div class="section-title"><span class="section-icon">📷</span> Registo Fotográfico da Ocorrência</div>
+            <div class="section-title"><span class="section-icon">📷</span> Registro Fotográfico da Ocorrência</div>
             <div style="text-align:center; border: 1px solid #E2E8F0; padding: 4px; border-radius: 8px;">
               <img src="${fotoBase64}" style="max-width: 100%; max-height: 300px; border-radius: 4px; object-fit: contain;" alt="Evidência do local"/>
             </div>

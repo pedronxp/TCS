@@ -94,7 +94,7 @@ export default function ResultadoScreen() {
       nivelRisco: v.nivelRisco || 'r1',
       pontuacaoTotal: v.pontuacaoTotal ?? 0,
       respostas,
-      foto_url: v.foto_url ?? null,
+      foto_url: v.foto_url ?? v.fotosUrls?.[0] ?? null,
       condutaRecomendada: '',
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
