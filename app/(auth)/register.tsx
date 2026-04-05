@@ -158,6 +158,8 @@ export default function RegisterScreen() {
   };
 
   // ── Verificar e-mail já cadastrado (onBlur) ─────────────────────────────
+  // IMPORTANTE: verifica em AMBOS os lugares — public.users (app) e auth.users
+  // (Supabase interno) — via RPC para evitar falso negativo na Etapa 1.
   const verificarEmail = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!email.trim() || !emailRegex.test(email.trim())) {
@@ -166,13 +168,27 @@ export default function RegisterScreen() {
     }
     setCheckingEmail(true);
     try {
-      const { data } = await supabase
+      // 1) Verifica na tabela pública do app
+      const { data: publicUser } = await supabase
         .from('users')
         .select('uid')
         .eq('email', email.trim().toLowerCase())
         .maybeSingle();
-      setEmailJaCadastrado(data !== null);
+
+      if (publicUser !== null) {
+        setEmailJaCadastrado(true);
+        return;
+      }
+
+      // 2) Verifica via RPC se o e-mail existe no Supabase Auth (auth.users)
+      // Isso captura casos onde um cadastro anterior falhou pela metade.
+      const { data: authExists } = await supabase
+        .rpc('check_email_registered', { p_email: email.trim().toLowerCase() })
+        .single();
+
+      setEmailJaCadastrado(authExists === true);
     } catch {
+      // Se a RPC não existir ou falhar, cai no fallback apenas da tabela pública
       setEmailJaCadastrado(null);
     } finally {
       setCheckingEmail(false);
@@ -276,12 +292,37 @@ export default function RegisterScreen() {
       const tokenData = tokenDataRef.current;
       const codigoNorm = codigoNormRef.current;
 
+      // Pré-verificação final: garante que o e-mail não foi registrado
+      // entre a Etapa 1 e agora (ex: cadastro anterior parcialmente concluído).
+      const { data: publicUserFinal } = await supabase
+        .from('users')
+        .select('uid')
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle();
+      if (publicUserFinal !== null) {
+        throw new Error('Este e-mail já está cadastrado. Utilize a opção de login.');
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: senha,
         options: { data: { name: nome, role: tokenData.role, municipio: tokenData.municipio } },
       });
-      if (authError) throw authError;
+
+      // Trata explicitamente o caso de e-mail já registrado no Auth
+      if (authError) {
+        const msg = authError.message?.toLowerCase() ?? '';
+        if (msg.includes('user already registered') || msg.includes('already registered')) {
+          throw new Error('Este e-mail já possui uma conta no sistema. Por favor, utilize a opção de login ou recuperação de senha.');
+        }
+        throw authError;
+      }
+
+      // Supabase às vezes retorna identities vazio quando o e-mail já existe
+      // e a confirmação de e-mail está ativa — detecta esse caso silencioso.
+      if (!authData.user || (authData.user.identities && authData.user.identities.length === 0)) {
+        throw new Error('Este e-mail já possui uma conta no sistema. Por favor, utilize a opção de login.');
+      }
 
       const uid = authData.user?.id;
       if (!uid) throw new Error('Falha ao criar conta. Tente novamente.');
