@@ -220,7 +220,7 @@ export default function RegisterScreen() {
         name: nome,
         username: email.split('@')[0],
         email: email.trim().toLowerCase(),
-        telefone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
+        phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
         role: tokenData.role,
         municipio: tokenData.municipio,
         isApproved: true,
