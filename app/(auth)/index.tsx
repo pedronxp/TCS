@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  View, Text, SafeAreaView, StyleSheet, Platform,
+  View, Text, StyleSheet, Platform,
   Animated, TouchableOpacity, Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -9,12 +9,14 @@ import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { useTheme } from '../../context/ThemeContext';
 import { Spacing } from '../../constants/Spacing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RISK_COLORS = ['#10B981', '#F59E0B', '#F97316', '#EF4444'];
 
 export default function WelcomeScreen() {
   const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const logoAnim   = useRef(new Animated.Value(0)).current;
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -56,7 +58,7 @@ export default function WelcomeScreen() {
   const primary     = '#3B82F6';
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: bg }]}>
+    <View style={[styles.root, { backgroundColor: bg, paddingTop: insets.top }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
       {/* ── Linhas de fundo decorativas ─────────────────────────────────── */}
@@ -191,7 +193,7 @@ export default function WelcomeScreen() {
         <Animated.View
           style={[
             styles.footer,
-            { opacity: footerAnim, borderTopColor: border },
+            { opacity: footerAnim, borderTopColor: border, paddingBottom: Math.max(insets.bottom, 12) },
           ]}
         >
           {/* Status online */}
@@ -215,7 +217,7 @@ export default function WelcomeScreen() {
         </Animated.View>
 
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

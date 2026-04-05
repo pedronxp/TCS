@@ -206,7 +206,7 @@ export default function DadosIniciaisScreen() {
   const inputStyle = [styles.input, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }];
 
   return (
-    <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
@@ -340,7 +340,7 @@ export default function DadosIniciaisScreen() {
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
+      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
         <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => router.back()}>
           <Text style={[styles.cancelText, { color: theme.textSecondary }]}>CANCELAR</Text>
         </TouchableOpacity>
