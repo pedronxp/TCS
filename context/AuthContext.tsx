@@ -89,8 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     Promise.race([supabase.auth.getSession(), getSessionTimeout])
       .then(async (result: any) => {
         if (result.error) {
-          console.warn('Auth session error:', result.error.message);
-          if (result.error.message?.includes('Refresh Token')) {
+          const msg: string = result.error.message ?? '';
+          if (msg.includes('Refresh Token') || msg.includes('refresh_token')) {
+            // Token inválido — limpar sessão do SecureStore e redirecionar para login
             await supabase.auth.signOut().catch(() => {});
           }
           return;
@@ -118,9 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(async (err) => {
-        console.warn('Auth init catch:', err);
-        // Timeout de getSession — tentar recuperar da sessão em cache do Supabase
-        // Não forçar logout para não bloquear usuário offline
+        const msg: string = err?.message ?? String(err);
+        if (msg.includes('Refresh Token') || msg.includes('refresh_token')) {
+          // Token inválido/expirado — limpar sessão do SecureStore e redirecionar para login
+          await supabase.auth.signOut().catch(() => {});
+        }
+        // Timeout de getSession sem token inválido — não deslogar (pode ser offline)
       })
       .finally(() => {
         clearTimeout(safetyTimer);
