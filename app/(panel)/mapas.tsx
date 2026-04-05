@@ -305,10 +305,11 @@ export default function MapasScreen() {
         clusterColor="#3B82F6"
         clusterTextColor="#FFFFFF"
         clusterFontFamily={undefined}
-        radius={32}
+        radius={18}
+        maxZoom={19}
         minPoints={2}
-        extent={512}
-        nodeSize={64}
+        extent={256}
+        nodeSize={32}
         animationEnabled
         spiralEnabled
         onClusterPress={handleClusterPress}
@@ -445,21 +446,6 @@ export default function MapasScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Legenda */}
-      <View style={[styles.legend, { backgroundColor: theme.surfaceHighlight }]}>
-        {[
-          { color: '#EF4444', label: 'Crítico' },
-          { color: '#F97316', label: 'Alto' },
-          { color: '#F59E0B', label: 'Médio' },
-          { color: '#10B981', label: 'Baixo' },
-        ].map(item => (
-          <View key={item.label} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-            <Text style={[styles.legendLabel, { color: theme.textSecondary }]}>{item.label}</Text>
-          </View>
-        ))}
-      </View>
-
       {/* Popup do marcador selecionado */}
       {selectedMarker && (
         <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight }]}>
@@ -567,7 +553,7 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, fontWeight: '700' },
 
-  fabGroup: { position: 'absolute', right: 16, bottom: 150 },
+  fabGroup: { position: 'absolute', right: 16, bottom: 80 },
   fab: {
     width: 48, height: 48, borderRadius: 14,
     justifyContent: 'center', alignItems: 'center',
@@ -575,18 +561,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  legend: {
-    position: 'absolute', bottom: 68, left: 0, right: 0,
-    flexDirection: 'row', justifyContent: 'space-around',
-    paddingVertical: 10, paddingHorizontal: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 4,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot:  { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { fontSize: 10, fontWeight: '600' },
-
   markerPopup: {
-    position: 'absolute', bottom: 120, left: 16, right: 16,
+    position: 'absolute', bottom: 32, left: 16, right: 16,
     borderRadius: 16, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
   },
