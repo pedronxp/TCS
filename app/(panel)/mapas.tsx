@@ -110,6 +110,8 @@ export default function MapasScreen() {
   const { isOnlineReal } = useConnectivity();
   const { profile } = useAuth();
   const mapRef = useRef<MapView>(null);
+  const currentRegionRef = useRef<any>(null); // região atual do mapa (atualizada pelo onRegionChangeComplete)
+  const isInitialLoadRef = useRef(true);
 
   const [loading, setLoading]           = useState(true);
   const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
@@ -198,8 +200,27 @@ export default function MapasScreen() {
               pontuacaoTotal: v.pontuacaoTotal,
             }));
           setMarkers(loaded);
+
           if (loaded.length > 0) {
-            setTimeout(() => fitToMarkers(loaded), 600);
+            if (isInitialLoadRef.current) {
+              // Carga inicial: ajusta câmera para mostrar todos os markers
+              isInitialLoadRef.current = false;
+              setTimeout(() => fitToMarkers(loaded), 600);
+            } else {
+              // Refresh manual: usuário pode estar com zoom alto — não reposicionar.
+              // Micro-jiggle para forçar o supercluster a recalcular para o zoom atual.
+              setTimeout(() => {
+                const r = currentRegionRef.current;
+                if (r) {
+                  mapRef.current?.animateToRegion(
+                    { ...r, latitude: r.latitude + 0.000001 }, 80
+                  );
+                  setTimeout(() =>
+                    mapRef.current?.animateToRegion(r, 80), 160
+                  );
+                }
+              }, 300);
+            }
           }
           return;
         }
@@ -313,6 +334,7 @@ export default function MapasScreen() {
         animationEnabled
         spiralEnabled
         onClusterPress={handleClusterPress}
+        onRegionChangeComplete={(region: any) => { currentRegionRef.current = region; }}
       >
         {!showHeatmap && filteredMarkers.map(m => (
           <Marker
