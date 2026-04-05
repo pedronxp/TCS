@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   Modal, ScrollView, Platform,
@@ -27,33 +27,32 @@ interface VistoriaMarker {
   pontuacaoTotal: number | null;
 }
 
-type FilterKey = 'todos' | 'alto' | 'medio' | 'baixo';
+type FilterKey    = 'todos' | 'alto' | 'medio' | 'baixo';
 type FilterPeriodo = '7d' | '30d' | 'todos';
-type MapStyle = 'padrao' | 'satelite' | 'relevo' | 'escuro';
+type MapStyle     = 'padrao' | 'satelite' | 'relevo' | 'escuro';
 
 const PERIODOS: { key: FilterPeriodo; label: string }[] = [
-  { key: '7d', label: '7 dias' },
-  { key: '30d', label: '30 dias' },
+  { key: '7d',   label: '7 dias' },
+  { key: '30d',  label: '30 dias' },
   { key: 'todos', label: 'Todos' },
 ];
 
 const MAP_STYLES: { key: MapStyle; label: string; icon: string; desc: string; mapType: MapType }[] = [
-  { key: 'padrao',   label: 'Padrão',   icon: 'map',      desc: 'Ruas e estradas',      mapType: 'standard' },
-  { key: 'satelite', label: 'Satélite', icon: 'globe',    desc: 'Imagem aérea',          mapType: 'satellite' },
-  { key: 'relevo',   label: 'Relevo',   icon: 'triangle', desc: 'Topografia',            mapType: 'terrain' },
-  { key: 'escuro',   label: 'Escuro',   icon: 'moon',     desc: 'Modo noturno',          mapType: 'standard' },
+  { key: 'padrao',   label: 'Padrão',   icon: 'map',      desc: 'Ruas e estradas', mapType: 'standard'  },
+  { key: 'satelite', label: 'Satélite', icon: 'globe',    desc: 'Imagem aérea',   mapType: 'satellite' },
+  { key: 'relevo',   label: 'Relevo',   icon: 'triangle', desc: 'Topografia',     mapType: 'terrain'   },
+  { key: 'escuro',   label: 'Escuro',   icon: 'moon',     desc: 'Modo noturno',   mapType: 'standard'  },
 ];
 
-// Google Maps JSON style para modo escuro
 const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0B0F19' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8B949E' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0B0F19' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1C2333' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212A37' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0D1B2A' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#0F1923' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#0F1923' }] },
+  { elementType: 'geometry',            stylers: [{ color: '#0B0F19' }] },
+  { elementType: 'labels.text.fill',    stylers: [{ color: '#8B949E' }] },
+  { elementType: 'labels.text.stroke',  stylers: [{ color: '#0B0F19' }] },
+  { featureType: 'road',  elementType: 'geometry',        stylers: [{ color: '#1C2333' }] },
+  { featureType: 'road',  elementType: 'geometry.stroke', stylers: [{ color: '#212A37' }] },
+  { featureType: 'water', elementType: 'geometry',        stylers: [{ color: '#0D1B2A' }] },
+  { featureType: 'poi',   elementType: 'geometry',        stylers: [{ color: '#0F1923' }] },
+  { featureType: 'transit', elementType: 'geometry',      stylers: [{ color: '#0F1923' }] },
 ];
 
 const FILTERS: { key: FilterKey; label: string; color: string }[] = [
@@ -77,19 +76,48 @@ function getRiscoLabel(nivel: string): string {
   return 'BAIXO';
 }
 
+// Marcador customizado — sem pinColor para evitar bug com clustering
+function MarkerPin({ color }: { color: string }) {
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <View style={[markerStyles.pin, { backgroundColor: color }]}>
+        <View style={markerStyles.pinInner} />
+      </View>
+      <View style={[markerStyles.pinTail, { borderTopColor: color }]} />
+    </View>
+  );
+}
+
+const markerStyles = StyleSheet.create({
+  pin: {
+    width: 28, height: 28, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2.5, borderColor: '#FFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 3, elevation: 4,
+  },
+  pinInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
+  pinTail: {
+    width: 0, height: 0,
+    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+    marginTop: -1,
+  },
+});
+
 export default function MapasScreen() {
   const { theme } = useTheme();
   const { isOnlineReal } = useConnectivity();
   const { profile } = useAuth();
   const mapRef = useRef<MapView>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [markers, setMarkers] = useState<VistoriaMarker[]>([]);
-  const [filter, setFilter] = useState<FilterKey>('todos');
+  const [loading, setLoading]           = useState(true);
+  const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
+  const [filter, setFilter]             = useState<FilterKey>('todos');
   const [filtroPeriodo, setFiltroPeriodo] = useState<FilterPeriodo>('todos');
-  const [mapStyle, setMapStyle] = useState<MapStyle>('padrao');
+  const [mapStyle, setMapStyle]         = useState<MapStyle>('padrao');
   const [showStyleModal, setShowStyleModal] = useState(false);
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showHeatmap, setShowHeatmap]   = useState(false);
   const [selectedMarker, setSelectedMarker] = useState<VistoriaMarker | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -105,12 +133,9 @@ export default function MapasScreen() {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
       setUserLocation(coords);
-      // Anima para localização do usuário assim que obtida
       mapRef.current?.animateToRegion({
-        latitude: coords.lat,
-        longitude: coords.lng,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
+        latitude: coords.lat, longitude: coords.lng,
+        latitudeDelta: 0.02, longitudeDelta: 0.02,
       }, 1000);
     } catch { }
   };
@@ -118,29 +143,25 @@ export default function MapasScreen() {
   const goToUserLocation = () => {
     if (!userLocation) return;
     mapRef.current?.animateToRegion({
-      latitude: userLocation.lat,
-      longitude: userLocation.lng,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
+      latitude: userLocation.lat, longitude: userLocation.lng,
+      latitudeDelta: 0.01, longitudeDelta: 0.01,
     }, 800);
   };
 
-  const fitToMarkers = () => {
-    if (filteredMarkers.length === 0) return;
-    if (filteredMarkers.length === 1) {
+  const fitToMarkers = (list?: VistoriaMarker[]) => {
+    const target = list ?? filteredMarkers;
+    if (target.length === 0) return;
+    if (target.length === 1) {
       mapRef.current?.animateToRegion({
-        latitude: filteredMarkers[0].lat,
-        longitude: filteredMarkers[0].lng,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
+        latitude: target[0].lat, longitude: target[0].lng,
+        latitudeDelta: 0.008, longitudeDelta: 0.008,
       }, 800);
       return;
     }
-    const coords = filteredMarkers.map(m => ({ latitude: m.lat, longitude: m.lng }));
-    (mapRef.current as any)?.fitToCoordinates(coords, {
-      edgePadding: { top: 120, right: 40, bottom: 160, left: 40 },
-      animated: true,
-    });
+    (mapRef.current as any)?.fitToCoordinates(
+      target.map(m => ({ latitude: m.lat, longitude: m.lng })),
+      { edgePadding: { top: 160, right: 50, bottom: 220, left: 50 }, animated: true }
+    );
   };
 
   const loadMarkers = async () => {
@@ -164,25 +185,21 @@ export default function MapasScreen() {
 
         const { data, error } = await query.limit(500);
         if (!error && data) {
-          const loaded = data.filter((v: any) => v.latitude && v.longitude).map((v: any) => ({
-            id: v.id,
-            lat: Number(v.latitude),
-            lng: Number(v.longitude),
-            nivelRisco: v.nivelRisco || 'r1',
-            endereco: v.endereco || 'Endereço não informado',
-            agenteNome: v.agenteNome || '—',
-            dataVistoria: v.dataVistoria,
-            pontuacaoTotal: v.pontuacaoTotal,
-          }));
+          const loaded: VistoriaMarker[] = data
+            .filter((v: any) => v.latitude && v.longitude)
+            .map((v: any) => ({
+              id: v.id,
+              lat: Number(v.latitude),
+              lng: Number(v.longitude),
+              nivelRisco: v.nivelRisco || 'r1',
+              endereco: v.endereco || 'Endereço não informado',
+              agenteNome: v.agenteNome || '—',
+              dataVistoria: v.dataVistoria,
+              pontuacaoTotal: v.pontuacaoTotal,
+            }));
           setMarkers(loaded);
-          // Fit automático nos bounds das vistorias após carregar
           if (loaded.length > 0) {
-            setTimeout(() => {
-              (mapRef.current as any)?.fitToCoordinates(
-                loaded.map((m: VistoriaMarker) => ({ latitude: m.lat, longitude: m.lng })),
-                { edgePadding: { top: 120, right: 40, bottom: 160, left: 40 }, animated: true }
-              );
-            }, 500);
+            setTimeout(() => fitToMarkers(loaded), 600);
           }
           return;
         }
@@ -213,16 +230,35 @@ export default function MapasScreen() {
   };
 
   const filteredMarkers = markers.filter(m => {
-    if (filter === 'alto' && !(m.nivelRisco === 'r3' || m.nivelRisco === 'r4')) return false;
+    if (filter === 'alto'  && !(m.nivelRisco === 'r3' || m.nivelRisco === 'r4')) return false;
     if (filter === 'medio' && m.nivelRisco !== 'r2') return false;
     if (filter === 'baixo' && m.nivelRisco !== 'r1') return false;
     if (filtroPeriodo !== 'todos' && m.dataVistoria) {
       const dias = filtroPeriodo === '7d' ? 7 : 30;
-      const desde = new Date(Date.now() - dias * 86400000);
-      if (new Date(m.dataVistoria) < desde) return false;
+      if (new Date(m.dataVistoria) < new Date(Date.now() - dias * 86400000)) return false;
     }
     return true;
   });
+
+  // Ao pressionar cluster: dar zoom nos markers contidos nele
+  const handleClusterPress = (cluster: any, clusterMarkers: any[]) => {
+    if (!clusterMarkers?.length) return;
+    const coords = clusterMarkers.map((m: any) => ({
+      latitude:  m.geometry.coordinates[1],
+      longitude: m.geometry.coordinates[0],
+    }));
+    if (coords.length === 1) {
+      mapRef.current?.animateToRegion({
+        latitude: coords[0].latitude, longitude: coords[0].longitude,
+        latitudeDelta: 0.005, longitudeDelta: 0.005,
+      }, 700);
+      return;
+    }
+    (mapRef.current as any)?.fitToCoordinates(coords, {
+      edgePadding: { top: 160, right: 80, bottom: 220, left: 80 },
+      animated: true,
+    });
+  };
 
   const currentStyleConfig = MAP_STYLES.find(s => s.key === mapStyle)!;
   const initialRegion = userLocation
@@ -230,8 +266,7 @@ export default function MapasScreen() {
     : { latitude: -15.7801, longitude: -47.9292, latitudeDelta: 30, longitudeDelta: 30 };
 
   const heatmapPoints = filteredMarkers.map(m => ({
-    latitude: m.lat,
-    longitude: m.lng,
+    latitude: m.lat, longitude: m.lng,
     weight: m.nivelRisco === 'r4' ? 1 : m.nivelRisco === 'r3' ? 0.8 : m.nivelRisco === 'r2' ? 0.5 : 0.3,
   }));
 
@@ -266,19 +301,27 @@ export default function MapasScreen() {
         initialRegion={initialRegion}
         showsUserLocation
         showsMyLocationButton={false}
+        // Clustering
         clusterColor="#3B82F6"
         clusterTextColor="#FFFFFF"
         clusterFontFamily={undefined}
-        radius={40}
-        onClusterPress={() => {}}
+        radius={32}
+        minPoints={2}
+        extent={512}
+        nodeSize={64}
+        animationEnabled
+        spiralEnabled
+        onClusterPress={handleClusterPress}
       >
         {!showHeatmap && filteredMarkers.map(m => (
           <Marker
             key={m.id}
             coordinate={{ latitude: m.lat, longitude: m.lng }}
-            pinColor={getRiscoColor(m.nivelRisco)}
             onPress={() => setSelectedMarker(m)}
-          />
+            tracksViewChanges={false}
+          >
+            <MarkerPin color={getRiscoColor(m.nivelRisco)} />
+          </Marker>
         ))}
 
         {showHeatmap && Platform.OS === 'android' && (
@@ -341,12 +384,22 @@ export default function MapasScreen() {
               ]}
               onPress={() => setFilter(f.key)}
             >
-              <Text style={[styles.chipText, { color: filter === f.key ? '#FFF' : theme.text }]}>
-                {f.label}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                {f.key !== 'todos' && (
+                  <View style={{
+                    width: 7, height: 7, borderRadius: 4,
+                    backgroundColor: filter === f.key ? '#FFF' : f.color,
+                  }} />
+                )}
+                <Text style={[styles.chipText, { color: filter === f.key ? '#FFF' : theme.text }]}>
+                  {f.label}
+                </Text>
+              </View>
             </TouchableOpacity>
           ))}
+
           <View style={{ width: 1, height: 28, backgroundColor: theme.border, alignSelf: 'center', marginHorizontal: 2 }} />
+
           {PERIODOS.map(p => (
             <TouchableOpacity
               key={p.key}
@@ -371,7 +424,7 @@ export default function MapasScreen() {
         {filteredMarkers.length > 0 && (
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: theme.surfaceHighlight }]}
-            onPress={fitToMarkers}
+            onPress={() => fitToMarkers()}
           >
             <Feather name="maximize-2" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -415,15 +468,19 @@ export default function MapasScreen() {
               <Text style={styles.riscoBadgeText}>{getRiscoLabel(selectedMarker.nivelRisco)}</Text>
             </View>
             {selectedMarker.pontuacaoTotal != null && (
-              <Text style={[{ fontSize: 12, color: theme.textSecondary }]}>{selectedMarker.pontuacaoTotal}pts</Text>
+              <Text style={{ fontSize: 12, color: theme.textSecondary }}>{selectedMarker.pontuacaoTotal}pts</Text>
             )}
             <TouchableOpacity onPress={() => setSelectedMarker(null)} style={{ marginLeft: 'auto' }}>
               <Feather name="x" size={16} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
-          <Text style={[styles.popupEndereco, { color: theme.text }]} numberOfLines={2}>{selectedMarker.endereco}</Text>
+          <Text style={[styles.popupEndereco, { color: theme.text }]} numberOfLines={2}>
+            {selectedMarker.endereco}
+          </Text>
           <Text style={[styles.popupAgente, { color: theme.textSecondary }]}>
-            {selectedMarker.agenteNome} · {selectedMarker.dataVistoria ? new Date(selectedMarker.dataVistoria).toLocaleDateString('pt-BR') : '—'}
+            {selectedMarker.agenteNome} · {selectedMarker.dataVistoria
+              ? new Date(selectedMarker.dataVistoria).toLocaleDateString('pt-BR')
+              : '—'}
           </Text>
           <View style={styles.popupActions}>
             <TouchableOpacity
@@ -469,7 +526,7 @@ export default function MapasScreen() {
               </View>
               <View style={{ flex: 1, marginLeft: 14 }}>
                 <Text style={[styles.styleLabel, { color: theme.text }]}>{s.label}</Text>
-                <Text style={[styles.styleDesc, { color: theme.textSecondary }]}>{s.desc}</Text>
+                <Text style={[styles.styleDesc,  { color: theme.textSecondary }]}>{s.desc}</Text>
               </View>
               {s.key === mapStyle && <Feather name="check-circle" size={20} color={theme.primary} />}
             </TouchableOpacity>
@@ -501,13 +558,11 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6, elevation: 5,
   },
   headerTitle: { fontSize: 16, fontWeight: '700' },
-  headerSub: { fontSize: 11, fontWeight: '500', marginTop: 1 },
+  headerSub:   { fontSize: 11, fontWeight: '500', marginTop: 1 },
 
-  filtersOverlay: {
-    position: 'absolute', top: 118, left: 0, right: 0, paddingHorizontal: 16,
-  },
+  filtersOverlay: { position: 'absolute', top: 118, left: 0, right: 0, paddingHorizontal: 16 },
   chip: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 3,
   },
   chipText: { fontSize: 12, fontWeight: '700' },
@@ -527,7 +582,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 4,
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendDot:  { width: 10, height: 10, borderRadius: 5 },
   legendLabel: { fontSize: 10, fontWeight: '600' },
 
   markerPopup: {
@@ -535,13 +590,13 @@ const styles = StyleSheet.create({
     borderRadius: 16, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
   },
-  riscoBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  riscoBadge:     { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   riscoBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  popupEndereco: { fontSize: 14, fontWeight: '600', marginBottom: 4, lineHeight: 20 },
-  popupAgente: { fontSize: 12, marginBottom: 10 },
-  popupActions: { flexDirection: 'row', gap: 8 },
-  popupBtn: { borderRadius: 10, padding: 10, alignItems: 'center' },
-  popupRotaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  popupEndereco:  { fontSize: 14, fontWeight: '600', marginBottom: 4, lineHeight: 20 },
+  popupAgente:    { fontSize: 12, marginBottom: 10 },
+  popupActions:   { flexDirection: 'row', gap: 8 },
+  popupBtn:       { borderRadius: 10, padding: 10, alignItems: 'center' },
+  popupRotaBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 12, gap: 10 },
@@ -551,7 +606,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     padding: 14, borderRadius: 16, borderWidth: 2, borderColor: 'transparent',
   },
-  styleIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  styleIcon:  { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   styleLabel: { fontSize: 15, fontWeight: '700' },
-  styleDesc: { fontSize: 12, marginTop: 2 },
+  styleDesc:  { fontSize: 12, marginTop: 2 },
 });
