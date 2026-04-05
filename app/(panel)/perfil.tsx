@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, TextInput, Alert
+  ActivityIndicator, TextInput, Alert, Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as Network from 'expo-network';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
@@ -20,47 +21,60 @@ const ROLE_LABELS: Record<string, string> = {
   master_admin: 'Master Admin',
 };
 
+// Formata número BR para exibição: +5511987654321 → (11) 98765-4321
+function formatarTelefone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  // Remove DDI 55
+  const local = digits.startsWith('55') ? digits.slice(2) : digits;
+  if (local.length === 11) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+  }
+  if (local.length === 10) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+  }
+  return phone;
+}
+
+// Valida e normaliza entrada do usuário para formato +55XXXXXXXXXXX
+function normalizarTelefone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  // Aceita com ou sem DDI
+  let local = digits;
+  if (digits.startsWith('55') && digits.length > 11) local = digits.slice(2);
+  if (local.length < 10 || local.length > 11) return null;
+  return `+55${local}`;
+}
+
 export default function PerfilScreen() {
   const { theme, themeMode, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
   const { session, profile: authProfile, loading: authLoading, signOut, refreshProfile } = useAuth();
+
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(authProfile?.name || '');
+
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+
   const [stats, setStats] = useState({ total: 0, altoRisco: 0, hoje: 0, semana: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+
   const [deviceIp, setDeviceIp] = useState<string>('');
+  const [lgpdExpanded, setLgpdExpanded] = useState(false);
 
   useEffect(() => {
     if (authProfile) {
       setNewName(authProfile.name || '');
       loadStats();
     }
-    // Capturar IP real do dispositivo — múltiplas fontes de fallback
-    const fetchIp = async () => {
-      const sources = [
-        'https://api.ipify.org?format=json',
-        'https://api.seeip.org/jsonip',
-        'https://api.myip.com',
-      ];
-      for (const url of sources) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
-          const res = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeout);
-          const data = await res.json();
-          const ip = data.ip || data.IP || '';
-          if (ip && ip !== '0.0.0.0' && ip !== '127.0.0.1') {
-            setDeviceIp(ip);
-            return;
-          }
-        } catch { /* tenta próxima fonte */ }
-      }
-      setDeviceIp('Indisponível');
-    };
-    fetchIp();
+
+    // IP local da rede (Wi-Fi/dados)
+    Network.getIpAddressAsync()
+      .then(ip => setDeviceIp(ip && ip !== '0.0.0.0' ? ip : 'Indisponível'))
+      .catch(() => setDeviceIp('Indisponível'));
   }, [authProfile]);
 
   const loadStats = async () => {
@@ -120,6 +134,31 @@ export default function PerfilScreen() {
     }
   };
 
+  const savePhone = async () => {
+    if (!authProfile) return;
+    const normalized = normalizarTelefone(phoneInput);
+    if (!normalized) {
+      Alert.alert('Número inválido', 'Informe um número brasileiro válido com DDD.\nEx: (11) 98765-4321');
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ phone: normalized })
+        .eq('uid', authProfile.uid);
+      if (error) throw error;
+      await refreshProfile();
+      setEditingPhone(false);
+      setPhoneInput('');
+      Alert.alert('WhatsApp salvo', 'Número de WhatsApp cadastrado com sucesso.');
+    } catch {
+      Alert.alert('Erro', 'Não foi possível salvar o número.');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
   const resetPassword = async () => {
     if (!authProfile?.email) return;
     try {
@@ -158,16 +197,12 @@ export default function PerfilScreen() {
     authProfile?.role === 'admin' ? 'error' :
     'warning';
 
-  // ── Último acesso ──
   const lastSignIn = session?.user?.last_sign_in_at;
-  const lastAccessText = lastSignIn
-    ? formatarDataHora(lastSignIn)
-    : '—';
+  const lastAccessText = lastSignIn ? formatarDataHora(lastSignIn) : '—';
+  const memberSinceText = authProfile?.createdAt ? formatarData(authProfile.createdAt) : '—';
 
-  // ── Membro desde ──
-  const memberSinceText = authProfile?.createdAt
-    ? formatarData(authProfile.createdAt)
-    : '—';
+  const hasPhone = !!authProfile?.phone;
+  const phoneDisplay = hasPhone ? formatarTelefone(authProfile!.phone!) : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -190,7 +225,6 @@ export default function PerfilScreen() {
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
 
-          {/* ── Nome ── */}
           {editingName ? (
             <View style={styles.editRow}>
               <TextInput
@@ -218,7 +252,6 @@ export default function PerfilScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Badge de cargo */}
           <Badge variant={roleBadgeVariant} label={roleLabel} />
         </Card>
 
@@ -227,6 +260,63 @@ export default function PerfilScreen() {
         <Card style={styles.infoCard} noPadding>
 
           <InfoRow icon="mail" label="E-mail" value={authProfile?.email || '—'} theme={theme} />
+          <Divider theme={theme} />
+
+          {/* Telefone / WhatsApp */}
+          {editingPhone ? (
+            <View style={{ paddingVertical: 10, paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="smartphone" size={15} color={theme.textSecondary} style={{ marginRight: 4 }} />
+                <TextInput
+                  style={[styles.nameInput, { flex: 1, color: theme.text, borderColor: theme.primary, backgroundColor: theme.background }]}
+                  value={phoneInput}
+                  onChangeText={setPhoneInput}
+                  placeholder="(11) 98765-4321"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                  autoFocus
+                  maxLength={16}
+                />
+                <TouchableOpacity style={[styles.iconBtnSm, { backgroundColor: theme.primary }]} onPress={savePhone} disabled={savingPhone}>
+                  {savingPhone ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="check" size={18} color="#FFF" />}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconBtnSm, { borderColor: theme.border, borderWidth: 1 }]}
+                  onPress={() => { setEditingPhone(false); setPhoneInput(''); }}
+                >
+                  <Feather name="x" size={18} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 6, marginLeft: 27 }}>
+                Número brasileiro com DDD · usado para login e notificações via WhatsApp
+              </Text>
+            </View>
+          ) : hasPhone ? (
+            <TouchableOpacity onPress={() => { setPhoneInput(phoneDisplay || ''); setEditingPhone(true); }}>
+              <InfoRow
+                icon="smartphone"
+                label="WhatsApp"
+                value={phoneDisplay!}
+                actionIcon="edit-2"
+                theme={theme}
+              />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.addPhoneRow, { borderColor: theme.primary }]}
+              onPress={() => setEditingPhone(true)}
+            >
+              <View style={[styles.addPhoneIcon, { backgroundColor: `${theme.primary}15` }]}>
+                <Feather name="smartphone" size={16} color={theme.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.addPhoneTitle, { color: theme.primary }]}>Adicionar número de WhatsApp</Text>
+                <Text style={[styles.addPhoneDesc, { color: theme.textSecondary }]}>Para login e recebimento de notificações</Text>
+              </View>
+              <Feather name="plus" size={18} color={theme.primary} />
+            </TouchableOpacity>
+          )}
+
           <Divider theme={theme} />
 
           <InfoRow icon="map-pin" label="Município" value={authProfile?.municipio || '—'} theme={theme} />
@@ -247,7 +337,7 @@ export default function PerfilScreen() {
           <InfoRow icon="clock" label="Último acesso" value={lastAccessText} theme={theme} />
           <Divider theme={theme} />
 
-          <InfoRow icon="wifi" label="IP atual" value={deviceIp || '…'} theme={theme} />
+          <InfoRow icon="wifi" label="IP da rede" value={deviceIp || '…'} theme={theme} />
         </Card>
 
         {/* Estatísticas */}
@@ -358,8 +448,42 @@ export default function PerfilScreen() {
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />
         </TouchableOpacity>
 
+        {/* Privacidade e Permissões */}
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Privacidade e Permissões</Text>
+
         <TouchableOpacity
-          style={[styles.actionRow, { backgroundColor: 'rgba(239,68,68,0.05)', borderColor: 'rgba(239,68,68,0.15)' }]}
+          style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+          onPress={() => setLgpdExpanded(v => !v)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+            <Feather name="shield" size={20} color="#10B981" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.actionTitle, { color: theme.text }]}>LGPD — Proteção de Dados</Text>
+            <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Veja como seus dados são usados</Text>
+          </View>
+          <Feather name={lgpdExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+
+        {lgpdExpanded && (
+          <Card style={styles.lgpdCard}>
+            <LgpdSection theme={theme} />
+          </Card>
+        )}
+
+        <Card style={[styles.permCard]} noPadding>
+          <PermRow icon="camera" label="Câmera" desc="Registro fotográfico das vistorias" theme={theme} />
+          <Divider theme={theme} />
+          <PermRow icon="map-pin" label="Localização" desc="Geolocalização das vistorias e do mapa" theme={theme} />
+          <Divider theme={theme} />
+          <PermRow icon="bell" label="Notificações" desc="Alertas de alto risco e novos formulários" theme={theme} />
+          <Divider theme={theme} />
+          <PermRow icon="smartphone" label="WhatsApp" desc="Envio de OTP para login seguro. O número não é compartilhado com terceiros." theme={theme} />
+        </Card>
+
+        <TouchableOpacity
+          style={[styles.actionRow, { backgroundColor: 'rgba(239,68,68,0.05)', borderColor: 'rgba(239,68,68,0.15)', marginTop: 8 }]}
           onPress={handleLogout}
         >
           <View style={[styles.actionIcon, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
@@ -376,13 +500,14 @@ export default function PerfilScreen() {
   );
 }
 
-// ── Sub-componentes ────────────────────────────────────────────────────────────
+// ── Sub-componentes ─────────────────────────────────────────────────────────────
 
-function InfoRow({ icon, label, value, valueColor, theme }: {
+function InfoRow({ icon, label, value, valueColor, actionIcon, theme }: {
   icon: React.ComponentProps<typeof Feather>['name'];
   label: string;
   value: string;
   valueColor?: string;
+  actionIcon?: React.ComponentProps<typeof Feather>['name'];
   theme: any;
 }) {
   return (
@@ -390,12 +515,79 @@ function InfoRow({ icon, label, value, valueColor, theme }: {
       <Feather name={icon} size={15} color={theme.textSecondary} style={infoStyles.icon} />
       <Text style={[infoStyles.label, { color: theme.textSecondary }]}>{label}</Text>
       <Text style={[infoStyles.value, { color: valueColor ?? theme.text }]} numberOfLines={1}>{value}</Text>
+      {actionIcon && <Feather name={actionIcon} size={13} color={theme.textSecondary} style={{ marginLeft: 6 }} />}
     </View>
   );
 }
 
 function Divider({ theme }: { theme: any }) {
   return <View style={[infoStyles.divider, { backgroundColor: theme.border }]} />;
+}
+
+function PermRow({ icon, label, desc, theme }: {
+  icon: React.ComponentProps<typeof Feather>['name'];
+  label: string;
+  desc: string;
+  theme: any;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16 }}>
+      <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}12`, width: 36, height: 36, marginRight: 12 }]}>
+        <Feather name={icon} size={16} color={theme.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 2 }}>{label}</Text>
+        <Text style={{ fontSize: 12, color: theme.textSecondary }}>{desc}</Text>
+      </View>
+    </View>
+  );
+}
+
+function LgpdSection({ theme }: { theme: any }) {
+  const items = [
+    {
+      title: 'Dados coletados',
+      text: 'Nome, e-mail, número de telefone, município, fotos e geolocalização das vistorias realizadas.',
+    },
+    {
+      title: 'Finalidade',
+      text: 'Gestão de vistorias de risco, envio de notificações operacionais e autenticação via WhatsApp (OTP). Nenhum dado é vendido ou repassado a terceiros.',
+    },
+    {
+      title: 'WhatsApp',
+      text: 'O número de telefone é utilizado exclusivamente para envio de código de verificação (OTP) por um número oficial do TCS - Relatório de Risco. Não recebemos nem armazenamos conteúdo de conversas.',
+    },
+    {
+      title: 'Seus direitos (Lei 13.709/2018 — LGPD)',
+      text: 'Você pode solicitar a consulta, correção ou exclusão dos seus dados pessoais a qualquer momento entrando em contato com o administrador do seu município.',
+    },
+    {
+      title: 'Retenção',
+      text: 'Os dados são mantidos enquanto a conta estiver ativa. Após exclusão da conta, os dados pessoais identificáveis são removidos em até 30 dias.',
+    },
+  ];
+
+  return (
+    <View style={{ gap: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Feather name="shield" size={18} color="#10B981" />
+        <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text }}>Política de Privacidade</Text>
+      </View>
+      {items.map((item, i) => (
+        <View key={i}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>
+            {item.title}
+          </Text>
+          <Text style={{ fontSize: 13, color: theme.text, lineHeight: 20 }}>{item.text}</Text>
+        </View>
+      ))}
+      <View style={{ marginTop: 4, padding: 12, borderRadius: 10, backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)' }}>
+        <Text style={{ fontSize: 12, color: '#10B981', lineHeight: 18, fontWeight: '500' }}>
+          Este aplicativo opera em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018). O tratamento dos dados tem base legal no exercício de função pública e no legítimo interesse da Defesa Civil.
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 function StatCard({ icon, label, value, color, loading, theme }: {
@@ -428,9 +620,7 @@ const infoStyles = StyleSheet.create({
 });
 
 const statStyles = StyleSheet.create({
-  card: {
-    flex: 1, minWidth: 90, alignItems: 'center', gap: 6,
-  },
+  card: { flex: 1, minWidth: 90, alignItems: 'center', gap: 6 },
   iconWrap: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   value: { fontSize: 26, fontWeight: '800' },
   label: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
@@ -449,10 +639,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '700' },
   scrollContent: { padding: 20, paddingBottom: 100 },
 
-  // Hero card
-  heroCard: {
-    alignItems: 'center', marginBottom: 24,
-  },
+  heroCard: { alignItems: 'center', marginBottom: 24 },
   avatar: {
     width: 80, height: 80, borderRadius: 24,
     justifyContent: 'center', alignItems: 'center', marginBottom: 16,
@@ -468,19 +655,27 @@ const styles = StyleSheet.create({
   },
   iconBtnSm: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
 
-  // Info card
   infoCard: { marginBottom: 24 },
 
-  // Section title
+  addPhoneRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 13, paddingHorizontal: 16,
+    borderTopWidth: 0, gap: 12,
+  },
+  addPhoneIcon: {
+    width: 32, height: 32, borderRadius: 8,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  addPhoneTitle: { fontSize: 13, fontWeight: '600' },
+  addPhoneDesc: { fontSize: 11, marginTop: 1 },
+
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1.2, marginBottom: 12,
   },
 
-  // Stats grid
   statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 24, flexWrap: 'wrap' },
 
-  // Actions
   actionRow: {
     flexDirection: 'row', alignItems: 'center', padding: 16,
     borderRadius: 16, borderWidth: 1, marginBottom: 12,
@@ -491,4 +686,7 @@ const styles = StyleSheet.create({
   },
   actionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   actionDesc: { fontSize: 13 },
+
+  lgpdCard: { marginBottom: 12, marginTop: -4 },
+  permCard: { marginBottom: 12 },
 });

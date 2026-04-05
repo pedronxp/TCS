@@ -12,6 +12,7 @@ export interface UserProfile {
   isApproved: boolean;
   createdAt?: string;
   nameChanged?: boolean;
+  phone?: string | null;
 }
 
 interface AuthContextData {
@@ -53,7 +54,7 @@ async function fetchProfile(userId: string): Promise<FetchProfileResult> {
   try {
     const queryPromise = supabase
       .from('users')
-      .select('uid, name, email, role, municipio, isApproved, "createdAt", "nameChanged"')
+      .select('uid, name, email, role, municipio, isApproved, "createdAt", "nameChanged", phone')
       .eq('uid', userId)
       .single();
 
