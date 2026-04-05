@@ -43,7 +43,7 @@
     "leaflet": "1.9.4",
     "leaflet.heat": "0.2.0",
     "leaflet.markercluster": "1.5.3",
-    "react": "19.2.4",
+    "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-map-clustering": "^4.0.0",
     "react-native-maps": "1.20.1",
