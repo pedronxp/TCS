@@ -108,6 +108,10 @@ export default function RegisterScreen() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
+  // Verificação inline de e-mail já cadastrado
+  const [checkingEmail, setCheckingEmail]       = useState(false);
+  const [emailJaCadastrado, setEmailJaCadastrado] = useState<boolean | null>(null);
+
   // Termos
   const [termosScrollado, setTermosScrollado] = useState(false);
   const [termosAceitos, setTermosAceitos]     = useState(false);
@@ -116,6 +120,28 @@ export default function RegisterScreen() {
   const [permCamera, setPermCamera]           = useState<PermStatus>('pendente');
   const [permLocalizacao, setPermLocalizacao] = useState<PermStatus>('pendente');
   const [permNotificacoes, setPermNotificacoes] = useState<PermStatus>('pendente');
+
+  // ── Verificar e-mail já cadastrado (onBlur) ─────────────────────────────
+  const verificarEmail = async () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setEmailJaCadastrado(null);
+      return;
+    }
+    setCheckingEmail(true);
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('uid')
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle();
+      setEmailJaCadastrado(data !== null);
+    } catch {
+      setEmailJaCadastrado(null);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
 
   // ── Etapa 1: validar formulário e token ─────────────────────────────────
   const handleValidarFormulario = async () => {
@@ -126,6 +152,10 @@ export default function RegisterScreen() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!emailRegex.test(email.trim())) {
       setError('Informe um endereço de e-mail válido.');
+      return;
+    }
+    if (emailJaCadastrado === true) {
+      setError('Este e-mail já está cadastrado. Utilize outro endereço.');
       return;
     }
     if (senha.length < 8) {
@@ -543,18 +573,41 @@ export default function RegisterScreen() {
             {/* E-mail */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>E-mail</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+              <View style={[
+                styles.inputContainer,
+                {
+                  backgroundColor: theme.surfaceHighlight,
+                  borderColor: emailJaCadastrado === true ? '#EF4444'
+                    : emailJaCadastrado === false ? '#10B981'
+                    : theme.border,
+                },
+              ]}>
                 <Feather name="mail" color={theme.textSecondary} size={20} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="nome@email.com"
                   placeholderTextColor={theme.textSecondary}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={t => { setEmail(t); setEmailJaCadastrado(null); }}
+                  onBlur={verificarEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
                 />
+                {checkingEmail && (
+                  <Feather name="loader" size={16} color={theme.textSecondary} style={{ marginRight: 12 }} />
+                )}
+                {!checkingEmail && emailJaCadastrado === true && (
+                  <Feather name="x-circle" size={16} color="#EF4444" style={{ marginRight: 12 }} />
+                )}
+                {!checkingEmail && emailJaCadastrado === false && (
+                  <Feather name="check-circle" size={16} color="#10B981" style={{ marginRight: 12 }} />
+                )}
               </View>
+              {emailJaCadastrado === true && (
+                <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 6, marginLeft: 2 }}>
+                  Este e-mail já está cadastrado. Utilize outro endereço.
+                </Text>
+              )}
             </View>
 
             {/* WhatsApp */}
