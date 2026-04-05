@@ -108,6 +108,14 @@ export default function RegisterScreen() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
+  // Verificação inline de token
+  type TokenStatus =
+    | null
+    | 'checking'
+    | { valido: true; municipio: string; expiraEm: string | null }
+    | { valido: false; motivo: string };
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus>(null);
+
   // Verificação inline de e-mail já cadastrado
   const [checkingEmail, setCheckingEmail]       = useState(false);
   const [emailJaCadastrado, setEmailJaCadastrado] = useState<boolean | null>(null);
@@ -120,6 +128,34 @@ export default function RegisterScreen() {
   const [permCamera, setPermCamera]           = useState<PermStatus>('pendente');
   const [permLocalizacao, setPermLocalizacao] = useState<PermStatus>('pendente');
   const [permNotificacoes, setPermNotificacoes] = useState<PermStatus>('pendente');
+
+  // ── Verificar token inline ───────────────────────────────────────────────
+  const verificarToken = async (valor: string) => {
+    const codigoNorm = valor.trim().toUpperCase().replace(/[-\s]/g, '');
+    if (codigoNorm.length < 12) return; // token incompleto
+    setTokenStatus('checking');
+    tokenDataRef.current = null;
+    codigoNormRef.current = '';
+    try {
+      const { data, error: valError } = await supabase
+        .rpc('validate_invite_token', { p_codigo: codigoNorm })
+        .single();
+      if (valError || !data) {
+        setTokenStatus({ valido: false, motivo: 'Token inválido ou já utilizado.' });
+        return;
+      }
+      if (!data.valido) {
+        setTokenStatus({ valido: false, motivo: data.motivo || 'Token inválido.' });
+        return;
+      }
+      // Cachear para o submit final
+      tokenDataRef.current = data;
+      codigoNormRef.current = codigoNorm;
+      setTokenStatus({ valido: true, municipio: data.municipio || '', expiraEm: data.expiraEm || null });
+    } catch {
+      setTokenStatus({ valido: false, motivo: 'Não foi possível verificar o token.' });
+    }
+  };
 
   // ── Verificar e-mail já cadastrado (onBlur) ─────────────────────────────
   const verificarEmail = async () => {
@@ -174,17 +210,24 @@ export default function RegisterScreen() {
     setLoading(true);
     setError(null);
     try {
-      const codigoNorm = token.trim().toUpperCase().replace(/\s/g, '');
-      const { data: tokenValidation, error: valError } = await supabase
-        .rpc('validate_invite_token', { p_codigo: codigoNorm })
-        .single();
+      let tokenData = tokenDataRef.current;
+      const codigoNorm = token.trim().toUpperCase().replace(/[-\s]/g, '');
 
-      if (valError || !tokenValidation) throw new Error('Token inválido ou já utilizado.');
-      if (!tokenValidation.valido) throw new Error(tokenValidation.motivo);
+      // Reutiliza resultado cacheado da verificação inline, ou revalida
+      if (!tokenData) {
+        const { data, error: valError } = await supabase
+          .rpc('validate_invite_token', { p_codigo: codigoNorm })
+          .single();
+        if (valError || !data) throw new Error('Token inválido ou já utilizado.');
+        if (!data.valido) throw new Error(data.motivo);
+        tokenData = data;
+        tokenDataRef.current = data;
+        codigoNormRef.current = codigoNorm;
+      }
 
-      if (tokenValidation.municipio) {
+      if (tokenData.municipio) {
         const { data: dominioOk } = await supabase.rpc('check_email_domain', {
-          p_municipio: tokenValidation.municipio,
+          p_municipio: tokenData.municipio,
           p_email: email.trim().toLowerCase(),
         });
         if (dominioOk === false) {
@@ -192,8 +235,6 @@ export default function RegisterScreen() {
         }
       }
 
-      tokenDataRef.current = tokenValidation;
-      codigoNormRef.current = codigoNorm;
       setEtapa('termos');
     } catch (e: any) {
       setError(traduzirErroAuth(e.message) || 'Erro ao validar token.');
@@ -542,17 +583,71 @@ export default function RegisterScreen() {
             {/* Token */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Token de Acesso</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+              <View style={[
+                styles.inputContainer,
+                {
+                  backgroundColor: theme.surfaceHighlight,
+                  borderColor:
+                    tokenStatus === 'checking' ? theme.border
+                    : tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido ? '#10B981'
+                    : tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido ? '#EF4444'
+                    : theme.border,
+                },
+              ]}>
                 <Feather name="key" color={theme.textSecondary} size={20} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text, letterSpacing: 2 }]}
                   placeholder="XXXX-XXXX-XXXX"
                   placeholderTextColor={theme.textSecondary}
                   value={token}
-                  onChangeText={t => setToken(formatarToken(t))}
+                  onChangeText={t => {
+                    const formatted = formatarToken(t);
+                    setToken(formatted);
+                    setTokenStatus(null);
+                    tokenDataRef.current = null;
+                    // Dispara assim que o token estiver completo (14 chars com traços)
+                    if (formatted.length === 14) verificarToken(formatted);
+                  }}
+                  onBlur={() => { if (token.length > 0 && tokenStatus === null) verificarToken(token); }}
                   autoCapitalize="characters"
                 />
+                {tokenStatus === 'checking' && (
+                  <Feather name="loader" size={16} color={theme.textSecondary} style={{ marginRight: 12 }} />
+                )}
+                {tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido && (
+                  <Feather name="check-circle" size={16} color="#10B981" style={{ marginRight: 12 }} />
+                )}
+                {tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido && (
+                  <Feather name="x-circle" size={16} color="#EF4444" style={{ marginRight: 12 }} />
+                )}
               </View>
+
+              {/* Card de confirmação do token */}
+              {tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido && (
+                <View style={[styles.tokenCard, { backgroundColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.25)' }]}>
+                  <View style={styles.tokenCardRow}>
+                    <Feather name="map-pin" size={13} color="#10B981" />
+                    <Text style={[styles.tokenCardLabel, { color: '#10B981' }]}>Município</Text>
+                    <Text style={[styles.tokenCardValue, { color: theme.text }]}>{tokenStatus.municipio || '—'}</Text>
+                  </View>
+                  <View style={styles.tokenCardRow}>
+                    <Feather name="clock" size={13} color="#10B981" />
+                    <Text style={[styles.tokenCardLabel, { color: '#10B981' }]}>Válido até</Text>
+                    <Text style={[styles.tokenCardValue, { color: theme.text }]}>
+                      {tokenStatus.expiraEm
+                        ? new Date(tokenStatus.expiraEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : 'Sem expiração'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Erro de token inválido */}
+              {tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido && (
+                <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 6, marginLeft: 2 }}>
+                  {tokenStatus.motivo}
+                </Text>
+              )}
             </View>
 
             {/* Nome */}
@@ -769,6 +864,10 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 15, fontWeight: '400', marginTop: 12, lineHeight: 22 },
   form: { gap: 20 },
   fieldGroup: { gap: 8 },
+  tokenCard: { marginTop: 8, borderRadius: 10, borderWidth: 1, padding: 12, gap: 8 },
+  tokenCardRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tokenCardLabel: { fontSize: 12, fontWeight: '600', width: 80 },
+  tokenCardValue: { fontSize: 13, fontWeight: '600', flex: 1 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   opcionalBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
