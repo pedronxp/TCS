@@ -131,8 +131,8 @@ export default function RegisterScreen() {
 
   // ── Verificar token inline ───────────────────────────────────────────────
   const verificarToken = async (valor: string) => {
-    const codigoNorm = valor.trim().toUpperCase().replace(/[-\s]/g, '');
-    if (codigoNorm.length < 12) return; // token incompleto
+    const codigoNorm = valor.trim().toUpperCase().replace(/\s/g, ''); // mantém traços — banco armazena com traços
+    if (codigoNorm.length < 14) return; // XXXX-XXXX-XXXX = 14 chars
     setTokenStatus('checking');
     tokenDataRef.current = null;
     codigoNormRef.current = '';
@@ -211,7 +211,7 @@ export default function RegisterScreen() {
     setError(null);
     try {
       let tokenData = tokenDataRef.current;
-      const codigoNorm = token.trim().toUpperCase().replace(/[-\s]/g, '');
+      const codigoNorm = token.trim().toUpperCase().replace(/\s/g, ''); // mantém traços
 
       // Reutiliza resultado cacheado da verificação inline, ou revalida
       if (!tokenData) {
