@@ -203,21 +203,19 @@ export default function MapasScreen() {
 
           if (loaded.length > 0) {
             if (isInitialLoadRef.current) {
-              // Carga inicial: ajusta câmera para zoom de bairro para garantir clusters visíveis
+              // Carga inicial: anima para o centróide com zoom de bairro fixo
+              // Não usamos fitToCoordinates para evitar zoom máximo quando coords são idênticas
               isInitialLoadRef.current = false;
               setTimeout(() => {
-                if (loaded.length === 1) {
-                  mapRef.current?.animateToRegion({
-                    latitude: loaded[0].lat, longitude: loaded[0].lng,
-                    latitudeDelta: 0.015, longitudeDelta: 0.015,
-                  }, 800);
-                } else {
-                  (mapRef.current as any)?.fitToCoordinates(
-                    loaded.map(m => ({ latitude: m.lat, longitude: m.lng })),
-                    { edgePadding: { top: 180, right: 60, bottom: 240, left: 60 }, animated: true }
-                  );
-                }
-              }, 600);
+                const centLat = loaded.reduce((s, m) => s + m.lat, 0) / loaded.length;
+                const centLng = loaded.reduce((s, m) => s + m.lng, 0) / loaded.length;
+                mapRef.current?.animateToRegion({
+                  latitude: centLat,
+                  longitude: centLng,
+                  latitudeDelta: 0.06,
+                  longitudeDelta: 0.06,
+                }, 800);
+              }, 1200);
             } else {
               // Refresh manual: micro-jiggle com delta maior para forçar recálculo do supercluster
               setTimeout(() => {
