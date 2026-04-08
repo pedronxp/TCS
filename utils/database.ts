@@ -470,13 +470,18 @@ export function getAgendamentosByMunicipio(municipio: string): AgendamentoLocal[
   );
 }
 
-export function getAgendamentosByAgente(agenteUid: string): AgendamentoLocal[] {
+export function getAgendamentosByAgente(agenteUid: string, municipio?: string): AgendamentoLocal[] {
   const database = getDb();
+  if (municipio) {
+    // Agente vê seus agendamentos + agendamentos sem atribuição do mesmo município
+    return database.getAllSync<AgendamentoLocal>(
+      `SELECT * FROM agendamentos WHERE municipio = ? AND (agente_uid = ? OR agente_uid IS NULL) ORDER BY data_agendada ASC`,
+      [municipio, agenteUid]
+    );
+  }
   return database.getAllSync<AgendamentoLocal>(
-    `SELECT * FROM agendamentos WHERE agente_uid = ? OR (agente_uid IS NULL AND municipio = (
-      SELECT municipio FROM agendamentos WHERE agente_uid = ? LIMIT 1
-    )) ORDER BY data_agendada ASC`,
-    [agenteUid, agenteUid]
+    `SELECT * FROM agendamentos WHERE agente_uid = ? ORDER BY data_agendada ASC`,
+    [agenteUid]
   );
 }
 

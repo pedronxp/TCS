@@ -7,6 +7,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
@@ -49,16 +50,18 @@ function parseDateInput(input: string): string | null {
   const match = input.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
   if (!match) return null;
   const [, d, m, y, h, min] = match;
-  const date = new Date(`${y}-${m}-${d}T${h}:${min}:00`);
-  if (isNaN(date.getTime())) return null;
-  return date.toISOString();
+  // Validar sem converter para UTC — armazenar como horário local para evitar drift de fuso
+  const test = new Date(`${y}-${m}-${d}T${h}:${min}:00`);
+  if (isNaN(test.getTime())) return null;
+  return `${y}-${m}-${d}T${h}:${min}:00`;
 }
 
 export default function AgendamentosScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
-  const { isConnected } = useConnectivity();
+  const { isOnlineReal: isConnected } = useConnectivity();
 
   const [agendamentos, setAgendamentos] = useState<AgendamentoLocal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,7 +145,7 @@ export default function AgendamentosScreen() {
   const carregarLocal = () => {
     if (!profile) return;
     if (isAgent) {
-      setAgendamentos(getAgendamentosByAgente(profile.uid));
+      setAgendamentos(getAgendamentosByAgente(profile.uid, profile.municipio));
     } else {
       setAgendamentos(getAgendamentosByMunicipio(profile.municipio ?? ''));
     }
@@ -313,7 +316,7 @@ export default function AgendamentosScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />
         }
@@ -394,7 +397,7 @@ export default function AgendamentosScreen() {
       {/* FAB */}
       {canCreate && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.primary }]}
+          style={[styles.fab, { backgroundColor: theme.primary, bottom: bottomPad + 16 }]}
           onPress={abrirModal}
           activeOpacity={0.85}
         >
