@@ -18,6 +18,13 @@ import { LogBox } from 'react-native';
 // Silencia erros internos do Expo Go no Android
 LogBox.ignoreLogs(['Unable to activate keep awake']);
 
+// Ping leve ao Supabase no boot — mantém o projeto ativo no plano gratuito
+async function pingSupabase() {
+  try {
+    await supabase.from('users').select('count').limit(1).maybeSingle();
+  } catch { /* fire-and-forget */ }
+}
+
 async function requestPermissions() {
   try {
     await Location.requestForegroundPermissionsAsync();
@@ -70,8 +77,9 @@ function RootNavigator() {
     return () => sub.remove();
   }, []);
 
-  // Lê o flag do onboarding uma vez no mount + solicita permissões
+  // Lê o flag do onboarding uma vez no mount + solicita permissões + keep-alive Supabase
   useEffect(() => {
+    pingSupabase();
     AsyncStorage.getItem('@onboarding_done').then((val) => {
       setAppReady(true);
       // Solicita permissões apenas após o onboarding (não na primeira tela)

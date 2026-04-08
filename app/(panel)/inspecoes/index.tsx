@@ -11,6 +11,7 @@ import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, Vistori
 import { logger } from '../../../utils/logger';
 import { syncPendentes, forceSyncAll } from '../../../services/SyncService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 const RISCO_COLORS: Record<string, string> = {
   r1: '#10B981',
@@ -87,6 +88,7 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
 export default function InspecoesListScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -119,9 +121,6 @@ export default function InspecoesListScreen() {
 
       const pendentes = locais.filter(v => v.sincronizado === 0).length;
       setPendentesCount(pendentes);
-
-      // Marcar vistorias locais como 'offline' (criadas no dispositivo)
-      setVistorias(locais.map(v => ({ ...v, origem: 'offline' as const })));
 
       // 2. Se online, buscar do Supabase e mesclar
       if (isConnected) {
@@ -171,16 +170,16 @@ export default function InspecoesListScreen() {
           }));
 
           // Mesclar: locais pendentes + remotas (sem duplicatas)
-          // idsLocais: todos IDs que existem no SQLite local (criados offline)
-          const idsLocais = new Set(locais.map(v => v.id));
           const idsPendentes = new Set(locais.filter(v => v.sincronizado === 0).map(v => v.id));
+          // Mapa id → feita_online para consultar a origem real de cada registro local
+          const localOrigemMap = new Map(locais.map(v => [v.id, v.feita_online]));
           const merged = [
             ...locais.filter(v => v.sincronizado === 0).map(v => ({ ...v, origem: 'offline' as const })),
-            ...remotas.filter(r => !idsPendentes.has(r.id)).map(r => ({
-              ...r,
-              // Se o ID existe localmente = foi criado offline e sincronizado; senão = criado online
-              origem: idsLocais.has(r.id) ? 'offline' as const : 'online' as const,
-            })),
+            ...remotas.filter(r => !idsPendentes.has(r.id)).map(r => {
+              const feitaOnline = localOrigemMap.get(r.id);
+              // feita_online=1 ou NULL (antigo/desconhecido) → sem badge; feita_online=0 → offline
+              return { ...r, origem: feitaOnline === 0 ? 'offline' as const : 'online' as const };
+            }),
           ].sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
 
           setVistorias(merged);
@@ -257,7 +256,7 @@ export default function InspecoesListScreen() {
           data={vistorias}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad }]}
           removeClippedSubviews
           maxToRenderPerBatch={10}
           windowSize={10}

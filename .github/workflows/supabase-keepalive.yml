@@ -1,0 +1,26 @@
+name: Supabase Keep-Alive
+
+# Executa a cada 3 dias para evitar pausa do projeto no plano gratuito
+# (Supabase pausa projetos inativos por 7+ dias)
+on:
+  schedule:
+    - cron: '0 8 */3 * *'   # 08:00 UTC a cada 3 dias
+  workflow_dispatch:          # Permite disparo manual pela UI do GitHub
+
+jobs:
+  ping:
+    name: Ping Supabase
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping REST API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}/rest/v1/" \
+            -H "apikey: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}")
+          echo "Supabase ping status: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then
+            echo "::warning::Supabase respondeu com status inesperado: $STATUS"
+          else
+            echo "Supabase ativo."
+          fi

@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -188,6 +188,12 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       `);
     }
 
+    if (currentVersion < 9) {
+      // Rastreia se a vistoria foi criada com internet (1) ou offline (0)
+      // NULL = registros antigos (sem informação de origem)
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN feita_online INTEGER`); } catch { /* já existe */ }
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -207,8 +213,8 @@ export interface VistoriaLocal {
   endereco_bairro: string;
   endereco_cep: string | null;
   responsavel_nome: string | null;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   data_vistoria: string;
   formulario_id: string;
   formulario_versao: number;
@@ -220,6 +226,7 @@ export interface VistoriaLocal {
   municipio_agente: string | null; // município de origem do agente
   laudo_url: string | null;     // URL signed do PDF no Storage
   laudo_gerado_em: string | null; // ISO timestamp da última geração
+  feita_online: number | null;  // 1 = feita com internet, 0 = feita offline, NULL = desconhecido (registro antigo)
   sincronizado: number;         // 0 = pendente, 1 = sincronizado
   erro_sync: string | null;
   tentativas_sync: number;      // contador de tentativas falhas
@@ -240,8 +247,8 @@ export function insertVistoria(
       responsavel_nome, latitude, longitude, data_vistoria,
       formulario_id, formulario_versao, respostas_json,
       nivel_risco, pontuacao_total, foto_url, fotos_urls,
-      laudo_url, laudo_gerado_em, sincronizado, criado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
+      laudo_url, laudo_gerado_em, feita_online, sincronizado, criado_em
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
     [
       vistoria.id,
       vistoria.agente_uid,
@@ -265,6 +272,7 @@ export function insertVistoria(
       null, // fotos_urls — preenchido separadamente pela FotoScreen
       vistoria.laudo_url ?? null,
       vistoria.laudo_gerado_em ?? null,
+      vistoria.feita_online ?? null,
       vistoria.criado_em,
     ]
   );
