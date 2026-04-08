@@ -251,16 +251,38 @@ export default function AgendamentosScreen() {
     setSaving(true);
     try {
       const id = generateUUID();
+
+      // Geocodificar o endereço via Nominatim (OpenStreetMap) para obter lat/lng
+      let lat: number | undefined;
+      let lng: number | undefined;
+      const enderecoTexto = endereco.trim();
+      if (enderecoTexto && isConnected) {
+        try {
+          const query = encodeURIComponent(`${enderecoTexto}, ${municipioAgendamento}, Brasil`);
+          const resp = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
+            { headers: { 'User-Agent': 'TCS-RelatorioDeRisco/1.0' } }
+          );
+          const results = await resp.json();
+          if (results?.[0]) {
+            lat = parseFloat(results[0].lat);
+            lng = parseFloat(results[0].lon);
+          }
+        } catch { /* geocodificação opcional — não bloqueia salvamento */ }
+      }
+
       const agendamento: AgendamentoLocal = {
         id,
         titulo: titulo.trim(),
-        endereco: endereco.trim() || undefined,
+        endereco: enderecoTexto || undefined,
         municipio: municipioAgendamento,
         data_agendada: dataISO,
         criado_por_uid: profile.uid,
         criado_por_nome: profile.name,
         agente_uid: agenteSelecionado?.uid || undefined,
         agente_nome: agenteSelecionado?.name || undefined,
+        lat,
+        lng,
         observacoes: observacoes.trim() || undefined,
         status: 'pendente',
         criado_em: new Date().toISOString(),
@@ -282,6 +304,8 @@ export default function AgendamentosScreen() {
           criado_por_nome: agendamento.criado_por_nome ?? null,
           agente_uid: agendamento.agente_uid ?? null,
           agente_nome: agendamento.agente_nome ?? null,
+          lat: agendamento.lat ?? null,
+          lng: agendamento.lng ?? null,
           observacoes: agendamento.observacoes ?? null,
           status: agendamento.status,
         });
