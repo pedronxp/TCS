@@ -14,7 +14,7 @@ import { updateFotosUrls, getVistoriaById } from '../../../utils/database';
 import { EmptyState, Button } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const MAX_FOTOS = 8;
+const MAX_FOTOS = 1;
 const QUALIDADE = 0.72;   // 72% JPEG — spec AGENTS.md
 const LARGURA_MAX = 854;  // 480p landscape — spec AGENTS.md
 
@@ -27,7 +27,9 @@ interface FotoItem {
 }
 
 export default function FotoScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  // useLocalSearchParams pode retornar string ou string[] — normalizar para string
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { isOnlineReal } = useConnectivity();
@@ -239,15 +241,46 @@ export default function FotoScreen() {
     }
     setSalvando(true);
     try {
-      const allUris = fotos.map(f => f.url ?? f.uri);
+      // Se online, tentar re-upload de fotos locais que ainda não foram sincronizadas
+      let fotosAtualizadas = [...fotos];
+      if (isOnlineReal) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const pendentes = fotosAtualizadas.filter(f => !f.url && !f.erro);
+          for (const foto of pendentes) {
+            try {
+              const fileName = `vistorias/${id || 'sem-id'}/${Date.now()}.jpg`;
+              const response = await fetch(foto.uri);
+              const blob = await response.blob();
+              const { data: uploadData } = await supabase.storage
+                .from('fotos')
+                .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
+              if (uploadData) {
+                const { data: { publicUrl } } = supabase.storage
+                  .from('fotos')
+                  .getPublicUrl(uploadData.path);
+                fotosAtualizadas = fotosAtualizadas.map(f =>
+                  f.localId === foto.localId ? { ...f, url: publicUrl } : f
+                );
+              }
+            } catch {
+              // Não bloqueia — foto fica como local
+            }
+          }
+          // Atualizar estado com as novas URLs sincronizadas
+          setFotos(fotosAtualizadas);
+        }
+      }
+
+      const allUris = fotosAtualizadas.map(f => f.url ?? f.uri);
 
       // Salvar no SQLite local (todas as uris, online ou não)
       if (id) {
         updateFotosUrls(id, allUris);
       }
 
-      // Salvar URLs no Supabase se tiver fotos sincronizadas
-      const remoteUrls = fotos.filter(f => f.url).map(f => f.url!);
+      // Salvar URLs no Supabase (todas que foram sincronizadas)
+      const remoteUrls = fotosAtualizadas.filter(f => f.url).map(f => f.url!);
       if (remoteUrls.length > 0 && id && isOnlineReal) {
         await supabase
           .from('vistorias')
