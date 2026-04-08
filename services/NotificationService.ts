@@ -157,10 +157,16 @@ export async function notificarDocumentoGerado(
 
 export async function notificarSincronizacao(count: number): Promise<void> {
   if (count === 0) return;
+  let userName = '';
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    userName = (await AsyncStorage.getItem('@sync_user_name')) ?? '';
+  } catch { /* não crítico */ }
+  const prefix = userName ? `${userName}: ` : '';
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '☁️ Sincronização Concluída',
-      body: `${count} vistoria${count !== 1 ? 's' : ''} sincronizada${count !== 1 ? 's' : ''} com sucesso.`,
+      body: `${prefix}${count} vistoria${count !== 1 ? 's' : ''} sincronizada${count !== 1 ? 's' : ''} com sucesso.`,
       data: { tipo: 'sync' },
       sound: 'default',
       ...(Platform.OS === 'android' && { channelId: 'default' }),

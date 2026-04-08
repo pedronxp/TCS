@@ -81,7 +81,9 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
     <View style={[styles.container, {
       backgroundColor: theme.surfaceHighlight,
       borderTopColor: theme.border,
-      paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 20) : Math.max(insets.bottom, 12),
+      paddingBottom: Platform.OS === 'ios'
+        ? Math.max(insets.bottom, 20)
+        : Math.max(insets.bottom, 8),
     }]}>
       {tabs.map(tab => {
         const active = isActive(tab);

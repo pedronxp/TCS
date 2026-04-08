@@ -1,9 +1,12 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import * as Linking from 'expo-linking';
+import { supabase } from '../utils/supabase';
 import { ThemeProvider } from '../context/ThemeContext';
 import { ConnectivityProvider } from '../context/ConnectivityContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -46,6 +49,27 @@ function RootNavigator() {
     }
   }, [lastResponse]);
 
+  // Capturar chamadas de Deep Link com Token do Supabase (ex: Reset Password)
+  useEffect(() => {
+    const handleDeepLink = async (url: string | null) => {
+      if (!url) return;
+      if (url.includes('access_token=') && url.includes('refresh_token=')) {
+        const accessTokenMatch = url.match(/access_token=([^&]*)/);
+        const refreshTokenMatch = url.match(/refresh_token=([^&]*)/);
+        if (accessTokenMatch && refreshTokenMatch) {
+          await supabase.auth.setSession({
+            access_token: accessTokenMatch[1],
+            refresh_token: refreshTokenMatch[1],
+          });
+        }
+      }
+    };
+
+    Linking.getInitialURL().then(handleDeepLink);
+    const sub = Linking.addEventListener('url', (e) => handleDeepLink(e.url));
+    return () => sub.remove();
+  }, []);
+
   // Lê o flag do onboarding uma vez no mount + solicita permissões
   useEffect(() => {
     AsyncStorage.getItem('@onboarding_done').then((val) => {
@@ -71,7 +95,7 @@ function RootNavigator() {
       const isAuthenticated = !!session && !!profile;
 
       // Fluxo de recuperação de senha: não redirecionar para dashboard mesmo com sessão temporária
-      const inResetFlow = inAuth && (segs[1] === 'verify-otp' || segs[1] === 'reset-password');
+      const inResetFlow = inAuth && ((segs as string[])[1] === 'verify-otp' || (segs as string[])[1] === 'reset-password');
       if (inResetFlow) return;
 
       if (!done && !inOnboarding) {
@@ -97,6 +121,7 @@ function RootNavigator() {
 
   return (
     <>
+      <StatusBar style="auto" translucent={false} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(auth)" />

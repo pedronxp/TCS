@@ -36,6 +36,7 @@ const PROFILE_CACHE_KEY = (uid: string) => `@profile_cache_${uid}`;
 async function saveProfileToCache(profile: UserProfile): Promise<void> {
   try {
     await AsyncStorage.setItem(PROFILE_CACHE_KEY(profile.uid), JSON.stringify(profile));
+    await AsyncStorage.setItem('@sync_user_name', profile.name);
   } catch {}
 }
 
@@ -153,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (event === 'SIGNED_OUT') {
           setSession(null);
           setProfile(null);
+          AsyncStorage.removeItem('@sync_user_name').catch(() => {});
         } else if (event === 'TOKEN_REFRESHED' && sess) {
           setSession(sess);
           const profileResult = await fetchProfile(sess.user.id);
