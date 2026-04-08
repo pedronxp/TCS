@@ -160,7 +160,7 @@ export default function LaudoScreen() {
           : JSON.stringify(vistoria.respostasJson || {}),
         bairro: vistoria.enderecoBairro,
         responsavelNome: vistoria.responsavelNome,
-        foto_url: vistoria.fotoUri || null,
+        foto_url: vistoria.fotosUrls?.[0] || vistoria.fotoUrl || null,
       };
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
