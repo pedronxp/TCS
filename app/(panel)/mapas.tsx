@@ -234,7 +234,8 @@ export default function MapasScreen() {
               .not('lat', 'is', null)
               .not('lng', 'is', null);
             if (!isAdmin) {
-              agendQuery = agendQuery.or(`agente_uid.eq.${profile.uid},agente_uid.is.null`).eq('municipio', profile.municipio);
+              // Agente vê apenas agendamentos atribuídos a ele
+              agendQuery = agendQuery.eq('agente_uid', profile.uid);
             } else if (profile.municipio && profile.role !== 'master_admin') {
               agendQuery = agendQuery.eq('municipio', profile.municipio);
             }

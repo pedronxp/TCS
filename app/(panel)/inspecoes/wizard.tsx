@@ -10,7 +10,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
-import { insertVistoria, markSincronizado } from '../../../utils/database';
+import { insertVistoria, markSincronizado, updateAgendamentoVistoriaId } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
@@ -481,6 +481,21 @@ export default function WizardAvaliacaoScreen() {
         }
       } else {
         logger.info('vistoria', `Offline — vistoria ficará pendente de sync`, { id });
+      }
+
+      // Vincular agendamento à vistoria criada e marcar como concluído
+      if (params.agendamentoId) {
+        try {
+          updateAgendamentoVistoriaId(params.agendamentoId, id);
+          if (isConnected) {
+            await supabase
+              .from('agendamentos')
+              .update({ status: 'concluido', vistoria_id: id })
+              .eq('id', params.agendamentoId);
+          }
+        } catch {
+          // não crítico — agendamento pode ser sincronizado depois
+        }
       }
 
       // Limpar rascunho após salvar com sucesso

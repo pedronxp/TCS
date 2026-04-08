@@ -387,7 +387,16 @@ export default function AgendamentoDetalheScreen() {
         {profile?.role === 'agent' && agendamento.agente_uid === profile.uid && isPendente && (
           <TouchableOpacity
             style={[styles.iniciarBtn, { backgroundColor: theme.primary }]}
-            onPress={() => router.push('/(panel)/inspecoes/dados-iniciais')}
+            onPress={() => router.push({
+              pathname: '/(panel)/inspecoes/dados-iniciais',
+              params: {
+                agendamentoId: agendamento.id,
+                ruaPreenchida: agendamento.endereco ?? '',
+                latPreenchida: agendamento.lat?.toString() ?? '',
+                lngPreenchida: agendamento.lng?.toString() ?? '',
+                municipioPreenchido: agendamento.municipio ?? '',
+              },
+            })}
             activeOpacity={0.85}
           >
             <Feather name="clipboard" size={18} color="#FFF" />

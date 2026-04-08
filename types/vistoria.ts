@@ -81,4 +81,5 @@ export interface WizardParams {
   responsavelNome?: string;
   lat?: string;
   lng?: string;
+  agendamentoId?: string;
 }

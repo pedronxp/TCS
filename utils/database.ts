@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -192,6 +192,11 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       // Rastreia se a vistoria foi criada com internet (1) ou offline (0)
       // NULL = registros antigos (sem informação de origem)
       try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN feita_online INTEGER`); } catch { /* já existe */ }
+    }
+
+    if (currentVersion < 10) {
+      // Vincula agendamento à vistoria gerada a partir dele
+      try { database.runSync(`ALTER TABLE agendamentos ADD COLUMN vistoria_id TEXT`); } catch { /* já existe */ }
     }
 
     database.runSync(
@@ -528,6 +533,14 @@ export function getAgendamentosNaoSincronizados(): AgendamentoLocal[] {
   const database = getDb();
   return database.getAllSync<AgendamentoLocal>(
     `SELECT * FROM agendamentos WHERE sincronizado = 0`
+  );
+}
+
+export function updateAgendamentoVistoriaId(id: string, vistoriaId: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE agendamentos SET status = 'concluido', vistoria_id = ?, sincronizado = 0 WHERE id = ?`,
+    [vistoriaId, id]
   );
 }
 

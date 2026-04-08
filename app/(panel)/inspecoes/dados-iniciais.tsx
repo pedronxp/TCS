@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Alert
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useTheme } from '../../../context/ThemeContext';
@@ -29,11 +29,24 @@ export default function DadosIniciaisScreen() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const isMasterAdmin = profile?.role === 'master_admin';
+  const params = useLocalSearchParams<{
+    agendamentoId?: string;
+    ruaPreenchida?: string;
+    latPreenchida?: string;
+    lngPreenchida?: string;
+    municipioPreenchido?: string;
+  }>();
+
+  const latPre = params.latPreenchida ? parseFloat(params.latPreenchida) : null;
+  const lngPre = params.lngPreenchida ? parseFloat(params.lngPreenchida) : null;
 
   const [form, setForm] = useState<AddressForm>({
-    cep: '', rua: '', numero: '', bairro: '',
-    municipio: profile?.municipio || '',
-    responsavelNome: '', lat: null, lng: null, gpsAcuracia: null,
+    cep: '', rua: params.ruaPreenchida ?? '', numero: '', bairro: '',
+    municipio: params.municipioPreenchido || profile?.municipio || '',
+    responsavelNome: '',
+    lat: latPre && !isNaN(latPre) ? latPre : null,
+    lng: lngPre && !isNaN(lngPre) ? lngPre : null,
+    gpsAcuracia: null,
   });
   const [municipioOrigem, setMunicipioOrigem] = useState<'perfil' | 'gps' | 'cep' | 'manual'>('perfil');
   const [detectandoGps, setDetectandoGps] = useState(false);
@@ -198,6 +211,7 @@ export default function DadosIniciaisScreen() {
         responsavelNome: responsavelLimpo,
         lat: form.lat?.toString() ?? '',
         lng: form.lng?.toString() ?? '',
+        ...(params.agendamentoId ? { agendamentoId: params.agendamentoId } : {}),
       }
     });
   };
