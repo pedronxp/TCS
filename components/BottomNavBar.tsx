@@ -43,7 +43,7 @@ const TABS_MASTER: NavTab[] = [
 ];
 
 const NAVBAR_VISIBLE_PATHS = [
-  '/dashboard', '/inspecoes', '/perfil', '/modulos',
+  '/dashboard', '/inspecoes', '/perfil', '/modulos', '/mapas',
   '/admin', '/supervisor', '/master',
   '/admin/relatorios', '/admin/estatisticas',
 ];
@@ -83,7 +83,7 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
       borderTopColor: theme.border,
       paddingBottom: Platform.OS === 'ios'
         ? Math.max(insets.bottom, 20)
-        : Math.max(insets.bottom, 8),
+        : insets.bottom > 0 ? insets.bottom : 16,
     }]}>
       {tabs.map(tab => {
         const active = isActive(tab);

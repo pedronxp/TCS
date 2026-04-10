@@ -355,14 +355,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
   },
   lockRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    flexShrink: 1,
   },
   footerText: {
     fontSize: 11,
+    flexShrink: 1,
   },
   credits: {
     fontSize: 10,

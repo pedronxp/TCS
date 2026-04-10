@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
-  SafeAreaView, KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../utils/supabase';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -179,7 +180,7 @@ export default function ResetPasswordScreen() {
               onPress={handleRedefinir}
               disabled={loading}
             >
-              Redefinir Senha
+              {loading ? 'Alterando senha...' : 'Redefinir Senha'}
             </Button>
           </View>
         </ScrollView>

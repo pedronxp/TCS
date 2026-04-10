@@ -141,6 +141,8 @@ export default function MapasScreen() {
   const { isOnlineReal } = useConnectivity();
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
+  // Altura real da BottomNavBar + barra de navegação do sistema
+  const bottomNavH = 68 + (Platform.OS === 'ios' ? Math.max(insets.bottom, 20) : Math.max(insets.bottom, 0));
   const mapRef = useRef<MapView>(null);
   const currentRegionRef = useRef<any>(null); // região atual do mapa (atualizada pelo onRegionChangeComplete)
   const isInitialLoadRef = useRef(true);
@@ -507,7 +509,7 @@ export default function MapasScreen() {
       </View>
 
       {/* Filtros */}
-      <View style={styles.filtersOverlay}>
+      <View style={[styles.filtersOverlay, { top: insets.top + 62 }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {FILTERS.map(f => (
             <TouchableOpacity
@@ -556,7 +558,7 @@ export default function MapasScreen() {
       </View>
 
       {/* FABs direita */}
-      <View style={styles.fabGroup}>
+      <View style={[styles.fabGroup, { bottom: bottomNavH + 12 }]}>
         {filteredMarkers.length > 0 && (
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: theme.surfaceHighlight }]}
@@ -583,7 +585,7 @@ export default function MapasScreen() {
 
       {/* Popup de agendamento selecionado */}
       {selectedAgendamento && (
-        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight }]}>
+        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight, bottom: bottomNavH + 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <View style={[styles.riscoBadge, { backgroundColor: '#3B82F6' }]}>
               <Text style={styles.riscoBadgeText}>AGENDADO</Text>
@@ -618,7 +620,7 @@ export default function MapasScreen() {
 
       {/* Popup do marcador selecionado */}
       {selectedMarker && (
-        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight }]}>
+        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight, bottom: bottomNavH + 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <View style={[styles.riscoBadge, { backgroundColor: getRiscoColor(selectedMarker.nivelRisco) }]}>
               <Text style={styles.riscoBadgeText}>{getRiscoLabel(selectedMarker.nivelRisco)}</Text>
@@ -664,7 +666,7 @@ export default function MapasScreen() {
         onRequestClose={() => setShowStyleModal(false)}
       >
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowStyleModal(false)} />
-        <View style={[styles.sheet, { backgroundColor: theme.surfaceHighlight }]}>
+        <View style={[styles.sheet, { backgroundColor: theme.surfaceHighlight, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Estilo do Mapa</Text>
           {MAP_STYLES.map(s => (
