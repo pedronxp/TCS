@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Alert, Share, Modal, TextInput,
@@ -20,6 +20,7 @@ import { buildShareMessage } from '../../../utils/shareUtils';
 import { uploadLaudoPdf } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 
@@ -42,7 +43,12 @@ function normalizar(v: any): any {
     formularioId: v.formularioId ?? v.formulario_id ?? 'Padrão',
     responsavelNome: v.responsavelNome ?? v.responsavel_nome ?? '',
     foto_url: v.foto_url ?? v.fotoUrl ?? null,
-    fotosUrls: v.fotosUrls ?? v.fotos_urls ?? null,
+    fotosUrls: (() => {
+      const raw = v.fotosUrls ?? v.fotos_urls ?? null;
+      if (!raw) return null;
+      if (Array.isArray(raw)) return raw as string[];
+      try { return JSON.parse(raw) as string[]; } catch { return null; }
+    })(),
     protocolo: v.protocolo ?? null,
     laudo_url: v.laudo_url ?? null,
     laudo_gerado_em: v.laudo_gerado_em ?? null,
@@ -56,9 +62,11 @@ export default function ResultadoScreen() {
   }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
-  const { isConnected } = useConnectivity();
+  const { isOnlineReal: isConnected } = useConnectivity();
   const { initReport } = useReport();
+  const mountedRef = useRef(true);
   const [loading, setLoading] = useState(true);
   const [gerando, setGerando] = useState(false);
   const [vistoria, setVistoria] = useState<ReturnType<typeof normalizar> | null>(null);
@@ -77,7 +85,11 @@ export default function ResultadoScreen() {
     telefone: '',
   });
 
-  useEffect(() => { loadDados(); }, [id]);
+  useEffect(() => {
+    mountedRef.current = true;
+    loadDados();
+    return () => { mountedRef.current = false; };
+  }, [id]);
 
   const populateReport = (v: ReturnType<typeof normalizar>, nome: string) => {
     if (!v) return;
@@ -95,6 +107,7 @@ export default function ResultadoScreen() {
       pontuacaoTotal: v.pontuacaoTotal ?? 0,
       respostas,
       foto_url: v.foto_url ?? v.fotosUrls?.[0] ?? null,
+      fotosUrls: v.fotosUrls ?? (v.foto_url ? [v.foto_url] : null),
       condutaRecomendada: '',
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
@@ -111,6 +124,7 @@ export default function ResultadoScreen() {
         .single();
 
       if (!error && data) {
+        if (!mountedRef.current) return;
         const norm = normalizar(data);
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || profile?.name || '—');
@@ -194,6 +208,7 @@ export default function ResultadoScreen() {
     formularioId: vistoria?.formularioId || 'Padrão',
     respostasJson: vistoria?.respostasJson || '{}',
     foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
+    fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
   });
 
   const salvarLaudoNoStorage = async (uri: string) => {
@@ -396,7 +411,7 @@ export default function ResultadoScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {/* Status Card */}
         <View style={[styles.statusCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
           <View style={[styles.statusIcon, { backgroundColor: `${cor}15` }]}>

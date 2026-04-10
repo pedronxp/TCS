@@ -285,6 +285,7 @@ export default function RelatorioScreen() {
         observacoesTecnicas: draft.observacoesTecnicas,
         cargo: draft.cargo,
         foto_url: draft.foto_url ?? null,
+        fotosUrls: draft.fotosUrls ?? (draft.foto_url ? [draft.foto_url] : null),
         responsavelNome: (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
         bairro: (draft.respostas || {})['Bairro'],
       };
@@ -398,8 +399,10 @@ export default function RelatorioScreen() {
         condutaRecomendada: draft.condutaRecomendada,
         observacoesTecnicas: draft.observacoesTecnicas,
         cargo: draft.cargo,
+        foto_url: draft.foto_url ?? null,
+        fotosUrls: draft.fotosUrls ?? (draft.foto_url ? [draft.foto_url] : null),
       };
-      
+
       const html = await buildLaudoHtml(dados);
       await Print.printAsync({ html });
     } catch {
@@ -442,7 +445,7 @@ export default function RelatorioScreen() {
             <View style={s.brandLeft}>
               <Image source={require('../../../assets/logo.png')} style={s.logo} resizeMode="contain" />
               <View>
-                <Text style={[s.brandName, { color: theme.text }]}>TCS</Text>
+                <Text style={[s.brandName, { color: theme.text }]}>Defesa Civil</Text>
                 <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE RISCO</Text>
               </View>
             </View>
