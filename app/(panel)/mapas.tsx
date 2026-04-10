@@ -16,6 +16,7 @@ import { supabase } from '../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getAllAgendamentos, getAgendamentosByMunicipio, getAgendamentosByAgente } from '../../utils/database';
 import { logger } from '../../utils/logger';
 import { tracarRota } from '../../utils/routingUtils';
+import { navSystemBottom } from '../../utils/useBottomTabPadding';
 
 interface VistoriaMarker {
   id: string;
@@ -152,7 +153,7 @@ export default function MapasScreen() {
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
   // Altura real da BottomNavBar + barra de navegação do sistema
-  const bottomNavH = 68 + (Platform.OS === 'ios' ? Math.max(insets.bottom, 20) : Math.max(insets.bottom, 0));
+  const bottomNavH = 68 + navSystemBottom(insets);
   const mapRef = useRef<MapView>(null);
   const currentRegionRef = useRef<any>(null); // região atual do mapa (atualizada pelo onRegionChangeComplete)
   const isInitialLoadRef = useRef(true);
