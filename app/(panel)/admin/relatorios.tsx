@@ -12,6 +12,7 @@ import { logger } from '../../../utils/logger';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 const PAGE_SIZE = 50;
 
@@ -67,6 +68,7 @@ const VistoriaCard = React.memo(({ item: v, theme }: CardProps) => {
 export default function RelatoriosScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -243,7 +245,7 @@ export default function RelatoriosScreen() {
       <FlatList
         data={filtradas}
         keyExtractor={item => item.id}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
         renderItem={({ item }) => <VistoriaCard item={item} theme={theme} />}
         ListEmptyComponent={

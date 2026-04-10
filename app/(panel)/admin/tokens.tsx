@@ -16,6 +16,7 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { Badge } from '../../../components/ui/Badge';
 import { formatarDataHora } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 const ROLE_LABELS: Record<string, string> = {
   agent: 'Agente', supervisor: 'Supervisor', admin: 'Administrador',
@@ -39,6 +40,7 @@ function getTempoRestante(expiresAt: string | null) {
 export default function TokensScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const isMasterAdmin = profile?.role === 'master_admin';
   const [loading, setLoading] = useState(true);
@@ -386,7 +388,7 @@ export default function TokensScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {/* Resumo por admin — apenas para master_admin */}
         {isMasterAdmin && Object.keys(tokensPorAdmin).length > 0 && (
           <>
