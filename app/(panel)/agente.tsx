@@ -5,12 +5,13 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useTheme } from '../../../context/ThemeContext';
-import { supabase } from '../../../utils/supabase';
-import { logger } from '../../../utils/logger';
-import { riscoColor, riscoLabel } from '../../../utils/riscoUtils';
-import { formatarData } from '../../../utils/htmlUtils';
+import { useTheme } from '../../context/ThemeContext';
+import { supabase } from '../../utils/supabase';
+import { logger } from '../../utils/logger';
+import { riscoColor, riscoLabel } from '../../utils/riscoUtils';
+import { formatarData } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 
 type FiltroRisco = 'todos' | 'alto' | 'medio' | 'baixo';
 
@@ -19,6 +20,7 @@ export default function AgenteVistoriasScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const [loading, setLoading] = useState(true);
   const [agente, setAgente] = useState<any>(null);
   const [vistorias, setVistorias] = useState<any[]>([]);
@@ -127,7 +129,7 @@ export default function AgenteVistoriasScreen() {
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {filtradas.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma vistoria encontrada.</Text>

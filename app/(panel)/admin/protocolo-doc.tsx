@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 interface FaqItem {
   q: string;
@@ -24,7 +25,7 @@ const FAQS: FaqItem[] = [
     a: 'Sim. Na lista de inspeções e no Laudo Técnico, o número de protocolo completo é exibido. Em versões futuras, haverá campo de busca por protocolo.',
   },
   {
-    q: 'Por que as letras I, O, 0 e 1 não aparecem no hash?',
+    q: 'Por que as letras I, O, 0 e 1 não aparecem no hashá',
     a: 'Para evitar confusão visual entre "I" (i maiúsculo) e "l" (l minúsculo), e entre "O" (letra) e "0" (zero). Todos os caracteres usados são visualmente distintos.',
   },
   {
@@ -60,6 +61,7 @@ function FaqCard({ item }: { item: FaqItem }) {
 export default function ProtocoloDocScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -80,7 +82,7 @@ export default function ProtocoloDocScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
 
         {/* O que é o protocolo */}
         <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>

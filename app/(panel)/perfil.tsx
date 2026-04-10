@@ -8,11 +8,13 @@ import { router } from 'expo-router';
 import * as Network from 'expo-network';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useConnectivity } from '../../context/ConnectivityContext';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
 import { Badge, Card, ErrorState } from '../../components/ui';
 import { formatarData, formatarDataHora } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 
 const ROLE_LABELS: Record<string, string> = {
   agent:        'Agente de Campo',
@@ -48,7 +50,9 @@ function normalizarTelefone(raw: string): string | null {
 export default function PerfilScreen() {
   const { theme, themeMode, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { session, profile: authProfile, loading: authLoading, signOut, refreshProfile } = useAuth();
+  const { isOnlineReal } = useConnectivity();
 
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -64,6 +68,8 @@ export default function PerfilScreen() {
 
   const [deviceIp, setDeviceIp] = useState<string>('');
   const [lgpdExpanded, setLgpdExpanded] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     if (authProfile) {
@@ -160,15 +166,18 @@ export default function PerfilScreen() {
   };
 
   const resetPassword = async () => {
-    if (!authProfile?.email) return;
+    if (!authProfile?.email || resetLoading) return;
+    setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(authProfile.email, {
-        redirectTo: 'defesacivil://reset-password',
+        redirectTo: 'tcs://reset-password',
       });
       if (error) throw error;
-      Alert.alert('E-mail enviado', 'Verifique sua caixa de entrada para redefinir a senha.');
+      setResetSent(true);
     } catch {
-      Alert.alert('Erro', 'Não foi possível enviar o e-mail de redefinição.');
+      Alert.alert('Erro', 'Não foi possível enviar o e-mail de redefinição. Tente novamente.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -217,7 +226,7 @@ export default function PerfilScreen() {
         <Text style={[styles.headerTitle, { color: theme.text }]}>Meu Perfil</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
 
         {/* Card principal — avatar + nome */}
         <Card style={styles.heroCard}>
@@ -252,7 +261,17 @@ export default function PerfilScreen() {
             </TouchableOpacity>
           )}
 
-          <Badge variant={roleBadgeVariant} label={roleLabel} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Badge variant={roleBadgeVariant} label={roleLabel} />
+            {authProfile?.municipio ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Feather name="map-pin" size={11} color={theme.textSecondary} />
+                <Text style={{ fontSize: 12, color: theme.textSecondary, fontWeight: '500' }}>
+                  {authProfile.municipio}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </Card>
 
         {/* Dados da conta */}
@@ -338,6 +357,15 @@ export default function PerfilScreen() {
           <Divider theme={theme} />
 
           <InfoRow icon="wifi" label="IP da rede" value={deviceIp || '…'} theme={theme} />
+          <Divider theme={theme} />
+
+          <InfoRow
+            icon={isOnlineReal ? 'globe' : 'wifi-off'}
+            label="Conexão"
+            value={isOnlineReal ? 'Online' : 'Sem internet'}
+            valueColor={isOnlineReal ? '#10B981' : '#EF4444'}
+            theme={theme}
+          />
         </Card>
 
         {/* Estatísticas */}
@@ -434,19 +462,46 @@ export default function PerfilScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-          onPress={resetPassword}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}15` }]}>
-            <Feather name="lock" size={20} color={theme.primary} />
+        {resetSent ? (
+          <View style={[styles.actionRow, { backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.25)' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+              <Feather name="check-circle" size={20} color="#10B981" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.actionTitle, { color: '#10B981' }]}>E-mail enviado!</Text>
+              <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>
+                Verifique {authProfile?.email} e clique no link.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setResetSent(false)}
+              style={{ padding: 4 }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Feather name="x" size={16} color={theme.textSecondary} />
+            </TouchableOpacity>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.actionTitle, { color: theme.text }]}>Redefinir Senha</Text>
-            <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Enviar link para o seu e-mail</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+            onPress={resetPassword}
+            disabled={resetLoading}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}15` }]}>
+              {resetLoading
+                ? <ActivityIndicator size="small" color={theme.primary} />
+                : <Feather name="lock" size={20} color={theme.primary} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.actionTitle, { color: theme.text }]}>Redefinir Senha</Text>
+              <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>
+                {resetLoading ? 'Enviando link...' : 'Enviar link para o seu e-mail'}
+              </Text>
+            </View>
+            {!resetLoading && <Feather name="chevron-right" size={20} color={theme.textSecondary} />}
+          </TouchableOpacity>
+        )}
 
         {/* Privacidade e Permissões */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Privacidade e Permissões</Text>
@@ -472,7 +527,7 @@ export default function PerfilScreen() {
           </Card>
         )}
 
-        <Card style={[styles.permCard]} noPadding>
+        <Card style={styles.permCard} noPadding>
           <PermRow icon="camera" label="Câmera" desc="Registro fotográfico das vistorias" theme={theme} />
           <Divider theme={theme} />
           <PermRow icon="map-pin" label="Localização" desc="Geolocalização das vistorias e do mapa" theme={theme} />

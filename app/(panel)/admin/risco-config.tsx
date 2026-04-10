@@ -10,6 +10,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 const STORAGE_KEY = '@risco_config_v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
@@ -24,6 +25,7 @@ const DEFAULT_CONFIG = [
 export default function RiscoConfigScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -165,7 +167,7 @@ export default function RiscoConfigScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}>
         <View style={[styles.infoCard, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
           <Feather name="info" size={16} color={theme.primary} />
           <Text style={[styles.infoText, { color: theme.textSecondary }]}>

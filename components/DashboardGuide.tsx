@@ -239,24 +239,46 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
 
 interface DashboardGuideProps {
   role: string;
+  inline?: boolean;
 }
 
-export function DashboardGuide({ role }: DashboardGuideProps) {
+export function DashboardGuide({ role, inline }: DashboardGuideProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
 
   const sections = GUIDE_CONTENT[role] ?? GUIDE_CONTENT['agent'];
 
+  const trigger = inline ? (
+    <TouchableOpacity
+      style={[
+        styles.inlineTrigger,
+        { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder },
+      ]}
+      onPress={() => setVisible(true)}
+      activeOpacity={0.8}
+    >
+      <View style={[styles.inlineIcon, { backgroundColor: `${theme.primary}15` }]}>
+        <Feather name="help-circle" size={18} color={theme.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.inlineTitle, { color: theme.text }]}>Guia do Sistema</Text>
+        <Text style={[styles.inlineDesc, { color: theme.textSecondary }]}>Saiba como usar cada módulo do app</Text>
+      </View>
+      <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+    </TouchableOpacity>
+  ) : (
+    <TouchableOpacity
+      style={[styles.trigger, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+      onPress={() => setVisible(true)}
+      activeOpacity={0.75}
+    >
+      <Feather name="help-circle" size={18} color={theme.textSecondary} />
+    </TouchableOpacity>
+  );
   return (
     <>
-      <TouchableOpacity
-        style={[styles.trigger, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-        onPress={() => setVisible(true)}
-        activeOpacity={0.75}
-      >
-        <Feather name="help-circle" size={18} color={theme.textSecondary} />
-      </TouchableOpacity>
+      {trigger}
 
       <Modal
         visible={visible}
@@ -324,6 +346,16 @@ export function DashboardGuide({ role }: DashboardGuideProps) {
 }
 
 const styles = StyleSheet.create({
+  inlineTrigger: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 16,
+  },
+  inlineIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+  },
+  inlineTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  inlineDesc: { fontSize: 12, fontWeight: '400' },
   trigger: {
     width: 40, height: 40, borderRadius: 12, borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',

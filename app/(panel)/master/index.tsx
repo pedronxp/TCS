@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, RefreshControl, Modal, FlatList
+  ActivityIndicator, RefreshControl, Modal, FlatList,
+  TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { countAgendamentosPendentes } from '../../../utils/database';
 import { Feather } from '@expo/vector-icons';
@@ -15,11 +16,17 @@ import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { tempoRelativo } from '../../../utils/htmlUtils';
+import { riscoColor } from '../../../utils/riscoUtils';
+import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { notificarVistoriaDeletada } from '../../../services/NotificationService';
+import { registrarAuditoria } from '../../../utils/auditLogger';
 
 export default function MasterDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isConnected } = useConnectivity();
   const [loading, setLoading] = useState(true);
@@ -30,12 +37,15 @@ export default function MasterDashboardScreen() {
     totalUsuarios: 0, totalMunicipios: 0,
   });
   const [municipios, setMunicipios] = useState<{ nome: string; count: number }[]>([]);
-  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [recentLogs, setRecentLogs] = useState<VistoriaNormalizada[]>([]);
   const [rankingGlobal, setRankingGlobal] = useState<{ nome: string; municipio: string; count: number }[]>([]);
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
   const [riskModalVisible, setRiskModalVisible] = useState(false);
   const [riskByCidade, setRiskByCidade] = useState<{ municipio: string; alto: number; baixo: number }[]>([]);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VistoriaNormalizada | null>(null);
+  const [deleteMotivo, setDeleteMotivo] = useState('');
+  const [deletando, setDeletando] = useState(false);
 
   const carregar = async (showRefresh = false) => {
     setErro(false);
@@ -45,11 +55,10 @@ export default function MasterDashboardScreen() {
       const [kpisRes, municipiosRes, logsRes] = await Promise.all([
         supabase.rpc('get_dashboard_kpis_master'),
         supabase.rpc('get_top_municipios', { p_limit: 10 }),
-        supabase.from('system_logs')
-          .select('id, acao, municipio, created_at')
-          .not('acao', 'eq', 'LOGIN') // Evitar flood de logins comuns
-          .order('created_at', { ascending: false })
-          .limit(5),
+        supabase.from('vistorias')
+          .select('id, nivelRisco, pontuacaoTotal, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
+          .order('dataVistoria', { ascending: false })
+          .limit(6),
       ]);
 
       if (kpisRes.data) {
@@ -115,6 +124,46 @@ export default function MasterDashboardScreen() {
     }
   };
 
+  const confirmarDelete = async () => {
+    if (!deleteTarget || !deleteMotivo.trim()) return;
+    setDeletando(true);
+    try {
+      const { error } = await supabase.from('vistorias').delete().eq('id', deleteTarget.id);
+      if (error) throw error;
+
+      // Notificar agente + equipe do município
+      await notificarVistoriaDeletada(
+        (deleteTarget as any).agenteUid || '',
+        deleteTarget.agenteNome || '—',
+        deleteTarget.municipio || '',
+        deleteTarget.endereco || '',
+        deleteMotivo.trim(),
+        profile?.name || 'Master Admin',
+      );
+
+      // Auditoria
+      registrarAuditoria({
+        acao: 'vistoria_excluida',
+        adminUid: profile?.uid || '',
+        adminNome: profile?.name || 'Master Admin',
+        adminRole: 'master_admin',
+        municipio: deleteTarget.municipio || '',
+        alvoId: deleteTarget.id,
+        detalhes: { motivo: deleteMotivo.trim(), endereco: deleteTarget.endereco },
+      });
+
+      setDeleteTarget(null);
+      setDeleteMotivo('');
+      // Recarregar dashboard completo para manter KPIs, ranking e distribuição consistentes
+      await carregar(true);
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível excluir a vistoria. Tente novamente.');
+      logger.error('system', 'Erro ao excluir vistoria', { erro: String(e) });
+    } finally {
+      setDeletando(false);
+    }
+  };
+
   useFocusEffect(useCallback(() => {
     carregar();
     if (profile?.municipio) {
@@ -135,14 +184,26 @@ export default function MasterDashboardScreen() {
           <Text style={[styles.greeting, { color: theme.text }]}>
             Olá, {profile?.name?.split(' ')[0]}
           </Text>
-          <View style={[styles.masterBadge, { backgroundColor: `${theme.primary}15` }]}>
-            <Feather name="shield" size={12} color={theme.primary} />
-            <Text style={[styles.masterBadgeText, { color: theme.primary }]}>MASTER ADMIN</Text>
+          <View style={styles.badgeRow}>
+            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+              <Feather name="shield" size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>Master</Text>
+            </View>
+            {isConnected ? (
+              <View style={[styles.chipBadge, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.25)' }]}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                <Text style={[styles.chipText, { color: '#10B981' }]}>Conectado</Text>
+              </View>
+            ) : (
+              <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+                <Feather name="wifi-off" size={10} color="#F59E0B" />
+                <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.headerActions}>
-          <DashboardGuide role="master_admin" />
           <View>
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
@@ -166,7 +227,7 @@ export default function MasterDashboardScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         {!isConnected && (
@@ -228,6 +289,65 @@ export default function MasterDashboardScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Módulo de Equipe Unificado */}
+        <View style={[styles.sectionRow, { marginTop: 8 }]}>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginBottom: 0 }]}>Desempenho Geral</Text>
+          <TouchableOpacity onPress={() => router.push('/(panel)/equipe')}>
+            <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe completa</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Atividade Recente */}
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 16 }]}>Registro de Operações</Text>
+        {recentLogs.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Sem registros recentes.</Text>
+          </View>
+        ) : (
+          recentLogs.map(v => {
+            const cor = riscoColor(v.nivelRisco);
+            return (
+              <View
+                key={v.id}
+                style={[styles.vistoriaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              >
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                  onPress={() => router.push(`/(panel)/inspecoes/${v.id}` as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.riscoDot, { backgroundColor: `${cor}20`, borderColor: `${cor}40` }]}>
+                    <Feather
+                      name={cor === '#EF4444' ? 'alert-triangle' : cor === '#F59E0B' ? 'alert-circle' : 'check-circle'}
+                      size={20} color={cor}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.vistoriaEnd, { color: theme.text }]} numberOfLines={1}>
+                      {v.endereco || 'Endereço não informado'}
+                    </Text>
+                    <Text style={[styles.vistoriaInfo, { color: theme.textSecondary }]}>
+                      {v.agenteNome || '?'} • {v.municipio} • {tempoRelativo(v.dataVistoria)}
+                    </Text>
+                  </View>
+                  <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
+                    <Text style={[styles.nivelText, { color: cor }]}>
+                      {v.nivelRisco?.toUpperCase() || '—'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteBtn, { backgroundColor: 'rgba(239,68,68,0.08)' }]}
+                  onPress={() => { setDeleteTarget(v); setDeleteMotivo(''); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Feather name="trash-2" size={16} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            );
+          })
+        )}
 
         {/* Barra de Risco Global */}
         {(stats.totalVistorias > 0) && (
@@ -379,43 +499,8 @@ export default function MasterDashboardScreen() {
           </>
         )}
 
-        {/* Recentes do Sistema */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 12 }]}>Atividade Recente</Text>
-        {recentLogs.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Sem logs recentes.</Text>
-          </View>
-        ) : (
-          recentLogs.map((lg) => {
-            const acaoIconMap: Record<string, { icon: string; color: string; label: string }> = {
-              usuario_aprovado:     { icon: 'user-check',   color: '#10B981', label: 'Usuário aprovado' },
-              usuario_bloqueado:    { icon: 'user-x',       color: '#EF4444', label: 'Usuário bloqueado' },
-              token_gerado:         { icon: 'key',          color: '#8B5CF6', label: 'Token gerado' },
-              token_revogado:       { icon: 'x-circle',     color: '#F59E0B', label: 'Token revogado' },
-              formulario_publicado: { icon: 'upload',       color: '#3B82F6', label: 'Formulário publicado' },
-              vistoria_criada:      { icon: 'clipboard',    color: '#06B6D4', label: 'Vistoria criada' },
-              laudo_gerado:         { icon: 'file-text',    color: '#10B981', label: 'Laudo gerado' },
-              sync_sucesso:         { icon: 'upload-cloud', color: '#10B981', label: 'Sync realizado' },
-              sync_falha:           { icon: 'cloud-off',    color: '#EF4444', label: 'Falha de sync' },
-              login_falhou:         { icon: 'alert-circle', color: '#EF4444', label: 'Login falhou' },
-            };
-            const cfg = acaoIconMap[lg.acao] ?? { icon: 'activity', color: theme.primary, label: lg.acao };
-            return (
-              <View key={lg.id} style={[styles.logCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-                <View style={[styles.logIcon, { backgroundColor: `${cfg.color}15` }]}>
-                  <Feather name={cfg.icon as any} size={16} color={cfg.color} />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.logAcao, { color: theme.text }]}>{cfg.label}</Text>
-                  <Text style={[styles.logMeta, { color: theme.textSecondary }]}>
-                    {lg.municipio === '*' ? 'Sistema Global' : lg.municipio} • {tempoRelativo(lg.created_at)}
-                  </Text>
-                </View>
-              </View>
-            );
-          })
-        )}
-
+        <DashboardGuide role="master_admin" inline />
+        
         {/* Link para guia de protocolo */}
         <TouchableOpacity
           style={[styles.guiaBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
@@ -432,7 +517,85 @@ export default function MasterDashboardScreen() {
         </TouchableOpacity>
       </ScrollView>
 
+      {/* Modal de confirmação de exclusão */}
+      <Modal
+        visible={!!deleteTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!deletando) { setDeleteTarget(null); setDeleteMotivo(''); } }}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.deleteOverlay}>
+            <View style={[styles.deleteSheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              {/* Ícone */}
+              <View style={styles.deleteIconWrap}>
+                <Feather name="trash-2" size={28} color="#EF4444" />
+              </View>
+              <Text style={[styles.deleteTitle, { color: theme.text }]}>Excluir Vistoria</Text>
+              <Text style={[styles.deleteSubtitle, { color: theme.textSecondary }]}>
+                Esta ação é irreversível. O agente, supervisor e administrador do município serão notificados.
+              </Text>
 
+              {/* Info da vistoria */}
+              {deleteTarget && (
+                <View style={[styles.deleteInfo, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
+                  <Text style={[{ fontSize: 13, fontWeight: '700', color: theme.text }]} numberOfLines={2}>
+                    {deleteTarget.endereco || 'Endereço não informado'}
+                  </Text>
+                  <Text style={[{ fontSize: 12, color: theme.textSecondary, marginTop: 4 }]}>
+                    {(deleteTarget as any).agenteNome || '—'} · {deleteTarget.municipio} · {riscoColor(deleteTarget.nivelRisco) === '#EF4444' ? 'CRÍTICO' : deleteTarget.nivelRisco?.toUpperCase()}
+                  </Text>
+                </View>
+              )}
+
+              {/* Campo motivo */}
+              <Text style={[styles.deleteLabel, { color: theme.textSecondary }]}>Motivo da exclusão *</Text>
+              <TextInput
+                style={[styles.deleteInput, {
+                  backgroundColor: theme.iconBackground,
+                  borderColor: deleteMotivo.trim() ? theme.primary : theme.border,
+                  color: theme.text,
+                }]}
+                placeholder="Descreva o motivo (ex: duplicidade, erro de cadastro...)"
+                placeholderTextColor={theme.textSecondary}
+                value={deleteMotivo}
+                onChangeText={setDeleteMotivo}
+                multiline
+                numberOfLines={3}
+                maxLength={300}
+                editable={!deletando}
+              />
+              <Text style={[{ fontSize: 11, color: theme.textSecondary, alignSelf: 'flex-end', marginTop: 4 }]}>
+                {deleteMotivo.length}/300
+              </Text>
+
+              {/* Botões */}
+              <View style={styles.deleteActions}>
+                <TouchableOpacity
+                  style={[styles.deleteCancelBtn, { borderColor: theme.border }]}
+                  onPress={() => { setDeleteTarget(null); setDeleteMotivo(''); }}
+                  disabled={deletando}
+                >
+                  <Text style={[{ fontSize: 15, fontWeight: '600', color: theme.textSecondary }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteConfirmBtn, { opacity: deleteMotivo.trim() ? 1 : 0.45 }]}
+                  onPress={confirmarDelete}
+                  disabled={!deleteMotivo.trim() || deletando}
+                >
+                  {deletando
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Confirmar exclusão</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -443,13 +606,14 @@ const styles = StyleSheet.create({
     paddingBottom: 20, paddingHorizontal: 24,
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
-  greeting: { fontSize: 22, fontWeight: '700', marginBottom: 6 },
-  masterBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
-    alignSelf: 'flex-start',
+  greeting: { fontSize: 22, fontWeight: '700', marginBottom: 2 },
+  badgeRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 6, marginTop: 4 },
+  chipBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    borderWidth: 1,
   },
-  masterBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  chipText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
   iconBtn: {
     width: 40, height: 40, borderRadius: 10, borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',
@@ -555,6 +719,48 @@ const styles = StyleSheet.create({
   riskTapHint: {
     fontSize: 11, fontWeight: '600', marginTop: 10, textAlign: 'right',
   },
+  deleteBtn: {
+    width: 34, height: 34, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+    marginLeft: 8,
+  },
+  deleteOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  deleteSheet: {
+    width: '100%', borderRadius: 24, borderWidth: 1,
+    padding: 24, alignItems: 'center',
+  },
+  deleteIconWrap: {
+    width: 60, height: 60, borderRadius: 18,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+  },
+  deleteTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
+  deleteSubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+  deleteInfo: {
+    width: '100%', borderRadius: 12, borderWidth: 1,
+    padding: 12, marginBottom: 20,
+  },
+  deleteLabel: { fontSize: 12, fontWeight: '700', alignSelf: 'flex-start', marginBottom: 8, letterSpacing: 0.3 },
+  deleteInput: {
+    width: '100%', borderRadius: 12, borderWidth: 1.5,
+    padding: 12, fontSize: 14, minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  deleteActions: {
+    flexDirection: 'row', gap: 12, marginTop: 20, width: '100%',
+  },
+  deleteCancelBtn: {
+    flex: 1, height: 48, borderRadius: 14, borderWidth: 1,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  deleteConfirmBtn: {
+    flex: 2, height: 48, borderRadius: 14,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center', alignItems: 'center',
+  },
   riskModalOverlay: {
     flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)',
   },
@@ -581,4 +787,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2, borderRadius: 6,
   },
   riskCidadeAlertText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
+  sectionRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
+    marginBottom: 12, marginTop: 12,
+  },
+  seeAll: { fontSize: 13, fontWeight: '700' },
+  
+  vistoriaCard: {
+    flexDirection: 'row', alignItems: 'center', borderRadius: 16,
+    borderWidth: 1, padding: 16, marginBottom: 12,
+  },
+  riscoDot: {
+    width: 48, height: 48, borderRadius: 14, borderWidth: 1,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  vistoriaEnd: { fontSize: 15, fontWeight: '700' },
+  vistoriaInfo: { fontSize: 13, fontWeight: '500', marginTop: 2 },
+  nivelBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  nivelText: { fontSize: 10, fontWeight: '900' },
 });

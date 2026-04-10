@@ -18,7 +18,11 @@ const ConnectivityContext = createContext<ConnectivityContextData>({
   connectionType: 'unknown',
 });
 
-async function checkRealInternet(): Promise<boolean> {
+/**
+ * Verifica se há acesso real à internet fazendo uma requisição HEAD ao Supabase.
+ * Exportada para uso fora de hooks React (ex: SyncService).
+ */
+export async function checkRealInternet(): Promise<boolean> {
   if (!SUPABASE_URL) return true;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {

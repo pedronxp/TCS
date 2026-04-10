@@ -17,6 +17,7 @@ import { riscoColor } from '../../../utils/riscoUtils';
 import { tempoRelativo } from '../../../utils/htmlUtils';
 import { AtividadeItem } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 interface KPI {
   label: string;
@@ -29,6 +30,7 @@ interface KPI {
 export default function AdminDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isConnected } = useConnectivity();
   const [loading, setLoading] = useState(true);
@@ -117,13 +119,30 @@ export default function AdminDashboardScreen() {
           <Text style={[styles.greeting, { color: theme.text }]}>
             Olá, {profile?.name?.split(' ')[0]}
           </Text>
-          <Text style={[styles.role, { color: theme.textSecondary }]}>
-            {profile?.municipio} · ADMINISTRADOR
-          </Text>
+          <View style={styles.badgeRow}>
+            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+              <Feather name="map-pin" size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>{profile?.municipio ?? '—'}</Text>
+            </View>
+            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+              <Feather name="shield" size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>Admin</Text>
+            </View>
+            {isConnected ? (
+              <View style={[styles.chipBadge, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.25)' }]}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                <Text style={[styles.chipText, { color: '#10B981' }]}>Conectado</Text>
+              </View>
+            ) : (
+              <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+                <Feather name="wifi-off" size={10} color="#F59E0B" />
+                <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.headerActions}>
-          <DashboardGuide role="admin" />
           <View>
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
@@ -147,9 +166,10 @@ export default function AdminDashboardScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        <DashboardGuide role="admin" inline />
         {!isConnected && (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
             <Feather name="wifi-off" size={15} color="#F59E0B" />
@@ -252,8 +272,8 @@ export default function AdminDashboardScreen() {
           <>
             <View style={styles.sectionRow}>
               <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Desempenho da Equipe</Text>
-              <TouchableOpacity onPress={() => router.push('/(panel)/admin/usuarios')}>
-                <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe</Text>
+              <TouchableOpacity onPress={() => router.push('/(panel)/equipe')}>
+                <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe completa</Text>
               </TouchableOpacity>
             </View>
             {ranking.map(({ nome, count }) => {
@@ -350,7 +370,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   greeting: { fontSize: 22, fontWeight: '700' },
-  role: { fontSize: 12, fontWeight: '600', marginTop: 2, letterSpacing: 0.5 },
+  badgeRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 6, marginTop: 4 },
+  chipBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    borderWidth: 1,
+  },
+  chipText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
   iconBtn: {
     width: 40, height: 40, borderRadius: 10, borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',

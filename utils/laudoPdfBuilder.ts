@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
 import { riscoLabel, riscoColor, riscoConduta } from './riscoUtils';
 import { logoBase64 } from './logoBase64';
-import { ASSETS, flattenPerguntas } from './formulariosAssets';
+import { ASSETS, flattenPerguntas, PerguntaModel } from './formulariosAssets';
 
 export interface LaudoData {
   id: string;
@@ -21,6 +21,7 @@ export interface LaudoData {
   formularioId?: string;
   respostasJson?: string;
   foto_url?: string | null;
+  fotosUrls?: string[] | null;
   // Campos opcionais do relatório técnico editável
   condutaRecomendada?: string;
   observacoesTecnicas?: string;
@@ -300,7 +301,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 
   // O schema form mapeia os IDs para textos ricos
   let schemaForm = null;
-  let perguntasFlat = [];
+  let perguntasFlat: PerguntaModel[] = [];
   if (dados.formularioId && ASSETS[dados.formularioId]) {
     schemaForm = ASSETS[dados.formularioId];
     perguntasFlat = flattenPerguntas(schemaForm);
@@ -348,38 +349,53 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     } catch { /* sem respostas */ }
   }
 
-  // Tratamento da imagem
+  // Tratamento de múltiplas imagens
+  // Prioridade: fotosUrls[] > [foto_url] — deduplica por valor
+  const urlsParaProcessar: string[] = [];
+  if (dados.fotosUrls && dados.fotosUrls.length > 0) {
+    dados.fotosUrls.forEach(u => u && urlsParaProcessar.push(u));
+  }
+  if (dados.foto_url && !urlsParaProcessar.includes(dados.foto_url)) {
+    urlsParaProcessar.unshift(dados.foto_url);
+  }
+
+  const converterParaBase64 = async (url: string): Promise<string | null> => {
+    try {
+      if (url.startsWith('file://')) {
+        const b64 = await FileSystem.readAsStringAsync(url, { encoding: 'base64' as any });
+        return `data:image/jpeg;base64,${b64}`;
+      } else if (url.startsWith('http://') || url.startsWith('https://')) {
+        const cacheDir: string = (FileSystem as any).cacheDirectory ?? '';
+        const tempUri = `${cacheDir}foto_laudo_${Date.now()}_${Math.random().toString(36).slice(2,6)}.jpg`;
+        const { uri: downloaded } = await (FileSystem as any).downloadAsync(url, tempUri);
+        const b64 = await FileSystem.readAsStringAsync(downloaded, { encoding: 'base64' as any });
+        (FileSystem as any).deleteAsync(downloaded, { idempotent: true }).catch(() => {});
+        return `data:image/jpeg;base64,${b64}`;
+      }
+    } catch (e) {
+      console.warn('[laudoPdfBuilder] Erro ao converter foto:', e);
+    }
+    return null;
+  };
+
+  const fotosBase64 = (await Promise.all(urlsParaProcessar.map(converterParaBase64)))
+    .filter((b): b is string => b !== null);
+
   let imageHtml = '';
-  if (dados.foto_url) {
-     let fotoBase64: string | null = null;
-     if (dados.foto_url.startsWith('file://')) {
-       try {
-         const base64Str = await FileSystem.readAsStringAsync(dados.foto_url, { encoding: FileSystem.EncodingType.Base64 });
-         fotoBase64 = `data:image/jpeg;base64,${base64Str}`;
-       } catch (e) {
-         console.warn("Erro ao ler foto do file system", e);
-       }
-     } else if (dados.foto_url.startsWith('http://') || dados.foto_url.startsWith('https://')) {
-       try {
-         const tempUri = `${FileSystem.cacheDirectory}foto_laudo_${Date.now()}.jpg`;
-         const { uri: downloaded } = await FileSystem.downloadAsync(dados.foto_url, tempUri);
-         const base64Str = await FileSystem.readAsStringAsync(downloaded, { encoding: FileSystem.EncodingType.Base64 });
-         fotoBase64 = `data:image/jpeg;base64,${base64Str}`;
-         FileSystem.deleteAsync(downloaded, { idempotent: true }).catch(() => {});
-       } catch (e) {
-         console.warn("Erro ao baixar foto remota", e);
-       }
-     }
-     if (fotoBase64) {
-        imageHtml = `
-          <div class="section" style="page-break-inside: avoid;">
-            <div class="section-title"><span class="section-icon">📷</span> Registro Fotográfico da Ocorrência</div>
-            <div style="text-align:center; border: 1px solid #E2E8F0; padding: 4px; border-radius: 8px;">
-              <img src="${fotoBase64}" style="max-width: 100%; max-height: 300px; border-radius: 4px; object-fit: contain;" alt="Evidência do local"/>
-            </div>
-          </div>
-        `;
-     }
+  if (fotosBase64.length > 0) {
+    const isSingle = fotosBase64.length === 1;
+    const fotosHtml = fotosBase64.map((b64, i) => `
+      <div style="border:1px solid #E2E8F0; border-radius:8px; overflow:hidden; ${isSingle ? 'max-width:480px; margin:0 auto;' : ''}">
+        <img src="${b64}" style="width:100%; max-height:240px; object-fit:cover; display:block;" alt="Evidência ${i + 1}"/>
+        <div style="font-size:9px; color:#94A3B8; text-align:center; padding:4px;">Foto ${i + 1}</div>
+      </div>`).join('');
+    imageHtml = `
+      <div class="section" style="page-break-inside: avoid;">
+        <div class="section-title"><span class="section-icon">📷</span> Registro Fotográfico da Ocorrência (${fotosBase64.length} foto${fotosBase64.length !== 1 ? 's' : ''})</div>
+        <div style="display:${isSingle ? 'block' : 'grid'}; ${isSingle ? '' : 'grid-template-columns: repeat(2, 1fr);'} gap:10px;">
+          ${fotosHtml}
+        </div>
+      </div>`;
   }
 
   const obsHtml = dados.observacoesTecnicas

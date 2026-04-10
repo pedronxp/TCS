@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal, Pressable, Dimensions } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { useAuth } from '../../../context/AuthContext';
 import { forceSyncAll } from '../../../services/SyncService';
+import { getSignedUrl } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
@@ -27,6 +28,7 @@ export default function VistoriaDetalhesScreen() {
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [vistoria, setVistoria] = useState<VistoriaNormalizada | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
   useEffect(() => { if (id) fetchDetalhes(); }, [id]);
 
@@ -81,8 +83,13 @@ export default function VistoriaDetalhesScreen() {
       const { data, error } = await query.single();
 
       if (!error && data) {
-        setVistoria(data);
-        populateReport(data);
+        // Resolver paths de storage para URLs assinadas antes de exibir
+        const fotosResolvidas = data.fotosUrls
+          ? await Promise.all(data.fotosUrls.map((u: string) => getSignedUrl(u)))
+          : null;
+        const resolved = { ...data, fotosUrls: fotosResolvidas?.filter(Boolean) ?? null };
+        setVistoria(resolved);
+        populateReport(resolved);
         return;
       }
 
@@ -96,7 +103,12 @@ export default function VistoriaDetalhesScreen() {
         }
         let fotosUrlsParsed: string[] | null = null;
         if (local.fotos_urls) {
-          try { fotosUrlsParsed = JSON.parse(local.fotos_urls); } catch { /* noop */ }
+          try {
+            const raw: string[] = JSON.parse(local.fotos_urls);
+            // Resolver paths locais — offline paths (file://) ficam como estão;
+            // paths de storage codificados são assinados se houver conectividade.
+            fotosUrlsParsed = (await Promise.all(raw.map(u => getSignedUrl(u)))).filter(Boolean) as string[];
+          } catch { /* noop */ }
         }
         setVistoria({
           id: local.id,
@@ -178,6 +190,18 @@ export default function VistoriaDetalhesScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Modal foto ampliada */}
+      <Modal visible={!!fotoAmpliada} transparent animationType="fade" onRequestClose={() => setFotoAmpliada(null)}>
+        <Pressable style={styles.fotoModalBg} onPress={() => setFotoAmpliada(null)}>
+          {fotoAmpliada && (
+            <Image source={{ uri: fotoAmpliada }} style={styles.fotoModalImg} resizeMode="contain" />
+          )}
+          <TouchableOpacity style={styles.fotoModalClose} onPress={() => setFotoAmpliada(null)}>
+            <Feather name="x" size={22} color="#FFF" />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Nível de risco destaque */}
         <View style={[styles.nivelCard, { backgroundColor: `${cor}12`, borderColor: `${cor}30` }]}>
@@ -214,6 +238,26 @@ export default function VistoriaDetalhesScreen() {
             </View>
           ))}
         </View>
+
+        {/* Galeria de fotos */}
+        {vistoria.fotosUrls && vistoria.fotosUrls.length > 0 && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+              Fotos ({vistoria.fotosUrls.length})
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+              {vistoria.fotosUrls.map((url, idx) => (
+                <TouchableOpacity key={idx} onPress={() => setFotoAmpliada(url)} activeOpacity={0.85}>
+                  <Image
+                    source={{ uri: url }}
+                    style={styles.fotoThumb}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Banner sync pendente */}
         {vistoria.status === 'Pendente Sync' && (
@@ -347,4 +391,8 @@ const styles = StyleSheet.create({
   },
   syncBannerTitle: { fontSize: 14, fontWeight: '700' },
   syncBannerSub: { fontSize: 12, marginTop: 2 },
+  fotoThumb: { width: 110, height: 110, borderRadius: 12 },
+  fotoModalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
+  fotoModalImg: { width: Dimensions.get('window').width, height: Dimensions.get('window').height * 0.75 },
+  fotoModalClose: { position: 'absolute', top: 52, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
 });

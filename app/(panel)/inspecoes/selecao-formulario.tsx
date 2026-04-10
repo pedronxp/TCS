@@ -74,12 +74,13 @@ export default function SelecaoFormularioScreen() {
       if (isOnlineReal) {
         const { data } = await supabase
           .from('formularios')
-          .select('id, titulo, descricao, versao, status, perguntas, municipio, atualizadoEm')
+          .select('id, titulo, descricao, versao, status, perguntas, classificacao, fases, tipoCalculo, municipio, atualizadoEm')
           .eq('ativo', true)
           .order('atualizadoEm', { ascending: false });
 
         if (data && data.length > 0) {
-          // Persiste no cache SQLite para uso offline futuro
+          // Persiste no cache SQLite para uso offline futuro — inclui payload completo
+          // para que o wizard possa carregar classificacao, fases e tipoCalculo offline.
           upsertFormulariosCache(data.map(f => ({
             id: f.id,
             titulo: f.titulo,
@@ -89,6 +90,9 @@ export default function SelecaoFormularioScreen() {
             perguntas_json: JSON.stringify(f.perguntas || []),
             municipio: f.municipio ?? null,
             atualizado_em: f.atualizadoEm || new Date().toISOString(),
+            classificacao_json: f.classificacao ? JSON.stringify(f.classificacao) : null,
+            fases_json: f.fases ? JSON.stringify(f.fases) : null,
+            tipo_calculo: (f as any).tipoCalculo ?? null,
           })));
         }
 

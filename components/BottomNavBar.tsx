@@ -5,6 +5,7 @@ import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { navSystemBottom } from '../utils/useBottomTabPadding';
 
 interface NavTab {
   key: string;
@@ -43,7 +44,7 @@ const TABS_MASTER: NavTab[] = [
 ];
 
 const NAVBAR_VISIBLE_PATHS = [
-  '/dashboard', '/inspecoes', '/perfil', '/modulos',
+  '/dashboard', '/inspecoes', '/perfil', '/modulos', '/mapas',
   '/admin', '/supervisor', '/master',
   '/admin/relatorios', '/admin/estatisticas',
 ];
@@ -81,9 +82,7 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
     <View style={[styles.container, {
       backgroundColor: theme.surfaceHighlight,
       borderTopColor: theme.border,
-      paddingBottom: Platform.OS === 'ios'
-        ? Math.max(insets.bottom, 20)
-        : Math.max(insets.bottom, 8),
+      paddingBottom: navSystemBottom(insets),
     }]}>
       {tabs.map(tab => {
         const active = isActive(tab);

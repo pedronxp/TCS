@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
-  SafeAreaView, KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -82,6 +83,13 @@ type Etapa = 'form' | 'termos' | 'permissoes' | 'sucesso';
 // ─── Permissão helper ─────────────────────────────────────────────────────────
 type PermStatus = 'pendente' | 'concedida' | 'negada';
 
+interface TokenValidationResult {
+  valido: boolean;
+  motivo?: string;
+  municipio?: string;
+  expiraEm?: string | null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RegisterScreen() {
   const { theme } = useTheme();
@@ -137,9 +145,10 @@ export default function RegisterScreen() {
     tokenDataRef.current = null;
     codigoNormRef.current = '';
     try {
-      const { data, error: valError } = await supabase
+      const { data: rawData, error: valError } = await supabase
         .rpc('validate_invite_token', { p_codigo: codigoNorm })
         .single();
+      const data = rawData as TokenValidationResult | null;
       if (valError || !data) {
         setTokenStatus({ valido: false, motivo: 'Token inválido ou já utilizado.' });
         return;
@@ -231,9 +240,10 @@ export default function RegisterScreen() {
 
       // Reutiliza resultado cacheado da verificação inline, ou revalida
       if (!tokenData) {
-        const { data, error: valError } = await supabase
+        const { data: rawData2, error: valError } = await supabase
           .rpc('validate_invite_token', { p_codigo: codigoNorm })
           .single();
+        const data = rawData2 as TokenValidationResult | null;
         if (valError || !data) throw new Error('Token inválido ou já utilizado.');
         if (!data.valido) throw new Error(data.motivo);
         tokenData = data;
@@ -306,7 +316,15 @@ export default function RegisterScreen() {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: senha,
-        options: { data: { name: nome, role: tokenData.role, municipio: tokenData.municipio } },
+        options: {
+          data: {
+            name: nome,
+            username: email.split('@')[0],
+            phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
+            role: tokenData.role,
+            municipio: tokenData.municipio,
+          },
+        },
       });
 
       // Trata explicitamente o caso de e-mail já registrado no Auth
@@ -327,31 +345,37 @@ export default function RegisterScreen() {
       const uid = authData.user?.id;
       if (!uid) throw new Error('Falha ao criar conta. Tente novamente.');
 
-      const { error: insertError } = await supabase.from('users').insert({
-        uid,
-        name: nome,
-        username: email.split('@')[0],
-        email: email.trim().toLowerCase(),
-        phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
-        role: tokenData.role,
-        municipio: tokenData.municipio,
-        isApproved: true,
-        createdAt: new Date().toISOString(),
-      });
-      if (insertError) throw insertError;
+      // ── public.users criado via trigger on_auth_user_created ─────────────
+      // O trigger usa raw_user_meta_data passado no signUp acima.
+      // Não há insert manual aqui — se o trigger falhar, o signUp também falha
+      // e nenhum registro é criado em nenhuma tabela (atomicidade real no BD).
 
+      // ── Validação do token com retorno boolean real ───────────────────────
+      // mark_token_used foi atualizada para retornar boolean:
+      //   TRUE  → token existia, estava livre, e foi marcado como usado
+      //   FALSE → token não existe, já foi usado, ou outra condição inválida
       let deviceIp = '';
       try {
         const ipRes = await fetch('https://api.ipify.org?format=json');
         deviceIp = (await ipRes.json()).ip || '';
       } catch { /* silencioso */ }
 
-      await supabase.rpc('mark_token_used', {
+      const { data: tokenConsumed, error: tokenError } = await supabase.rpc('mark_token_used', {
         p_codigo: codigoNorm,
         p_uid: uid,
         p_nome: nome,
         p_ip: deviceIp,
       });
+      if (tokenError || tokenConsumed !== true) {
+        // Token inválido: desfaz o registro criado pelo trigger e encerra sessão.
+        // O auth.user permanece em auth.users (sem service_role não é possível
+        // deletá-lo do cliente), mas sem registro em public.users o app o trata
+        // como não-cadastrado. A próxima tentativa de cadastro com mesmo e-mail
+        // será bloqueada pelo Supabase Auth ("user already registered").
+        try { await supabase.from('users').delete().eq('uid', uid); } catch { /* silencioso */ }
+        try { await supabase.auth.signOut(); } catch { /* silencioso */ }
+        throw new Error('Token de convite inválido ou já utilizado. Cadastro cancelado. Solicite um novo token ao administrador.');
+      }
 
       try {
         if (tokenData.criadoPor) {

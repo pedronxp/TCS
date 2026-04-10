@@ -18,7 +18,9 @@ export type AuditAction =
   | 'vistoria_criada'
   | 'login_falhou'
   | 'agendamento_criado'
-  | 'token_usado';
+  | 'token_usado'
+  | 'vistoria_excluida'
+  | 'senha_redefinida';
 
 export interface AuditEntry {
   acao: AuditAction;

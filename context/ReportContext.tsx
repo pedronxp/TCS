@@ -14,6 +14,7 @@ export interface ReportDraft {
   pontuacaoTotal: number;
   respostas: Record<string, string>; // id → valor
   foto_url?: string | null;
+  fotosUrls?: string[] | null;
   // Campos editáveis pelo técnico
   condutaRecomendada: string;
   observacoesTecnicas: string;

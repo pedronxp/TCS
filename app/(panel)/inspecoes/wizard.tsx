@@ -10,7 +10,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
-import { insertVistoria, markSincronizado, updateAgendamentoVistoriaId } from '../../../utils/database';
+import { insertVistoria, markSincronizado, updateAgendamentoVistoriaId, getFormularioCacheById } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
@@ -186,29 +186,56 @@ export default function WizardAvaliacaoScreen() {
         setTipoCalculo(json?.tipoCalculo || 'soma_total');
         setFaseConfigs((json?.fases || []).map((f: any) => ({ id: f.id, peso: f.peso ?? 1 })));
       } else {
-        const { data, error } = await supabase
-          .from('formularios')
-          .select('perguntas, classificacao, fases, "tipoCalculo"')
-          .eq('id', params.formularioId)
-          .single();
-        if (error) throw error;
+        // Formulário personalizado: tentar Supabase se online, senão usar cache SQLite
+        let formData: { perguntas: any; classificacao: any; fases: any; tipoCalculo: any } | null = null;
+
+        if (isConnected) {
+          const { data, error } = await supabase
+            .from('formularios')
+            .select('perguntas, classificacao, fases, "tipoCalculo"')
+            .eq('id', params.formularioId)
+            .single();
+          if (!error && data) {
+            formData = data;
+          }
+        }
+
+        // Fallback offline: carregar do cache SQLite com payload completo
+        if (!formData) {
+          const cached = getFormularioCacheById(params.formularioId);
+          if (!cached) throw new Error(`Formulário '${params.formularioId}' não encontrado — conecte-se à internet para baixá-lo.`);
+          const perguntas = JSON.parse(cached.perguntas_json || '[]');
+          const classificacao = cached.classificacao_json ? JSON.parse(cached.classificacao_json) : null;
+          const fases = cached.fases_json ? JSON.parse(cached.fases_json) : null;
+          formData = {
+            perguntas,
+            classificacao,
+            fases,
+            tipoCalculo: cached.tipo_calculo ?? 'soma_total',
+          };
+        }
 
         // Prefer fases (nested format) over flat perguntas
-        if (data?.fases && Array.isArray(data.fases) && data.fases.length > 0) {
-          setPerguntas(flattenPerguntas({ fases: data.fases }));
+        if (formData.fases && Array.isArray(formData.fases) && formData.fases.length > 0) {
+          setPerguntas(flattenPerguntas({ fases: formData.fases }));
+          setFaseConfigs(formData.fases.map((f: any) => ({ id: f.id, peso: f.peso ?? 1 })));
         } else {
-          let raw = data?.perguntas;
+          let raw = formData.perguntas;
           if (typeof raw === 'string') raw = JSON.parse(raw);
           setPerguntas(Array.isArray(raw) ? raw : flattenPerguntas({ fases: raw }));
         }
 
         // Load classification limits
-        if (data?.classificacao?.limites) {
-          setLimites(data.classificacao.limites);
+        if (formData.classificacao?.limites) {
+          setLimites(formData.classificacao.limites);
+        }
+
+        if (formData.tipoCalculo) {
+          setTipoCalculo(formData.tipoCalculo);
         }
       }
     } catch (e: any) {
-      Alert.alert('Erro', 'Não foi possível carregar as perguntas. Verifique sua conexão e tente novamente.');
+      Alert.alert('Erro', e?.message || 'Não foi possível carregar as perguntas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -450,6 +477,10 @@ export default function WizardAvaliacaoScreen() {
           }
         }
 
+        // Nunca enviar file:// ao Supabase — se upload falhou, omitir fotoUrl.
+        // O SyncService fará o upload e atualizará o campo quando o app reconectar.
+        const fotoUrlRemota = fotoStorageUrl ?? null;
+
         const { error } = await supabase.from('vistorias').upsert({
           id,
           agenteUid: vistoriaLocal.agente_uid,
@@ -470,7 +501,7 @@ export default function WizardAvaliacaoScreen() {
           nivelRisco: nivel,
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
-          fotoUrl: fotoStorageUrl ?? fotoUri,
+          fotoUrl: fotoUrlRemota,
           status: 'concluida',
         });
         if (!error) {

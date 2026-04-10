@@ -11,6 +11,7 @@ export type LogCategory =
   | 'token'
   | 'form'
   | 'system'
+  | 'mapa'
   | 'notifications';
 
 export interface LogEntry {

@@ -8,13 +8,15 @@ import ClusteredMapView from 'react-native-map-clustering';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
-import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getAgendamentosByMunicipio, getAgendamentosByAgente } from '../../utils/database';
+import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getAllAgendamentos, getAgendamentosByMunicipio, getAgendamentosByAgente } from '../../utils/database';
 import { logger } from '../../utils/logger';
 import { tracarRota } from '../../utils/routingUtils';
+import { navSystemBottom } from '../../utils/useBottomTabPadding';
 
 interface VistoriaMarker {
   id: string;
@@ -73,19 +75,37 @@ const FILTERS: { key: FilterKey; label: string; color: string }[] = [
   { key: 'baixo', label: 'Baixo', color: '#10B981' },
 ];
 
+// Normaliza níveis legados (alto/medio/baixo → r3/r2/r1)
+function normalizeNivel(nivel: string): string {
+  if (nivel === 'alto')  return 'r3';
+  if (nivel === 'medio') return 'r2';
+  if (nivel === 'baixo') return 'r1';
+  return nivel;
+}
+
 function getRiscoColor(nivel: string): string {
-  if (nivel === 'r4') return '#EF4444';
-  if (nivel === 'r3') return '#F97316';
-  if (nivel === 'r2') return '#F59E0B';
+  const n = normalizeNivel(nivel);
+  if (n === 'r4') return '#EF4444';
+  if (n === 'r3') return '#F97316';
+  if (n === 'r2') return '#F59E0B';
   return '#10B981';
 }
 
 function getRiscoLabel(nivel: string): string {
-  if (nivel === 'r4') return 'CRÍTICO';
-  if (nivel === 'r3') return 'ALTO';
-  if (nivel === 'r2') return 'MÉDIO';
+  const n = normalizeNivel(nivel);
+  if (n === 'r4') return 'CRÍTICO';
+  if (n === 'r3') return 'ALTO';
+  if (n === 'r2') return 'MÉDIO';
   return 'BAIXO';
 }
+
+// Tamanhos do marcador — maiores no Android para garantir visibilidade
+const PIN_SIZE   = Platform.OS === 'android' ? 42 : 28;
+const PIN_RADIUS = PIN_SIZE / 2;
+const PIN_INNER  = Platform.OS === 'android' ? 13 : 8;
+const TAIL_W     = Platform.OS === 'android' ? 7  : 5;
+const TAIL_H     = Platform.OS === 'android' ? 12 : 8;
+const ICON_SIZE  = Platform.OS === 'android' ? 18 : 12;
 
 // Marcador customizado — sem pinColor para evitar bug com clustering
 function MarkerPin({ color }: { color: string }) {
@@ -103,7 +123,7 @@ function AgendamentoPin() {
   return (
     <View style={{ alignItems: 'center' }}>
       <View style={[markerStyles.pin, { backgroundColor: '#3B82F6' }]}>
-        <Feather name="calendar" size={12} color="#FFF" />
+        <Feather name="calendar" size={ICON_SIZE} color="#FFF" />
       </View>
       <View style={[markerStyles.pinTail, { borderTopColor: '#3B82F6' }]} />
     </View>
@@ -112,16 +132,16 @@ function AgendamentoPin() {
 
 const markerStyles = StyleSheet.create({
   pin: {
-    width: 28, height: 28, borderRadius: 14,
+    width: PIN_SIZE, height: PIN_SIZE, borderRadius: PIN_RADIUS,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2.5, borderColor: '#FFF',
+    borderWidth: Platform.OS === 'android' ? 3 : 2.5, borderColor: '#FFF',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 3, elevation: 4,
+    shadowOpacity: 0.35, shadowRadius: 4, elevation: 6,
   },
-  pinInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
+  pinInner: { width: PIN_INNER, height: PIN_INNER, borderRadius: PIN_INNER / 2, backgroundColor: '#FFF' },
   pinTail: {
     width: 0, height: 0,
-    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+    borderLeftWidth: TAIL_W, borderRightWidth: TAIL_W, borderTopWidth: TAIL_H,
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginTop: -1,
   },
@@ -131,9 +151,15 @@ export default function MapasScreen() {
   const { theme } = useTheme();
   const { isOnlineReal } = useConnectivity();
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
+  // Altura real da BottomNavBar + barra de navegação do sistema
+  const bottomNavH = 68 + navSystemBottom(insets);
   const mapRef = useRef<MapView>(null);
   const currentRegionRef = useRef<any>(null); // região atual do mapa (atualizada pelo onRegionChangeComplete)
   const isInitialLoadRef = useRef(true);
+  const mountedRef = useRef(true);
+  const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [loading, setLoading]           = useState(true);
   const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
@@ -148,8 +174,14 @@ export default function MapasScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
+    mountedRef.current = true;
     getUserLocation();
     loadMarkers();
+    return () => {
+      mountedRef.current = false;
+      if (timer1Ref.current) clearTimeout(timer1Ref.current);
+      if (timer2Ref.current) clearTimeout(timer2Ref.current);
+    };
   }, [profile, isOnlineReal]);
 
   const getUserLocation = async () => {
@@ -175,19 +207,20 @@ export default function MapasScreen() {
   };
 
   const fitToMarkers = (list?: VistoriaMarker[]) => {
-    const target = list ?? filteredMarkers;
-    if (target.length === 0) return;
-    if (target.length === 1) {
+    const vCoords = (list ?? filteredMarkers).map(m => ({ latitude: m.lat, longitude: m.lng }));
+    const aCoords = agendamentos.map(a => ({ latitude: a.lat, longitude: a.lng }));
+    const all = [...vCoords, ...aCoords];
+    if (all.length === 0) return;
+    if (all.length === 1) {
       mapRef.current?.animateToRegion({
-        latitude: target[0].lat, longitude: target[0].lng,
+        latitude: all[0].latitude, longitude: all[0].longitude,
         latitudeDelta: 0.008, longitudeDelta: 0.008,
       }, 800);
       return;
     }
-    (mapRef.current as any)?.fitToCoordinates(
-      target.map(m => ({ latitude: m.lat, longitude: m.lng })),
-      { edgePadding: { top: 160, right: 50, bottom: 220, left: 50 }, animated: true }
-    );
+    (mapRef.current as any)?.fitToCoordinates(all, {
+      edgePadding: { top: 160, right: 50, bottom: 220, left: 50 }, animated: true,
+    });
   };
 
   const loadMarkers = async () => {
@@ -211,6 +244,7 @@ export default function MapasScreen() {
 
         const { data, error } = await query.limit(500);
         if (!error && data) {
+          if (!mountedRef.current) return;
           const loaded: VistoriaMarker[] = data
             .filter((v: any) => v.latitude && v.longitude)
             .map((v: any) => ({
@@ -226,6 +260,7 @@ export default function MapasScreen() {
           setMarkers(loaded);
 
           // Carregar agendamentos pendentes com coordenadas
+          let loadedAgend: AgendamentoMarker[] = [];
           try {
             let agendQuery = supabase
               .from('agendamentos')
@@ -234,14 +269,16 @@ export default function MapasScreen() {
               .not('lat', 'is', null)
               .not('lng', 'is', null);
             if (!isAdmin) {
-              // Agente vê apenas agendamentos atribuídos a ele
-              agendQuery = agendQuery.eq('agente_uid', profile.uid);
+              // Agente vê agendamentos atribuídos a ele OU sem atribuição no seu município
+              agendQuery = agendQuery
+                .or(`agente_uid.eq.${profile.uid},agente_uid.is.null`)
+                .eq('municipio', profile.municipio);
             } else if (profile.municipio && profile.role !== 'master_admin') {
               agendQuery = agendQuery.eq('municipio', profile.municipio);
             }
             const { data: agendData } = await agendQuery.limit(200);
             if (agendData) {
-              setAgendamentos(agendData.filter((a: any) => a.lat && a.lng).map((a: any) => ({
+              loadedAgend = agendData.filter((a: any) => a.lat && a.lng).map((a: any) => ({
                 id: a.id,
                 lat: Number(a.lat),
                 lng: Number(a.lng),
@@ -250,18 +287,25 @@ export default function MapasScreen() {
                 dataAgendada: a.data_agendada,
                 agenteNome: a.agente_nome || 'Sem atribuição',
                 status: a.status,
-              })));
+              }));
+              setAgendamentos(loadedAgend);
             }
           } catch { /* agendamentos opcionais */ }
 
-          if (loaded.length > 0) {
+          if (!mountedRef.current) return;
+          // Considera vistorias e agendamentos para o enquadramento inicial
+          const allPoints = [
+            ...loaded.map(m => ({ lat: m.lat, lng: m.lng })),
+            ...loadedAgend.map(a => ({ lat: a.lat, lng: a.lng })),
+          ];
+          if (allPoints.length > 0) {
             if (isInitialLoadRef.current) {
               // Carga inicial: anima para o centróide com zoom de bairro fixo
-              // Não usamos fitToCoordinates para evitar zoom máximo quando coords são idênticas
               isInitialLoadRef.current = false;
-              setTimeout(() => {
-                const centLat = loaded.reduce((s, m) => s + m.lat, 0) / loaded.length;
-                const centLng = loaded.reduce((s, m) => s + m.lng, 0) / loaded.length;
+              timer1Ref.current = setTimeout(() => {
+                if (!mountedRef.current) return;
+                const centLat = allPoints.reduce((s, m) => s + m.lat, 0) / allPoints.length;
+                const centLng = allPoints.reduce((s, m) => s + m.lng, 0) / allPoints.length;
                 mapRef.current?.animateToRegion({
                   latitude: centLat,
                   longitude: centLng,
@@ -270,16 +314,18 @@ export default function MapasScreen() {
                 }, 800);
               }, 1200);
             } else {
-              // Refresh manual: micro-jiggle com delta maior para forçar recálculo do supercluster
-              setTimeout(() => {
+              // Refresh manual: micro-jiggle para forçar recálculo do supercluster
+              timer1Ref.current = setTimeout(() => {
+                if (!mountedRef.current) return;
                 const r = currentRegionRef.current;
                 if (r) {
                   mapRef.current?.animateToRegion(
                     { ...r, latitude: r.latitude + 0.0002 }, 80
                   );
-                  setTimeout(() =>
-                    mapRef.current?.animateToRegion(r, 80), 200
-                  );
+                  timer2Ref.current = setTimeout(() => {
+                    if (!mountedRef.current) return;
+                    mapRef.current?.animateToRegion(r, 80);
+                  }, 200);
                 }
               }, 300);
             }
@@ -295,31 +341,59 @@ export default function MapasScreen() {
           ? getVistoriasByMunicipio(profile.municipio)
           : getVistoriasByAgente(profile.uid);
 
-      setMarkers(locais.filter((v: any) => v.latitude && v.longitude).map((v: any) => ({
-        id: v.id,
-        lat: v.latitude,
-        lng: v.longitude,
-        nivelRisco: v.nivel_risco || 'r1',
-        endereco: `${v.endereco_rua || ''}, ${v.endereco_numero || ''} - ${v.endereco_bairro || ''}`,
-        agenteNome: v.agente_nome || '—',
-        dataVistoria: v.data_vistoria,
-        pontuacaoTotal: v.pontuacao_total,
-      })));
+      const offlineMarkers: VistoriaMarker[] = locais
+        .filter((v: any) => v.latitude && v.longitude)
+        .map((v: any) => ({
+          id: v.id,
+          lat: Number(v.latitude),
+          lng: Number(v.longitude),
+          nivelRisco: v.nivel_risco || 'r1',
+          endereco: `${v.endereco_rua || ''}, ${v.endereco_numero || ''} - ${v.endereco_bairro || ''}`,
+          agenteNome: v.agente_nome || '—',
+          dataVistoria: v.data_vistoria,
+          pontuacaoTotal: v.pontuacao_total,
+        }));
+      setMarkers(offlineMarkers);
 
-      // Agendamentos offline (SQLite)
-      const agendLocais = isAdmin
-        ? getAgendamentosByMunicipio(profile.municipio ?? '')
-        : getAgendamentosByAgente(profile.uid, profile.municipio);
-      setAgendamentos(agendLocais.filter((a: any) => a.lat && a.lng).map((a: any) => ({
-        id: a.id,
-        lat: Number(a.lat),
-        lng: Number(a.lng),
-        titulo: a.titulo,
-        endereco: a.endereco || '',
-        dataAgendada: a.data_agendada,
-        agenteNome: a.agente_nome || 'Sem atribuição',
-        status: a.status,
-      })));
+      // Agendamentos offline (SQLite) — master_admin vê tudo; status pendente apenas
+      const agendLocais = profile.role === 'master_admin'
+        ? getAllAgendamentos()
+        : isAdmin
+          ? getAgendamentosByMunicipio(profile.municipio ?? '')
+          : getAgendamentosByAgente(profile.uid, profile.municipio);
+      const offlineAgend: AgendamentoMarker[] = agendLocais
+        .filter((a: any) => a.lat && a.lng && a.status === 'pendente')
+        .map((a: any) => ({
+          id: a.id,
+          lat: Number(a.lat),
+          lng: Number(a.lng),
+          titulo: a.titulo,
+          endereco: a.endereco || '',
+          dataAgendada: a.data_agendada,
+          agenteNome: a.agente_nome || 'Sem atribuição',
+          status: a.status,
+        }));
+      setAgendamentos(offlineAgend);
+
+      // Enquadramento inicial offline
+      if (isInitialLoadRef.current) {
+        const offlinePoints = [
+          ...offlineMarkers.map(m => ({ lat: m.lat, lng: m.lng })),
+          ...offlineAgend.map(a => ({ lat: a.lat, lng: a.lng })),
+        ];
+        if (offlinePoints.length > 0) {
+          isInitialLoadRef.current = false;
+          timer1Ref.current = setTimeout(() => {
+            if (!mountedRef.current) return;
+            const centLat = offlinePoints.reduce((s, m) => s + m.lat, 0) / offlinePoints.length;
+            const centLng = offlinePoints.reduce((s, m) => s + m.lng, 0) / offlinePoints.length;
+            mapRef.current?.animateToRegion({
+              latitude: centLat, longitude: centLng,
+              latitudeDelta: 0.06, longitudeDelta: 0.06,
+            }, 800);
+          }, 1200);
+        }
+      }
     } catch (e) {
       logger.error('vistoria', 'Erro ao carregar marcadores do mapa', { erro: String(e) });
     } finally {
@@ -328,9 +402,10 @@ export default function MapasScreen() {
   };
 
   const filteredMarkers = markers.filter(m => {
-    if (filter === 'alto'  && !(m.nivelRisco === 'r3' || m.nivelRisco === 'r4')) return false;
-    if (filter === 'medio' && m.nivelRisco !== 'r2') return false;
-    if (filter === 'baixo' && m.nivelRisco !== 'r1') return false;
+    const n = normalizeNivel(m.nivelRisco);
+    if (filter === 'alto'  && !(n === 'r3' || n === 'r4')) return false;
+    if (filter === 'medio' && n !== 'r2') return false;
+    if (filter === 'baixo' && n !== 'r1') return false;
     if (filtroPeriodo !== 'todos' && m.dataVistoria) {
       const dias = filtroPeriodo === '7d' ? 7 : 30;
       if (new Date(m.dataVistoria) < new Date(Date.now() - dias * 86400000)) return false;
@@ -339,7 +414,7 @@ export default function MapasScreen() {
   });
 
   // Ao pressionar cluster: dar zoom nos markers contidos nele
-  const handleClusterPress = (cluster: any, clusterMarkers: any[]) => {
+  const handleClusterPress = (cluster: any, clusterMarkers?: any[]) => {
     if (!clusterMarkers?.length) return;
     const coords = clusterMarkers.map((m: any) => ({
       latitude:  m.geometry.coordinates[1],
@@ -363,10 +438,13 @@ export default function MapasScreen() {
     ? { latitude: userLocation.lat, longitude: userLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
     : { latitude: -15.7801, longitude: -47.9292, latitudeDelta: 30, longitudeDelta: 30 };
 
-  const heatmapPoints = filteredMarkers.map(m => ({
-    latitude: m.lat, longitude: m.lng,
-    weight: m.nivelRisco === 'r4' ? 1 : m.nivelRisco === 'r3' ? 0.8 : m.nivelRisco === 'r2' ? 0.5 : 0.3,
-  }));
+  const heatmapPoints = filteredMarkers.map(m => {
+    const n = normalizeNivel(m.nivelRisco);
+    return {
+      latitude: m.lat, longitude: m.lng,
+      weight: n === 'r4' ? 1 : n === 'r3' ? 0.8 : n === 'r2' ? 0.5 : 0.3,
+    };
+  });
 
   if (loading) {
     return (
@@ -377,7 +455,7 @@ export default function MapasScreen() {
     );
   }
 
-  if (!isOnlineReal && filteredMarkers.length === 0) {
+  if (!isOnlineReal && filteredMarkers.length === 0 && agendamentos.length === 0) {
     return (
       <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
         <Feather name="wifi-off" size={48} color={theme.border} />
@@ -450,7 +528,7 @@ export default function MapasScreen() {
       </ClusteredMapView>
 
       {/* Header flutuante */}
-      <View style={styles.headerOverlay}>
+      <View style={[styles.headerOverlay, { paddingTop: (insets.top || 44) + 10 }]}>
         <TouchableOpacity
           style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
           onPress={() => router.back()}
@@ -483,7 +561,7 @@ export default function MapasScreen() {
       </View>
 
       {/* Filtros */}
-      <View style={styles.filtersOverlay}>
+      <View style={[styles.filtersOverlay, { top: insets.top + 62 }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {FILTERS.map(f => (
             <TouchableOpacity
@@ -532,8 +610,8 @@ export default function MapasScreen() {
       </View>
 
       {/* FABs direita */}
-      <View style={styles.fabGroup}>
-        {filteredMarkers.length > 0 && (
+      <View style={[styles.fabGroup, { bottom: bottomNavH + 12 }]}>
+        {(filteredMarkers.length > 0 || agendamentos.length > 0) && (
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: theme.surfaceHighlight }]}
             onPress={() => fitToMarkers()}
@@ -559,7 +637,7 @@ export default function MapasScreen() {
 
       {/* Popup de agendamento selecionado */}
       {selectedAgendamento && (
-        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight }]}>
+        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight, bottom: bottomNavH + 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <View style={[styles.riscoBadge, { backgroundColor: '#3B82F6' }]}>
               <Text style={styles.riscoBadgeText}>AGENDADO</Text>
@@ -594,7 +672,7 @@ export default function MapasScreen() {
 
       {/* Popup do marcador selecionado */}
       {selectedMarker && (
-        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight }]}>
+        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight, bottom: bottomNavH + 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <View style={[styles.riscoBadge, { backgroundColor: getRiscoColor(selectedMarker.nivelRisco) }]}>
               <Text style={styles.riscoBadgeText}>{getRiscoLabel(selectedMarker.nivelRisco)}</Text>
@@ -640,7 +718,7 @@ export default function MapasScreen() {
         onRequestClose={() => setShowStyleModal(false)}
       >
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowStyleModal(false)} />
-        <View style={[styles.sheet, { backgroundColor: theme.surfaceHighlight }]}>
+        <View style={[styles.sheet, { backgroundColor: theme.surfaceHighlight, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Estilo do Mapa</Text>
           {MAP_STYLES.map(s => (
@@ -677,7 +755,7 @@ const styles = StyleSheet.create({
 
   headerOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0,
-    paddingTop: 54, paddingBottom: 10, paddingHorizontal: 16,
+    paddingBottom: 10, paddingHorizontal: 16,
     flexDirection: 'row', alignItems: 'center', gap: 10,
   },
   floatBtn: {

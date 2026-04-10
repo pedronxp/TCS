@@ -14,7 +14,7 @@ import { updateFotosUrls, getVistoriaById } from '../../../utils/database';
 import { EmptyState, Button } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const MAX_FOTOS = 1;
+const MAX_FOTOS = 3;
 const QUALIDADE = 0.72;   // 72% JPEG — spec AGENTS.md
 const LARGURA_MAX = 854;  // 480p landscape — spec AGENTS.md
 
@@ -56,12 +56,13 @@ export default function FotoScreen() {
     }
 
     // Fallback: buscar fotosUrls do Supabase (vistorias já sincronizadas)
-    supabase
-      .from('vistorias')
-      .select('fotosUrls')
-      .eq('id', id as string)
-      .single()
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('vistorias')
+          .select('fotosUrls')
+          .eq('id', id as string)
+          .single();
         const urls: string[] = data?.fotosUrls ?? [];
         if (urls.length > 0) {
           setFotos(urls.map(uri => ({
@@ -70,8 +71,8 @@ export default function FotoScreen() {
             url: uri.startsWith('http') ? uri : undefined,
           })));
         }
-      })
-      .catch(() => { /* sem fotos remotas */ });
+      } catch { /* sem fotos remotas */ }
+    })();
   }, [id]);
 
   const solicitarPermissaoCamera = async (): Promise<boolean> => {
@@ -173,14 +174,19 @@ export default function FotoScreen() {
       Alert.alert('Limite atingido', `Máximo de ${MAX_FOTOS} fotos por vistoria.`);
       return;
     }
+    const disponivel = MAX_FOTOS - fotos.length;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 1,
-      allowsMultipleSelection: false,
+      allowsMultipleSelection: true,
+      selectionLimit: disponivel,
     });
 
-    if (result.canceled || !result.assets?.[0]) return;
-    await processarFoto(result.assets[0].uri);
+    if (result.canceled || !result.assets?.length) return;
+    // Processar cada foto selecionada em sequência
+    for (const asset of result.assets) {
+      await processarFoto(asset.uri);
+    }
   };
 
   const tentarNovamente = async (localId: string) => {
@@ -279,12 +285,12 @@ export default function FotoScreen() {
         updateFotosUrls(id, allUris);
       }
 
-      // Salvar URLs no Supabase (todas que foram sincronizadas)
+      // Salvar URLs no Supabase (incluindo quando todas são removidas — limpar o campo)
       const remoteUrls = fotosAtualizadas.filter(f => f.url).map(f => f.url!);
-      if (remoteUrls.length > 0 && id && isOnlineReal) {
+      if (id && isOnlineReal) {
         await supabase
           .from('vistorias')
-          .update({ fotosUrls: remoteUrls })
+          .update({ fotosUrls: remoteUrls.length > 0 ? remoteUrls : null })
           .eq('id', id);
       }
 

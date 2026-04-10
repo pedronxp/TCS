@@ -14,6 +14,7 @@ import { logger } from '../../../utils/logger';
 import { tempoRelativo, formatarDataHora } from '../../../utils/htmlUtils';
 import type { AuditAction } from '../../../utils/auditLogger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -53,6 +54,7 @@ function getAcaoConfig(acao: string) {
 export default function MasterLogsScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
@@ -233,7 +235,7 @@ export default function MasterLogsScreen() {
       <FlatList
         data={filtrados}
         keyExtractor={item => item.id}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
         ListEmptyComponent={
           <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>

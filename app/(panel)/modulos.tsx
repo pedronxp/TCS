@@ -5,16 +5,19 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 
 export default function ModulosScreen() {
   const { theme } = useTheme();
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
 
   const getMenu = () => {
     if (profile?.role === 'master_admin') {
       return [
         { label: 'Municípios', icon: 'map', route: '/(panel)/master/municipios', color: '#3B82F6', desc: 'Gerenciar municípios' },
+        { label: 'Equipe', icon: 'user-check', route: '/(panel)/equipe', color: '#10B981', desc: 'Agentes de todos os municípios' },
         { label: 'Inspeções', icon: 'clipboard', route: '/(panel)/inspecoes', color: '#F59E0B', desc: 'Vistorias e formulários' },
         { label: 'Relatórios', icon: 'file-text', route: '/(panel)/admin/relatorios', color: '#EF4444', desc: 'Laudos e exportação' },
         { label: 'Usuários', icon: 'users', route: '/(panel)/admin/usuarios', color: '#06B6D4', desc: 'Todos os usuários' },
@@ -27,6 +30,7 @@ export default function ModulosScreen() {
     if (profile?.role === 'admin') {
       return [
         { label: 'Usuários', icon: 'users', route: '/(panel)/admin/usuarios', color: '#3B82F6', desc: 'Gestão da equipe' },
+        { label: 'Equipe', icon: 'user-check', route: '/(panel)/equipe', color: '#10B981', desc: 'Desempenho dos agentes' },
         { label: 'Grupos', icon: 'grid', route: '/(panel)/grupos', color: '#0EA5E9', desc: 'Grupos de agentes' },
         { label: 'Tokens', icon: 'key', route: '/(panel)/admin/tokens', color: '#F59E0B', desc: 'Acesso de agentes' },
         { label: 'Relatórios', icon: 'file-text', route: '/(panel)/admin/relatorios', color: '#EF4444', desc: 'Exportar laudos' },
@@ -61,7 +65,7 @@ export default function ModulosScreen() {
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Acesso rápido a todas as funções</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         <View style={styles.grid}>
           {menu.map(m => (
             <TouchableOpacity

@@ -6,22 +6,79 @@ const BUCKET_NAME = 'vistorias';
 const BUCKET_FOTOS = 'fotos';
 const BUCKET_LAUDOS = 'laudos';
 
+// ─── Prefixos para identificar o bucket a partir do path persistido ──────────
+// Formato armazenado: "vistorias:<remotePath>" | "fotos:<remotePath>" | "laudos:<remotePath>"
+// Isso permite assinar URLs sem ambiguidade de bucket na leitura.
+const PATH_PREFIX = {
+  vistorias: 'vistorias:',
+  fotos: 'fotos:',
+  laudos: 'laudos:',
+} as const;
+
+type BucketKey = keyof typeof PATH_PREFIX;
+
 /**
- * Faz upload de um arquivo local (file:///) para o Supabase Storage
- * @param localUri A URI local do arquivo gerada pela câmera ou galeria
- * @param remotePath O caminho destino no Storage (ex: '2026/03/vistoria_123_foto_1.jpg')
- * @returns A URL pública da imagem recém-salva
+ * Codifica bucket + remotePath em uma string persistível.
+ * Exemplo: encodePath('vistorias', '2026/SP/abc.jpg') → 'vistorias:2026/SP/abc.jpg'
+ */
+export function encodePath(bucket: BucketKey, remotePath: string): string {
+  return `${PATH_PREFIX[bucket]}${remotePath}`;
+}
+
+/**
+ * Decodifica string persistida de volta para { bucket, remotePath }.
+ * Retorna null se a string não tiver prefixo reconhecido (ex: URL http antiga).
+ */
+export function decodePath(stored: string): { bucket: string; remotePath: string } | null {
+  for (const [bucket, prefix] of Object.entries(PATH_PREFIX)) {
+    if (stored.startsWith(prefix)) {
+      return { bucket, remotePath: stored.slice(prefix.length) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Gera uma URL assinada a partir de um valor persistido (encodePath) ou de
+ * uma URL http já assinada (retorna diretamente, sem nova assinatura).
+ * Expiração padrão: 3600 s (1 h).
+ */
+export async function getSignedUrl(
+  stored: string,
+  expiresIn = 3600
+): Promise<string | null> {
+  if (!stored) return null;
+
+  // URL já assinada ou pública — retorna como está
+  if (stored.startsWith('http')) return stored;
+
+  const decoded = decodePath(stored);
+  if (!decoded) {
+    logger.warn('storage', 'getSignedUrl: path sem prefixo reconhecido', { stored });
+    return null;
+  }
+
+  const { data, error } = await supabase.storage
+    .from(decoded.bucket)
+    .createSignedUrl(decoded.remotePath, expiresIn);
+
+  if (error || !data?.signedUrl) {
+    logger.warn('storage', `Falha ao assinar URL: ${error?.message}`, decoded);
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
+/**
+ * Faz upload de um arquivo local (file:///) para o bucket `vistorias`.
+ * Retorna o path codificado (ex: "vistorias:2026/SP/id/thumb.jpg") para
+ * persistência — NÃO retorna URL assinada para evitar expiração em dados salvos.
  *
- * @note COMPORTAMENTO DE RETRY: O remotePath inclui Date.now(), então cada
- * tentativa de upload usa um caminho único. Se o upload for bem-sucedido mas
- * o app morrer antes de persistir a URL pública no SQLite (em processarImagensVistoria),
- * o arquivo permanecerá no Storage sem referência (arquivo órfão). O retry
- * seguinte fará upload para um novo path sem conflito. Para limpeza de órfãos,
- * seria necessário um job periódico no Supabase (out of scope para SYNC-01).
+ * @note Para exibir a imagem, chame getSignedUrl(storedPath).
  */
 export async function uploadImageFromLocalUri(localUri: string, remotePath: string): Promise<string> {
   try {
-    // Verificar se o arquivo existe localmente
     const fileInfo = await FileSystem.getInfoAsync(localUri);
     if (!fileInfo.exists) {
       throw new Error(`Arquivo local não encontrado: ${localUri}`);
@@ -30,11 +87,6 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
     const fileExt = localUri.split('.').pop() || 'jpg';
     const mimeType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
 
-    // Ler base64 usando file-system (mais seguro no react-native/expo sem pollyfills complexos de Buffer para o supabase.storage)
-    // O Supabase suporta Base64 upload se enviarmos com contentType correto e options.
-    // Mas no SDK v2, a melhor abordagem no Expo é usar FileSystem.readAsStringAsync base64 e enviar Buffer, 
-    // ou usar FormData que é suportado nativamente pelo fetch interno do Supabase.
-    
     const formData = new FormData();
     formData.append('file', {
       uri: localUri,
@@ -42,38 +94,31 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
       type: mimeType,
     } as any);
 
-    logger.info('sync', `Iniciando upload de imagem: ${remotePath}`, { size: fileInfo.size });
+    logger.info('sync', `Iniciando upload de imagem: ${remotePath}`, { size: (fileInfo as any).size });
 
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(remotePath, formData, {
-        cacheControl: '36000',
-        upsert: false,
-      });
+      .upload(remotePath, formData, { cacheControl: '36000', upsert: false });
 
     if (error) {
       logger.error('sync', `Falha no upload supabase: ${error.message}`, { path: remotePath });
       throw error;
     }
 
-    // Obter URL pública
-    const { data: publicData } = supabase.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(remotePath);
-
-    logger.info('sync', `Upload concluído com sucesso`, { url: publicData.publicUrl });
-    
-    return publicData.publicUrl;
+    logger.info('sync', `Upload concluído`, { path: remotePath });
+    return encodePath('vistorias', remotePath);
 
   } catch (error: any) {
-    logger.error('sync', `Erro completo no uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
+    logger.error('sync', `Erro em uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
     throw error;
   }
 }
 
 /**
- * Faz upload da foto de uma vistoria para o bucket `fotos/`.
- * Retorna a URL pública ou null em caso de falha (não lança exceção).
+ * Faz upload da foto de uma vistoria para o bucket `fotos`.
+ * Retorna o path codificado para persistência, ou null em caso de falha.
+ *
+ * @note Para exibir a imagem, chame getSignedUrl(storedPath).
  */
 export async function uploadFotoVistoria(
   localUri: string,
@@ -101,8 +146,7 @@ export async function uploadFotoVistoria(
       return null;
     }
 
-    const { data } = supabase.storage.from(BUCKET_FOTOS).getPublicUrl(remotePath);
-    return data.publicUrl;
+    return encodePath('fotos', remotePath);
   } catch (e: any) {
     logger.warn('sync', `Erro upload foto vistoria: ${e?.message}`, { vistoriaId });
     return null;
@@ -110,8 +154,9 @@ export async function uploadFotoVistoria(
 }
 
 /**
- * Faz upload do PDF de laudo para o bucket `laudos/`.
- * Retorna URL signed de 7 dias ou null em caso de falha.
+ * Faz upload do PDF de laudo para o bucket `laudos`.
+ * Retorna URL assinada de 7 dias (laudos são exibidos diretamente via link,
+ * não persistidos como imagens — expiração longa é aceitável para esse caso).
  */
 export async function uploadLaudoPdf(
   localUri: string,

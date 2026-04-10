@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
-  SafeAreaView, KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../utils/supabase';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -61,10 +62,7 @@ export default function VerifyOtpScreen() {
     setReenviando(true);
     setError(null);
     try {
-      await supabase.auth.signInWithOtp({
-        email: email!,
-        options: { shouldCreateUser: false },
-      });
+      await supabase.auth.signInWithOtp({ email: email!, options: { shouldCreateUser: false } });
       setSegundos(RESEND_TIMEOUT);
       setCodigo('');
     } catch {

@@ -14,6 +14,7 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { notificarMasterTokenGerado, notificarMasterSolicitaTokens } from '../../../services/NotificationService';
 import { Button } from '../../../components/ui/Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 const ROLES_LIST = [
   { key: 'agent', label: 'Agente', desc: 'Realiza vistorias em campo', icon: 'clipboard' as const },
@@ -52,6 +53,7 @@ function gerarCodigo(): string {
 export default function GerarTokenScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const isMasterAdmin = profile?.role === 'master_admin';
   const [role, setRole] = useState('agent');
@@ -249,7 +251,7 @@ export default function GerarTokenScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
               {/* Banner de quota — apenas para admin (não master) */}
               {!isMasterAdmin && (
                 <View style={[styles.quotaBanner, {

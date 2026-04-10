@@ -10,6 +10,7 @@ import { supabase } from '../../../utils/supabase';
 import { useAuth } from '../../../context/AuthContext';
 import { tempoRelativo, formatarDataHora } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -38,6 +39,7 @@ type FiltroPeriodo = 'todos' | 'hoje' | '7d' | '30d';
 export default function AdminLogsScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
 
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -320,7 +322,7 @@ export default function AdminLogsScreen() {
           data={filtrados}
           keyExtractor={item => String(item.id)}
           renderItem={renderAudit}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

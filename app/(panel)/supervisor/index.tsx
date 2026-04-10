@@ -16,31 +16,17 @@ import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { DashboardGuide } from '../../../components/DashboardGuide';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-interface Atribuicao {
-  id: string;
-  endereco_completo: string;
-  agente_nome: string;
-  prioridade: string;
-  status: string;
-}
-
-function prioridadeColor(p: string) {
-  if (p === 'alta' || p === 'urgente') return '#EF4444';
-  if (p === 'media') return '#F59E0B';
-  return '#3B82F6';
-}
-
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 export default function SupervisorDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isConnected } = useConnectivity();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [vistorias, setVistorias] = useState<VistoriaNormalizada[]>([]);
-  const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
   const [agentesAtivos, setAgentesAtivos] = useState(0);
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
 
@@ -49,7 +35,7 @@ export default function SupervisorDashboardScreen() {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [vistoriasRes, agentesRes, atribuicoesRes] = await Promise.all([
+      const [vistoriasRes, agentesRes] = await Promise.all([
         supabase
           .from('vistorias')
           .select('id, nivelRisco, pontuacaoTotal, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
@@ -62,16 +48,10 @@ export default function SupervisorDashboardScreen() {
           .eq('municipio', profile.municipio)
           .eq('role', 'agent')
           .eq('isApproved', true),
-        supabase
-          .from('atribuicoes')
-          .select('*')
-          .eq('supervisor_uid', profile.uid)
-          .eq('status', 'pendente'),
       ]);
 
       setVistorias(vistoriasRes.data || []);
       setAgentesAtivos(agentesRes.count || 0);
-      setAtribuicoes(atribuicoesRes.data || []);
     } catch (e) {
       logger.error('system', 'Erro supervisor dashboard', { erro: String(e) });
     } finally {
@@ -124,12 +104,29 @@ export default function SupervisorDashboardScreen() {
           <Text style={[styles.greeting, { color: theme.text }]}>
             Olá, {profile?.name.split(' ')[0]}
           </Text>
-          <Text style={[styles.role, { color: theme.textSecondary }]}>
-            {profile?.municipio} · SUPERVISOR
-          </Text>
+          <View style={styles.badgeRow}>
+            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+              <Feather name="map-pin" size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>{profile?.municipio ?? '—'}</Text>
+            </View>
+            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+              <Feather name="shield" size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>Supervisor</Text>
+            </View>
+            {isConnected ? (
+              <View style={[styles.chipBadge, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.25)' }]}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                <Text style={[styles.chipText, { color: '#10B981' }]}>Conectado</Text>
+              </View>
+            ) : (
+              <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+                <Feather name="wifi-off" size={10} color="#F59E0B" />
+                <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
+              </View>
+            )}
+          </View>
         </View>
         <View style={styles.headerActions}>
-          <DashboardGuide role="supervisor" />
           <View>
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
@@ -153,9 +150,11 @@ export default function SupervisorDashboardScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        <DashboardGuide role="supervisor" inline />
+
         {/* Banner offline */}
         {!isConnected && (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
@@ -208,7 +207,7 @@ export default function SupervisorDashboardScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.kpiSmall, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push('/(panel)/supervisor/equipe')}
+              onPress={() => router.push('/(panel)/equipe')}
             >
               <Text style={[styles.kpiValueSm, { color: '#F59E0B' }]}>{agentesAtivos}</Text>
               <Text style={[styles.kpiLabelSm, { color: theme.textSecondary }]}>Agentes</Text>
@@ -221,7 +220,7 @@ export default function SupervisorDashboardScreen() {
           <>
             <View style={styles.sectionRow}>
               <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Desempenho da Equipe</Text>
-              <TouchableOpacity onPress={() => router.push('/(panel)/supervisor/equipe')}>
+              <TouchableOpacity onPress={() => router.push('/(panel)/equipe')}>
                 <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe</Text>
               </TouchableOpacity>
             </View>
@@ -250,37 +249,6 @@ export default function SupervisorDashboardScreen() {
           </>
         )}
 
-        {/* Atribuições pendentes */}
-        <View style={styles.sectionRow}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Atribuições Pendentes</Text>
-          <TouchableOpacity onPress={() => router.push('/(panel)/supervisor/atribuicao')}>
-            <Text style={[styles.seeAll, { color: theme.primary }]}>+ Nova</Text>
-          </TouchableOpacity>
-        </View>
-
-        {atribuicoes.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma atribuição pendente.</Text>
-          </View>
-        ) : (
-          atribuicoes.map(a => (
-            <View key={a.id} style={[styles.atribuicaoCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.atribuicaoEndereco, { color: theme.text }]} numberOfLines={2}>
-                  {a.endereco_completo || 'Endereço não informado'}
-                </Text>
-                <Text style={[styles.atribuicaoAgente, { color: theme.textSecondary }]}>
-                  Para: {a.agente_nome || '—'}
-                </Text>
-              </View>
-              <View style={[styles.prioridadeBadge, { backgroundColor: `${prioridadeColor(a.prioridade)}20` }]}>
-                <Text style={[styles.prioridadeText, { color: prioridadeColor(a.prioridade) }]}>
-                  {a.prioridade?.toUpperCase()}
-                </Text>
-              </View>
-            </View>
-          ))
-        )}
 
         {/* Atividade recente */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Registro de Operações</Text>
@@ -315,15 +283,6 @@ export default function SupervisorDashboardScreen() {
           );
         })}
       </ScrollView>
-
-      {/* FAB: Nova Atribuição */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: theme.primary }]}
-        onPress={() => router.push('/(panel)/supervisor/atribuicao')}
-      >
-        <Feather name="plus" size={24} color="#FFF" />
-        <Text style={styles.fabText}>Nova Atribuição</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -335,7 +294,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   greeting: { fontSize: 22, fontWeight: '700' },
-  role: { fontSize: 12, fontWeight: '600', marginTop: 2, letterSpacing: 0.5 },
+  badgeRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 6, marginTop: 4 },
+  chipBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    borderWidth: 1,
+  },
+  chipText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
   headerActions: { flexDirection: 'row', gap: 8 },
   iconBtn: {
     width: 40, height: 40, borderRadius: 10, borderWidth: 1,
@@ -380,15 +345,6 @@ const styles = StyleSheet.create({
   rankCount: { fontSize: 14, fontWeight: '900' },
   progressBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
-
-  atribuicaoCard: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: 16,
-    borderWidth: 1, padding: 16, marginBottom: 12,
-  },
-  atribuicaoEndereco: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  atribuicaoAgente: { fontSize: 13, fontWeight: '500' },
-  prioridadeBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  prioridadeText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
 
   vistoriaCard: {
     flexDirection: 'row', alignItems: 'center', borderRadius: 16,
