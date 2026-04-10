@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useSegments, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { useConnectivity } from '../../context/ConnectivityContext';
@@ -13,11 +13,45 @@ import { BottomNavBar } from '../../components/BottomNavBar';
 import { SessionGuardProvider, useSessionGuard } from '../../context/SessionGuardContext';
 import { SessionLockScreen } from '../../components/SessionLockScreen';
 import { pingSupabaseKeepAlive } from '../../services/KeepAliveService';
+import { useAuth } from '../../context/AuthContext';
+
+// Rotas que exigem papel mínimo para acesso.
+// Qualquer rota não listada aqui é acessível a qualquer usuário autenticado.
+const ROUTE_ROLES: Record<string, readonly string[]> = {
+  'admin':        ['admin', 'master_admin'],
+  'supervisor':   ['supervisor', 'admin', 'master_admin'],
+  'master':       ['master_admin'],
+};
+
+function useRouteGuard() {
+  const segments = useSegments();
+  const { profile, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading || !profile) return;
+
+    // segments[0] = "(panel)", segments[1] = section (admin/supervisor/master/...)
+    const section = segments[1] as string | undefined;
+    if (!section) return;
+
+    const allowed = ROUTE_ROLES[section];
+    if (!allowed) return; // Rota sem restrição de papel
+
+    if (!allowed.includes(profile.role)) {
+      logger.warn('auth', `Acesso negado à seção "${section}" para papel "${profile.role}" — redirecionando`);
+      // Redireciona para dashboard sem permissão de navegar de volta
+      router.replace('/(panel)/dashboard');
+    }
+  }, [segments, profile, loading]);
+}
 
 function PanelContent() {
   const { isLocked } = useSessionGuard();
   const { isOnlineReal } = useConnectivity();
   const prevConnected = useRef(false);
+
+  // Guarda de rota por papel — executado a cada mudança de segmento
+  useRouteGuard();
 
   useEffect(() => {
     registerBackgroundSync();

@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
+import { validarSenha, calcularForcaSenha, FORCA_LABELS, FORCA_CORES } from '../../utils/passwordValidation';
 
 export default function ResetPasswordScreen() {
   const { theme } = useTheme();
@@ -19,25 +20,14 @@ export default function ResetPasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
 
-  const forca = (() => {
-    if (novaSenha.length < 6) return 0;
-    const temLetra = /[a-zA-Z]/.test(novaSenha);
-    const temNumero = /[0-9]/.test(novaSenha);
-    if (novaSenha.length >= 8 && temLetra && temNumero) return 2;
-    if (novaSenha.length >= 6) return 1;
-    return 0;
-  })();
-
-  const forcaLabel = ['Fraca', 'Média', 'Forte'];
-  const forcaCor = ['#EF4444', '#F59E0B', '#10B981'];
+  const forca = calcularForcaSenha(novaSenha);
+  const forcaLabel = FORCA_LABELS;
+  const forcaCor = FORCA_CORES;
 
   const handleRedefinir = async () => {
-    if (!novaSenha || novaSenha.length < 8) {
-      setError('A senha deve ter pelo menos 8 caracteres.');
-      return;
-    }
-    if (!/[a-zA-Z]/.test(novaSenha) || !/[0-9]/.test(novaSenha)) {
-      setError('A senha deve conter letras e números.');
+    const validacao = validarSenha(novaSenha);
+    if (!validacao.valido) {
+      setError(validacao.erro ?? 'Senha inválida.');
       return;
     }
     if (novaSenha !== confirmarSenha) {

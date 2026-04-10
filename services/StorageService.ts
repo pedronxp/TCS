@@ -56,14 +56,19 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
       throw error;
     }
 
-    // Obter URL pública
-    const { data: publicData } = supabase.storage
+    // Obter URL assinada (expira em 1 hora) — bucket sensível não é público
+    const { data: signedData, error: signedError } = await supabase.storage
       .from(BUCKET_NAME)
-      .getPublicUrl(remotePath);
+      .createSignedUrl(remotePath, 3600);
 
-    logger.info('sync', `Upload concluído com sucesso`, { url: publicData.publicUrl });
-    
-    return publicData.publicUrl;
+    if (signedError || !signedData?.signedUrl) {
+      logger.error('sync', `Falha ao gerar URL assinada: ${signedError?.message}`, { path: remotePath });
+      throw signedError ?? new Error('URL assinada não gerada');
+    }
+
+    logger.info('sync', `Upload concluído com sucesso`, { path: remotePath });
+
+    return signedData.signedUrl;
 
   } catch (error: any) {
     logger.error('sync', `Erro completo no uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
@@ -101,8 +106,11 @@ export async function uploadFotoVistoria(
       return null;
     }
 
-    const { data } = supabase.storage.from(BUCKET_FOTOS).getPublicUrl(remotePath);
-    return data.publicUrl;
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from(BUCKET_FOTOS)
+      .createSignedUrl(remotePath, 3600);
+    if (signedError || !signedData?.signedUrl) return null;
+    return signedData.signedUrl;
   } catch (e: any) {
     logger.warn('sync', `Erro upload foto vistoria: ${e?.message}`, { vistoriaId });
     return null;

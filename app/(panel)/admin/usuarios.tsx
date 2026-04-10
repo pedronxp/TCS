@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Switch, Alert, TextInput, Modal
 } from 'react-native';
+import { validarSenha } from '../../../utils/passwordValidation';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
@@ -133,8 +134,9 @@ export default function UsuariosScreen() {
   };
 
   const handleChangePassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      Alert.alert('Atenção', 'A nova senha deve ter no mínimo 6 caracteres.');
+    const validacao = validarSenha(newPassword);
+    if (!validacao.valido) {
+      Alert.alert('Atenção', validacao.erro ?? 'Senha inválida.');
       return;
     }
     setChangingPass(true);

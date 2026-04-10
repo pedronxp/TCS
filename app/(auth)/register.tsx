@@ -337,6 +337,9 @@ export default function RegisterScreen() {
       const uid = authData.user?.id;
       if (!uid) throw new Error('Falha ao criar conta. Tente novamente.');
 
+      // ── Issue 2: compensação atômica ─────────────────────────────────────
+      // Se o insert em public.users falhar após o signUp no Auth,
+      // fazemos signOut + deletamos a sessão para evitar usuário órfão.
       const { error: insertError } = await supabase.from('users').insert({
         uid,
         name: nome,
@@ -348,20 +351,32 @@ export default function RegisterScreen() {
         isApproved: true,
         createdAt: new Date().toISOString(),
       });
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Compensação: deslogar e sinalizar ao usuário que o cadastro falhou
+        try { await supabase.auth.signOut(); } catch { /* silencioso */ }
+        throw new Error('Falha ao salvar perfil do usuário. Sua conta não foi criada. Tente novamente.');
+      }
 
+      // ── Issue 3: consumo do token com validação explícita ────────────────
+      // Se mark_token_used retornar false ou erro, a transação é inválida.
       let deviceIp = '';
       try {
         const ipRes = await fetch('https://api.ipify.org?format=json');
         deviceIp = (await ipRes.json()).ip || '';
       } catch { /* silencioso */ }
 
-      await supabase.rpc('mark_token_used', {
+      const { data: tokenConsumed, error: tokenError } = await supabase.rpc('mark_token_used', {
         p_codigo: codigoNorm,
         p_uid: uid,
         p_nome: nome,
         p_ip: deviceIp,
       });
+      if (tokenError || tokenConsumed === false) {
+        // Token não pôde ser consumido — desfazer registro para manter consistência
+        try { await supabase.from('users').delete().eq('uid', uid); } catch { /* silencioso */ }
+        try { await supabase.auth.signOut(); } catch { /* silencioso */ }
+        throw new Error('Token de convite não pôde ser consumido. Cadastro cancelado. Solicite um novo token.');
+      }
 
       try {
         if (tokenData.criadoPor) {
