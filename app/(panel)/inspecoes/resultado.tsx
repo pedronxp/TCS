@@ -13,6 +13,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
 import { getVistoriaById, updateLaudoUrl } from '../../../utils/database';
+import { getSignedUrl } from '../../../services/StorageService';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
@@ -126,6 +127,11 @@ export default function ResultadoScreen() {
       if (!error && data) {
         if (!mountedRef.current) return;
         const norm = normalizar(data);
+        // Resolver paths de storage → URLs assinadas antes de exibir/usar em PDF
+        if (norm.foto_url) norm.foto_url = await getSignedUrl(norm.foto_url) ?? norm.foto_url;
+        if (norm.fotosUrls) {
+          norm.fotosUrls = (await Promise.all(norm.fotosUrls.map(u => getSignedUrl(u)))).filter(Boolean) as string[];
+        }
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || profile?.name || '—');
         prefillTermoForm(norm);

@@ -6,6 +6,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { useAuth } from '../../../context/AuthContext';
 import { forceSyncAll } from '../../../services/SyncService';
+import { getSignedUrl } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
@@ -82,8 +83,13 @@ export default function VistoriaDetalhesScreen() {
       const { data, error } = await query.single();
 
       if (!error && data) {
-        setVistoria(data);
-        populateReport(data);
+        // Resolver paths de storage para URLs assinadas antes de exibir
+        const fotosResolvidas = data.fotosUrls
+          ? await Promise.all(data.fotosUrls.map((u: string) => getSignedUrl(u)))
+          : null;
+        const resolved = { ...data, fotosUrls: fotosResolvidas?.filter(Boolean) ?? null };
+        setVistoria(resolved);
+        populateReport(resolved);
         return;
       }
 
@@ -97,7 +103,12 @@ export default function VistoriaDetalhesScreen() {
         }
         let fotosUrlsParsed: string[] | null = null;
         if (local.fotos_urls) {
-          try { fotosUrlsParsed = JSON.parse(local.fotos_urls); } catch { /* noop */ }
+          try {
+            const raw: string[] = JSON.parse(local.fotos_urls);
+            // Resolver paths locais — offline paths (file://) ficam como estão;
+            // paths de storage codificados são assinados se houver conectividade.
+            fotosUrlsParsed = (await Promise.all(raw.map(u => getSignedUrl(u)))).filter(Boolean) as string[];
+          } catch { /* noop */ }
         }
         setVistoria({
           id: local.id,

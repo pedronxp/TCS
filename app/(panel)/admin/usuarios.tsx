@@ -88,6 +88,12 @@ export default function UsuariosScreen() {
   useFocusEffect(useCallback(() => { meRef.current = null; loadUsers(); }, []));
 
   const toggleAprovacao = (user: any) => {
+    // Defesa em profundidade: checar role antes de executar a ação,
+    // independente da guarda de navegação em _layout.tsx.
+    if (!profile?.role || !['admin', 'master_admin'].includes(profile.role)) {
+      Alert.alert('Sem permissão', 'Você não tem permissão para alterar o acesso de usuários.');
+      return;
+    }
     const acao = user.isApproved ? 'bloquear' : 'liberar';
     Alert.alert(
       `${acao.charAt(0).toUpperCase() + acao.slice(1)} acesso?`,
@@ -134,6 +140,11 @@ export default function UsuariosScreen() {
   };
 
   const handleChangePassword = async () => {
+    // Defesa em profundidade: checar role antes de executar ação sensível.
+    if (!profile?.role || !['admin', 'master_admin'].includes(profile.role)) {
+      Alert.alert('Sem permissão', 'Você não tem permissão para redefinir senhas.');
+      return;
+    }
     const validacao = validarSenha(newPassword);
     if (!validacao.valido) {
       Alert.alert('Atenção', validacao.erro ?? 'Senha inválida.');

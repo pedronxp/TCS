@@ -17,6 +17,7 @@ import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
+import { getSignedUrl } from '../../../services/StorageService';
 
 // ─── Form JSONs ──────────────────────────────────────────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -117,6 +118,11 @@ export default function LaudoScreen() {
       }
       const { data, error } = await query.single();
       if (error) throw error;
+      // Resolver paths de storage → URLs assinadas antes de usar no PDF
+      if (data.foto_url) data.foto_url = await getSignedUrl(data.foto_url) ?? data.foto_url;
+      if (Array.isArray(data.fotosUrls)) {
+        data.fotosUrls = (await Promise.all(data.fotosUrls.map((u: string) => getSignedUrl(u)))).filter(Boolean);
+      }
       setVistoria(data);
     } catch (e) {
       Alert.alert('Erro', 'Não foi possível carregar o laudo.');

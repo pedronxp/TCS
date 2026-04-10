@@ -316,7 +316,15 @@ export default function RegisterScreen() {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: senha,
-        options: { data: { name: nome, role: tokenData.role, municipio: tokenData.municipio } },
+        options: {
+          data: {
+            name: nome,
+            username: email.split('@')[0],
+            phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
+            role: tokenData.role,
+            municipio: tokenData.municipio,
+          },
+        },
       });
 
       // Trata explicitamente o caso de e-mail já registrado no Auth
@@ -337,28 +345,15 @@ export default function RegisterScreen() {
       const uid = authData.user?.id;
       if (!uid) throw new Error('Falha ao criar conta. Tente novamente.');
 
-      // ── Issue 2: compensação atômica ─────────────────────────────────────
-      // Se o insert em public.users falhar após o signUp no Auth,
-      // fazemos signOut + deletamos a sessão para evitar usuário órfão.
-      const { error: insertError } = await supabase.from('users').insert({
-        uid,
-        name: nome,
-        username: email.split('@')[0],
-        email: email.trim().toLowerCase(),
-        phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
-        role: tokenData.role,
-        municipio: tokenData.municipio,
-        isApproved: true,
-        createdAt: new Date().toISOString(),
-      });
-      if (insertError) {
-        // Compensação: deslogar e sinalizar ao usuário que o cadastro falhou
-        try { await supabase.auth.signOut(); } catch { /* silencioso */ }
-        throw new Error('Falha ao salvar perfil do usuário. Sua conta não foi criada. Tente novamente.');
-      }
+      // ── public.users criado via trigger on_auth_user_created ─────────────
+      // O trigger usa raw_user_meta_data passado no signUp acima.
+      // Não há insert manual aqui — se o trigger falhar, o signUp também falha
+      // e nenhum registro é criado em nenhuma tabela (atomicidade real no BD).
 
-      // ── Issue 3: consumo do token com validação explícita ────────────────
-      // Se mark_token_used retornar false ou erro, a transação é inválida.
+      // ── Validação do token com retorno boolean real ───────────────────────
+      // mark_token_used foi atualizada para retornar boolean:
+      //   TRUE  → token existia, estava livre, e foi marcado como usado
+      //   FALSE → token não existe, já foi usado, ou outra condição inválida
       let deviceIp = '';
       try {
         const ipRes = await fetch('https://api.ipify.org?format=json');
@@ -371,11 +366,15 @@ export default function RegisterScreen() {
         p_nome: nome,
         p_ip: deviceIp,
       });
-      if (tokenError || tokenConsumed === false) {
-        // Token não pôde ser consumido — desfazer registro para manter consistência
+      if (tokenError || tokenConsumed !== true) {
+        // Token inválido: desfaz o registro criado pelo trigger e encerra sessão.
+        // O auth.user permanece em auth.users (sem service_role não é possível
+        // deletá-lo do cliente), mas sem registro em public.users o app o trata
+        // como não-cadastrado. A próxima tentativa de cadastro com mesmo e-mail
+        // será bloqueada pelo Supabase Auth ("user already registered").
         try { await supabase.from('users').delete().eq('uid', uid); } catch { /* silencioso */ }
         try { await supabase.auth.signOut(); } catch { /* silencioso */ }
-        throw new Error('Token de convite não pôde ser consumido. Cadastro cancelado. Solicite um novo token.');
+        throw new Error('Token de convite inválido ou já utilizado. Cadastro cancelado. Solicite um novo token ao administrador.');
       }
 
       try {
