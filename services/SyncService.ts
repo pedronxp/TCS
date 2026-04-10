@@ -11,9 +11,13 @@ import {
   incrementTentativasSync,
   VistoriaLocal,
   getDb,
+  getAgendamentosNaoSincronizados,
+  markAgendamentoSincronizado,
+  deleteAgendamento,
 } from '../utils/database';
 import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri } from './StorageService';
+import { checkRealInternet } from '../context/ConnectivityContext';
 
 // ─── Configuração ──────────────────────────────────────────────────────────
 
@@ -99,6 +103,15 @@ async function markVacuumRun(): Promise<void> {
  */
 export async function syncPendentes(isRetry = false): Promise<{ sucesso: number; falha: number }> {
   if (_syncInProgress) return { sucesso: 0, falha: 0 };
+
+  // Verificar conexão real antes de consumir a fila.
+  // Se não há internet real: sair silenciosamente sem incrementar tentativas nem agendar retry.
+  const online = await checkRealInternet();
+  if (!online) {
+    logger.info('sync', 'Sem internet real — sync adiado, fila preservada');
+    return { sucesso: 0, falha: 0 };
+  }
+
   _syncInProgress = true;
 
   let sucesso = 0;
@@ -106,6 +119,13 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
 
   try {
     const pendentes = getVistoriasNaoSincronizadas();
+
+    // Sincronizar agendamentos mesmo quando não há vistorias pendentes
+    try {
+      await syncAgendamentos();
+    } catch (e: any) {
+      logger.warn('sync', `Falha no sync de agendamentos: ${e?.message}`);
+    }
 
     if (pendentes.length === 0) return { sucesso: 0, falha: 0 };
     logger.info('sync', `Iniciando sync: ${pendentes.length} pendente(s)${isRetry ? ` (retry #${_currentRetryAttempt})` : ''}`);
@@ -277,13 +297,22 @@ export async function forceSyncAll(): Promise<{ sucesso: number; falha: number }
  * Payload verificado contra schema Supabase em 2026-04-03: todas as chaves
  * correspondem às colunas da tabela vistorias (camelCase confirmado via
  * buscas em .eq('agenteUid'), .eq('nivelRisco'), .eq('dataVistoria'), etc.).
- * Campo 'status' adicionado — coluna existe no schema (usada em .eq('status', 'pendente')).
+ *
+ * Status contract: o campo 'status' no Supabase representa o status de negócio
+ * da vistoria. Vistorias chegam aqui com status 'concluida' (definido pelo wizard).
+ * O SyncService NÃO sobrescreve o status de negócio — apenas garante que a
+ * vistoria esteja no Supabase. O campo sincronizado no SQLite controla o estado
+ * de sync local.
  */
 function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
   const fotosUrls = (() => {
     try { return v.fotos_urls ? JSON.parse(v.fotos_urls) : []; }
     catch { return []; }
   })();
+
+  // Nunca enviar file:// ao Supabase — se foto ainda for local, omitir
+  const fotoUrlSafe = v.foto_url && !v.foto_url.startsWith('file://') ? v.foto_url : null;
+
   return {
     id: v.id,
     agenteUid: v.agente_uid,
@@ -302,11 +331,70 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     respostasJson: v.respostas_json,
     nivelRisco: v.nivel_risco,
     pontuacaoTotal: v.pontuacao_total,
-    fotoUrl: v.foto_url,
+    fotoUrl: fotoUrlSafe,
     fotosUrls: fotosUrls,
     endereco: `${v.endereco_rua}, ${v.endereco_numero} - ${v.endereco_bairro}`,
-    status: 'sincronizado',
+    status: 'concluida',
   };
+}
+
+/**
+ * Sincroniza agendamentos pendentes (criados/editados/excluídos offline).
+ * - Agendamentos com sincronizado=0 e sem tombstone: upsert no Supabase
+ * - Agendamentos com tombstone (status='deletado'): delete no Supabase + remove local
+ */
+async function syncAgendamentos(): Promise<void> {
+  const pendentes = getAgendamentosNaoSincronizados();
+  if (pendentes.length === 0) return;
+
+  logger.info('sync', `Sincronizando ${pendentes.length} agendamento(s) pendente(s)`);
+
+  for (const ag of pendentes) {
+    try {
+      if (ag.status === 'deletado') {
+        // Tombstone: excluir do Supabase e remover registro local
+        const { error } = await supabase
+          .from('agendamentos')
+          .delete()
+          .eq('id', ag.id);
+        if (!error) {
+          deleteAgendamento(ag.id);
+          logger.info('sync', `Agendamento deletado remotamente`, { id: ag.id });
+        } else {
+          logger.warn('sync', `Falha ao deletar agendamento remoto`, { id: ag.id, erro: error.message });
+        }
+      } else {
+        // Criar ou atualizar no Supabase
+        const { error } = await supabase
+          .from('agendamentos')
+          .upsert({
+            id: ag.id,
+            titulo: ag.titulo,
+            endereco: ag.endereco ?? null,
+            municipio: ag.municipio,
+            data_agendada: ag.data_agendada,
+            criado_por_uid: ag.criado_por_uid,
+            criado_por_nome: ag.criado_por_nome ?? null,
+            agente_uid: ag.agente_uid ?? null,
+            agente_nome: ag.agente_nome ?? null,
+            lat: ag.lat ?? null,
+            lng: ag.lng ?? null,
+            observacoes: ag.observacoes ?? null,
+            status: ag.status,
+            criado_em: ag.criado_em ?? new Date().toISOString(),
+            vistoria_id: ag.vistoria_id ?? null,
+          });
+        if (!error) {
+          markAgendamentoSincronizado(ag.id);
+          logger.info('sync', `Agendamento sincronizado`, { id: ag.id, status: ag.status });
+        } else {
+          logger.warn('sync', `Falha ao sincronizar agendamento`, { id: ag.id, erro: error.message });
+        }
+      }
+    } catch (e: any) {
+      logger.error('sync', `Erro ao processar agendamento`, { id: ag.id, erro: e?.message });
+    }
+  }
 }
 
 // ─── Background task (funciona no APK buildado, não no Expo Go) ───────────

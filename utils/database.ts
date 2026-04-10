@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 10;
+const DB_VERSION = 12;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -197,6 +197,28 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
     if (currentVersion < 10) {
       // Vincula agendamento à vistoria gerada a partir dele
       try { database.runSync(`ALTER TABLE agendamentos ADD COLUMN vistoria_id TEXT`); } catch { /* já existe */ }
+    }
+
+    if (currentVersion < 11) {
+      // Tombstone para delete offline: status 'deletado' marca registros a serem
+      // excluídos no Supabase quando a conexão for restaurada.
+      // O campo sincronizado=0 combinado com status='deletado' aciona o delete remoto no SyncService.
+      // Registros antigos sem o campo já funcionam corretamente (status IN ('pendente','concluido','cancelado')).
+      // Nenhuma coluna nova necessária — o campo status já existe e suporta string livre.
+      // Apenas índice adicional para acelerar a query de pendentes.
+      try {
+        database.runSync(`CREATE INDEX IF NOT EXISTS idx_agendamentos_sincronizado ON agendamentos (sincronizado)`);
+      } catch { /* já existe */ }
+    }
+
+    if (currentVersion < 12) {
+      // Payload completo para formulários personalizados no cache offline.
+      // classificacao_json: limites de risco (JSON) — necessário para calcular nivel_risco offline
+      // fases_json: estrutura de fases/elementos ponderados — necessário para tipoCalculo ponderada_max_elemento
+      // tipo_calculo: string do tipo de cálculo ('soma_total' | 'ponderada_max_elemento')
+      try { database.runSync(`ALTER TABLE formularios_cache ADD COLUMN classificacao_json TEXT`); } catch { /* já existe */ }
+      try { database.runSync(`ALTER TABLE formularios_cache ADD COLUMN fases_json TEXT`); } catch { /* já existe */ }
+      try { database.runSync(`ALTER TABLE formularios_cache ADD COLUMN tipo_calculo TEXT`); } catch { /* já existe */ }
     }
 
     database.runSync(
@@ -397,6 +419,12 @@ export interface FormularioCache {
   municipio: string | null;
   atualizado_em: string;
   cached_at: string;
+  /** JSON dos limites de classificação de risco (ex: [{max:30,nivel:'baixo'},...]) */
+  classificacao_json: string | null;
+  /** JSON das fases/elementos (necessário para tipoCalculo ponderada_max_elemento) */
+  fases_json: string | null;
+  /** Tipo de cálculo: 'soma_total' | 'ponderada_max_elemento' */
+  tipo_calculo: string | null;
 }
 
 export function upsertFormulariosCache(forms: Omit<FormularioCache, 'cached_at'>[]): void {
@@ -406,9 +434,14 @@ export function upsertFormulariosCache(forms: Omit<FormularioCache, 'cached_at'>
     for (const f of forms) {
       database.runSync(
         `INSERT OR REPLACE INTO formularios_cache
-          (id, titulo, descricao, versao, status, perguntas_json, municipio, atualizado_em, cached_at)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
-        [f.id, f.titulo, f.descricao ?? null, f.versao, f.status, f.perguntas_json, f.municipio ?? null, f.atualizado_em, now]
+          (id, titulo, descricao, versao, status, perguntas_json, municipio, atualizado_em, cached_at,
+           classificacao_json, fases_json, tipo_calculo)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          f.id, f.titulo, f.descricao ?? null, f.versao, f.status, f.perguntas_json,
+          f.municipio ?? null, f.atualizado_em, now,
+          f.classificacao_json ?? null, f.fases_json ?? null, f.tipo_calculo ?? null,
+        ]
       );
     }
   });
@@ -509,6 +542,32 @@ export function updateAgendamentoStatus(id: string, status: string): void {
 export function deleteAgendamento(id: string): void {
   const database = getDb();
   database.runSync(`DELETE FROM agendamentos WHERE id = ?`, [id]);
+}
+
+/**
+ * Exclui agendamento com tombstone para sync offline.
+ * - Se sincronizado=1 (já existe no Supabase): marca status='deletado' e sincronizado=0
+ *   para que o SyncService execute o delete remoto na próxima sincronização.
+ * - Se sincronizado=0 (nunca foi ao Supabase): remove diretamente, sem tombstone necessário.
+ */
+export function deleteAgendamentoWithTombstone(id: string): void {
+  const database = getDb();
+  const ag = database.getFirstSync<{ sincronizado: number }>(
+    `SELECT sincronizado FROM agendamentos WHERE id = ?`,
+    [id]
+  );
+  if (!ag) return;
+
+  if (ag.sincronizado === 1) {
+    // Já existe no Supabase — marcar para deleção remota
+    database.runSync(
+      `UPDATE agendamentos SET status = 'deletado', sincronizado = 0 WHERE id = ?`,
+      [id]
+    );
+  } else {
+    // Nunca sincronizado — pode remover localmente sem traces
+    database.runSync(`DELETE FROM agendamentos WHERE id = ?`, [id]);
+  }
 }
 
 export function countAgendamentosPendentes(municipio: string): number {
