@@ -13,7 +13,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
-import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getAgendamentosByMunicipio, getAgendamentosByAgente } from '../../utils/database';
+import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getAllAgendamentos, getAgendamentosByMunicipio, getAgendamentosByAgente } from '../../utils/database';
 import { logger } from '../../utils/logger';
 import { tracarRota } from '../../utils/routingUtils';
 
@@ -74,17 +74,27 @@ const FILTERS: { key: FilterKey; label: string; color: string }[] = [
   { key: 'baixo', label: 'Baixo', color: '#10B981' },
 ];
 
+// Normaliza níveis legados (alto/medio/baixo → r3/r2/r1)
+function normalizeNivel(nivel: string): string {
+  if (nivel === 'alto')  return 'r3';
+  if (nivel === 'medio') return 'r2';
+  if (nivel === 'baixo') return 'r1';
+  return nivel;
+}
+
 function getRiscoColor(nivel: string): string {
-  if (nivel === 'r4') return '#EF4444';
-  if (nivel === 'r3') return '#F97316';
-  if (nivel === 'r2') return '#F59E0B';
+  const n = normalizeNivel(nivel);
+  if (n === 'r4') return '#EF4444';
+  if (n === 'r3') return '#F97316';
+  if (n === 'r2') return '#F59E0B';
   return '#10B981';
 }
 
 function getRiscoLabel(nivel: string): string {
-  if (nivel === 'r4') return 'CRÍTICO';
-  if (nivel === 'r3') return 'ALTO';
-  if (nivel === 'r2') return 'MÉDIO';
+  const n = normalizeNivel(nivel);
+  if (n === 'r4') return 'CRÍTICO';
+  if (n === 'r3') return 'ALTO';
+  if (n === 'r2') return 'MÉDIO';
   return 'BAIXO';
 }
 
@@ -196,19 +206,20 @@ export default function MapasScreen() {
   };
 
   const fitToMarkers = (list?: VistoriaMarker[]) => {
-    const target = list ?? filteredMarkers;
-    if (target.length === 0) return;
-    if (target.length === 1) {
+    const vCoords = (list ?? filteredMarkers).map(m => ({ latitude: m.lat, longitude: m.lng }));
+    const aCoords = agendamentos.map(a => ({ latitude: a.lat, longitude: a.lng }));
+    const all = [...vCoords, ...aCoords];
+    if (all.length === 0) return;
+    if (all.length === 1) {
       mapRef.current?.animateToRegion({
-        latitude: target[0].lat, longitude: target[0].lng,
+        latitude: all[0].latitude, longitude: all[0].longitude,
         latitudeDelta: 0.008, longitudeDelta: 0.008,
       }, 800);
       return;
     }
-    (mapRef.current as any)?.fitToCoordinates(
-      target.map(m => ({ latitude: m.lat, longitude: m.lng })),
-      { edgePadding: { top: 160, right: 50, bottom: 220, left: 50 }, animated: true }
-    );
+    (mapRef.current as any)?.fitToCoordinates(all, {
+      edgePadding: { top: 160, right: 50, bottom: 220, left: 50 }, animated: true,
+    });
   };
 
   const loadMarkers = async () => {
@@ -248,6 +259,7 @@ export default function MapasScreen() {
           setMarkers(loaded);
 
           // Carregar agendamentos pendentes com coordenadas
+          let loadedAgend: AgendamentoMarker[] = [];
           try {
             let agendQuery = supabase
               .from('agendamentos')
@@ -256,14 +268,16 @@ export default function MapasScreen() {
               .not('lat', 'is', null)
               .not('lng', 'is', null);
             if (!isAdmin) {
-              // Agente vê apenas agendamentos atribuídos a ele
-              agendQuery = agendQuery.eq('agente_uid', profile.uid);
+              // Agente vê agendamentos atribuídos a ele OU sem atribuição no seu município
+              agendQuery = agendQuery
+                .or(`agente_uid.eq.${profile.uid},agente_uid.is.null`)
+                .eq('municipio', profile.municipio);
             } else if (profile.municipio && profile.role !== 'master_admin') {
               agendQuery = agendQuery.eq('municipio', profile.municipio);
             }
             const { data: agendData } = await agendQuery.limit(200);
             if (agendData) {
-              setAgendamentos(agendData.filter((a: any) => a.lat && a.lng).map((a: any) => ({
+              loadedAgend = agendData.filter((a: any) => a.lat && a.lng).map((a: any) => ({
                 id: a.id,
                 lat: Number(a.lat),
                 lng: Number(a.lng),
@@ -272,20 +286,25 @@ export default function MapasScreen() {
                 dataAgendada: a.data_agendada,
                 agenteNome: a.agente_nome || 'Sem atribuição',
                 status: a.status,
-              })));
+              }));
+              setAgendamentos(loadedAgend);
             }
           } catch { /* agendamentos opcionais */ }
 
           if (!mountedRef.current) return;
-          if (loaded.length > 0) {
+          // Considera vistorias e agendamentos para o enquadramento inicial
+          const allPoints = [
+            ...loaded.map(m => ({ lat: m.lat, lng: m.lng })),
+            ...loadedAgend.map(a => ({ lat: a.lat, lng: a.lng })),
+          ];
+          if (allPoints.length > 0) {
             if (isInitialLoadRef.current) {
               // Carga inicial: anima para o centróide com zoom de bairro fixo
-              // Não usamos fitToCoordinates para evitar zoom máximo quando coords são idênticas
               isInitialLoadRef.current = false;
               timer1Ref.current = setTimeout(() => {
                 if (!mountedRef.current) return;
-                const centLat = loaded.reduce((s, m) => s + m.lat, 0) / loaded.length;
-                const centLng = loaded.reduce((s, m) => s + m.lng, 0) / loaded.length;
+                const centLat = allPoints.reduce((s, m) => s + m.lat, 0) / allPoints.length;
+                const centLng = allPoints.reduce((s, m) => s + m.lng, 0) / allPoints.length;
                 mapRef.current?.animateToRegion({
                   latitude: centLat,
                   longitude: centLng,
@@ -294,7 +313,7 @@ export default function MapasScreen() {
                 }, 800);
               }, 1200);
             } else {
-              // Refresh manual: micro-jiggle com delta maior para forçar recálculo do supercluster
+              // Refresh manual: micro-jiggle para forçar recálculo do supercluster
               timer1Ref.current = setTimeout(() => {
                 if (!mountedRef.current) return;
                 const r = currentRegionRef.current;
@@ -321,31 +340,59 @@ export default function MapasScreen() {
           ? getVistoriasByMunicipio(profile.municipio)
           : getVistoriasByAgente(profile.uid);
 
-      setMarkers(locais.filter((v: any) => v.latitude && v.longitude).map((v: any) => ({
-        id: v.id,
-        lat: v.latitude,
-        lng: v.longitude,
-        nivelRisco: v.nivel_risco || 'r1',
-        endereco: `${v.endereco_rua || ''}, ${v.endereco_numero || ''} - ${v.endereco_bairro || ''}`,
-        agenteNome: v.agente_nome || '—',
-        dataVistoria: v.data_vistoria,
-        pontuacaoTotal: v.pontuacao_total,
-      })));
+      const offlineMarkers: VistoriaMarker[] = locais
+        .filter((v: any) => v.latitude && v.longitude)
+        .map((v: any) => ({
+          id: v.id,
+          lat: Number(v.latitude),
+          lng: Number(v.longitude),
+          nivelRisco: v.nivel_risco || 'r1',
+          endereco: `${v.endereco_rua || ''}, ${v.endereco_numero || ''} - ${v.endereco_bairro || ''}`,
+          agenteNome: v.agente_nome || '—',
+          dataVistoria: v.data_vistoria,
+          pontuacaoTotal: v.pontuacao_total,
+        }));
+      setMarkers(offlineMarkers);
 
-      // Agendamentos offline (SQLite)
-      const agendLocais = isAdmin
-        ? getAgendamentosByMunicipio(profile.municipio ?? '')
-        : getAgendamentosByAgente(profile.uid, profile.municipio);
-      setAgendamentos(agendLocais.filter((a: any) => a.lat && a.lng).map((a: any) => ({
-        id: a.id,
-        lat: Number(a.lat),
-        lng: Number(a.lng),
-        titulo: a.titulo,
-        endereco: a.endereco || '',
-        dataAgendada: a.data_agendada,
-        agenteNome: a.agente_nome || 'Sem atribuição',
-        status: a.status,
-      })));
+      // Agendamentos offline (SQLite) — master_admin vê tudo; status pendente apenas
+      const agendLocais = profile.role === 'master_admin'
+        ? getAllAgendamentos()
+        : isAdmin
+          ? getAgendamentosByMunicipio(profile.municipio ?? '')
+          : getAgendamentosByAgente(profile.uid, profile.municipio);
+      const offlineAgend: AgendamentoMarker[] = agendLocais
+        .filter((a: any) => a.lat && a.lng && a.status === 'pendente')
+        .map((a: any) => ({
+          id: a.id,
+          lat: Number(a.lat),
+          lng: Number(a.lng),
+          titulo: a.titulo,
+          endereco: a.endereco || '',
+          dataAgendada: a.data_agendada,
+          agenteNome: a.agente_nome || 'Sem atribuição',
+          status: a.status,
+        }));
+      setAgendamentos(offlineAgend);
+
+      // Enquadramento inicial offline
+      if (isInitialLoadRef.current) {
+        const offlinePoints = [
+          ...offlineMarkers.map(m => ({ lat: m.lat, lng: m.lng })),
+          ...offlineAgend.map(a => ({ lat: a.lat, lng: a.lng })),
+        ];
+        if (offlinePoints.length > 0) {
+          isInitialLoadRef.current = false;
+          timer1Ref.current = setTimeout(() => {
+            if (!mountedRef.current) return;
+            const centLat = offlinePoints.reduce((s, m) => s + m.lat, 0) / offlinePoints.length;
+            const centLng = offlinePoints.reduce((s, m) => s + m.lng, 0) / offlinePoints.length;
+            mapRef.current?.animateToRegion({
+              latitude: centLat, longitude: centLng,
+              latitudeDelta: 0.06, longitudeDelta: 0.06,
+            }, 800);
+          }, 1200);
+        }
+      }
     } catch (e) {
       logger.error('vistoria', 'Erro ao carregar marcadores do mapa', { erro: String(e) });
     } finally {
@@ -354,9 +401,10 @@ export default function MapasScreen() {
   };
 
   const filteredMarkers = markers.filter(m => {
-    if (filter === 'alto'  && !(m.nivelRisco === 'r3' || m.nivelRisco === 'r4')) return false;
-    if (filter === 'medio' && m.nivelRisco !== 'r2') return false;
-    if (filter === 'baixo' && m.nivelRisco !== 'r1') return false;
+    const n = normalizeNivel(m.nivelRisco);
+    if (filter === 'alto'  && !(n === 'r3' || n === 'r4')) return false;
+    if (filter === 'medio' && n !== 'r2') return false;
+    if (filter === 'baixo' && n !== 'r1') return false;
     if (filtroPeriodo !== 'todos' && m.dataVistoria) {
       const dias = filtroPeriodo === '7d' ? 7 : 30;
       if (new Date(m.dataVistoria) < new Date(Date.now() - dias * 86400000)) return false;
@@ -389,10 +437,13 @@ export default function MapasScreen() {
     ? { latitude: userLocation.lat, longitude: userLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
     : { latitude: -15.7801, longitude: -47.9292, latitudeDelta: 30, longitudeDelta: 30 };
 
-  const heatmapPoints = filteredMarkers.map(m => ({
-    latitude: m.lat, longitude: m.lng,
-    weight: m.nivelRisco === 'r4' ? 1 : m.nivelRisco === 'r3' ? 0.8 : m.nivelRisco === 'r2' ? 0.5 : 0.3,
-  }));
+  const heatmapPoints = filteredMarkers.map(m => {
+    const n = normalizeNivel(m.nivelRisco);
+    return {
+      latitude: m.lat, longitude: m.lng,
+      weight: n === 'r4' ? 1 : n === 'r3' ? 0.8 : n === 'r2' ? 0.5 : 0.3,
+    };
+  });
 
   if (loading) {
     return (
@@ -403,7 +454,7 @@ export default function MapasScreen() {
     );
   }
 
-  if (!isOnlineReal && filteredMarkers.length === 0) {
+  if (!isOnlineReal && filteredMarkers.length === 0 && agendamentos.length === 0) {
     return (
       <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
         <Feather name="wifi-off" size={48} color={theme.border} />
@@ -559,7 +610,7 @@ export default function MapasScreen() {
 
       {/* FABs direita */}
       <View style={[styles.fabGroup, { bottom: bottomNavH + 12 }]}>
-        {filteredMarkers.length > 0 && (
+        {(filteredMarkers.length > 0 || agendamentos.length > 0) && (
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: theme.surfaceHighlight }]}
             onPress={() => fitToMarkers()}

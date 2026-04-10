@@ -529,6 +529,13 @@ export function countAgendamentosPendentesAgente(agenteUid: string): number {
   return row?.total ?? 0;
 }
 
+export function getAllAgendamentos(): AgendamentoLocal[] {
+  const database = getDb();
+  return database.getAllSync<AgendamentoLocal>(
+    `SELECT * FROM agendamentos ORDER BY data_agendada ASC LIMIT 500`
+  );
+}
+
 export function getAgendamentosNaoSincronizados(): AgendamentoLocal[] {
   const database = getDb();
   return database.getAllSync<AgendamentoLocal>(
