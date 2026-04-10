@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
 import { riscoLabel, riscoColor, riscoConduta } from './riscoUtils';
 import { logoBase64 } from './logoBase64';
-import { ASSETS, flattenPerguntas } from './formulariosAssets';
+import { ASSETS, flattenPerguntas, PerguntaModel } from './formulariosAssets';
 
 export interface LaudoData {
   id: string;
@@ -301,7 +301,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 
   // O schema form mapeia os IDs para textos ricos
   let schemaForm = null;
-  let perguntasFlat = [];
+  let perguntasFlat: PerguntaModel[] = [];
   if (dados.formularioId && ASSETS[dados.formularioId]) {
     schemaForm = ASSETS[dados.formularioId];
     perguntasFlat = flattenPerguntas(schemaForm);
