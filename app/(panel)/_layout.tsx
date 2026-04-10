@@ -56,9 +56,6 @@ function PanelContent() {
         <Stack.Screen name="inspecoes/foto" />
         <Stack.Screen name="inspecoes/[id]" />
         <Stack.Screen name="supervisor/index" />
-        <Stack.Screen name="supervisor/equipe" />
-        <Stack.Screen name="supervisor/agente" />
-        <Stack.Screen name="supervisor/atribuicao" />
         <Stack.Screen name="admin/index" />
         <Stack.Screen name="admin/usuarios" />
         <Stack.Screen name="admin/tokens" />

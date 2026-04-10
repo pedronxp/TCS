@@ -161,6 +161,9 @@ export default function LaudoScreen() {
         bairro: vistoria.enderecoBairro,
         responsavelNome: vistoria.responsavelNome,
         foto_url: vistoria.fotosUrls?.[0] || vistoria.fotoUrl || null,
+        fotosUrls: Array.isArray(vistoria.fotosUrls) && vistoria.fotosUrls.length > 0
+          ? vistoria.fotosUrls
+          : null,
       };
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -173,7 +176,7 @@ export default function LaudoScreen() {
       // Registrar geração no Supabase
       const agora = new Date().toISOString();
       supabase.from('vistorias').update({ laudo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
-      setVistoria(v => v ? { ...v, laudo_gerado_em: agora } : v);
+      setVistoria((v: any) => v ? { ...v, laudo_gerado_em: agora } : v);
       notificarDocumentoGerado('laudo', vistoria.endereco || '').catch(() => null);
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o PDF.');
@@ -231,7 +234,7 @@ export default function LaudoScreen() {
       // Registrar geração no Supabase
       const agora = new Date().toISOString();
       supabase.from('vistorias').update({ termo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
-      setVistoria(v => v ? { ...v, termo_gerado_em: agora } : v);
+      setVistoria((v: any) => v ? { ...v, termo_gerado_em: agora } : v);
       notificarDocumentoGerado('termo', vistoria.endereco || '').catch(() => null);
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');

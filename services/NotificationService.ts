@@ -262,7 +262,7 @@ export async function notificarNovoUsuarioCadastrado(
   municipio: string,
 ): Promise<void> {
   try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -280,8 +280,10 @@ export async function notificarNovoUsuarioCadastrado(
         ttl: 86400,
       }),
     });
+    if (!res.ok) {
+      logger.warn('notifications', 'Push novo usuário retornou erro HTTP', { status: res.status });
+    }
   } catch (e) {
-    // Fire-and-forget — falha silenciosa
     logger.warn('notifications', 'Erro ao enviar push de novo usuário', { erro: String(e) });
   }
 }
@@ -317,7 +319,7 @@ export async function notificarMasterSolicitaTokens(
 
     if (payloads.length === 0) return;
 
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -326,6 +328,9 @@ export async function notificarMasterSolicitaTokens(
       },
       body: JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
     });
+    if (!res.ok) {
+      logger.warn('notifications', 'Push solicitação de tokens retornou erro HTTP', { status: res.status });
+    }
   } catch (e) {
     logger.warn('notifications', 'Erro ao notificar master sobre solicitação de tokens', { erro: String(e) });
   }
@@ -366,7 +371,7 @@ export async function notificarMasterTokenGerado(
 
     if (payloads.length === 0) return;
 
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -375,8 +380,75 @@ export async function notificarMasterTokenGerado(
       },
       body: JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
     });
+    if (!res.ok) {
+      logger.warn('notifications', 'Push token gerado retornou erro HTTP', { status: res.status });
+    }
   } catch (e) {
     logger.warn('notifications', 'Erro ao notificar master sobre token', { erro: String(e) });
+  }
+}
+
+// ─── Notificação: vistoria excluída pelo master_admin ─────────────────────────
+// Enviada para o agente responsável + admins/supervisores do mesmo município.
+export async function notificarVistoriaDeletada(
+  agenteUid: string,
+  agenteNome: string,
+  municipio: string,
+  endereco: string,
+  motivo: string,
+  masterNome: string,
+): Promise<void> {
+  try {
+    // Buscar token do agente
+    const [agentRes, staffRes] = await Promise.all([
+      supabase
+        .from('users')
+        .select('fcmToken')
+        .eq('uid', agenteUid)
+        .not('fcmToken', 'is', null)
+        .limit(1),
+      supabase
+        .from('users')
+        .select('fcmToken')
+        .eq('municipio', municipio)
+        .in('role', ['admin', 'supervisor'])
+        .eq('isApproved', true)
+        .not('fcmToken', 'is', null),
+    ]);
+
+    const tokens: string[] = [];
+    if (agentRes.data) agentRes.data.forEach((u: any) => u.fcmToken && tokens.push(u.fcmToken));
+    if (staffRes.data)  staffRes.data.forEach((u: any) => u.fcmToken && tokens.push(u.fcmToken));
+
+    const unique = [...new Set(tokens)];
+    if (unique.length === 0) return;
+
+    const enderecoShort = endereco.length > 50 ? endereco.slice(0, 47) + '…' : endereco;
+    const payloads = unique.map(token => ({
+      to: token,
+      title: 'Vistoria excluída',
+      body: `"${enderecoShort}" foi removida por ${masterNome}. Motivo: ${motivo}`,
+      data: { tipo: 'vistoria_deletada', municipio, agenteNome },
+      sound: 'default',
+      channelId: 'alertas',
+      priority: 'high',
+      ttl: 86400,
+    }));
+
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
+    });
+    if (!res.ok) {
+      logger.warn('notifications', 'Push exclusão de vistoria retornou erro HTTP', { status: res.status });
+    }
+  } catch (e) {
+    logger.warn('notifications', 'Erro ao notificar exclusão de vistoria', { erro: String(e) });
   }
 }
 

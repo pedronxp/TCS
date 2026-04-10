@@ -142,6 +142,7 @@ export default function ResultadoRiscoScreen() {
           pontuacao_total: pontosNum,
           respostas_json: respostas || '{}',
           foto_url: null,
+          feita_online: isConnected ? 1 : 0,
           criado_em: now,
         });
 

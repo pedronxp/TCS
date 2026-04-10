@@ -61,10 +61,7 @@ export default function VerifyOtpScreen() {
     setReenviando(true);
     setError(null);
     try {
-      await supabase.auth.signInWithOtp({
-        email: email!,
-        options: { shouldCreateUser: false },
-      });
+      await supabase.auth.signInWithOtp({ email: email!, options: { shouldCreateUser: false } });
       setSegundos(RESEND_TIMEOUT);
       setCodigo('');
     } catch {

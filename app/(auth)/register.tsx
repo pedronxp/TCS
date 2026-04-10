@@ -82,6 +82,13 @@ type Etapa = 'form' | 'termos' | 'permissoes' | 'sucesso';
 // ─── Permissão helper ─────────────────────────────────────────────────────────
 type PermStatus = 'pendente' | 'concedida' | 'negada';
 
+interface TokenValidationResult {
+  valido: boolean;
+  motivo?: string;
+  municipio?: string;
+  expiraEm?: string | null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RegisterScreen() {
   const { theme } = useTheme();
@@ -137,9 +144,10 @@ export default function RegisterScreen() {
     tokenDataRef.current = null;
     codigoNormRef.current = '';
     try {
-      const { data, error: valError } = await supabase
+      const { data: rawData, error: valError } = await supabase
         .rpc('validate_invite_token', { p_codigo: codigoNorm })
         .single();
+      const data = rawData as TokenValidationResult | null;
       if (valError || !data) {
         setTokenStatus({ valido: false, motivo: 'Token inválido ou já utilizado.' });
         return;
@@ -231,9 +239,10 @@ export default function RegisterScreen() {
 
       // Reutiliza resultado cacheado da verificação inline, ou revalida
       if (!tokenData) {
-        const { data, error: valError } = await supabase
+        const { data: rawData2, error: valError } = await supabase
           .rpc('validate_invite_token', { p_codigo: codigoNorm })
           .single();
+        const data = rawData2 as TokenValidationResult | null;
         if (valError || !data) throw new Error('Token inválido ou já utilizado.');
         if (!data.valido) throw new Error(data.motivo);
         tokenData = data;

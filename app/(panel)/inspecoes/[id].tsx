@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal, Pressable, Dimensions } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
@@ -27,6 +27,7 @@ export default function VistoriaDetalhesScreen() {
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [vistoria, setVistoria] = useState<VistoriaNormalizada | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
   useEffect(() => { if (id) fetchDetalhes(); }, [id]);
 
@@ -178,6 +179,18 @@ export default function VistoriaDetalhesScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Modal foto ampliada */}
+      <Modal visible={!!fotoAmpliada} transparent animationType="fade" onRequestClose={() => setFotoAmpliada(null)}>
+        <Pressable style={styles.fotoModalBg} onPress={() => setFotoAmpliada(null)}>
+          {fotoAmpliada && (
+            <Image source={{ uri: fotoAmpliada }} style={styles.fotoModalImg} resizeMode="contain" />
+          )}
+          <TouchableOpacity style={styles.fotoModalClose} onPress={() => setFotoAmpliada(null)}>
+            <Feather name="x" size={22} color="#FFF" />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Nível de risco destaque */}
         <View style={[styles.nivelCard, { backgroundColor: `${cor}12`, borderColor: `${cor}30` }]}>
@@ -214,6 +227,26 @@ export default function VistoriaDetalhesScreen() {
             </View>
           ))}
         </View>
+
+        {/* Galeria de fotos */}
+        {vistoria.fotosUrls && vistoria.fotosUrls.length > 0 && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+              Fotos ({vistoria.fotosUrls.length})
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+              {vistoria.fotosUrls.map((url, idx) => (
+                <TouchableOpacity key={idx} onPress={() => setFotoAmpliada(url)} activeOpacity={0.85}>
+                  <Image
+                    source={{ uri: url }}
+                    style={styles.fotoThumb}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Banner sync pendente */}
         {vistoria.status === 'Pendente Sync' && (
@@ -347,4 +380,8 @@ const styles = StyleSheet.create({
   },
   syncBannerTitle: { fontSize: 14, fontWeight: '700' },
   syncBannerSub: { fontSize: 12, marginTop: 2 },
+  fotoThumb: { width: 110, height: 110, borderRadius: 12 },
+  fotoModalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
+  fotoModalImg: { width: Dimensions.get('window').width, height: Dimensions.get('window').height * 0.75 },
+  fotoModalClose: { position: 'absolute', top: 52, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
 });

@@ -160,6 +160,7 @@ export default function InspecoesListScreen() {
             pontuacao_total: r.pontuacaoTotal,
             foto_url: r.fotoUrl ?? r.foto_url ?? null,
             fotos_urls: Array.isArray(r.fotosUrls) ? JSON.stringify(r.fotosUrls) : r.fotosUrls ?? null,
+            feita_online: 1,
             municipio_agente: r.municipio_agente ?? null,
             laudo_url: r.laudo_url ?? null,
             laudo_gerado_em: r.laudo_gerado_em ?? null,

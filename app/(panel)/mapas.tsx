@@ -8,6 +8,7 @@ import ClusteredMapView from 'react-native-map-clustering';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import { useAuth } from '../../context/AuthContext';
@@ -87,6 +88,14 @@ function getRiscoLabel(nivel: string): string {
   return 'BAIXO';
 }
 
+// Tamanhos do marcador — maiores no Android para garantir visibilidade
+const PIN_SIZE   = Platform.OS === 'android' ? 42 : 28;
+const PIN_RADIUS = PIN_SIZE / 2;
+const PIN_INNER  = Platform.OS === 'android' ? 13 : 8;
+const TAIL_W     = Platform.OS === 'android' ? 7  : 5;
+const TAIL_H     = Platform.OS === 'android' ? 12 : 8;
+const ICON_SIZE  = Platform.OS === 'android' ? 18 : 12;
+
 // Marcador customizado — sem pinColor para evitar bug com clustering
 function MarkerPin({ color }: { color: string }) {
   return (
@@ -103,7 +112,7 @@ function AgendamentoPin() {
   return (
     <View style={{ alignItems: 'center' }}>
       <View style={[markerStyles.pin, { backgroundColor: '#3B82F6' }]}>
-        <Feather name="calendar" size={12} color="#FFF" />
+        <Feather name="calendar" size={ICON_SIZE} color="#FFF" />
       </View>
       <View style={[markerStyles.pinTail, { borderTopColor: '#3B82F6' }]} />
     </View>
@@ -112,16 +121,16 @@ function AgendamentoPin() {
 
 const markerStyles = StyleSheet.create({
   pin: {
-    width: 28, height: 28, borderRadius: 14,
+    width: PIN_SIZE, height: PIN_SIZE, borderRadius: PIN_RADIUS,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2.5, borderColor: '#FFF',
+    borderWidth: Platform.OS === 'android' ? 3 : 2.5, borderColor: '#FFF',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 3, elevation: 4,
+    shadowOpacity: 0.35, shadowRadius: 4, elevation: 6,
   },
-  pinInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
+  pinInner: { width: PIN_INNER, height: PIN_INNER, borderRadius: PIN_INNER / 2, backgroundColor: '#FFF' },
   pinTail: {
     width: 0, height: 0,
-    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+    borderLeftWidth: TAIL_W, borderRightWidth: TAIL_W, borderTopWidth: TAIL_H,
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginTop: -1,
   },
@@ -131,9 +140,13 @@ export default function MapasScreen() {
   const { theme } = useTheme();
   const { isOnlineReal } = useConnectivity();
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
   const currentRegionRef = useRef<any>(null); // região atual do mapa (atualizada pelo onRegionChangeComplete)
   const isInitialLoadRef = useRef(true);
+  const mountedRef = useRef(true);
+  const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [loading, setLoading]           = useState(true);
   const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
@@ -148,8 +161,14 @@ export default function MapasScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
+    mountedRef.current = true;
     getUserLocation();
     loadMarkers();
+    return () => {
+      mountedRef.current = false;
+      if (timer1Ref.current) clearTimeout(timer1Ref.current);
+      if (timer2Ref.current) clearTimeout(timer2Ref.current);
+    };
   }, [profile, isOnlineReal]);
 
   const getUserLocation = async () => {
@@ -211,6 +230,7 @@ export default function MapasScreen() {
 
         const { data, error } = await query.limit(500);
         if (!error && data) {
+          if (!mountedRef.current) return;
           const loaded: VistoriaMarker[] = data
             .filter((v: any) => v.latitude && v.longitude)
             .map((v: any) => ({
@@ -254,12 +274,14 @@ export default function MapasScreen() {
             }
           } catch { /* agendamentos opcionais */ }
 
+          if (!mountedRef.current) return;
           if (loaded.length > 0) {
             if (isInitialLoadRef.current) {
               // Carga inicial: anima para o centróide com zoom de bairro fixo
               // Não usamos fitToCoordinates para evitar zoom máximo quando coords são idênticas
               isInitialLoadRef.current = false;
-              setTimeout(() => {
+              timer1Ref.current = setTimeout(() => {
+                if (!mountedRef.current) return;
                 const centLat = loaded.reduce((s, m) => s + m.lat, 0) / loaded.length;
                 const centLng = loaded.reduce((s, m) => s + m.lng, 0) / loaded.length;
                 mapRef.current?.animateToRegion({
@@ -271,15 +293,17 @@ export default function MapasScreen() {
               }, 1200);
             } else {
               // Refresh manual: micro-jiggle com delta maior para forçar recálculo do supercluster
-              setTimeout(() => {
+              timer1Ref.current = setTimeout(() => {
+                if (!mountedRef.current) return;
                 const r = currentRegionRef.current;
                 if (r) {
                   mapRef.current?.animateToRegion(
                     { ...r, latitude: r.latitude + 0.0002 }, 80
                   );
-                  setTimeout(() =>
-                    mapRef.current?.animateToRegion(r, 80), 200
-                  );
+                  timer2Ref.current = setTimeout(() => {
+                    if (!mountedRef.current) return;
+                    mapRef.current?.animateToRegion(r, 80);
+                  }, 200);
                 }
               }, 300);
             }
@@ -339,7 +363,7 @@ export default function MapasScreen() {
   });
 
   // Ao pressionar cluster: dar zoom nos markers contidos nele
-  const handleClusterPress = (cluster: any, clusterMarkers: any[]) => {
+  const handleClusterPress = (cluster: any, clusterMarkers?: any[]) => {
     if (!clusterMarkers?.length) return;
     const coords = clusterMarkers.map((m: any) => ({
       latitude:  m.geometry.coordinates[1],
@@ -450,7 +474,7 @@ export default function MapasScreen() {
       </ClusteredMapView>
 
       {/* Header flutuante */}
-      <View style={styles.headerOverlay}>
+      <View style={[styles.headerOverlay, { paddingTop: (insets.top || 44) + 10 }]}>
         <TouchableOpacity
           style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
           onPress={() => router.back()}
@@ -677,7 +701,7 @@ const styles = StyleSheet.create({
 
   headerOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0,
-    paddingTop: 54, paddingBottom: 10, paddingHorizontal: 16,
+    paddingBottom: 10, paddingHorizontal: 16,
     flexDirection: 'row', alignItems: 'center', gap: 10,
   },
   floatBtn: {

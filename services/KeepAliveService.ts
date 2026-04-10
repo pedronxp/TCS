@@ -22,7 +22,7 @@ export async function pingSupabaseKeepAlive(): Promise<void> {
     // Query mínima — apenas acorda o banco, não retorna dados sensíveis
     await supabase.from('users').select('uid').limit(1);
     await AsyncStorage.setItem(KEEP_ALIVE_KEY, String(Date.now()));
-    logger.info('keepalive', 'Ping Supabase realizado — banco mantido ativo');
+    logger.info('system', 'Ping Supabase realizado — banco mantido ativo');
   } catch {
     // Não crítico — falha silenciosa
   }
