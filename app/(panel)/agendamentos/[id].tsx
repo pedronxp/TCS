@@ -14,7 +14,7 @@ import {
   getAgendamentoById,
   updateAgendamentoStatus,
   markAgendamentoSincronizado,
-  deleteAgendamento,
+  deleteAgendamentoWithTombstone,
 } from '../../../utils/database';
 import { AgendamentoLocal } from '../../../types/agendamento';
 
@@ -61,7 +61,7 @@ export default function AgendamentoDetalheScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
-  const { isConnected } = useConnectivity();
+  const { isOnlineReal: isConnected } = useConnectivity();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [agendamento, setAgendamento] = useState<AgendamentoLocal | null>(null);
@@ -176,9 +176,15 @@ export default function AgendamentoDetalheScreen() {
             setActionLoading(true);
             try {
               if (isConnected) {
+                // Online: deletar diretamente no Supabase e remover local
                 await supabase.from('agendamentos').delete().eq('id', id);
+                // Remover registro local após confirmação remota
+                const { deleteAgendamento } = require('../../../utils/database');
+                deleteAgendamento(id as string);
+              } else {
+                // Offline: tombstone — SyncService fará o delete remoto ao reconectar
+                deleteAgendamentoWithTombstone(id as string);
               }
-              deleteAgendamento(id as string);
               router.back();
             } catch {
               Alert.alert('Erro', 'Não foi possível excluir o agendamento.');

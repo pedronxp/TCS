@@ -7,6 +7,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import {
@@ -18,6 +19,7 @@ import { generateUUID } from '../../../utils/uuid';
 export default function GruposScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
 
   const [grupos, setGrupos] = useState<(GrupoLocal & { membros: number })[]>([]);
@@ -111,7 +113,7 @@ export default function GruposScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         {grupos.length === 0 ? (

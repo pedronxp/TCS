@@ -24,6 +24,7 @@
     },
     "android": {
       "package": "com.tcs.relatorioderisco",
+      "edgeToEdgeEnabled": true,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyD9THUSNNwA0aQ54cacCs9o0-SloWA9hPY"
