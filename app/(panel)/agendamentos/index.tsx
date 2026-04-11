@@ -25,6 +25,7 @@ interface AgentUser {
   uid: string;
   name: string;
   municipio?: string;
+  role?: string;
 }
 
 const STATUS_COLORS = {
@@ -158,7 +159,7 @@ export default function AgendamentosScreen() {
     try {
       let query = supabase
         .from('users')
-        .select('uid, name, municipio')
+        .select('uid, name, municipio, role')
         .eq('role', 'agent')
         .eq('isApproved', true);
       // master_admin vê agentes de todos os municípios
@@ -561,15 +562,27 @@ export default function AgendamentosScreen() {
                             }}
                             activeOpacity={ocupado ? 1 : 0.7}
                           >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                               <Text style={{ color: theme.text, flex: 1 }}>{ag.name}</Text>
-                              {ocupado && (
-                                <View style={{ backgroundColor: 'rgba(239,68,68,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-                                  <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '800' }}>OCUPADO</Text>
-                                </View>
-                              )}
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                {profile?.role === 'master_admin' && ag.role && (
+                                  <View style={{ backgroundColor: 'rgba(139,92,246,0.12)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>
+                                    <Text style={{ color: '#8B5CF6', fontSize: 10, fontWeight: '800' }}>{ag.role.toUpperCase()}</Text>
+                                  </View>
+                                )}
+                                {profile?.role === 'master_admin' && ag.municipio && (
+                                  <View style={{ backgroundColor: 'rgba(59,130,246,0.12)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>
+                                    <Text style={{ color: '#3B82F6', fontSize: 10, fontWeight: '700' }}>{ag.municipio}</Text>
+                                  </View>
+                                )}
+                                {ocupado && (
+                                  <View style={{ backgroundColor: 'rgba(239,68,68,0.12)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>
+                                    <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '800' }}>OCUPADO</Text>
+                                  </View>
+                                )}
+                              </View>
                             </View>
-                            {ag.municipio ? (
+                            {profile?.role !== 'master_admin' && ag.municipio ? (
                               <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 2 }}>{ag.municipio}</Text>
                             ) : null}
                           </TouchableOpacity>
