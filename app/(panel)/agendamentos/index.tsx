@@ -31,6 +31,7 @@ const STATUS_COLORS = {
   pendente: { bg: 'rgba(59,130,246,0.12)', text: '#3B82F6' },
   concluido: { bg: 'rgba(16,185,129,0.12)', text: '#10B981' },
   cancelado: { bg: 'rgba(239,68,68,0.12)', text: '#EF4444' },
+  deletado: { bg: 'rgba(107,114,128,0.12)', text: '#6B7280' },
 };
 
 function formatDataAgendada(iso: string): string {
@@ -72,6 +73,7 @@ export default function AgendamentosScreen() {
   const [saving, setSaving] = useState(false);
   const [agentes, setAgentes] = useState<AgentUser[]>([]);
   const [agentesLoading, setAgentesLoading] = useState(false);
+  const [agentesOcupados, setAgentesOcupados] = useState<Set<string>>(new Set());
 
   // Form fields
   const [titulo, setTitulo] = useState('');
@@ -151,7 +153,7 @@ export default function AgendamentosScreen() {
     }
   };
 
-  const carregarAgentes = async () => {
+  const carregarAgentes = async (dataISO?: string) => {
     setAgentesLoading(true);
     try {
       let query = supabase
@@ -165,6 +167,26 @@ export default function AgendamentosScreen() {
       }
       const { data } = await query;
       if (data) setAgentes(data as AgentUser[]);
+
+      // Verificar conflitos no mesmo dia, se data fornecida
+      if (dataISO) {
+        const diaInicio = `${dataISO.slice(0, 10)}T00:00:00`;
+        const diaFim = `${dataISO.slice(0, 10)}T23:59:59`;
+        const { data: conflitos } = await supabase
+          .from('agendamentos')
+          .select('agente_uid')
+          .gte('data_agendada', diaInicio)
+          .lte('data_agendada', diaFim)
+          .neq('status', 'cancelado')
+          .not('agente_uid', 'is', null);
+        if (conflitos) {
+          setAgentesOcupados(new Set(conflitos.map((c: any) => c.agente_uid)));
+        } else {
+          setAgentesOcupados(new Set());
+        }
+      } else {
+        setAgentesOcupados(new Set());
+      }
     } catch {
       // sem agentes
     } finally {
@@ -210,6 +232,7 @@ export default function AgendamentosScreen() {
     setAgenteSelecionado(null);
     setObservacoes('');
     setShowAgentePicker(false);
+    setAgentesOcupados(new Set());
     setModalVisible(true);
     carregarAgentes();
   };
@@ -221,6 +244,12 @@ export default function AgendamentosScreen() {
     else if (nums.length > 2) formatted = `${nums.slice(0, 2)}/${nums.slice(2)}`;
     setDataInput(formatted);
     setDataErro(null);
+    // Recarregar disponibilidade quando data completa (8 dígitos = DD/MM/AAAA)
+    if (nums.length === 8) {
+      const [d, m, y] = [nums.slice(0, 2), nums.slice(2, 4), nums.slice(4)];
+      const iso = `${y}-${m}-${d}T00:00:00`;
+      carregarAgentes(iso);
+    }
   };
 
   const handleHoraChange = (text: string) => {
@@ -520,18 +549,32 @@ export default function AgendamentosScreen() {
                       >
                         <Text style={{ color: theme.textSecondary }}>Sem atribuição</Text>
                       </TouchableOpacity>
-                      {agentes.map(ag => (
-                        <TouchableOpacity
-                          key={ag.uid}
-                          style={[styles.pickerItem, { borderBottomColor: theme.border }]}
-                          onPress={() => { setAgenteSelecionado(ag); setAgenteUid(ag.uid); setShowAgentePicker(false); }}
-                        >
-                          <Text style={{ color: theme.text }}>{ag.name}</Text>
-                          {ag.municipio ? (
-                            <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 2 }}>{ag.municipio}</Text>
-                          ) : null}
-                        </TouchableOpacity>
-                      ))}
+                      {agentes.map(ag => {
+                        const ocupado = agentesOcupados.has(ag.uid);
+                        return (
+                          <TouchableOpacity
+                            key={ag.uid}
+                            style={[styles.pickerItem, { borderBottomColor: theme.border, opacity: ocupado ? 0.5 : 1 }]}
+                            onPress={() => {
+                              if (ocupado) return;
+                              setAgenteSelecionado(ag); setAgenteUid(ag.uid); setShowAgentePicker(false);
+                            }}
+                            activeOpacity={ocupado ? 1 : 0.7}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Text style={{ color: theme.text, flex: 1 }}>{ag.name}</Text>
+                              {ocupado && (
+                                <View style={{ backgroundColor: 'rgba(239,68,68,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                                  <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '800' }}>OCUPADO</Text>
+                                </View>
+                              )}
+                            </View>
+                            {ag.municipio ? (
+                              <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 2 }}>{ag.municipio}</Text>
+                            ) : null}
+                          </TouchableOpacity>
+                        );
+                      })}
                       {agentes.length === 0 && !agentesLoading && (
                         <Text style={{ color: theme.textSecondary, padding: 12 }}>Nenhum agente disponível.</Text>
                       )}

@@ -414,7 +414,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 <head>
 <meta charset="UTF-8"/>
 <style>
-  @page { margin: 40px 50px; }
+  @page { margin: 40px 50px 0 50px; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -423,6 +423,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     font-size: 13px;
     line-height: 1.5;
     padding: 0;
+    padding-bottom: 40px;
   }
   @media print {
     *, body, html {
@@ -712,7 +713,6 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     </div>
     <div class="doc-info">
       <div class="doc-type">RELATÓRIO TÉCNICO VISTORIA</div>
-      <div class="doc-num">Nº ${escapeHtml(protocolo)}/${ano}</div>
       <div class="doc-date">Vistoria realizada em ${escapeHtml(dataExt)}</div>
     </div>
   </div>

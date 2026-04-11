@@ -400,17 +400,24 @@ export default function RegisterScreen() {
   // RENDER: Sucesso
   // ─────────────────────────────────────────────────────────────────────────
   if (etapa === 'sucesso') {
+    const isAdmin = tokenDataRef.current?.role === 'admin';
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.sucessoContainer}>
           <Card>
             <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-              <Feather name="check-circle" size={56} color="#10B981" />
+              <Feather
+                name={isAdmin ? 'clock' : 'check-circle'}
+                size={56}
+                color={isAdmin ? '#F59E0B' : '#10B981'}
+              />
               <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 16, color: theme.text }}>
-                Conta criada com sucesso!
+                {isAdmin ? 'Cadastro enviado!' : 'Conta criada com sucesso!'}
               </Text>
               <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 22 }}>
-                Sua identidade foi verificada. Você já pode fazer login com suas credenciais.
+                {isAdmin
+                  ? 'Sua conta foi criada e está aguardando aprovação do administrador master. Você receberá acesso assim que for aprovado.'
+                  : 'Sua identidade foi verificada. Você já pode fazer login com suas credenciais.'}
               </Text>
               <Button variant="primary" onPress={() => router.replace('/(auth)/login')} style={{ marginTop: 24 }}>
                 Ir para o Login

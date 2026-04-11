@@ -153,8 +153,6 @@ export default function SupervisorDashboardScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
-        <DashboardGuide role="supervisor" inline />
-
         {/* Banner offline */}
         {!isConnected && (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
@@ -250,7 +248,7 @@ export default function SupervisorDashboardScreen() {
         )}
 
 
-        {/* Atividade recente */}
+        {/* Registro de Operações */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Registro de Operações</Text>
         {vistorias.slice(0, 8).map(v => {
           const cor = riscoColor(v.nivelRisco);
@@ -282,6 +280,8 @@ export default function SupervisorDashboardScreen() {
             </TouchableOpacity>
           );
         })}
+
+        <DashboardGuide role="supervisor" inline />
       </ScrollView>
     </View>
   );
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
   },
   greeting: { fontSize: 22, fontWeight: '700' },
-  badgeRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 6, marginTop: 4 },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 },
   chipBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,

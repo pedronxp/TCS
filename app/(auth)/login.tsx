@@ -66,12 +66,22 @@ export default function LoginScreen() {
         throw authError;
       }
 
-      const { data: userData, error: userError } = await supabase.from('users').select('isApproved').eq('email', emailNorm).single();
-      if (userError || !userData?.isApproved) {
+      const { data: userData, error: userError } = await supabase.from('users').select('isApproved, role').eq('uid', data.user!.id).single();
+      if (userError || userData === null) {
         await supabase.auth.signOut();
         await recordLoginAttempt(emailNorm);
-        registrarAuditoria({ acao: 'login_falhou', adminUid: data?.user?.id || emailNorm, adminNome: emailNorm, municipio: '', detalhes: { motivo: 'conta_nao_aprovada' } });
-        throw new Error('Conta aguardando aprovação do administrador.');
+        registrarAuditoria({ acao: 'login_falhou', adminUid: data?.user?.id || emailNorm, adminNome: emailNorm, municipio: '', detalhes: { motivo: 'cadastro_incompleto' } });
+        throw new Error('Cadastro incompleto. Entre em contato com o administrador para regularizar o acesso.');
+      }
+      if (!userData.isApproved) {
+        await supabase.auth.signOut();
+        await recordLoginAttempt(emailNorm);
+        const motivo = userData.role === 'admin' ? 'admin_aguardando_aprovacao' : 'conta_bloqueada';
+        registrarAuditoria({ acao: 'login_falhou', adminUid: data?.user?.id || emailNorm, adminNome: emailNorm, municipio: '', detalhes: { motivo } });
+        const msg = userData.role === 'admin'
+          ? 'Conta aguardando aprovação do administrador master. Você será notificado quando o acesso for liberado.'
+          : 'Conta bloqueada. Entre em contato com o administrador.';
+        throw new Error(msg);
       }
       await clearLoginAttempts(emailNorm);
     } catch (e: any) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image,
-  ScrollView, ActivityIndicator, Alert
+  ScrollView, ActivityIndicator, Alert, Modal, Pressable, Dimensions
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -13,7 +13,7 @@ import { supabase } from '../../../utils/supabase';
 import { updateFotosUrls, getVistoriaById } from '../../../utils/database';
 import { EmptyState, Button } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { fixedFooterBottomPadding, fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
 const MAX_FOTOS = 3;
 const QUALIDADE = 0.72;   // 72% JPEG — spec AGENTS.md
 const LARGURA_MAX = 854;  // 480p landscape — spec AGENTS.md
@@ -35,6 +35,7 @@ export default function FotoScreen() {
   const { isOnlineReal } = useConnectivity();
   const [fotos, setFotos] = useState<FotoItem[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -329,7 +330,7 @@ export default function FotoScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: fixedFooterScrollPadding(insets) }]}>
         <Text style={[styles.instruction, { color: theme.textSecondary }]}>
           Registre evidências fotográficas da edificação, pontos críticos e irregularidades estruturais.
           {'\n'}Fotos comprimidas em JPEG 72% / 480p para otimização de armazenamento.
@@ -348,9 +349,11 @@ export default function FotoScreen() {
 
         <View style={styles.grid}>
           {fotos.map((foto) => (
-            <View
+            <TouchableOpacity
               key={foto.localId}
               style={[styles.fotoWrapper, { borderColor: foto.erro ? '#EF4444' : theme.border }]}
+              onPress={() => !foto.uploading && !foto.erro && setFotoAmpliada(foto.uri)}
+              activeOpacity={0.9}
             >
               <Image source={{ uri: foto.uri }} style={styles.foto} />
 
@@ -391,7 +394,7 @@ export default function FotoScreen() {
                   <Feather name="trash-2" size={16} color="#FFF" />
                 </TouchableOpacity>
               )}
-            </View>
+            </TouchableOpacity>
           ))}
 
           {fotos.length < MAX_FOTOS && (
@@ -427,8 +430,20 @@ export default function FotoScreen() {
         </View>
       </ScrollView>
 
+      {/* Modal foto ampliada */}
+      <Modal visible={!!fotoAmpliada} transparent animationType="fade" onRequestClose={() => setFotoAmpliada(null)}>
+        <Pressable style={styles.fotoModalBg} onPress={() => setFotoAmpliada(null)}>
+          {fotoAmpliada && (
+            <Image source={{ uri: fotoAmpliada }} style={styles.fotoModalImg} resizeMode="contain" />
+          )}
+          <TouchableOpacity style={styles.fotoModalClose} onPress={() => setFotoAmpliada(null)}>
+            <Feather name="x" size={20} color="#FFF" />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
+
       {fotos.length > 0 && (
-        <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
+        <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: fixedFooterBottomPadding(insets) }]}>
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: salvando ? theme.textSecondary : theme.primary }]}
             onPress={salvarEvidencias}
@@ -524,4 +539,16 @@ const styles = StyleSheet.create({
     height: 60, borderRadius: 16, gap: 10,
   },
   saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+  fotoModalBg: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  fotoModalImg: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height * 0.75,
+  },
+  fotoModalClose: {
+    position: 'absolute', top: 52, right: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8,
+  },
 });

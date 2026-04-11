@@ -49,8 +49,8 @@ export async function getSignedUrl(
 ): Promise<string | null> {
   if (!stored) return null;
 
-  // URL já assinada ou pública — retorna como está
-  if (stored.startsWith('http')) return stored;
+  // URL já assinada, pública ou local (file://) — retorna como está
+  if (stored.startsWith('http') || stored.startsWith('file://')) return stored;
 
   const decoded = decodePath(stored);
   if (!decoded) {
