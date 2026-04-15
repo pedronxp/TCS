@@ -9,6 +9,7 @@ import { escapeHtml, formatarDataHora } from './htmlUtils';
 import { riscoLabel, riscoColor, riscoConduta } from './riscoUtils';
 import { logoBase64 } from './logoBase64';
 import { ASSETS, flattenPerguntas, PerguntaModel } from './formulariosAssets';
+import { formatarRespostaEspecial } from './respostasEspeciais';
 
 export interface LaudoData {
   id: string;
@@ -323,7 +324,10 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 
           itemCount++;
           let safeKey = escapeHtml(k);
-          let safeVal = escapeHtml(Array.isArray(val) ? (val as string[]).join(', ') : String(val));
+          const respostaEspecial = formatarRespostaEspecial(val);
+          let safeVal = escapeHtml(
+            respostaEspecial ?? (Array.isArray(val) ? (val as string[]).join(', ') : String(val)),
+          );
           let pontuacaoDesc = '';
 
           // De-Para usando o Formulário JSON
@@ -331,7 +335,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
             const pDef = perguntasFlat.find((p: any) => p.id === k);
             if (pDef) {
               safeKey = escapeHtml(pDef.texto || safeKey);
-              if (pDef.tipo === 'cards' || pDef.tipo === 'multipla_escolha') {
+              if (!respostaEspecial && (pDef.tipo === 'cards' || pDef.tipo === 'multipla_escolha')) {
                 const opDef = pDef.opcoes?.find((o: any) => o.id === String(val));
                 if (opDef) {
                   let vExtenso = escapeHtml(opDef.texto);

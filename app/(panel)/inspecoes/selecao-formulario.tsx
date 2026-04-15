@@ -9,6 +9,7 @@ import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
 import { Card, Badge, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fixedFooterBottomPadding, fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
 
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
@@ -188,7 +189,7 @@ export default function SelecaoFormularioScreen() {
         <View style={[styles.progressFill, { backgroundColor: theme.primary, width: '66%' }]} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: fixedFooterScrollPadding(insets) }]}>
         {/* Built-in forms */}
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
           <Feather name="folder" size={12} /> MODELOS PADRÃO (OFFLINE)
@@ -272,7 +273,7 @@ export default function SelecaoFormularioScreen() {
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
+      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: fixedFooterBottomPadding(insets) }]}>
         <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => router.back()}>
           <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
         </TouchableOpacity>

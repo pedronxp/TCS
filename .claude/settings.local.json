@@ -63,7 +63,10 @@
       "mcp__supabase__list_projects",
       "mcp__supabase__execute_sql",
       "WebSearch",
-      "Skill(gsd:execute-phase)"
+      "Skill(gsd:execute-phase)",
+      "Bash(rtk eas:*)",
+      "Bash(gh pr create --base main --title 'feat: melhorias de fluxo de cadastro, evidências, agendamentos e PDF' --body ':*)",
+      "Bash(gh pr create --base main --title 'feat\\(agendamentos\\): tags de role e cidade para master_admin no picker de agentes' --body ':*)"
     ]
   }
 }

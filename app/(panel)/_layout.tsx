@@ -31,7 +31,7 @@ function useRouteGuard() {
     if (loading || !profile) return;
 
     // segments[0] = "(panel)", segments[1] = section (admin/supervisor/master/...)
-    const section = segments[1] as string | undefined;
+    const section = (segments as string[])[1] as string | undefined;
     if (!section) return;
 
     const allowed = ROUTE_ROLES[section];

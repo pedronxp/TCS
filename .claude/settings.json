@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import sys,json,re; data=sys.stdin.read\\(\\); m=re.search\\(r'\\\\\"logFiles\\\\\":\\\\s*\\(\\\\[.*?\\\\]\\)', data, re.DOTALL\\); urls=json.loads\\(m.group\\(1\\)\\) if m else []; [print\\(u\\) for u in urls]\")",
+      "Bash(curl -s \"https://job-logs.eascdn.net/production/926faa68-7003-45a7-a54c-d3d850549a5b/1775857624028-437d0264-a69c-41e1-8bb3-b69dae94cf42.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260410%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260410T220709Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=8deaea40f41319e7c21334a7be291f690342ecc32a0a7828e24bebe5e795c7d38848148c8cea8da63a3513f7fcf367bd29b72b1820de7457160129331c0e4f85de8f25e06ff8a49f6f17e7d510b032ae3a0da90332733778d5fe9c8310d0c275e39c24dc258622bdca056a533364fffca9bc0c98d44780a834c2bcdbd50e10616b59a28ea4898d8f71aa1269c67e79af3f1a114cd12c4a689411d86cdcbe5b702352fc255492a53be9536f0a16abba45c633103fe2ec2374a0a50d9922e1fa4ffae606658f3c3aa5d277b5483519b5b9b2494631e982e16730593469438cf67783c49c2d0a6d6b3dddcce6d17e525e980e0132a3747d81607eb99ed87497e1d1\")",
+      "Bash(python -c \" import struct, zlib with open\\('assets/logo.png','rb'\\) as f: sig = f.read\\(8\\) print\\('PNG sig válida:', sig == b'\\\\x89PNG\\\\r\\\\n\\\\x1a\\\\n'\\) f.read\\(4\\) # chunk length ctype = f.read\\(4\\) print\\('First chunk:', ctype\\) \")",
+      "Bash(python -c \"from PIL import Image; print\\('PIL disponível'\\)\")",
+      "Bash(python -c \"import PIL; print\\('ok'\\)\")"
+    ]
+  }
+}

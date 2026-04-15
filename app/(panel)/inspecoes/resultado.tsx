@@ -21,7 +21,7 @@ import { buildShareMessage } from '../../../utils/shareUtils';
 import { uploadLaudoPdf } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { fixedFooterBottomPadding, fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 
@@ -63,7 +63,6 @@ export default function ResultadoScreen() {
   }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { initReport } = useReport();
@@ -130,7 +129,7 @@ export default function ResultadoScreen() {
         // Resolver paths de storage → URLs assinadas antes de exibir/usar em PDF
         if (norm.foto_url) norm.foto_url = await getSignedUrl(norm.foto_url) ?? norm.foto_url;
         if (norm.fotosUrls) {
-          norm.fotosUrls = (await Promise.all(norm.fotosUrls.map(u => getSignedUrl(u)))).filter(Boolean) as string[];
+          norm.fotosUrls = (await Promise.all(norm.fotosUrls.map((u: string) => getSignedUrl(u)))).filter(Boolean) as string[];
         }
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || profile?.name || '—');
@@ -417,7 +416,7 @@ export default function ResultadoScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: fixedFooterScrollPadding(insets) }]}>
         {/* Status Card */}
         <View style={[styles.statusCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
           <View style={[styles.statusIcon, { backgroundColor: `${cor}15` }]}>
@@ -575,7 +574,7 @@ export default function ResultadoScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
+      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: fixedFooterBottomPadding(insets) }]}>
         <TouchableOpacity
           style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
           onPress={() => router.replace('/(panel)/dashboard')}

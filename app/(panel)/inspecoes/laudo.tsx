@@ -18,6 +18,8 @@ import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { getSignedUrl } from '../../../services/StorageService';
+import { fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
+import { formatarRespostaEspecial } from '../../../utils/respostasEspeciais';
 
 // ─── Form JSONs ──────────────────────────────────────────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -40,7 +42,11 @@ function resolverItensVistoriados(
   if (!form) {
     const itens = Object.entries(respostas)
       .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
-      .map(([k, v]) => ({ pergunta: k, resposta: String(v), pesoRisco: 0 }));
+      .map(([k, v]) => ({
+        pergunta: k,
+        resposta: formatarRespostaEspecial(v) ?? String(v),
+        pesoRisco: 0,
+      }));
     return itens.length ? [{ grupo: 'Respostas', itens }] : [];
   }
 
@@ -51,9 +57,9 @@ function resolverItensVistoriados(
       if (p.tipo === 'foto') continue;
       const raw = respostas[p.id];
       if (raw === undefined || raw === null || raw === '') continue;
-      let respostaTexto = String(raw);
+      let respostaTexto = formatarRespostaEspecial(raw) ?? String(raw);
       let pesoRisco = 0;
-      if (p.tipo === 'cards' || p.tipo === 'multipla_escolha') {
+      if (!formatarRespostaEspecial(raw) && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
         const op = (p.opcoes || []).find((o: any) => o.id === raw);
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
       }
@@ -305,7 +311,7 @@ export default function LaudoScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: fixedFooterScrollPadding(insets) }]}>
         {/* Nível badge */}
         <View style={[styles.nivelCard, { backgroundColor: `${cor}12`, borderColor: `${cor}30` }]}>
           <View style={[styles.nivelIcon, { backgroundColor: `${cor}20` }]}>
@@ -318,7 +324,7 @@ export default function LaudoScreen() {
           <Text style={[styles.pontuacao, { color: cor }]}>{vistoria.pontuacaoTotal ?? '—'}<Text style={{ fontSize: 14 }}>pts</Text></Text>
         </View>
 
-        {/* Banner — laudo já gerado */}
+        {/* Banners de documentos — agrupados juntos */}
         {vistoria.laudo_gerado_em && (
           <View style={[styles.docBanner, { backgroundColor: '#10B98112', borderColor: '#10B98130' }]}>
             <Feather name="check-circle" size={15} color="#10B981" />
@@ -326,6 +332,17 @@ export default function LaudoScreen() {
               <Text style={[styles.docBannerTitle, { color: '#10B981' }]}>Laudo já gerado</Text>
               <Text style={[styles.docBannerSub, { color: theme.textSecondary }]}>
                 {formatarData(vistoria.laudo_gerado_em)} · arquivo no seu dispositivo
+              </Text>
+            </View>
+          </View>
+        )}
+        {vistoria.termo_gerado_em && (
+          <View style={[styles.docBanner, { backgroundColor: '#F9731612', borderColor: '#F9731630' }]}>
+            <Feather name="check-circle" size={15} color="#F97316" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.docBannerTitle, { color: '#F97316' }]}>Termo já gerado</Text>
+              <Text style={[styles.docBannerSub, { color: theme.textSecondary }]}>
+                {formatarData(vistoria.termo_gerado_em)} · arquivo no seu dispositivo
               </Text>
             </View>
           </View>
@@ -399,19 +416,7 @@ export default function LaudoScreen() {
           );
         })()}
 
-        {/* Banner — termo já gerado */}
-        {vistoria.termo_gerado_em && (
-          <View style={[styles.docBanner, { backgroundColor: '#F9731612', borderColor: '#F9731630' }]}>
-            <Feather name="check-circle" size={15} color="#F97316" />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.docBannerTitle, { color: '#F97316' }]}>Termo já gerado</Text>
-              <Text style={[styles.docBannerSub, { color: theme.textSecondary }]}>
-                {formatarData(vistoria.termo_gerado_em)} · arquivo no seu dispositivo
-              </Text>
-            </View>
-          </View>
-        )}
-
+        {/* Botões de ação — agrupados no final */}
         {(vistoria.nivelRisco === 'r3' || vistoria.nivelRisco === 'r4') && (
           <TouchableOpacity
             style={[styles.shareBtn, { backgroundColor: '#EF4444', marginBottom: 12 }]}

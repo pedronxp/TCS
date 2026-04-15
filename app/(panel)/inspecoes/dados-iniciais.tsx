@@ -10,6 +10,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sanitizarTexto, validarNome, validarMunicipio } from '../../../utils/validationUtils';
+import { fixedFooterBottomPadding, fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
 
 /** Estado interno do formulário de endereço */
 interface AddressForm {
@@ -237,7 +238,7 @@ export default function DadosIniciaisScreen() {
         <View style={[styles.progressFill, { backgroundColor: theme.primary, width: '33%' }]} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: fixedFooterScrollPadding(insets) }]} keyboardShouldPersistTaps="handled">
 
         {/* GPS SECTION */}
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>COORDENADAS ALVO</Text>
@@ -354,7 +355,7 @@ export default function DadosIniciaisScreen() {
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
+      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: fixedFooterBottomPadding(insets) }]}>
         <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => router.back()}>
           <Text style={[styles.cancelText, { color: theme.textSecondary }]}>CANCELAR</Text>
         </TouchableOpacity>

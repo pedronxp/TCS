@@ -1,0 +1,403 @@
+{
+  "formulario": {
+    "titulo": "Avaliação de Risco Estrutural",
+    "descricao": "Formulário de inspeção técnica para avaliação de risco estrutural de edificações",
+    "total_questoes": 10,
+    "questoes": [
+      {
+        "id": 1,
+        "numero": "Questão 1",
+        "campo": "Fundação",
+        "pergunta": "Qual é o estado atual da fundação?",
+        "tipo": "multipla_escolha",
+        "peso": 1.5,
+        "opcoes": [
+          {
+            "id": "q1_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Fundação em bom estado, sem sinais de deterioração"
+          },
+          {
+            "id": "q1_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Fundação com pequenos problemas, deterioração leve"
+          },
+          {
+            "id": "q1_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Fundação com problemas significativos"
+          },
+          {
+            "id": "q1_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Fundação em estado crítico"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "numero": "Questão 2",
+        "campo": "Estrutura (pilares, vigas, lajes)",
+        "pergunta": "Qual é o estado da estrutura (pilares, vigas, lajes)?",
+        "tipo": "multipla_escolha",
+        "peso": 1.5,
+        "opcoes": [
+          {
+            "id": "q2_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Estrutura íntegra sem danos visíveis"
+          },
+          {
+            "id": "q2_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Estrutura com pequenas fissuras ou deformações"
+          },
+          {
+            "id": "q2_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Estrutura com fissuras/deformações significativas"
+          },
+          {
+            "id": "q2_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Estrutura comprometida, risco iminente"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "numero": "Questão 3",
+        "campo": "Alvenaria / Vedação",
+        "pergunta": "Qual é o estado da alvenaria e vedação?",
+        "tipo": "multipla_escolha",
+        "peso": 1.0,
+        "opcoes": [
+          {
+            "id": "q3_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Alvenaria íntegra e bem conservada"
+          },
+          {
+            "id": "q3_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Alvenaria com pequenas fissuras"
+          },
+          {
+            "id": "q3_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Alvenaria com fissuras ou desaprumo"
+          },
+          {
+            "id": "q3_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Alvenaria com risco de colapso"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "numero": "Questão 4",
+        "campo": "Cobertura / Telhado",
+        "pergunta": "Qual é o estado da cobertura e telhado?",
+        "tipo": "multipla_escolha",
+        "peso": 0.9,
+        "opcoes": [
+          {
+            "id": "q4_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Cobertura íntegra sem vazamentos"
+          },
+          {
+            "id": "q4_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Cobertura com pequenas infiltrações"
+          },
+          {
+            "id": "q4_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Cobertura com vazamentos significativos"
+          },
+          {
+            "id": "q4_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Cobertura com risco de desabamento"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "numero": "Questão 5",
+        "campo": "Piso / Contrapiso",
+        "pergunta": "Qual é o estado do piso e contrapiso?",
+        "tipo": "multipla_escolha",
+        "peso": 0.8,
+        "opcoes": [
+          {
+            "id": "q5_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Piso íntegro e bem conservado"
+          },
+          {
+            "id": "q5_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Piso com pequenos danos"
+          },
+          {
+            "id": "q5_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Piso com danos significativos"
+          },
+          {
+            "id": "q5_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Piso com risco de colapso"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "numero": "Questão 6",
+        "campo": "Escadas / Circulação",
+        "pergunta": "Qual é o estado das escadas e circulação?",
+        "tipo": "multipla_escolha",
+        "peso": 1.0,
+        "opcoes": [
+          {
+            "id": "q6_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Escadas e circulação seguras"
+          },
+          {
+            "id": "q6_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Escadas com pequenos danos"
+          },
+          {
+            "id": "q6_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Escadas com danos que afetam segurança"
+          },
+          {
+            "id": "q6_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Escadas com risco iminente"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "numero": "Questão 7",
+        "campo": "Muro de arrimo / contenção",
+        "pergunta": "Qual é o estado do muro de arrimo ou contenção?",
+        "tipo": "multipla_escolha",
+        "peso": 1.4,
+        "opcoes": [
+          {
+            "id": "q7_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Muro íntegro e bem conservado"
+          },
+          {
+            "id": "q7_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Muro com pequenas fissuras"
+          },
+          {
+            "id": "q7_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Muro com fissuras ou desaprumo"
+          },
+          {
+            "id": "q7_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Muro com risco de colapso"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "numero": "Questão 8",
+        "campo": "Fachada / Revestimento",
+        "pergunta": "Qual é o estado da fachada e revestimento?",
+        "tipo": "multipla_escolha",
+        "peso": 0.8,
+        "opcoes": [
+          {
+            "id": "q8_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Fachada íntegra e bem conservada"
+          },
+          {
+            "id": "q8_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Fachada com pequenos danos"
+          },
+          {
+            "id": "q8_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Fachada com danos significativos"
+          },
+          {
+            "id": "q8_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Fachada com risco de queda de material"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "numero": "Questão 9",
+        "campo": "Drenagem / águas pluviais",
+        "pergunta": "Qual é o estado da drenagem e sistema de águas pluviais?",
+        "tipo": "multipla_escolha",
+        "peso": 1.1,
+        "opcoes": [
+          {
+            "id": "q9_a",
+            "label": "Bom",
+            "pontuacao": 0,
+            "descricao": "Drenagem funcional e bem mantida"
+          },
+          {
+            "id": "q9_b",
+            "label": "Regular",
+            "pontuacao": 2,
+            "descricao": "Drenagem com pequenos problemas"
+          },
+          {
+            "id": "q9_c",
+            "label": "Ruim",
+            "pontuacao": 4,
+            "descricao": "Drenagem com problemas significativos"
+          },
+          {
+            "id": "q9_d",
+            "label": "Péssimo",
+            "pontuacao": 6,
+            "descricao": "Drenagem ineficiente ou ausente"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "numero": "Questão 10",
+        "campo": "Talude / encosta próxima",
+        "pergunta": "Qual é o estado do talude ou encosta próxima?",
+        "tipo": "multipla_escolha",
+        "peso": 1.4,
+        "opcoes": [
+          {
+            "id": "q10_a",
+            "label": "Estável",
+            "pontuacao": 0,
+            "descricao": "Talude estável sem sinais de movimento"
+          },
+          {
+            "id": "q10_b",
+            "label": "Sinais Leves",
+            "pontuacao": 2,
+            "descricao": "Talude com pequenos sinais de instabilidade"
+          },
+          {
+            "id": "q10_c",
+            "label": "Sinais Moderados",
+            "pontuacao": 4,
+            "descricao": "Talude com sinais moderados de movimento"
+          },
+          {
+            "id": "q10_d",
+            "label": "Crítico",
+            "pontuacao": 6,
+            "descricao": "Talude com risco iminente de deslizamento"
+          }
+        ]
+      }
+    ],
+    "gravidade": [
+      { "id": "grav_nenhuma", "label": "Nenhuma", "pontuacao": 0 },
+      { "id": "grav_leve", "label": "Leve", "pontuacao": 1 },
+      { "id": "grav_moderada", "label": "Moderada", "pontuacao": 3 },
+      { "id": "grav_severa", "label": "Severa", "pontuacao": 5 }
+    ],
+    "extensao": [
+      { "id": "ext_pontual", "label": "Pontual", "pontuacao": 1 },
+      { "id": "ext_setorial", "label": "Setorial", "pontuacao": 2 },
+      { "id": "ext_generalizada", "label": "Generalizada", "pontuacao": 4 }
+    ],
+    "atividade": [
+      { "id": "ativ_nao", "label": "Não", "pontuacao": 0 },
+      { "id": "ativ_sim", "label": "Sim", "pontuacao": 2 }
+    ],
+    "classificacao_risco": {
+      "escala": [
+        {
+          "nivel": "MUITO BAIXO (R1)",
+          "pontos_minimo": 0,
+          "pontos_maximo": 3,
+          "cor": "#22C55E",
+          "descricao": "Risco muito baixo. Edificação em bom estado. Manutenção periódica recomendada."
+        },
+        {
+          "nivel": "BAIXO (R2)",
+          "pontos_minimo": 3.01,
+          "pontos_maximo": 6,
+          "cor": "#84CC16",
+          "descricao": "Risco baixo. Pequenos problemas detectados. Monitoramento e manutenção necessários."
+        },
+        {
+          "nivel": "MÉDIO (R3)",
+          "pontos_minimo": 6.01,
+          "pontos_maximo": 10,
+          "cor": "#F59E0B",
+          "descricao": "Risco médio. Problemas significativos. Intervenções recomendadas."
+        },
+        {
+          "nivel": "ALTO (R4)",
+          "pontos_minimo": 10.01,
+          "pontos_maximo": 14,
+          "cor": "#EF4444",
+          "descricao": "Risco alto. Problemas graves. Intervenções urgentes necessárias."
+        },
+        {
+          "nivel": "MUITO ALTO (R5)",
+          "pontos_minimo": 14.01,
+          "pontos_maximo": 999,
+          "cor": "#7F1D1D",
+          "descricao": "Risco muito alto. Edificação em estado crítico. Ação imediata necessária."
+        }
+      ]
+    }
+  }
+}

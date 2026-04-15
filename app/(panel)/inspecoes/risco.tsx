@@ -14,6 +14,7 @@ import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
 
 const RISCO_CONFIG: Record<string, {
   label: string; emoji: string; color: string; conduta: string;
@@ -194,7 +195,7 @@ export default function ResultadoRiscoScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: fixedFooterScrollPadding(insets) }]}>
         {/* Hero Card de Risco */}
         <Card style={styles.heroCard as any}>
           <View style={[styles.heroCardInner, { backgroundColor: config.color }]}>

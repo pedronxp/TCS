@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulário de Vistoria - SVG Ilustrações</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7f2; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #1B5E20; margin-bottom: 30px; text-align: center; }
+        .questao { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #E5E7EB; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .questao h2 { color: #1B5E20; font-size: 18px; margin-bottom: 12px; }
+        .questao p { color: #6B7280; margin-bottom: 16px; font-size: 14px; }
+        .opcoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .opcao { border: 2px solid #E5E7EB; border-radius: 10px; padding: 12px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .opcao:hover { border-color: #1B5E20; background: #F0FDF4; }
+        .opcao-label { font-weight: 600; color: #1A1A1A; margin-bottom: 6px; font-size: 13px; }
+        .opcao-pontos { display: inline-block; background: #DCFCE7; color: #166534; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; margin-top: 6px; }
+        svg { display: block; margin: 0 auto 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏔️ Formulário de Vistoria de Risco de Deslizamento</h1>
+        <p style="text-align: center; color: #6B7280; margin-bottom: 30px;">Visualização das questões com ilustrações SVG</p>
+        <!-- Q1 -->
+        <div class="questao">
+            <h2>Questão 1: Caracterização do Local</h2>
+            <p>Como é a caracterização do local vistoriado?</p>
+            <div class="opcoes">
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <defs>
+                            <linearGradient id="sky1" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stop-color="#87CEEB"/><stop offset="1" stop-color="#E0F4FF"/>
+                            </linearGradient>
+                            <linearGradient id="hill1" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stop-color="#4CAF50"/><stop offset="1" stop-color="#2E7D32"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="0" y="0" width="100" height="100" fill="url(#sky1)" rx="8"/>
+                        <path d="M0 75 Q25 30 50 45 Q75 60 100 40 L100 100 L0 100 Z" fill="url(#hill1)"/>
+                        <rect x="18" y="52" width="4" height="10" fill="#5D4037"/>
+                        <polygon points="20,35 13,55 27,55" fill="#1B5E20"/>
+                        <rect x="68" y="48" width="4" height="10" fill="#5D4037"/>
+                        <polygon points="70,32 63,51 77,51" fill="#1B5E20"/>
+                        <circle cx="82" cy="18" r="8" fill="#FDD835"/>
+                    </svg>
+                    <div class="opcao-label">Encosta Natural</div>
+                    <div class="opcao-pontos">0 pontos</div>
+                </div>
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <defs>
+                            <linearGradient id="sky2" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stop-color="#B0BEC5"/><stop offset="1" stop-color="#ECEFF1"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="0" y="0" width="100" height="100" fill="url(#sky2)" rx="8"/>
+                        <path d="M5 85 L30 55 L70 55 L95 85 Z" fill="#8D6E63"/>
+                        <path d="M10 85 L32 60 L68 60 L90 85 Z" fill="#A1887F"/>
+                        <path d="M15 85 L34 65 L66 65 L85 85 Z" fill="#BCAAA4"/>
+                        <rect x="0" y="85" width="100" height="15" fill="#6D4C41"/>
+                        <path d="M50 20 L50 45" stroke="#F57F17" stroke-width="3" stroke-linecap="round"/>
+                        <polygon points="50,50 44,38 56,38" fill="#F57F17"/>
+                        <rect x="60" y="38" width="28" height="14" fill="#455A64" rx="2"/>
+                    </svg>
+                    <div class="opcao-label">Aterro</div>
+                    <div class="opcao-pontos">2 pontos</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Q2 -->
+        <div class="questao">
+            <h2>Questão 2: Inclinação da Encosta</h2>
+            <p>Qual é a inclinação aproximada da encosta?</p>
+            <div class="opcoes">
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/>
+                        <rect x="0" y="80" width="100" height="20" fill="#8D6E63"/>
+                        <path d="M10 80 L90 80 L90 80 Z" fill="#22C55E" opacity="0.3"/>
+                        <line x1="10" y1="80" x2="90" y2="80" stroke="#22C55E" stroke-width="3" stroke-linecap="round"/>
+                        <text x="50" y="72" font-size="11" fill="#22C55E" font-weight="bold" text-anchor="middle">10°</text>
+                    </svg>
+                    <div class="opcao-label">≤ 10°</div>
+                    <div class="opcao-pontos">0 pontos</div>
+                </div>
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/>
+                        <rect x="0" y="80" width="100" height="20" fill="#8D6E63"/>
+                        <line x1="10" y1="80" x2="85" y2="50" stroke="#84CC16" stroke-width="3" stroke-linecap="round"/>
+                        <text x="50" y="72" font-size="11" fill="#84CC16" font-weight="bold" text-anchor="middle">17°</text>
+                    </svg>
+                    <div class="opcao-label">17°</div>
+                    <div class="opcao-pontos">1 ponto</div>
+                </div>
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <rect x="0" y="0" width="100" height="100" fill="#F0F4F8" rx="8"/>
+                        <rect x="0" y="80" width="100" height="20" fill="#8D6E63"/>
+                        <line x1="10" y1="80" x2="80" y2="30" stroke="#F59E0B" stroke-width="3" stroke-linecap="round"/>
+                        <text x="50" y="72" font-size="11" fill="#F59E0B" font-weight="bold" text-anchor="middle">30°</text>
+                    </svg>
+                    <div class="opcao-label">30°</div>
+                    <div class="opcao-pontos">2 pontos</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Q3 -->
+        <div class="questao">
+            <h2>Questão 3: Água e Drenagem</h2>
+            <p>Como é o sistema de drenagem de água no local?</p>
+            <div class="opcoes">
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <rect x="0" y="0" width="100" height="100" fill="#E3F2FD" rx="8"/>
+                        <rect x="0" y="70" width="100" height="30" fill="#8D6E63"/>
+                        <path d="M10 70 Q50 60 90 70" fill="none" stroke="#1565C0" stroke-width="4" stroke-linecap="round"/>
+                        <circle cx="50" cy="50" r="4" fill="#42A5F5"/>
+                        <path d="M50 50 L50 60" stroke="#1565C0" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="80" cy="20" r="12" fill="#22C55E"/>
+                        <path d="M74 20 L78 24 L86 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                    <div class="opcao-label">Satisfatório</div>
+                    <div class="opcao-pontos">0 pontos</div>
+                </div>
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <rect x="0" y="0" width="100" height="100" fill="#FFF8E1" rx="8"/>
+                        <rect x="0" y="70" width="100" height="30" fill="#8D6E63"/>
+                        <path d="M10 70 Q50 60 90 70" fill="none" stroke="#F59E0B" stroke-width="4" stroke-linecap="round" stroke-dasharray="6,3"/>
+                        <ellipse cx="50" cy="68" rx="20" ry="6" fill="#42A5F5" opacity="0.6"/>
+                        <polygon points="80,8 92,28 68,28" fill="#F59E0B"/>
+                        <text x="80" y="24" font-size="12" fill="white" font-weight="bold" text-anchor="middle">!</text>
+                    </svg>
+                    <div class="opcao-label">Precário</div>
+                    <div class="opcao-pontos">1 ponto</div>
+                </div>
+                <div class="opcao">
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <rect x="0" y="0" width="100" height="100" fill="#FFEBEE" rx="8"/>
+                        <rect x="0" y="70" width="100" height="30" fill="#8D6E63"/>
+                        <ellipse cx="50" cy="68" rx="40" ry="10" fill="#1565C0" opacity="0.7"/>
+                        <circle cx="80" cy="20" r="12" fill="#EF4444"/>
+                        <line x1="74" y1="14" x2="86" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                        <line x1="86" y1="14" x2="74" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                    <div class="opcao-label">Inexistente</div>
+                    <div class="opcao-pontos">2 pontos</div>
+                </div>
+            </div>
+        </div>
+
+        <p style="text-align: center; color: #9CA3AF; margin-top: 40px; font-size: 12px;">
+            [Visualização parcial - Veja o documento completo em FORMULARIO_VISTORIA_DESLIZAMENTO.md]
+        </p>
+    </div>
+</body>
+</html>

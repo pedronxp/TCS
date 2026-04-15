@@ -3,11 +3,10 @@
  * Garante que wizard.tsx pode calcular risco em todos eles.
  */
 
-const riscoEstrutural = require('../../assets/formularios/risco_estrutural_v1.json');
-const riscoEstruturalV2 = require('../../assets/formularios/risco_estrutural_v2.json');
-const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v1.json');
+const riscoEstruturalNovo = require('../../assets/formularios/risco_estrutural_novo_v1.json');
+const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v2.json');
 
-const FORMULARIOS = [riscoEstrutural, riscoEstruturalV2, vistoriaDeslizamento];
+const FORMULARIOS = [riscoEstruturalNovo, vistoriaDeslizamento];
 
 // Níveis válidos do nivelMap do wizard (inclui ponderada_max_elemento e soma_total)
 const NIVEL_VALIDOS_LIMITES = [
@@ -67,68 +66,68 @@ describe('JSONs built-in — perguntas com pesoRisco', () => {
   });
 });
 
-describe('risco_estrutural_v1 — ponderada_max_elemento', () => {
-  it('tem 12 fases com peso numérico', () => {
-    expect(riscoEstrutural.fases.length).toBe(12);
-    riscoEstrutural.fases.forEach((f: any) => {
-      expect(typeof f.peso).toBe('number');
-      expect(f.peso).toBeGreaterThan(0);
-    });
+describe('risco_estrutural_novo_v1 — soma_total', () => {
+  it('tem 1 fase com 12 perguntas', () => {
+    expect(riscoEstruturalNovo.fases.length).toBe(1);
+    expect(riscoEstruturalNovo.fases[0].perguntas.length).toBe(12);
   });
 
-  it('cada fase tem 5 perguntas (estado, gravidade, extensão, ativa, foto)', () => {
-    riscoEstrutural.fases.forEach((f: any) => {
-      expect(f.perguntas.length).toBe(5);
-    });
+  it('primeira pergunta é foto geral', () => {
+    const primeira = riscoEstruturalNovo.fases[0].perguntas[0];
+    expect(primeira.tipo).toBe('foto');
   });
 
-  it('última pergunta de cada fase é do tipo foto', () => {
-    riscoEstrutural.fases.forEach((f: any) => {
-      const ultima = f.perguntas[f.perguntas.length - 1];
-      expect(ultima.tipo).toBe('foto');
-    });
+  it('thresholds: R1≤8, R2≤22, R3≤44, R4>44', () => {
+    const limites = riscoEstruturalNovo.classificacao.limites;
+    expect(limites[0].max).toBe(8);
+    expect(limites[1].max).toBe(22);
+    expect(limites[2].max).toBe(44);
+    expect(limites[3].max).toBe(9999);
   });
 
-  it('pesos dos elementos estão dentro dos valores da planilha', () => {
-    const pesosValidos = [0.8, 0.9, 1.0, 1.1, 1.4, 1.5];
-    riscoEstrutural.fases.forEach((f: any) => {
-      expect(pesosValidos).toContain(f.peso);
-    });
+  it('níveis dos limites seguem progressão de risco', () => {
+    const limites = riscoEstruturalNovo.classificacao.limites;
+    expect(limites[0].nivel).toBe('baixo');
+    expect(limites[1].nivel).toBe('medio');
+    expect(limites[2].nivel).toBe('alto');
+    expect(limites[3].nivel).toBe('iminente');
   });
 
-  it('Estado tem opções bom=0, regular=2, ruim=4, pessimo=6', () => {
-    const primeiraFase = riscoEstrutural.fases[0];
-    const questaoEstado = primeiraFase.perguntas[0];
-    const scores = questaoEstado.opcoes.map((o: any) => o.pesoRisco);
-    expect(scores).toEqual([0, 2, 4, 6]);
+  it('perguntas do tipo cards têm 4 opções com pesoRisco numérico', () => {
+    const cards = riscoEstruturalNovo.fases[0].perguntas.filter((p: any) => p.tipo === 'cards');
+    expect(cards.length).toBeGreaterThan(0);
+    for (const p of cards) {
+      expect(p.opcoes.length).toBe(4);
+      p.opcoes.forEach((o: any) => expect(typeof o.pesoRisco).toBe('number'));
+    }
   });
 });
 
-describe('vistoria_deslizamento_v1 — soma_total', () => {
-  it('tem 1 fase com as perguntas corretas', () => {
+describe('vistoria_deslizamento_v2 — soma_total', () => {
+  it('tem 1 fase com 12 perguntas', () => {
     expect(vistoriaDeslizamento.fases.length).toBe(1);
-    expect(vistoriaDeslizamento.fases[0].perguntas.length).toBeGreaterThanOrEqual(10);
-  });
-
-  it('inclinação tem 5 opções (0, 1, 2, 3, 4)', () => {
-    const fase = vistoriaDeslizamento.fases[0];
-    const inclinacao = fase.perguntas.find((p: any) => p.id === 'desl_inclinacao');
-    expect(inclinacao).toBeDefined();
-    const scores = inclinacao.opcoes.map((o: any) => o.pesoRisco);
-    expect(scores).toEqual([0, 1, 2, 3, 4]);
-  });
-
-  it('thresholds: R1≤2, R2≤4, R3≤9, R4>9', () => {
-    const limites = vistoriaDeslizamento.classificacao.limites;
-    expect(limites[0].max).toBe(2);
-    expect(limites[1].max).toBe(4);
-    expect(limites[2].max).toBe(9);
-    expect(limites[3].max).toBe(9999);
+    expect(vistoriaDeslizamento.fases[0].perguntas.length).toBe(12);
   });
 
   it('primeira pergunta é foto geral (opcional)', () => {
     const primeira = vistoriaDeslizamento.fases[0].perguntas[0];
     expect(primeira.tipo).toBe('foto');
     expect(primeira.obrigatoria).toBe(false);
+  });
+
+  it('thresholds: R1≤1, R2≤3, R3≤5, R4>5', () => {
+    const limites = vistoriaDeslizamento.classificacao.limites;
+    expect(limites[0].max).toBe(1);
+    expect(limites[1].max).toBe(3);
+    expect(limites[2].max).toBe(5);
+    expect(limites[3].max).toBe(9999);
+  });
+
+  it('questão desl2_q2 tem 5 opções (0, 1, 2, 3, 4)', () => {
+    const fase = vistoriaDeslizamento.fases[0];
+    const q2 = fase.perguntas.find((p: any) => p.id === 'desl2_q2');
+    expect(q2).toBeDefined();
+    const scores = q2.opcoes.map((o: any) => o.pesoRisco);
+    expect(scores).toEqual([0, 1, 2, 3, 4]);
   });
 });

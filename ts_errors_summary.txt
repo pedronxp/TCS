@@ -1,0 +1,61 @@
+app/(panel)/dashboard.tsx(75,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/dashboard.tsx(75,18): error TS1005: ';' expected.
+app/(panel)/dashboard.tsx(78,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(97,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(97,18): error TS1005: ';' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(115,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(115,18): error TS1005: ';' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(123,9): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(123,20): error TS1005: ';' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(124,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(153,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/dados-iniciais.tsx(155,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/laudo.tsx(36,5): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/laudo.tsx(122,18): error TS1435: Unknown keyword or identifier. Did you mean 'throw'?
+app/(panel)/inspecoes/laudo.tsx(124,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/laudo.tsx(124,18): error TS1005: ';' expected.
+app/(panel)/inspecoes/laudo.tsx(127,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/laudo.tsx(183,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/laudo.tsx(183,16): error TS1005: ',' expected.
+app/(panel)/inspecoes/laudo.tsx(183,23): error TS1005: ';' expected.
+app/(panel)/inspecoes/laudo.tsx(186,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/laudo.tsx(243,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/laudo.tsx(243,16): error TS1005: ',' expected.
+app/(panel)/inspecoes/laudo.tsx(243,23): error TS1005: ';' expected.
+app/(panel)/inspecoes/laudo.tsx(246,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/laudo.tsx(367,33): error TS1005: ',' expected.
+app/(panel)/inspecoes/relatorio.tsx(325,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/relatorio.tsx(327,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/relatorio.tsx(368,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/relatorio.tsx(370,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/relatorio.tsx(412,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/relatorio.tsx(414,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/resultado.tsx(87,63): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/resultado.tsx(156,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/resultado.tsx(170,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/resultado.tsx(261,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/resultado.tsx(263,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/resultado.tsx(273,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/resultado.tsx(275,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/resultado.tsx(313,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/resultado.tsx(315,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/resultado.tsx(345,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/resultado.tsx(347,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/risco.tsx(106,52): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/risco.tsx(175,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/risco.tsx(175,18): error TS1005: ';' expected.
+app/(panel)/inspecoes/risco.tsx(178,7): error TS1005: 'try' expected.
+app/(panel)/inspecoes/selecao-formulario.tsx(121,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/selecao-formulario.tsx(121,18): error TS1005: ';' expected.
+app/(panel)/inspecoes/selecao-formulario.tsx(138,9): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/inspecoes/selecao-formulario.tsx(141,7): error TS1005: 'try' expected.
+app/(panel)/mapas.tsx(1,1): error TS1128: Declaration or statement expected.
+app/(panel)/mapas.tsx(144,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/mapas.tsx(276,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/mapas.tsx(276,18): error TS1005: ';' expected.
+app/(panel)/mapas.tsx(278,7): error TS1005: 'try' expected.
+app/(panel)/master/logs.tsx(74,18): error TS1435: Unknown keyword or identifier. Did you mean 'throw'?
+app/(panel)/master/logs.tsx(76,7): error TS1472: 'catch' or 'finally' expected.
+app/(panel)/master/logs.tsx(76,18): error TS1005: ';' expected.
+app/(panel)/master/logs.tsx(79,7): error TS1005: 'try' expected.
+app/(panel)/master/logs.tsx(136,7): error TS1472: 'catch' or 'finally' expected.

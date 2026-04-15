@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Marketing Instagram — TCS Relatório & Vistoria</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0d0d0d;
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 60px;
+    }
+
+    h1.page-title {
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: -40px;
+    }
+
+    /* ─── POST CARD ─── */
+    .post-card {
+      width: 480px;
+      background: #111;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #222;
+      box-shadow: 0 0 60px rgba(0,100,255,0.08);
+    }
+
+    /* Header IG */
+    .ig-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid #1e1e1e;
+    }
+    .ig-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1a3fa8, #0a8af5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 800; color: #fff;
+      flex-shrink: 0;
+    }
+    .ig-account { flex: 1; }
+    .ig-account .name { font-size: 13px; font-weight: 600; color: #fff; }
+    .ig-account .sub  { font-size: 11px; color: #666; margin-top: 1px; }
+    .ig-more { color: #555; font-size: 20px; cursor: pointer; }
+
+    /* IMAGE AREA */
+    .post-image {
+      width: 100%;
+      aspect-ratio: 1;
+      background: linear-gradient(160deg, #030f2a 0%, #061c54 45%, #0a2f88 100%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 40px;
+    }
+
+    /* BG decorative circles */
+    .post-image::before {
+      content: '';
+      position: absolute;
+      width: 420px; height: 420px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.04);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .post-image::after {
+      content: '';
+      position: absolute;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.06);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .badge {
+      position: absolute;
+      top: 24px; left: 24px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #7eb4ff;
+    }
+
+    .icon-circle {
+      width: 90px; height: 90px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #1a56db, #0a8af5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 42px;
+      box-shadow: 0 20px 60px rgba(10, 138, 245, 0.4);
+      position: relative; z-index: 2;
+      margin-bottom: 28px;
+    }
+
+    .post-headline {
+      font-size: 26px;
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.2;
+      color: #fff;
+      position: relative; z-index: 2;
+      letter-spacing: -0.5px;
+    }
+    .post-headline span {
+      color: #4dabf7;
+    }
+
+    .post-subline {
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 400;
+      text-align: center;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+      position: relative; z-index: 2;
+      max-width: 320px;
+    }
+
+    .pills {
+      display: flex;
+      gap: 8px;
+      margin-top: 28px;
+      position: relative; z-index: 2;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .pill {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.7);
+      letter-spacing: 0.5px;
+    }
+    .pill.accent {
+      background: rgba(77,171,247,0.15);
+      border-color: rgba(77,171,247,0.3);
+      color: #4dabf7;
+    }
+
+    .bottom-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #1a56db, #0a8af5, #4dabf7);
+    }
+
+    /* IG Actions */
+    .ig-actions {
+      padding: 12px 16px;
+      display: flex;
+      gap: 16px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .ig-actions span { font-size: 22px; cursor: pointer; color: #ddd; }
+    .ig-actions span.save { margin-left: auto; }
+
+    .ig-likes {
+      padding: 0 16px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #ccc;
+    }
+
+    /* CAPTION */
+    .ig-caption {
+      padding: 0 16px 16px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #ccc;
+    }
+    .ig-caption .account-tag {
+      font-weight: 700;
+      color: #fff;
+      margin-right: 4px;
+    }
+    .ig-caption .hashtags {
+      color: #4dabf7;
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    /* ─── SEGUNDA VERSÃO DE POST ─── */
+    .post-image-2 {
+      background: linear-gradient(160deg, #0a0a0a 0%, #111 60%, #181818 100%);
+    }
+    .post-image-2 .post-headline { font-size: 22px; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+      max-width: 360px;
+      position: relative; z-index: 2;
+      margin-top: 24px;
+    }
+    .feature-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .feature-item .fi-icon { font-size: 22px; margin-bottom: 6px; }
+    .feature-item .fi-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.4;
+    }
+
+    /* ─── STORIES CARD ─── */
+    .stories-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .stories-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #555;
+      font-weight: 500;
+    }
+    .stories-card {
+      width: 270px;
+      height: 480px;
+      background: linear-gradient(180deg, #040d2a 0%, #061c54 50%, #031045 100%);
+      border-radius: 20px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      border: 1px solid #1e1e1e;
+      box-shadow: 0 0 60px rgba(0,80,200,0.1);
+    }
+    .stories-progress {
+      position: absolute;
+      top: 16px; left: 16px; right: 16px;
+      display: flex; gap: 4px;
+    }
+    .sp-bar {
+      flex: 1; height: 2px; background: rgba(255,255,255,0.25);
+      border-radius: 2px;
+    }
+    .sp-bar.active { background: #fff; }
+
+    .stories-ig-header {
+      position: absolute;
+      top: 28px; left: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .s-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1a3fa8, #0a8af5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800;
+    }
+    .s-name { font-size: 11px; font-weight: 600; }
+
+    .stories-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      z-index: 2;
+    }
+    .s-big-icon { font-size: 56px; }
+    .s-title {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #fff;
+    }
+    .s-title span { color: #4dabf7; }
+    .s-desc {
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+    }
+    .s-cta {
+      background: linear-gradient(135deg, #1a56db, #0a8af5);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 12px 28px;
+      border-radius: 30px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 8px 24px rgba(10,138,245,0.4);
+      margin-top: 8px;
+    }
+    .s-swipe {
+      position: absolute;
+      bottom: 24px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 1px;
+    }
+
+    /* ─── CAPTION BOX ─── */
+    .caption-box {
+      width: 480px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 16px;
+      padding: 28px 32px;
+      box-shadow: 0 0 40px rgba(0,0,0,0.4);
+    }
+    .caption-box h2 {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    .caption-text {
+      font-size: 14px;
+      line-height: 1.9;
+      color: #bbb;
+      white-space: pre-line;
+    }
+    .caption-text .hl { color: #fff; font-weight: 600; }
+    .caption-text .tag { color: #4dabf7; }
+    .caption-text .emoji { font-size: 16px; }
+
+    .copy-hint {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #1e1e1e;
+      font-size: 11px;
+      color: #444;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1 class="page-title">Marketing Instagram — TCS App</h1>
+
+  <!-- ═══ POST 1 — PRINCIPAL ═══ -->
+  <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+    <p style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#444;">Post 1 — Principal</p>
+    <div class="post-card">
+      <div class="ig-header">
+        <div class="ig-avatar">T</div>
+        <div class="ig-account">
+          <div class="name">tcs.defesacivil</div>
+          <div class="sub">Patrocinado</div>
+        </div>
+        <div class="ig-more">···</div>
+      </div>
+
+      <div class="post-image">
+        <div class="badge">Defesa Civil</div>
+        <div class="icon-circle">🛡️</div>
+        <div class="post-headline">
+          Vistorias técnicas<br>na palma da <span>mão.</span>
+        </div>
+        <div class="post-subline">
+          Laudo em PDF gerado em segundos.<br>
+          Funciona sem internet. Salva vidas.
+        </div>
+        <div class="pills">
+          <div class="pill accent">📴 100% Offline</div>
+          <div class="pill accent">📄 PDF Automático</div>
+          <div class="pill">Risco R1–R4</div>
+          <div class="pill">Protocolo único</div>
+        </div>
+        <div class="bottom-bar"></div>
+      </div>
+
+      <div class="ig-actions">
+        <span>🤍</span>
+        <span>💬</span>
+        <span>✈️</span>
+        <span class="save">🔖</span>
+      </div>
+      <div class="ig-likes">1.284 curtidas</div>
+      <div class="ig-caption">
+        <span class="account-tag">tcs.defesacivil</span>
+        O campo não espera. E o risco, muito menos. 🛡️<br><br>
+        O <strong>TCS</strong> foi desenvolvido para equipes de Defesa Civil que precisam de agilidade e precisão na hora que mais importa — com ou sem sinal de internet.<br><br>
+        ✅ Formulários offline<br>
+        ✅ Classificação de risco automática (R1 a R4)<br>
+        ✅ Laudo PDF gerado em segundos<br>
+        ✅ Protocolo rastreável para cada vistoria<br>
+        ✅ Mapa com todos os pontos de risco<br><br>
+        Tecnologia a serviço de quem protege vidas. 🏚️📋
+        <div class="hashtags">
+          #DefesaCivil #TCS #VistoriaTécnica #GestãoDeRisco #AppMobile #SegurançaPública #Offline #LaudoPDF #Tecnologia #Prevenção
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ POST 2 — FUNCIONALIDADES ═══ -->
+  <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+    <p style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#444;">Post 2 — Funcionalidades</p>
+    <div class="post-card">
+      <div class="ig-header">
+        <div class="ig-avatar">T</div>
+        <div class="ig-account">
+          <div class="name">tcs.defesacivil</div>
+          <div class="sub">Software · Serviço público</div>
+        </div>
+        <div class="ig-more">···</div>
+      </div>
+
+      <div class="post-image post-image-2">
+        <div class="badge">Conheça o App</div>
+        <div class="post-headline" style="font-size:20px; position:relative;z-index:2;">
+          Tudo que o agente precisa<br>em um só lugar.
+        </div>
+        <div class="features-grid">
+          <div class="feature-item">
+            <div class="fi-icon">📴</div>
+            <div class="fi-label">Funciona<br>100% Offline</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">📄</div>
+            <div class="fi-label">Laudo PDF<br>em segundos</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">⚠️</div>
+            <div class="fi-label">Risco R1–R4<br>automático</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">🗺️</div>
+            <div class="fi-label">Mapa de risco<br>interativo</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">🔢</div>
+            <div class="fi-label">Protocolo<br>rastreável</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">📍</div>
+            <div class="fi-label">GPS até o<br>local</div>
+          </div>
+        </div>
+        <div class="bottom-bar"></div>
+      </div>
+
+      <div class="ig-actions">
+        <span>🤍</span><span>💬</span><span>✈️</span>
+        <span class="save">🔖</span>
+      </div>
+      <div class="ig-likes">947 curtidas</div>
+      <div class="ig-caption">
+        <span class="account-tag">tcs.defesacivil</span>
+        Da vistoria ao laudo — sem complicação. 📋<br><br>
+        O agente chega ao campo, abre o app, preenche o formulário e em segundos tem o laudo técnico pronto para enviar. Tudo isso sem precisar de internet.<br><br>
+        O <strong>TCS</strong> elimina o papel, reduz erros e acelera decisões que salvam vidas.<br><br>
+        Qual dessas funcionalidades mais faz sentido para sua equipe? Conta aqui nos comentários! 👇
+        <div class="hashtags">
+          #DefesaCivil #Inovação #TCS #VistoriaTécnica #Prevenção #GovTech #AppMobile #SegurançaPública
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STORIES ═══ -->
+  <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+    <p style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#444;">Stories</p>
+    <div class="stories-card">
+      <div class="stories-progress">
+        <div class="sp-bar"></div>
+        <div class="sp-bar active"></div>
+        <div class="sp-bar"></div>
+      </div>
+      <div class="stories-ig-header">
+        <div class="s-avatar">T</div>
+        <div class="s-name">tcs.defesacivil</div>
+      </div>
+      <div class="stories-main">
+        <div class="s-big-icon">🛡️</div>
+        <div class="s-title">
+          Sem sinal?<br><span>Sem problema.</span>
+        </div>
+        <div class="s-desc">
+          O TCS funciona 100% offline.<br>
+          Gera laudos, calcula risco e<br>
+          sincroniza quando voltar a internet.
+        </div>
+        <div class="s-cta">Saiba mais</div>
+      </div>
+      <div class="s-swipe">▲ Deslize para cima</div>
+    </div>
+  </div>
+
+  <!-- ═══ LEGENDA PRONTA PARA COPIAR ═══ -->
+  <div class="caption-box">
+    <h2>📋 Legenda — Copie e cole</h2>
+    <div class="caption-text">
+<span class="hl">O campo não espera. O risco, muito menos.</span> 🛡️
+
+O <span class="hl">TCS</span> é o aplicativo desenvolvido para equipes de Defesa Civil que atuam em vistorias técnicas de risco — estrutural, deslizamento e inundação.
+
+Com ou sem internet, o agente vai a campo, preenche o formulário e gera o <span class="hl">laudo técnico em PDF</span> em segundos — com foto, protocolo único e classificação de risco automática (R1 a R4).
+
+<span class="hl">Por que o TCS?</span>
+✅ Funciona 100% offline
+✅ Laudo PDF gerado no dispositivo
+✅ Classificação de risco R1–R4 automática
+✅ Protocolo rastreável por vistoria
+✅ Mapa interativo com filtros de risco
+✅ Navegação GPS até o local
+
+Tecnologia a serviço de quem protege vidas. 🏚️
+
+<span class="tag">#DefesaCivil #TCS #VistoriaTécnica #GestãoDeRisco #AppMobile #SegurançaPública #Offline #LaudoPDF #Tecnologia #Prevenção #GovTech #Inovação</span>
+    </div>
+    <div class="copy-hint">💡 Adapte o nome da conta e adicione o link do app no bio antes de publicar.</div>
+  </div>
+
+</body>
+</html>

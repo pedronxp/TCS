@@ -16,8 +16,10 @@ import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../ut
 import { buildShareMessage } from '../../../utils/shareUtils';
 import { useAuth } from '../../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
 import { supabase } from '../../../utils/supabase';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
+import { formatarRespostaEspecial } from '../../../utils/respostasEspeciais';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -50,7 +52,13 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
     // Fallback genérico: mostra chave → valor bruto
     const itens = Object.entries(respostas)
       .filter(([, v]) => v)
-      .map(([k, v]) => ({ perguntaId: k, pergunta: k, resposta: v, tipo: 'texto', pesoRisco: 0 }));
+      .map(([k, v]) => ({
+        perguntaId: k,
+        pergunta: k,
+        resposta: formatarRespostaEspecial(v) ?? v,
+        tipo: 'texto',
+        pesoRisco: 0,
+      }));
     return itens.length ? [{ grupo: 'Respostas', faseId: 'raw', itens }] : [];
   }
 
@@ -62,9 +70,10 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
       const raw = respostas[p.id];
       if (raw === undefined || raw === null || raw === '') continue;
 
-      let respostaTexto = raw;
+      const respostaEspecial = formatarRespostaEspecial(raw);
+      let respostaTexto = respostaEspecial ?? raw;
       let pesoRisco = 0;
-      if (p.tipo === 'cards' || p.tipo === 'multipla_escolha') {
+      if (!respostaEspecial && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
         const op = (p.opcoes || []).find((o: any) => o.id === raw);
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
       }
@@ -434,25 +443,25 @@ export default function RelatorioScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[s.scroll, { paddingBottom: fixedFooterScrollPadding(insets) }]} keyboardShouldPersistTaps="handled">
 
         {/* ── Card do Relatório ───────────────────────────────────────────── */}
         <View style={[s.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
 
-          {/* ── Brand + Protocolo ─────────────────────────────────────── */}
-          <View style={[s.brandHeader, { borderBottomColor: theme.border }]}>
+          {/* ── Brand + Protocolo (empilhados verticalmente) ────────── */}
+          <View style={[s.brandHeader, { borderBottomColor: theme.border, flexDirection: 'column', alignItems: 'flex-start' }]}>
             {/* Logo + nome */}
-            <View style={s.brandLeft}>
+            <View style={[s.brandLeft, { marginBottom: 16 }]}>
               <Image source={require('../../../assets/logo.png')} style={s.logo} resizeMode="contain" />
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={[s.brandName, { color: theme.text }]}>Defesa Civil</Text>
                 <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE RISCO</Text>
               </View>
             </View>
 
-            {/* Protocolo em partes */}
+            {/* Protocolo em partes — largura total */}
             {proto ? (
-              <View style={[s.protoBox, { borderColor: theme.border, backgroundColor: theme.iconBackground }]}>
+              <View style={[s.protoBox, { borderColor: theme.border, backgroundColor: theme.iconBackground, width: '100%' }]}>
                 <Text style={[s.protoBoxLabel, { color: theme.textSecondary }]}>PROTOCOLO OFICIAL</Text>
                 {/* Linha 1: TCS · CIDADE */}
                 <View style={[s.protoPartes, { marginBottom: 4 }]}>
@@ -476,7 +485,7 @@ export default function RelatorioScreen() {
                 </View>
               </View>
             ) : (
-              <View style={{ alignItems: 'flex-end' }}>
+              <View style={{ alignItems: 'center', width: '100%' }}>
                 <Text style={[s.protoLabel, { color: theme.textSecondary }]}>PROTOCOLO</Text>
                 <Text style={[s.protoNum, { color: theme.text }]}>{draft.protocolo}</Text>
               </View>
@@ -830,16 +839,16 @@ const s = StyleSheet.create({
   // Card
   card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', marginBottom: 24 },
 
-  // Brand header
-  brandHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, gap: 12 },
-  brandLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  // Brand header — empilhado verticalmente para evitar corte de texto
+  brandHeader: { flexDirection: 'column', padding: 20, borderBottomWidth: 1, gap: 16 },
+  brandLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   logo: { width: 44, height: 44, borderRadius: 10 },
   brandName: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
   brandSub: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, marginTop: 1 },
   protoLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   protoNum: { fontSize: 16, fontWeight: '900', marginTop: 2 },
-  // Protocolo em partes
-  protoBox: { borderWidth: 1, borderRadius: 12, padding: 10, alignItems: 'center', minWidth: 150 },
+  // Protocolo em partes — largura total
+  protoBox: { borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
   protoBoxLabel: { fontSize: 8, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
   protoPartes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   protoParte: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6 },

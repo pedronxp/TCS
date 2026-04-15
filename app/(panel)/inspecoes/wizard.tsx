@@ -26,8 +26,15 @@ import { ASSETS, flattenPerguntas, PerguntaModel } from '../../../utils/formular
 import { SvgXml } from 'react-native-svg';
 import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fixedFooterBottomPadding, fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
+import {
+  RESPOSTA_ESPECIAL_INEXISTENTE_OU_INOPERANTE,
+  RESPOSTA_ESPECIAL_LABEL,
+  ehRespostaEspecial,
+  temRespostaValida,
+} from '../../../utils/respostasEspeciais';
 
-// Mapa estático de imagens locais dos formulários (require() deve ser estático no RN)
+// ─── Mapa estático de imagens locais dos formulários (require() deve ser estático no RN)
 const FORM_IMAGES: Record<string, any> = {
   // Severidade por nível de pesoRisco
   nv0: require('../../../assets/formularios/imagens/nv0.png'),
@@ -256,10 +263,12 @@ export default function WizardAvaliacaoScreen() {
   const progress = totalPerguntas > 0 ? ((step + 1) / totalPerguntas) : 0;
 
   const resposta = perguntaAtual ? respostas[perguntaAtual.id] : undefined;
+  const respostaEspecialMarcada = ehRespostaEspecial(resposta);
+  const podeMarcarRespostaEspecial = !!perguntaAtual && perguntaAtual.tipo !== 'foto';
 
   const podeAvancar = () => {
     if (!perguntaAtual?.obrigatoria) return true;
-    return !!resposta;
+    return temRespostaValida(resposta);
   };
 
   const calcularNivelRisco = (visiveis: PerguntaModel[] = perguntasVisiveis): { nivel: string; pontuacao: number } => {
@@ -277,6 +286,7 @@ export default function WizardAvaliacaoScreen() {
       visiveis.forEach(p => {
         if (!p.faseId) return;
         const r = respostas[p.id];
+        if (!temRespostaValida(r) || ehRespostaEspecial(r)) return;
         if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
           const opcao = p.opcoes.find(o => o.id === r);
           if (opcao && opcao.pesoRisco > 0) {
@@ -311,6 +321,7 @@ export default function WizardAvaliacaoScreen() {
     let pontuacao = 0;
     visiveis.forEach(p => {
       const r = respostas[p.id];
+      if (!temRespostaValida(r) || ehRespostaEspecial(r)) return;
       if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
         const opcao = p.opcoes.find(o => o.id === r);
         if (opcao) pontuacao += opcao.pesoRisco;
@@ -387,7 +398,7 @@ export default function WizardAvaliacaoScreen() {
 
   const finalizar = async () => {
     // Verifica obrigatórias
-    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !respostas[p.id]);
+    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !temRespostaValida(respostas[p.id]));
     if (pendente) {
       Alert.alert('Pergunta obrigatória', `Responda: "${pendente.texto}"`);
       const idx = perguntasVisiveis.indexOf(pendente);
@@ -585,7 +596,7 @@ export default function WizardAvaliacaoScreen() {
         <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${progress * 100}%` }]} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: fixedFooterScrollPadding(insets) }]} keyboardShouldPersistTaps="handled">
         {perguntaAtual && (
           <>
             {/* Image example */}
@@ -611,6 +622,45 @@ export default function WizardAvaliacaoScreen() {
               {perguntaAtual.obrigatoria && <Text style={{ color: '#EF4444' }}> *</Text>}
             </Text>
 
+            {podeMarcarRespostaEspecial && (
+              <TouchableOpacity
+                style={[
+                  styles.respostaEspecialToggle,
+                  {
+                    backgroundColor: respostaEspecialMarcada ? `${theme.primary}12` : theme.surfaceHighlight,
+                    borderColor: respostaEspecialMarcada ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => setResposta(
+                  perguntaAtual.id,
+                  respostaEspecialMarcada ? '' : RESPOSTA_ESPECIAL_INEXISTENTE_OU_INOPERANTE,
+                )}
+              >
+                <Feather
+                  name={respostaEspecialMarcada ? 'check-square' : 'square'}
+                  size={20}
+                  color={respostaEspecialMarcada ? theme.primary : theme.textSecondary}
+                />
+                <View style={styles.respostaEspecialConteudo}>
+                  <Text style={[styles.respostaEspecialTitulo, { color: respostaEspecialMarcada ? theme.primary : theme.text }]}>
+                    {RESPOSTA_ESPECIAL_LABEL}
+                  </Text>
+                  <Text style={[styles.respostaEspecialDescricao, { color: theme.textSecondary }]}>
+                    Use quando o item não existir no local ou estiver inoperante.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {respostaEspecialMarcada && (
+              <View style={[styles.respostaEspecialInfo, { backgroundColor: `${theme.primary}10`, borderColor: `${theme.primary}33` }]}>
+                <Feather name="info" size={15} color={theme.primary} />
+                <Text style={[styles.respostaEspecialInfoText, { color: theme.textSecondary }]}>
+                  Esta marcação valida a pergunta e não adiciona pontuação de risco.
+                </Text>
+              </View>
+            )}
+
 
             {/* CARDS / MULTIPLA ESCOLHA */}
             {(perguntaAtual.tipo === 'cards' || perguntaAtual.tipo === 'multipla_escolha') && (
@@ -622,8 +672,10 @@ export default function WizardAvaliacaoScreen() {
                       key={op.id}
                       style={[
                         styles.optionCard,
+                        respostaEspecialMarcada && styles.optionCardDisabled,
                         { backgroundColor: theme.surfaceHighlight, borderColor: sel ? theme.primary : theme.cardBorder }
                       ]}
+                      disabled={respostaEspecialMarcada}
                       onPress={() => setResposta(perguntaAtual.id, op.id)}
                     >
                       {/* Imagem de referência: SVG inline (prioridade) ou PNG local/URL */}
@@ -658,7 +710,8 @@ export default function WizardAvaliacaoScreen() {
                 numberOfLines={5}
                 placeholder="Digite sua resposta..."
                 placeholderTextColor={theme.textSecondary}
-                value={resposta || ''}
+                value={respostaEspecialMarcada ? RESPOSTA_ESPECIAL_LABEL : (resposta || '')}
+                editable={!respostaEspecialMarcada}
                 onChangeText={t => setResposta(perguntaAtual.id, t)}
                 textAlignVertical="top"
               />
@@ -700,7 +753,7 @@ export default function WizardAvaliacaoScreen() {
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
+      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: fixedFooterBottomPadding(insets) }]}>
         {/* Banner de risco em tempo real — aparece após primeira resposta */}
         {riscoAtual && (
           <Animated.View
@@ -760,9 +813,34 @@ const styles = StyleSheet.create({
   groupText: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
   instrucao: { fontSize: 14, lineHeight: 22, marginBottom: 12 },
   exampleImage: { width: '100%', height: 180, borderRadius: 14, marginBottom: 20 },
-  question: { fontSize: 20, fontWeight: '700', lineHeight: 28, marginBottom: 24 },
+  question: { fontSize: 20, fontWeight: '700', lineHeight: 28, marginBottom: 16 },
+  respostaEspecialToggle: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  respostaEspecialConteudo: { flex: 1, gap: 2 },
+  respostaEspecialTitulo: { fontSize: 15, fontWeight: '700' },
+  respostaEspecialDescricao: { fontSize: 12, lineHeight: 18 },
+  respostaEspecialInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 20,
+  },
+  respostaEspecialInfoText: { flex: 1, fontSize: 12, lineHeight: 18 },
   optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   optionCard: { width: '47%', borderRadius: 14, borderWidth: 1.5, padding: 16, alignItems: 'center', position: 'relative' },
+  optionCardDisabled: { opacity: 0.45 },
   optionImage: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10 },
   optionSvg: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10, overflow: 'hidden' },
   optionText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },

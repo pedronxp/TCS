@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prévia — Relatório & Laudo | TCS Defesa Civil</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F1F5F9; color: #1E293B; }
+
+  /* ── Barra de navegação da prévia ── */
+  .preview-nav {
+    background: #1A365D; color: #fff; padding: 16px 32px;
+    display: flex; align-items: center; justify-content: space-between; gap: 20;
+    position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  .preview-nav h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+  .preview-nav p  { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+  .logo-badge {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 10px; padding: 8px 16px; font-size: 12px; font-weight: 600;
+  }
+  .logo-badge span { color: #FBBF24; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 0; background: #fff; border-bottom: 2px solid #E2E8F0; }
+  .tab-btn {
+    padding: 14px 28px; font-size: 14px; font-weight: 600; cursor: pointer;
+    border: none; background: none; color: #64748B; border-bottom: 3px solid transparent;
+    margin-bottom: -2px; transition: all .2s;
+  }
+  .tab-btn.active { color: #1A365D; border-bottom-color: #1A365D; }
+
+  /* ── Área de documento ── */
+  .doc-area { padding: 32px; max-width: 900px; margin: 0 auto; }
+  .doc-panel { display: none; }
+  .doc-panel.active { display: block; }
+
+  /* ── Folha A4 ── */
+  .a4-sheet {
+    background: #fff; border-radius: 4px; margin: 0 auto;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12); padding: 60px;
+    min-height: 297mm; width: 210mm; max-width: 100%;
+    font-family: 'Times New Roman', Times, serif; font-size: 13px;
+    color: #000; line-height: 1.6;
+  }
+
+  /* ── Anotação da logo ── */
+  .logo-slot {
+    height: 70px; min-width: 100px;
+    border: 2px dashed #F59E0B; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: #FFFBEB; color: #92400E;
+    font-family: -apple-system, sans-serif;
+    font-size: 11px; font-weight: 700; text-align: center; padding: 8px;
+    position: relative;
+  }
+  .logo-slot::before {
+    content: '🔄 NOVA LOGO'; display: block;
+    font-size: 10px; opacity: 0.7; margin-bottom: 4px;
+  }
+  .logo-slot-lg { height: 80px; }
+
+  /* ════════════════════════════════════════
+     RELATÓRIO TÉCNICO DE VISTORIA
+  ════════════════════════════════════════ */
+
+  /* Cabeçalho */
+  .rel-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    border-bottom: 3px solid #1A365D; padding-bottom: 20px; margin-bottom: 28px;
+  }
+  .rel-doc-info { text-align: right; }
+  .rel-doc-type  { font-size: 17px; font-weight: 800; color: #1A365D; letter-spacing: 1px; text-transform: uppercase; font-family: -apple-system, sans-serif; }
+  .rel-doc-num   { font-size: 12px; font-weight: 600; color: #718096; margin-top: 4px; font-family: -apple-system, sans-serif; }
+  .rel-doc-date  { font-size: 12px; color: #4A5568; margin-top: 2px; font-family: -apple-system, sans-serif; }
+
+  /* Painel de risco */
+  .risk-panel {
+    display: flex; border: 2px solid #F97316; border-radius: 12px;
+    overflow: hidden; margin-bottom: 28px;
+  }
+  .risk-indicator {
+    background: #F97316; color: white; padding: 20px 28px;
+    text-align: center; min-width: 160px;
+  }
+  .risk-level-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; opacity: 0.85; text-transform: uppercase; font-family: -apple-system, sans-serif; }
+  .risk-level-value { font-size: 28px; font-weight: 900; margin: 6px 0; font-family: -apple-system, sans-serif; }
+  .risk-pts { font-size: 12px; opacity: 0.8; font-family: -apple-system, sans-serif; }
+  .risk-details { background: #FFF7ED; padding: 16px 20px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .risk-conduta-title { font-size: 10px; font-weight: 800; color: #F97316; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; font-family: -apple-system, sans-serif; }
+  .risk-conduta-text  { font-size: 12px; line-height: 1.6; color: #2D3748; font-family: -apple-system, sans-serif; }
+
+  /* Tabelas */
+  .section-title-rel {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;
+    color: #64748B; margin: 24px 0 12px; font-family: -apple-system, sans-serif;
+    border-bottom: 1px solid #E2E8F0; padding-bottom: 8px;
+  }
+  .data-table { width: 100%; border-collapse: collapse; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+  .data-table td { padding: 10px 14px; border-bottom: 1px solid #F1F5F9; font-size: 13px; vertical-align: top; }
+  .dt-label { font-weight: 700; color: #64748B; background: #F8FAFC; width: 180px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-family: -apple-system, sans-serif; }
+  .dt-value { color: #1E293B; font-weight: 600; }
+
+  /* Tabela respostas */
+  .resp-table { width: 100%; border-collapse: collapse; border: 1px solid #E2E8F0; margin-bottom: 20px; }
+  .resp-table th { font-size: 9px; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 1px; text-align: left; padding: 10px 12px; background: #F1F5F9; border-bottom: 2px solid #CBD5E1; font-family: -apple-system, sans-serif; }
+  .resp-table td { font-size: 12px; padding: 9px 12px; border-bottom: 1px solid #F1F5F9; }
+  .resp-table tr:nth-child(even) { background: #FAFBFC; }
+  .td-num  { width: 36px; text-align: center; font-weight: 800; color: #94A3B8; font-size: 11px; }
+  .td-param { font-weight: 600; color: #334155; width: 42%; }
+  .td-resp  { color: #1E293B; }
+
+  /* Fotos */
+  .photos-grid { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .photo-slot { width: 120px; height: 90px; background: #F1F5F9; border: 1px dashed #CBD5E1; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 11px; font-family: -apple-system, sans-serif; }
+
+  /* Assinatura */
+  .footer-section { margin-top: 40px; border-top: 2px solid #E2E8F0; padding-top: 24px; }
+  .sig-grid { display: flex; justify-content: space-between; gap: 32px; margin-top: 20px; }
+  .sig-block { flex: 1; text-align: center; }
+  .sig-line  { border-top: 1px solid #1A365D; width: 100%; margin-bottom: 8px; margin-top: 60px; }
+  .sig-name  { font-size: 13px; font-weight: 700; color: #1A365D; font-family: -apple-system, sans-serif; }
+  .sig-role  { font-size: 10px; color: #718096; margin-top: 2px; font-family: -apple-system, sans-serif; }
+  .stamp-area { flex: 1; text-align: center; font-size: 10px; color: #CBD5E1; border: 2px dashed #E2E8F0; border-radius: 12px; padding: 20px; margin-top: 20px; display: flex; align-items: center; justify-content: center; font-family: -apple-system, sans-serif; }
+  .doc-footer { margin-top: 24px; text-align: center; font-size: 9px; color: #A0AEC0; letter-spacing: 0.5px; font-family: -apple-system, sans-serif; }
+  .ciente-section { margin-top: 30px; padding: 16px; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; }
+  .ciente-title   { font-size: 11px; font-weight: bold; text-transform: uppercase; color: #1A365D; margin-bottom: 30px; font-family: -apple-system, sans-serif; }
+  .ciente-grid    { display: flex; justify-content: space-between; gap: 30px; }
+
+  /* ════════════════════════════════════════
+     TERMO DE INTERDIÇÃO
+  ════════════════════════════════════════ */
+  .termo-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px;
+  }
+  .termo-title  { font-size: 18px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; color: #1A365D; margin-bottom: 4px; }
+  .termo-number { font-size: 14px; color: #666; font-weight: bold; }
+  .preambulo    { text-align: justify; margin-bottom: 28px; font-size: 13px; line-height: 1.8; }
+  .termo-section-title {
+    font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
+    border-bottom: 1px solid #999; padding-bottom: 6px; margin-bottom: 16px; margin-top: 28px;
+  }
+  .field-grid { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  .field-grid td { padding: 8px 10px; border: 1px solid #ccc; font-size: 13px; vertical-align: top; }
+  .field-label { font-weight: bold; width: 140px; background: #f8f8f8; }
+  .motivo       { text-align: justify; line-height: 1.9; margin-top: 16px; font-size: 13px; }
+  .lei          { margin-top: 16px; font-size: 12px; color: #333; border-left: 3px solid #666; padding-left: 12px; font-style: italic; line-height: 1.7; }
+  .assinatura-section { margin-top: 60px; text-align: center; }
+  .assinatura-linha   { border-top: 1px solid #000; width: 300px; margin: 0 auto 8px; }
+  .assinatura-nome    { font-size: 13px; font-weight: bold; }
+  .assinatura-cargo   { font-size: 11px; color: #555; }
+  .termo-footer       { margin-top: 40px; border-top: 1px solid #ccc; padding-top: 12px; font-size: 10px; color: #888; text-align: center; }
+
+  /* ── Legenda da prévia ── */
+  .preview-note {
+    background: #FFFBEB; border: 1px solid #F59E0B; border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 24px;
+    display: flex; align-items: flex-start; gap: 12px;
+    font-family: -apple-system, sans-serif; font-size: 13px; color: #78350F;
+  }
+  .preview-note strong { display: block; font-size: 14px; margin-bottom: 4px; }
+
+  @media (max-width: 768px) {
+    .a4-sheet { padding: 24px; width: 100%; }
+    .risk-indicator { min-width: 120px; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<div class="preview-nav">
+  <div>
+    <h1>TCS — Prévia de Documentos</h1>
+    <p>Relatório Técnico de Vistoria &amp; Termo de Interdição</p>
+  </div>
+  <div class="logo-badge">Logo: <span>aguardando novo arquivo</span></div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('relatorio')">Relatório Técnico</button>
+  <button class="tab-btn"        onclick="showTab('termo')">Termo de Interdição</button>
+</div>
+
+<div class="doc-area">
+
+  <!-- ════════════════════ RELATÓRIO ════════════════════ -->
+  <div id="tab-relatorio" class="doc-panel active">
+    <div class="preview-note">
+      <span style="font-size:20px">⚠️</span>
+      <div>
+        <strong>Logo ainda não substituída</strong>
+        A área destacada em amarelo (tracejado) mostra exatamente onde o novo ícone da Defesa Civil Municipal será posicionado. Envie o caminho do arquivo para concluir a troca.
+      </div>
+    </div>
+
+    <div class="a4-sheet">
+      <!-- CABEÇALHO -->
+      <div class="rel-header">
+        <div class="logo-slot logo-slot-lg" style="width:110px;">
+          Defesa Civil<br/>Municipal
+        </div>
+        <div class="rel-doc-info">
+          <div class="rel-doc-type">Relatório Técnico Vistoria</div>
+          <div class="rel-doc-num">Nº A1B2C3D4 / 2025</div>
+          <div class="rel-doc-date">Vistoria realizada em 09 de abril de 2025</div>
+        </div>
+      </div>
+
+      <!-- PAINEL DE RISCO -->
+      <div class="risk-panel">
+        <div class="risk-indicator">
+          <div class="risk-level-label">Nível de Risco</div>
+          <div class="risk-level-value">ALTO</div>
+          <div class="risk-pts">R3 · 74 pts</div>
+        </div>
+        <div class="risk-details">
+          <div class="risk-conduta-title">Conduta Recomendada</div>
+          <div class="risk-conduta-text">Monitoramento contínuo e plano de contingência ativado. Restringir acesso às áreas de risco identificadas e notificar moradores.</div>
+        </div>
+      </div>
+
+      <!-- IDENTIFICAÇÃO -->
+      <div class="section-title-rel">Identificação</div>
+      <table class="data-table">
+        <tr><td class="dt-label">Endereço</td><td class="dt-value">Rua das Acácias, 142 — Jardim Primavera</td></tr>
+        <tr><td class="dt-label">Município</td><td class="dt-value">São Paulo</td></tr>
+        <tr><td class="dt-label">Agente</td><td class="dt-value">Carlos Eduardo Souza</td></tr>
+        <tr><td class="dt-label">Data</td><td class="dt-value">09/04/2025</td></tr>
+        <tr><td class="dt-label">Protocolo</td><td class="dt-value">A1B2C3D4/2025</td></tr>
+      </table>
+
+      <!-- RESPOSTAS -->
+      <div class="section-title-rel">Itens Avaliados</div>
+      <table class="resp-table">
+        <thead><tr><th class="td-num">#</th><th class="td-param">Parâmetro</th><th class="td-resp">Resposta</th></tr></thead>
+        <tbody>
+          <tr><td class="td-num">1</td><td class="td-param">Presença de trincas nas paredes</td><td class="td-resp">Sim — trincas verticais com abertura superior a 5mm</td></tr>
+          <tr><td class="td-num">2</td><td class="td-param">Umidade no piso ou teto</td><td class="td-resp">Sim — manchas de infiltração no teto</td></tr>
+          <tr><td class="td-num">3</td><td class="td-param">Inclinação de estrutura</td><td class="td-resp">Não identificada</td></tr>
+          <tr><td class="td-num">4</td><td class="td-param">Danos à fundação</td><td class="td-resp">Recalque diferencial observado</td></tr>
+        </tbody>
+      </table>
+
+      <!-- FOTOS -->
+      <div class="section-title-rel">Evidências Fotográficas</div>
+      <div class="photos-grid">
+        <div class="photo-slot">Foto 1</div>
+        <div class="photo-slot">Foto 2</div>
+        <div class="photo-slot">Foto 3</div>
+      </div>
+
+      <!-- OBSERVAÇÕES -->
+      <div class="section-title-rel">Observações Técnicas</div>
+      <p style="font-size:13px; line-height:1.8; color:#2D3748; margin-bottom:20px;">
+        Edificação com sinais evidentes de recalque diferencial e presença de trincas estruturais. Recomenda-se avaliação por engenheiro estrutural e monitoramento semanal enquanto os reparos não forem executados.
+      </p>
+
+      <!-- ASSINATURA -->
+      <div class="footer-section">
+        <div class="sig-grid">
+          <div class="sig-block">
+            <div class="sig-line"></div>
+            <div class="sig-name">Carlos Eduardo Souza</div>
+            <div class="sig-role">Agente de Defesa Civil</div>
+          </div>
+          <div class="stamp-area">Espaço reservado para<br/>carimbo institucional</div>
+        </div>
+      </div>
+
+      <div class="ciente-section" style="margin-top:30px;">
+        <div class="ciente-title">Declaração de Ciência e Notificação</div>
+        <div class="ciente-grid">
+          <div style="flex:2; font-size:11px; color:#4A5568; line-height:1.7;">
+            Declaro ter acompanhado a vistoria, recebido as orientações técnicas de Defesa Civil e estar ciente da classificação de risco e da conduta recomendada.
+          </div>
+          <div class="sig-block" style="flex:1.5;">
+            <div class="sig-line" style="margin-top:30px;"></div>
+            <div class="sig-name">Assinatura do Morador / Responsável</div>
+            <div class="sig-role">Data: ___ / ___ / ______</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-footer">TCS — Relatório de Risco · Gerado em 09/04/2025 · Protocolo A1B2C3D4/2025</div>
+    </div>
+  </div><!-- /tab-relatorio -->
+
+
+  <!-- ════════════════════ TERMO ════════════════════ -->
+  <div id="tab-termo" class="doc-panel">
+    <div class="preview-note">
+      <span style="font-size:20px">⚠️</span>
+      <div>
+        <strong>Logo ainda não substituída</strong>
+        A área destacada em amarelo (tracejado) mostra exatamente onde o novo ícone da Defesa Civil Municipal será posicionado.
+      </div>
+    </div>
+
+    <div class="a4-sheet">
+      <!-- CABEÇALHO -->
+      <div class="termo-header">
+        <div class="logo-slot" style="width:100px;">
+          Defesa Civil<br/>Municipal
+        </div>
+        <div style="text-align:right;">
+          <div class="termo-title">Termo de Interdição</div>
+          <div class="termo-number">Nº A1B2C3D4 / 2025</div>
+        </div>
+      </div>
+
+      <!-- PREÂMBULO -->
+      <p class="preambulo">
+        Vistoria realizada em dia <strong>09 de abril de 2025</strong>,
+        equipe de Proteção e Defesa Civil de <strong>São Paulo</strong>,
+        relacionado com o Relatório de Vistoria nº <strong>A1B2C3D4/2025</strong>.
+      </p>
+
+      <!-- NOTIFICADO -->
+      <div class="termo-section-title">Identificação do Notificado</div>
+      <table class="field-grid">
+        <tr>
+          <td class="field-label">Nome Completo</td>
+          <td>Maria Aparecida dos Santos</td>
+          <td class="field-label">CPF</td>
+          <td>000.000.000-00</td>
+        </tr>
+        <tr>
+          <td class="field-label">Endereço</td>
+          <td colspan="3">Rua das Acácias, 142 — Jardim Primavera, São Paulo</td>
+        </tr>
+        <tr>
+          <td class="field-label">Telefone</td>
+          <td>(11) 90000-0000</td>
+          <td class="field-label">Cidade</td>
+          <td>São Paulo</td>
+        </tr>
+      </table>
+
+      <!-- MOTIVO -->
+      <div class="termo-section-title">Fundamentação da Interdição</div>
+      <p class="motivo">
+        A equipe de Proteção e Defesa Civil, após vistoria técnica realizada no endereço supracitado,
+        constatou <strong>risco iminente de colapso estrutural</strong>, em virtude de:
+        trincas estruturais de grande abertura, recalque diferencial da fundação e
+        presença de umidade comprometendo a estrutura da edificação.
+      </p>
+      <p class="lei">
+        Com fundamento na Lei Federal nº 12.608/2012 — Política Nacional de Proteção e Defesa Civil —
+        e na Lei Orgânica do Município, fica a edificação acima identificada
+        <strong>INTERDITADA</strong> para uso, vedando-se o acesso e habitação até que sejam realizadas
+        as obras de recuperação estrutural e nova vistoria técnica de liberação.
+      </p>
+
+      <!-- LOCAL/DATA -->
+      <div class="termo-section-title">Local e Data</div>
+      <table class="field-grid">
+        <tr>
+          <td class="field-label">Local</td><td>São Paulo</td>
+          <td class="field-label">Data</td><td>09 / 04 / 2025</td>
+        </tr>
+      </table>
+
+      <!-- ASSINATURA -->
+      <div class="assinatura-section">
+        <div class="assinatura-linha"></div>
+        <div class="assinatura-nome">Carlos Eduardo Souza</div>
+        <div class="assinatura-cargo">Agente de Proteção e Defesa Civil</div>
+      </div>
+
+      <div class="termo-footer">
+        TCS — Relatório de Risco · Termo de Interdição Nº A1B2C3D4/2025 · São Paulo · 09/04/2025
+      </div>
+    </div>
+  </div><!-- /tab-termo -->
+
+</div><!-- /doc-area -->
+
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.doc-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>

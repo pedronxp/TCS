@@ -68,11 +68,11 @@ const DARK_MAP_STYLE = [
   { featureType: 'transit', elementType: 'geometry',      stylers: [{ color: '#0F1923' }] },
 ];
 
-const FILTERS: { key: FilterKey; label: string; color: string }[] = [
-  { key: 'todos', label: 'Todos', color: '#3B82F6' },
-  { key: 'alto',  label: 'Alto',  color: '#EF4444' },
-  { key: 'medio', label: 'Médio', color: '#F59E0B' },
-  { key: 'baixo', label: 'Baixo', color: '#10B981' },
+const FILTERS: { key: FilterKey; label: string; color: string; icon: string }[] = [
+  { key: 'todos', label: 'Todos',  color: '#3B82F6', icon: 'layers' },
+  { key: 'alto',  label: 'Alto',   color: '#EF4444', icon: 'alert-triangle' },
+  { key: 'medio', label: 'Médio',  color: '#F59E0B', icon: 'alert-circle' },
+  { key: 'baixo', label: 'Baixo',  color: '#10B981', icon: 'check-circle' },
 ];
 
 // Normaliza níveis legados (alto/medio/baixo → r3/r2/r1)
@@ -99,49 +99,63 @@ function getRiscoLabel(nivel: string): string {
   return 'BAIXO';
 }
 
-// Tamanhos do marcador — maiores no Android para garantir visibilidade
-const PIN_SIZE   = Platform.OS === 'android' ? 42 : 28;
-const PIN_RADIUS = PIN_SIZE / 2;
-const PIN_INNER  = Platform.OS === 'android' ? 13 : 8;
-const TAIL_W     = Platform.OS === 'android' ? 7  : 5;
-const TAIL_H     = Platform.OS === 'android' ? 12 : 8;
-const ICON_SIZE  = Platform.OS === 'android' ? 18 : 12;
+// ─── Marcadores de mapa ─────────────────────────────────────────────────
+// Android: usa pinColor nativo do Google Maps — sempre visível, sem bugs
+// iOS: usa child views customizados para visual premium
+const isAndroid = Platform.OS === 'android';
 
-// Marcador customizado — sem pinColor para evitar bug com clustering
-function MarkerPin({ color }: { color: string }) {
+// Pin-drop iOS: círculo 38px + cauda
+const IOS_PIN   = 38;
+const IOS_TAIL  = 10;
+const IOS_ICON  = 18;
+const IOS_W     = IOS_PIN + 12;
+const IOS_H     = IOS_PIN + IOS_TAIL + 8;
+
+function MarkerPinIOS({ color, icon }: { color: string; icon: string }) {
   return (
-    <View style={{ alignItems: 'center' }}>
-      <View style={[markerStyles.pin, { backgroundColor: color }]}>
-        <View style={markerStyles.pinInner} />
+    <View style={markerStyles.container}>
+      <View style={[markerStyles.circle, { backgroundColor: color }]}>
+        <Feather name={icon as any} size={IOS_ICON} color="#FFF" />
       </View>
-      <View style={[markerStyles.pinTail, { borderTopColor: color }]} />
+      <View style={[markerStyles.tail, { borderTopColor: color }]} />
     </View>
   );
 }
 
-function AgendamentoPin() {
+function AgendamentoPinIOS() {
   return (
-    <View style={{ alignItems: 'center' }}>
-      <View style={[markerStyles.pin, { backgroundColor: '#3B82F6' }]}>
-        <Feather name="calendar" size={ICON_SIZE} color="#FFF" />
+    <View style={markerStyles.container}>
+      <View style={[markerStyles.circle, { backgroundColor: '#3B82F6' }]}>
+        <Feather name="calendar" size={IOS_ICON} color="#FFF" />
       </View>
-      <View style={[markerStyles.pinTail, { borderTopColor: '#3B82F6' }]} />
+      <View style={[markerStyles.tail, { borderTopColor: '#3B82F6' }]} />
     </View>
   );
+}
+
+function getRiscoIcon(nivel: string): string {
+  const n = normalizeNivel(nivel);
+  if (n === 'r4') return 'alert-octagon';
+  if (n === 'r3') return 'alert-triangle';
+  if (n === 'r2') return 'alert-circle';
+  return 'check-circle';
 }
 
 const markerStyles = StyleSheet.create({
-  pin: {
-    width: PIN_SIZE, height: PIN_SIZE, borderRadius: PIN_RADIUS,
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: Platform.OS === 'android' ? 3 : 2.5, borderColor: '#FFF',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35, shadowRadius: 4, elevation: 6,
+  container: {
+    width: IOS_W, height: IOS_H,
+    alignItems: 'center',
   },
-  pinInner: { width: PIN_INNER, height: PIN_INNER, borderRadius: PIN_INNER / 2, backgroundColor: '#FFF' },
-  pinTail: {
+  circle: {
+    width: IOS_PIN, height: IOS_PIN, borderRadius: IOS_PIN / 2,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 3, borderColor: '#FFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35, shadowRadius: 6,
+  },
+  tail: {
     width: 0, height: 0,
-    borderLeftWidth: TAIL_W, borderRightWidth: TAIL_W, borderTopWidth: TAIL_H,
+    borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: IOS_TAIL,
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginTop: -1,
   },
@@ -162,6 +176,8 @@ export default function MapasScreen() {
   const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [loading, setLoading]           = useState(true);
+  // tracksViewChanges só precisa no iOS (Android usa pinColor nativo)
+  const [tracksViewChanges, setTracksViewChanges] = useState(!isAndroid);
   const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
   const [agendamentos, setAgendamentos] = useState<AgendamentoMarker[]>([]);
   const [filter, setFilter]             = useState<FilterKey>('todos');
@@ -183,6 +199,17 @@ export default function MapasScreen() {
       if (timer2Ref.current) clearTimeout(timer2Ref.current);
     };
   }, [profile, isOnlineReal]);
+
+  useEffect(() => {
+    // iOS: habilita tracking brevemente para rasterizar child views
+    if (isAndroid) return; // Android usa pinColor nativo
+    if (markers.length === 0 && agendamentos.length === 0) return;
+    setTracksViewChanges(true);
+    const timer = setTimeout(() => {
+      if (mountedRef.current) setTracksViewChanges(false);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [markers, agendamentos]);
 
   const getUserLocation = async () => {
     try {
@@ -300,18 +327,24 @@ export default function MapasScreen() {
           ];
           if (allPoints.length > 0) {
             if (isInitialLoadRef.current) {
-              // Carga inicial: anima para o centróide com zoom de bairro fixo
+              // Carga inicial: enquadra TODOS os pontos para mostrar visão geral
               isInitialLoadRef.current = false;
               timer1Ref.current = setTimeout(() => {
                 if (!mountedRef.current) return;
-                const centLat = allPoints.reduce((s, m) => s + m.lat, 0) / allPoints.length;
-                const centLng = allPoints.reduce((s, m) => s + m.lng, 0) / allPoints.length;
-                mapRef.current?.animateToRegion({
-                  latitude: centLat,
-                  longitude: centLng,
-                  latitudeDelta: 0.06,
-                  longitudeDelta: 0.06,
-                }, 800);
+                const coords = allPoints.map(p => ({ latitude: p.lat, longitude: p.lng }));
+                if (coords.length === 1) {
+                  // Um único ponto: zoom de rua
+                  mapRef.current?.animateToRegion({
+                    latitude: coords[0].latitude, longitude: coords[0].longitude,
+                    latitudeDelta: 0.008, longitudeDelta: 0.008,
+                  }, 800);
+                } else {
+                  // Múltiplos: fitToCoordinates para mostrar todos
+                  (mapRef.current as any)?.fitToCoordinates(coords, {
+                    edgePadding: { top: 180, right: 60, bottom: 240, left: 60 },
+                    animated: true,
+                  });
+                }
               }, 1200);
             } else {
               // Refresh manual: micro-jiggle para forçar recálculo do supercluster
@@ -385,12 +418,18 @@ export default function MapasScreen() {
           isInitialLoadRef.current = false;
           timer1Ref.current = setTimeout(() => {
             if (!mountedRef.current) return;
-            const centLat = offlinePoints.reduce((s, m) => s + m.lat, 0) / offlinePoints.length;
-            const centLng = offlinePoints.reduce((s, m) => s + m.lng, 0) / offlinePoints.length;
-            mapRef.current?.animateToRegion({
-              latitude: centLat, longitude: centLng,
-              latitudeDelta: 0.06, longitudeDelta: 0.06,
-            }, 800);
+            const coords = offlinePoints.map(p => ({ latitude: p.lat, longitude: p.lng }));
+            if (coords.length === 1) {
+              mapRef.current?.animateToRegion({
+                latitude: coords[0].latitude, longitude: coords[0].longitude,
+                latitudeDelta: 0.008, longitudeDelta: 0.008,
+              }, 800);
+            } else {
+              (mapRef.current as any)?.fitToCoordinates(coords, {
+                edgePadding: { top: 180, right: 60, bottom: 240, left: 60 },
+                animated: true,
+              });
+            }
           }, 1200);
         }
       }
@@ -435,7 +474,7 @@ export default function MapasScreen() {
 
   const currentStyleConfig = MAP_STYLES.find(s => s.key === mapStyle)!;
   const initialRegion = userLocation
-    ? { latitude: userLocation.lat, longitude: userLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
+    ? { latitude: userLocation.lat, longitude: userLocation.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 }
     : { latitude: -15.7801, longitude: -47.9292, latitudeDelta: 30, longitudeDelta: 30 };
 
   const heatmapPoints = filteredMarkers.map(m => {
@@ -477,40 +516,67 @@ export default function MapasScreen() {
         initialRegion={initialRegion}
         showsUserLocation
         showsMyLocationButton={false}
-        // Clustering
+        // Clustering — menos agressivo para mostrar markers individuais mais cedo
         clusterColor="#3B82F6"
         clusterTextColor="#FFFFFF"
         clusterFontFamily={undefined}
-        radius={55}
-        maxZoom={16}
-        minPoints={2}
+        radius={40}
+        maxZoom={18}
+        minPoints={3}
         extent={512}
-        nodeSize={32}
+        nodeSize={28}
         animationEnabled
         spiralEnabled
         onClusterPress={handleClusterPress}
         onRegionChangeComplete={(region: any) => { currentRegionRef.current = region; }}
       >
-        {!showHeatmap && filteredMarkers.map(m => (
-          <Marker
-            key={m.id}
-            coordinate={{ latitude: m.lat, longitude: m.lng }}
-            onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
-            tracksViewChanges={false}
-          >
-            <MarkerPin color={getRiscoColor(m.nivelRisco)} />
-          </Marker>
-        ))}
+        {!showHeatmap && filteredMarkers.map(m => {
+          const color = getRiscoColor(m.nivelRisco);
+          return isAndroid ? (
+            // Android: marker nativo do Google Maps — sempre visível, sem bugs
+            <Marker
+              key={m.id}
+              coordinate={{ latitude: m.lat, longitude: m.lng }}
+              onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
+              pinColor={color}
+              title={getRiscoLabel(m.nivelRisco)}
+              description={m.endereco}
+            />
+          ) : (
+            // iOS: pin-drop customizado
+            <Marker
+              key={m.id}
+              coordinate={{ latitude: m.lat, longitude: m.lng }}
+              onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
+              tracksViewChanges={tracksViewChanges}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <MarkerPinIOS color={color} icon={getRiscoIcon(m.nivelRisco)} />
+            </Marker>
+          );
+        })}
 
         {agendamentos.map(a => (
-          <Marker
-            key={`agend-${a.id}`}
-            coordinate={{ latitude: a.lat, longitude: a.lng }}
-            onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
-            tracksViewChanges={false}
-          >
-            <AgendamentoPin />
-          </Marker>
+          isAndroid ? (
+            <Marker
+              key={`agend-${a.id}`}
+              coordinate={{ latitude: a.lat, longitude: a.lng }}
+              onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
+              pinColor="#3B82F6"
+              title="Agendado"
+              description={a.titulo}
+            />
+          ) : (
+            <Marker
+              key={`agend-${a.id}`}
+              coordinate={{ latitude: a.lat, longitude: a.lng }}
+              onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
+              tracksViewChanges={tracksViewChanges}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <AgendamentoPinIOS />
+            </Marker>
+          )
         ))}
 
         {showHeatmap && Platform.OS === 'android' && (
@@ -560,52 +626,85 @@ export default function MapasScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filtros */}
-      <View style={[styles.filtersOverlay, { top: insets.top + 62 }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[
-                styles.chip,
-                filter === f.key
-                  ? { backgroundColor: f.color }
-                  : { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, borderWidth: 1 },
-              ]}
-              onPress={() => setFilter(f.key)}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                {f.key !== 'todos' && (
-                  <View style={{
-                    width: 7, height: 7, borderRadius: 4,
-                    backgroundColor: filter === f.key ? '#FFF' : f.color,
-                  }} />
-                )}
-                <Text style={[styles.chipText, { color: filter === f.key ? '#FFF' : theme.text }]}>
+      {/* ── Filtros compactos — faixa única horizontal ── */}
+      <View style={[styles.filterBar, { top: (insets.top || 44) + 64 }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {/* Filtros de risco */}
+          {FILTERS.map(f => {
+            const isActive = filter === f.key;
+            const count = f.key === 'todos'
+              ? markers.length
+              : markers.filter(m => {
+                  const n = normalizeNivel(m.nivelRisco);
+                  if (f.key === 'alto')  return n === 'r3' || n === 'r4';
+                  if (f.key === 'medio') return n === 'r2';
+                  return n === 'r1';
+                }).length;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                activeOpacity={0.7}
+                onPress={() => setFilter(f.key)}
+                style={[
+                  styles.filterChip,
+                  isActive
+                    ? { backgroundColor: f.color }
+                    : { backgroundColor: theme.surfaceHighlight, borderColor: `${f.color}40`, borderWidth: 1 },
+                ]}
+              >
+                <View style={[
+                  styles.filterDot,
+                  { backgroundColor: isActive ? '#FFF' : f.color },
+                ]} />
+                <Text style={[
+                  styles.filterChipText,
+                  { color: isActive ? '#FFF' : theme.text },
+                ]}>
                   {f.label}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+                {count > 0 && (
+                  <Text style={[
+                    styles.filterChipCount,
+                    { color: isActive ? 'rgba(255,255,255,0.8)' : theme.textSecondary },
+                  ]}>
+                    {count}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
 
-          <View style={{ width: 1, height: 28, backgroundColor: theme.border, alignSelf: 'center', marginHorizontal: 2 }} />
+          {/* Separador vertical */}
+          <View style={[styles.filterSep, { backgroundColor: theme.border }]} />
 
-          {PERIODOS.map(p => (
-            <TouchableOpacity
-              key={p.key}
-              style={[
-                styles.chip,
-                filtroPeriodo === p.key
-                  ? { backgroundColor: theme.primary }
-                  : { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, borderWidth: 1 },
-              ]}
-              onPress={() => setFiltroPeriodo(p.key)}
-            >
-              <Text style={[styles.chipText, { color: filtroPeriodo === p.key ? '#FFF' : theme.text }]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {/* Filtros de período */}
+          {PERIODOS.map(p => {
+            const isActive = filtroPeriodo === p.key;
+            return (
+              <TouchableOpacity
+                key={p.key}
+                activeOpacity={0.7}
+                onPress={() => setFiltroPeriodo(p.key)}
+                style={[
+                  styles.filterChip,
+                  isActive
+                    ? { backgroundColor: theme.primary }
+                    : { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, borderWidth: 1 },
+                ]}
+              >
+                <Text style={[
+                  styles.filterChipText,
+                  { color: isActive ? '#FFF' : theme.text },
+                ]}>
+                  {p.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -770,12 +869,30 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '700' },
   headerSub:   { fontSize: 11, fontWeight: '500', marginTop: 1 },
 
-  filtersOverlay: { position: 'absolute', top: 118, left: 0, right: 0, paddingHorizontal: 16 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 3,
+  filterBar: {
+    position: 'absolute', left: 0, right: 0, paddingHorizontal: 12,
   },
-  chipText: { fontSize: 12, fontWeight: '700' },
+  filterRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 12,
+  },
+  filterChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1, shadowRadius: 3, elevation: 3,
+  },
+  filterDot: {
+    width: 7, height: 7, borderRadius: 4,
+  },
+  filterChipText: {
+    fontSize: 12, fontWeight: '700',
+  },
+  filterChipCount: {
+    fontSize: 10, fontWeight: '600', marginLeft: 1,
+  },
+  filterSep: {
+    width: 1, height: 22, borderRadius: 1, marginHorizontal: 2,
+  },
 
   fabGroup: { position: 'absolute', right: 16, bottom: 80 },
   fab: {

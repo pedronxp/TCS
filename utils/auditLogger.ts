@@ -5,6 +5,7 @@ import { supabase } from './supabase';
 export type AuditAction =
   | 'usuario_aprovado'
   | 'usuario_bloqueado'
+  | 'usuario_excluido'
   | 'token_gerado'
   | 'token_revogado'
   | 'formulario_publicado'

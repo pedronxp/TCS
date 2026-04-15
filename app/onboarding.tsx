@@ -6,9 +6,9 @@ import {
   Dimensions,
   FlatList,
   Platform,
-  SafeAreaView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -101,6 +101,7 @@ export default function OnboardingScreen() {
   const { theme, isDark } = useTheme();
   const [current, setCurrent] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  const insets = useSafeAreaInsets();
 
   const handleFinalizar = async () => {
     await AsyncStorage.setItem('@onboarding_done', '1');
@@ -119,7 +120,7 @@ export default function OnboardingScreen() {
   const slideColor = SLIDES[current].color;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <View style={styles.container}>
 
@@ -226,7 +227,7 @@ export default function OnboardingScreen() {
         />
 
         {/* ── Bottom controls ── */}
-        <View style={styles.bottom}>
+        <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom + 12, Spacing[6]) }]}>
           {/* Dots */}
           <View style={styles.dots}>
             {SLIDES.map((s, i) => (
@@ -380,8 +381,9 @@ const styles = StyleSheet.create({
   /* ── Bottom ── */
   bottom: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? Spacing[8] : Spacing[6],
+    bottom: 0,
     left: 0,
+
     right: 0,
   },
   dots: {

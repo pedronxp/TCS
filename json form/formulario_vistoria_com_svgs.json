@@ -1,0 +1,332 @@
+{
+  "formulario": {
+    "titulo": "Vistoria de Risco de Deslizamento",
+    "descricao": "Formulário de avaliação técnica de fatores de risco de deslizamento em encostas",
+    "total_questoes": 10,
+    "questoes": [
+      {
+        "id": 1,
+        "numero": "Questão 1",
+        "campo": "Caracterização do local",
+        "pergunta": "Como é a caracterização do local vistoriado?",
+        "tipo": "multipla_escolha",
+        "opcoes": [
+          {
+            "id": "q1_a",
+            "label": "Encosta Natural",
+            "pontuacao": 0,
+            "descricao": "Terreno sem intervenção humana",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky1)\" rx=\"8\"/><path d=\"M0 75 Q25 30 50 45 Q75 60 100 40 L100 100 L0 100 Z\" fill=\"#4CAF50\"/><rect x=\"18\" y=\"52\" width=\"4\" height=\"10\" fill=\"#5D4037\"/><polygon points=\"20,35 13,55 27,55\" fill=\"#1B5E20\"/><rect x=\"68\" y=\"48\" width=\"4\" height=\"10\" fill=\"#5D4037\"/><polygon points=\"70,32 63,51 77,51\" fill=\"#1B5E20\"/><circle cx=\"82\" cy=\"18\" r=\"8\" fill=\"#FDD835\"/></svg>"
+          },
+          {
+            "id": "q1_b",
+            "label": "Aterro",
+            "pontuacao": 2,
+            "descricao": "Terreno com material depositado artificialmente",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#B0BEC5\"/><stop offset=\"1\" stop-color=\"#ECEFF1\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky2)\" rx=\"8\"/><path d=\"M5 85 L30 55 L70 55 L95 85 Z\" fill=\"#8D6E63\"/><path d=\"M10 85 L32 60 L68 60 L90 85 Z\" fill=\"#A1887F\"/><path d=\"M15 85 L34 65 L66 65 L85 85 Z\" fill=\"#BCAAA4\"/><rect x=\"0\" y=\"85\" width=\"100\" height=\"15\" fill=\"#6D4C41\"/><path d=\"M50 20 L50 45\" stroke=\"#F57F17\" stroke-width=\"3\" stroke-linecap=\"round\"/><polygon points=\"50,50 44,38 56,38\" fill=\"#F57F17\"/><rect x=\"60\" y=\"38\" width=\"28\" height=\"14\" fill=\"#455A64\" rx=\"2\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "numero": "Questão 2",
+        "campo": "Inclinação da encosta",
+        "pergunta": "Qual é a inclinação aproximada da encosta?",
+        "tipo": "multipla_escolha",
+        "referencia": "10°=0 | 17°=1 | 30°=2 | 60°=3 | 90°=4",
+        "opcoes": [
+          {
+            "id": "q2_a",
+            "label": "≤ 10°",
+            "pontuacao": 0,
+            "descricao": "Inclinação suave",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#F0F4F8\" rx=\"8\"/><rect x=\"0\" y=\"80\" width=\"100\" height=\"20\" fill=\"#8D6E63\"/><line x1=\"10\" y1=\"80\" x2=\"90\" y2=\"80\" stroke=\"#22C55E\" stroke-width=\"3\" stroke-linecap=\"round\"/><text x=\"50\" y=\"72\" font-size=\"11\" fill=\"#22C55E\" font-weight=\"bold\" text-anchor=\"middle\">10°</text></svg>"
+          },
+          {
+            "id": "q2_b",
+            "label": "17°",
+            "pontuacao": 1,
+            "descricao": "Inclinação moderada",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#F0F4F8\" rx=\"8\"/><rect x=\"0\" y=\"80\" width=\"100\" height=\"20\" fill=\"#8D6E63\"/><line x1=\"10\" y1=\"80\" x2=\"85\" y2=\"50\" stroke=\"#84CC16\" stroke-width=\"3\" stroke-linecap=\"round\"/><text x=\"50\" y=\"72\" font-size=\"11\" fill=\"#84CC16\" font-weight=\"bold\" text-anchor=\"middle\">17°</text></svg>"
+          },
+          {
+            "id": "q2_c",
+            "label": "30°",
+            "pontuacao": 2,
+            "descricao": "Inclinação acentuada",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#F0F4F8\" rx=\"8\"/><rect x=\"0\" y=\"80\" width=\"100\" height=\"20\" fill=\"#8D6E63\"/><line x1=\"10\" y1=\"80\" x2=\"80\" y2=\"30\" stroke=\"#F59E0B\" stroke-width=\"3\" stroke-linecap=\"round\"/><text x=\"50\" y=\"72\" font-size=\"11\" fill=\"#F59E0B\" font-weight=\"bold\" text-anchor=\"middle\">30°</text></svg>"
+          },
+          {
+            "id": "q2_d",
+            "label": "60°",
+            "pontuacao": 3,
+            "descricao": "Inclinação muito acentuada",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#F0F4F8\" rx=\"8\"/><rect x=\"0\" y=\"80\" width=\"100\" height=\"20\" fill=\"#8D6E63\"/><line x1=\"10\" y1=\"80\" x2=\"70\" y2=\"10\" stroke=\"#EF4444\" stroke-width=\"3\" stroke-linecap=\"round\"/><text x=\"50\" y=\"72\" font-size=\"11\" fill=\"#EF4444\" font-weight=\"bold\" text-anchor=\"middle\">60°</text></svg>"
+          },
+          {
+            "id": "q2_e",
+            "label": "90° (Vertical)",
+            "pontuacao": 4,
+            "descricao": "Parede vertical",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#F0F4F8\" rx=\"8\"/><rect x=\"0\" y=\"80\" width=\"100\" height=\"20\" fill=\"#8D6E63\"/><line x1=\"50\" y1=\"80\" x2=\"50\" y2=\"10\" stroke=\"#7F1D1D\" stroke-width=\"3\" stroke-linecap=\"round\"/><text x=\"50\" y=\"72\" font-size=\"11\" fill=\"#7F1D1D\" font-weight=\"bold\" text-anchor=\"middle\">90°</text></svg>"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "numero": "Questão 3",
+        "campo": "Água - drenagem",
+        "pergunta": "Como é o sistema de drenagem de água no local?",
+        "tipo": "multipla_escolha",
+        "referencia": "Satisfatório=0 | Precário=1 | Inexistente=2",
+        "opcoes": [
+          {
+            "id": "q3_a",
+            "label": "Satisfatório",
+            "pontuacao": 0,
+            "descricao": "Drenagem adequada e funcional",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#E3F2FD\" rx=\"8\"/><rect x=\"0\" y=\"70\" width=\"100\" height=\"30\" fill=\"#8D6E63\"/><path d=\"M10 70 Q50 60 90 70\" fill=\"none\" stroke=\"#1565C0\" stroke-width=\"4\" stroke-linecap=\"round\"/><circle cx=\"50\" cy=\"50\" r=\"4\" fill=\"#42A5F5\"/><path d=\"M50 50 L50 60\" stroke=\"#1565C0\" stroke-width=\"2\" stroke-linecap=\"round\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#22C55E\"/><path d=\"M74 20 L78 24 L86 16\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/></svg>"
+          },
+          {
+            "id": "q3_b",
+            "label": "Precário",
+            "pontuacao": 1,
+            "descricao": "Drenagem com problemas parciais",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#FFF8E1\" rx=\"8\"/><rect x=\"0\" y=\"70\" width=\"100\" height=\"30\" fill=\"#8D6E63\"/><path d=\"M10 70 Q50 60 90 70\" fill=\"none\" stroke=\"#F59E0B\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-dasharray=\"6,3\"/><ellipse cx=\"50\" cy=\"68\" rx=\"20\" ry=\"6\" fill=\"#42A5F5\" opacity=\"0.6\"/><polygon points=\"80,8 92,28 68,28\" fill=\"#F59E0B\"/><text x=\"80\" y=\"24\" font-size=\"12\" fill=\"white\" font-weight=\"bold\" text-anchor=\"middle\">!</text></svg>"
+          },
+          {
+            "id": "q3_c",
+            "label": "Inexistente",
+            "pontuacao": 2,
+            "descricao": "Sem sistema de drenagem",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#FFEBEE\" rx=\"8\"/><rect x=\"0\" y=\"70\" width=\"100\" height=\"30\" fill=\"#8D6E63\"/><ellipse cx=\"50\" cy=\"68\" rx=\"40\" ry=\"10\" fill=\"#1565C0\" opacity=\"0.7\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#EF4444\"/><line x1=\"74\" y1=\"14\" x2=\"86\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"14\" x2=\"74\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "numero": "Questão 4",
+        "campo": "Vegetação no talude",
+        "pergunta": "Qual é o tipo de vegetação presente no talude?",
+        "tipo": "multipla_escolha",
+        "referencia": "Árvores=0 | Rasteira=1 | Desmatada=2 | Cultivo=2",
+        "opcoes": [
+          {
+            "id": "q4_a",
+            "label": "Presença de Árvores",
+            "pontuacao": 0,
+            "descricao": "Cobertura arbórea densa",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky4a\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky4a)\" rx=\"8\"/><rect x=\"0\" y=\"75\" width=\"100\" height=\"25\" fill=\"#8D6E63\"/><rect x=\"15\" y=\"55\" width=\"4\" height=\"20\" fill=\"#5D4037\"/><polygon points=\"17,35 5,55 29,55\" fill=\"#1B5E20\"/><polygon points=\"17,45 8,60 26,60\" fill=\"#2E7D32\"/><rect x=\"50\" y=\"50\" width=\"5\" height=\"25\" fill=\"#5D4037\"/><polygon points=\"52.5,25 38,50 67,50\" fill=\"#1B5E20\"/><polygon points=\"52.5,38 40,58 65,58\" fill=\"#2E7D32\"/><rect x=\"78\" y=\"58\" width=\"4\" height=\"17\" fill=\"#5D4037\"/><polygon points=\"80,40 70,58 90,58\" fill=\"#1B5E20\"/><polygon points=\"80,50 72,62 88,62\" fill=\"#2E7D32\"/><circle cx=\"85\" cy=\"15\" r=\"6\" fill=\"#FDD835\"/></svg>"
+          },
+          {
+            "id": "q4_b",
+            "label": "Vegetação Rasteira",
+            "pontuacao": 1,
+            "descricao": "Gramíneas e arbustos baixos",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky4b\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky4b)\" rx=\"8\"/><rect x=\"0\" y=\"70\" width=\"100\" height=\"30\" fill=\"#8D6E63\"/><ellipse cx=\"20\" cy=\"68\" rx=\"12\" ry=\"8\" fill=\"#4CAF50\"/><ellipse cx=\"45\" cy=\"70\" rx=\"15\" ry=\"6\" fill=\"#4CAF50\"/><ellipse cx=\"70\" cy=\"68\" rx=\"14\" ry=\"7\" fill=\"#4CAF50\"/><ellipse cx=\"88\" cy=\"70\" rx=\"10\" ry=\"6\" fill=\"#4CAF50\"/><circle cx=\"85\" cy=\"20\" r=\"6\" fill=\"#FDD835\"/></svg>"
+          },
+          {
+            "id": "q4_c",
+            "label": "Área Desmatada",
+            "pontuacao": 2,
+            "descricao": "Solo exposto sem cobertura",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky4c\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky4c)\" rx=\"8\"/><rect x=\"0\" y=\"65\" width=\"100\" height=\"35\" fill=\"#A1887F\"/><ellipse cx=\"25\" cy=\"75\" rx=\"8\" ry=\"6\" fill=\"#8D6E63\"/><ellipse cx=\"55\" cy=\"80\" rx=\"10\" ry=\"7\" fill=\"#8D6E63\"/><ellipse cx=\"80\" cy=\"73\" rx=\"9\" ry=\"5\" fill=\"#8D6E63\"/><line x1=\"10\" y1=\"65\" x2=\"30\" y2=\"85\" stroke=\"#6D4C41\" stroke-width=\"1\"/><line x1=\"40\" y1=\"65\" x2=\"60\" y2=\"90\" stroke=\"#6D4C41\" stroke-width=\"1\"/><line x1=\"70\" y1=\"65\" x2=\"85\" y2=\"80\" stroke=\"#6D4C41\" stroke-width=\"1\"/><circle cx=\"85\" cy=\"20\" r=\"6\" fill=\"#FDD835\"/></svg>"
+          },
+          {
+            "id": "q4_d",
+            "label": "Área de Cultivo",
+            "pontuacao": 2,
+            "descricao": "Uso agrícola do solo",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky4d\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky4d)\" rx=\"8\"/><rect x=\"0\" y=\"70\" width=\"100\" height=\"30\" fill=\"#8B7355\"/><line x1=\"0\" y1=\"72\" x2=\"100\" y2=\"72\" stroke=\"#7CB342\" stroke-width=\"2\"/><line x1=\"0\" y1=\"78\" x2=\"100\" y2=\"78\" stroke=\"#7CB342\" stroke-width=\"2\"/><line x1=\"0\" y1=\"84\" x2=\"100\" y2=\"84\" stroke=\"#7CB342\" stroke-width=\"2\"/><line x1=\"0\" y1=\"90\" x2=\"100\" y2=\"90\" stroke=\"#7CB342\" stroke-width=\"2\"/><circle cx=\"15\" cy=\"75\" r=\"3\" fill=\"#558B2F\"/><circle cx=\"35\" cy=\"81\" r=\"3\" fill=\"#558B2F\"/><circle cx=\"55\" cy=\"75\" r=\"3\" fill=\"#558B2F\"/><circle cx=\"75\" cy=\"87\" r=\"3\" fill=\"#558B2F\"/><circle cx=\"90\" cy=\"81\" r=\"3\" fill=\"#558B2F\"/><circle cx=\"85\" cy=\"20\" r=\"6\" fill=\"#FDD835\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "numero": "Questão 5",
+        "campo": "Trincas",
+        "pergunta": "Há presença de trincas no terreno ou estruturas?",
+        "tipo": "multipla_escolha",
+        "opcoes": [
+          {
+            "id": "q5_a",
+            "label": "Não",
+            "pontuacao": 0,
+            "descricao": "Sem trincas visíveis",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky5n\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky5n)\" rx=\"8\"/><rect x=\"0\" y=\"70\" width=\"100\" height=\"30\" fill=\"#A1887F\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#22C55E\"/><path d=\"M74 20 L78 24 L86 16\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/></svg>"
+          },
+          {
+            "id": "q5_b",
+            "label": "Sim",
+            "pontuacao": 2,
+            "descricao": "Trincas presentes no terreno",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky5s\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky5s)\" rx=\"8\"/><rect x=\"0\" y=\"70\" width=\"100\" height=\"30\" fill=\"#A1887F\"/><path d=\"M15 75 Q20 80 25 75\" fill=\"none\" stroke=\"#EF4444\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M35 72 Q42 85 48 75\" fill=\"none\" stroke=\"#EF4444\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M60 75 Q68 82 75 75\" fill=\"none\" stroke=\"#EF4444\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#EF4444\"/><line x1=\"74\" y1=\"14\" x2=\"86\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"14\" x2=\"74\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "numero": "Questão 6",
+        "campo": "Degraus de abatimento",
+        "pergunta": "Há presença de degraus de abatimento no terreno?",
+        "tipo": "multipla_escolha",
+        "opcoes": [
+          {
+            "id": "q6_a",
+            "label": "Não",
+            "pontuacao": 0,
+            "descricao": "Superfície regular sem degraus",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky6n\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky6n)\" rx=\"8\"/><path d=\"M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z\" fill=\"#8D6E63\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#22C55E\"/><path d=\"M74 20 L78 24 L86 16\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/></svg>"
+          },
+          {
+            "id": "q6_b",
+            "label": "Sim",
+            "pontuacao": 2,
+            "descricao": "Degraus de abatimento visíveis",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky6s\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky6s)\" rx=\"8\"/><rect x=\"10\" y=\"50\" width=\"80\" height=\"8\" fill=\"#A1887F\"/><rect x=\"10\" y=\"62\" width=\"80\" height=\"8\" fill=\"#8D6E63\"/><rect x=\"10\" y=\"74\" width=\"80\" height=\"8\" fill=\"#6D4C41\"/><line x1=\"10\" y1=\"58\" x2=\"90\" y2=\"58\" stroke=\"#5D4037\" stroke-width=\"1\"/><line x1=\"10\" y1=\"70\" x2=\"90\" y2=\"70\" stroke=\"#5D4037\" stroke-width=\"1\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#EF4444\"/><line x1=\"74\" y1=\"14\" x2=\"86\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"14\" x2=\"74\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "numero": "Questão 7",
+        "campo": "Inclinação de estruturas",
+        "pergunta": "Há estruturas com inclinação anormal (postes, árvores, muros)?",
+        "tipo": "multipla_escolha",
+        "opcoes": [
+          {
+            "id": "q7_a",
+            "label": "Não",
+            "pontuacao": 0,
+            "descricao": "Estruturas verticais normais",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky7n\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky7n)\" rx=\"8\"/><rect x=\"0\" y=\"75\" width=\"100\" height=\"25\" fill=\"#8D6E63\"/><rect x=\"20\" y=\"30\" width=\"4\" height=\"45\" fill=\"#455A64\"/><rect x=\"50\" y=\"25\" width=\"4\" height=\"50\" fill=\"#455A64\"/><rect x=\"78\" y=\"35\" width=\"4\" height=\"40\" fill=\"#455A64\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#22C55E\"/><path d=\"M74 20 L78 24 L86 16\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/></svg>"
+          },
+          {
+            "id": "q7_b",
+            "label": "Sim",
+            "pontuacao": 2,
+            "descricao": "Estruturas inclinadas detectadas",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky7s\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky7s)\" rx=\"8\"/><rect x=\"0\" y=\"75\" width=\"100\" height=\"25\" fill=\"#8D6E63\"/><line x1=\"22\" y1=\"30\" x2=\"15\" y2=\"75\" stroke=\"#455A64\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"52\" y1=\"25\" x2=\"65\" y2=\"75\" stroke=\"#455A64\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"80\" y1=\"35\" x2=\"88\" y2=\"75\" stroke=\"#455A64\" stroke-width=\"4\" stroke-linecap=\"round\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#EF4444\"/><line x1=\"74\" y1=\"14\" x2=\"86\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"14\" x2=\"74\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "numero": "Questão 8",
+        "campo": "Muros embarrigados",
+        "pergunta": "Há muros de arrimo com embarrigamento (deformação para fora)?",
+        "tipo": "multipla_escolha",
+        "opcoes": [
+          {
+            "id": "q8_a",
+            "label": "Não",
+            "pontuacao": 0,
+            "descricao": "Muros em bom estado",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky8n\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky8n)\" rx=\"8\"/><rect x=\"0\" y=\"75\" width=\"100\" height=\"25\" fill=\"#8D6E63\"/><rect x=\"20\" y=\"35\" width=\"60\" height=\"40\" fill=\"#9E9E9E\" stroke=\"#616161\" stroke-width=\"2\"/><line x1=\"20\" y1=\"50\" x2=\"80\" y2=\"50\" stroke=\"#616161\" stroke-width=\"1\" opacity=\"0.5\"/><line x1=\"20\" y1=\"60\" x2=\"80\" y2=\"60\" stroke=\"#616161\" stroke-width=\"1\" opacity=\"0.5\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#22C55E\"/><path d=\"M74 20 L78 24 L86 16\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/></svg>"
+          },
+          {
+            "id": "q8_b",
+            "label": "Sim",
+            "pontuacao": 2,
+            "descricao": "Muros com deformação visível",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky8s\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky8s)\" rx=\"8\"/><rect x=\"0\" y=\"75\" width=\"100\" height=\"25\" fill=\"#8D6E63\"/><path d=\"M20 35 Q50 25 80 35 L80 75 L20 75 Z\" fill=\"#9E9E9E\" stroke=\"#616161\" stroke-width=\"2\"/><path d=\"M20 50 Q50 45 80 50\" fill=\"none\" stroke=\"#616161\" stroke-width=\"1\" opacity=\"0.5\"/><path d=\"M20 60 Q50 58 80 60\" fill=\"none\" stroke=\"#616161\" stroke-width=\"1\" opacity=\"0.5\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#EF4444\"/><line x1=\"74\" y1=\"14\" x2=\"86\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"14\" x2=\"74\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "numero": "Questão 9",
+        "campo": "Trinca de escorregamento próxima",
+        "pergunta": "Há trinca de escorregamento em área próxima?",
+        "tipo": "multipla_escolha",
+        "referencia": "Sem risco=0 | Esperado=1 | Já ocorrido=3",
+        "opcoes": [
+          {
+            "id": "q9_a",
+            "label": "Sem Risco Aparente",
+            "pontuacao": 0,
+            "descricao": "Nenhum sinal de escorregamento",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky9n\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky9n)\" rx=\"8\"/><path d=\"M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z\" fill=\"#8D6E63\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#22C55E\"/><path d=\"M74 20 L78 24 L86 16\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/></svg>"
+          },
+          {
+            "id": "q9_b",
+            "label": "Esperado",
+            "pontuacao": 1,
+            "descricao": "Sinais que indicam possibilidade",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky9e\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky9e)\" rx=\"8\"/><path d=\"M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z\" fill=\"#8D6E63\"/><path d=\"M30 60 Q35 65 40 70\" fill=\"none\" stroke=\"#F59E0B\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"4,2\"/><polygon points=\"80,8 92,28 68,28\" fill=\"#F59E0B\"/><text x=\"80\" y=\"24\" font-size=\"12\" fill=\"white\" font-weight=\"bold\" text-anchor=\"middle\">!</text></svg>"
+          },
+          {
+            "id": "q9_c",
+            "label": "Já Ocorrido",
+            "pontuacao": 3,
+            "descricao": "Registro de escorregamento anterior",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky9j\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky9j)\" rx=\"8\"/><path d=\"M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z\" fill=\"#8D6E63\"/><path d=\"M25 55 Q32 65 40 75\" fill=\"none\" stroke=\"#EF4444\" stroke-width=\"3\" stroke-linecap=\"round\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#EF4444\"/><line x1=\"74\" y1=\"14\" x2=\"86\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"14\" x2=\"74\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg>"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "numero": "Questão 10",
+        "campo": "Processos de instabilização",
+        "pergunta": "Qual é o status dos processos de instabilização do talude?",
+        "tipo": "multipla_escolha",
+        "referencia": "Sem risco=0 | Esperado=1 | Já ocorrido=3",
+        "opcoes": [
+          {
+            "id": "q10_a",
+            "label": "Sem Risco Aparente",
+            "pontuacao": 0,
+            "descricao": "Talude estável sem sinais",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky10n\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky10n)\" rx=\"8\"/><path d=\"M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z\" fill=\"#8D6E63\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#22C55E\"/><path d=\"M74 20 L78 24 L86 16\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/></svg>"
+          },
+          {
+            "id": "q10_b",
+            "label": "Esperado",
+            "pontuacao": 1,
+            "descricao": "Condições favoráveis à instabilização",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky10e\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky10e)\" rx=\"8\"/><path d=\"M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z\" fill=\"#8D6E63\"/><circle cx=\"35\" cy=\"55\" r=\"3\" fill=\"#F59E0B\"/><circle cx=\"50\" cy=\"65\" r=\"3\" fill=\"#F59E0B\"/><circle cx=\"65\" cy=\"70\" r=\"3\" fill=\"#F59E0B\"/><polygon points=\"80,8 92,28 68,28\" fill=\"#F59E0B\"/><text x=\"80\" y=\"24\" font-size=\"12\" fill=\"white\" font-weight=\"bold\" text-anchor=\"middle\">!</text></svg>"
+          },
+          {
+            "id": "q10_c",
+            "label": "Já Ocorrido",
+            "pontuacao": 3,
+            "descricao": "Processo de instabilização registrado",
+            "svg": "<svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"sky10j\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#87CEEB\"/><stop offset=\"1\" stop-color=\"#E0F4FF\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"url(#sky10j)\" rx=\"8\"/><path d=\"M0 75 Q25 40 50 50 Q75 60 100 45 L100 100 L0 100 Z\" fill=\"#8D6E63\"/><path d=\"M20 65 L40 85\" fill=\"none\" stroke=\"#EF4444\" stroke-width=\"3\" stroke-linecap=\"round\"/><path d=\"M50 55 L65 80\" fill=\"none\" stroke=\"#EF4444\" stroke-width=\"3\" stroke-linecap=\"round\"/><circle cx=\"80\" cy=\"20\" r=\"12\" fill=\"#EF4444\"/><line x1=\"74\" y1=\"14\" x2=\"86\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"86\" y1=\"14\" x2=\"74\" y2=\"26\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></svg>"
+          }
+        ]
+      }
+    ],
+    "classificacao_risco": {
+      "escala": [
+        {
+          "nivel": "RISCO BAIXO",
+          "pontos_minimo": 0,
+          "pontos_maximo": 1,
+          "cor": "#22C55E",
+          "descricao": "O local apresenta baixo risco de deslizamento. Monitoramento periódico recomendado."
+        },
+        {
+          "nivel": "RISCO MÉDIO",
+          "pontos_minimo": 2,
+          "pontos_maximo": 3,
+          "cor": "#F59E0B",
+          "descricao": "O local apresenta risco médio. Medidas preventivas e monitoramento frequente são necessários."
+        },
+        {
+          "nivel": "RISCO ALTO",
+          "pontos_minimo": 4,
+          "pontos_maximo": 5,
+          "cor": "#EF4444",
+          "descricao": "O local apresenta alto risco. Intervenções urgentes e possível remoção temporária de moradores."
+        },
+        {
+          "nivel": "RISCO MUITO ALTO",
+          "pontos_minimo": 6,
+          "pontos_maximo": 999,
+          "cor": "#7F1D1D",
+          "descricao": "Risco extremo! Remoção imediata dos moradores e intervenção de emergência necessária."
+        }
+      ]
+    }
+  }
+}

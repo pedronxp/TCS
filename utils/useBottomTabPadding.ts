@@ -31,3 +31,11 @@ export function useBottomTabPadding(extraPad = 16): number {
   const insets = useSafeAreaInsets();
   return NAVBAR_VISUAL_HEIGHT + navSystemBottom(insets) + extraPad;
 }
+
+export function fixedFooterBottomPadding(insets: { bottom: number }, extra: number = 16, min: number = 36): number {
+  return Math.max(insets.bottom + extra, min);
+}
+
+export function fixedFooterScrollPadding(insets: { bottom: number }, base: number = 120): number {
+  return base + insets.bottom;
+}

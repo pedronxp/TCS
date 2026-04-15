@@ -17,6 +17,7 @@ import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracarRota } from '../../../utils/routingUtils';
+import { fixedFooterScrollPadding } from '../../../utils/useBottomTabPadding';
 
 export default function VistoriaDetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -202,7 +203,7 @@ export default function VistoriaDetalhesScreen() {
         </Pressable>
       </Modal>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: fixedFooterScrollPadding(insets) }]}>
         {/* Nível de risco destaque */}
         <View style={[styles.nivelCard, { backgroundColor: `${cor}12`, borderColor: `${cor}30` }]}>
           <View style={[styles.nivelIcon, { backgroundColor: `${cor}20` }]}>
