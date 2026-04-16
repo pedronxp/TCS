@@ -19,7 +19,7 @@ export type Vistoria = {
   dataVistoria: string | null;
   agenteNome: string | null;
   status: string | null;
-  foto_url: string | null;
+  fotoUrl: string | null;
   fotosUrls: string[] | null;
   laudo_gerado_em: string | null;
 };
@@ -71,7 +71,7 @@ export function useOcorrencias(
       let query = supabase
         .from('vistorias')
         .select(
-          'id, protocolo, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, nivelRisco, pontuacaoTotal, dataVistoria, agenteNome, status, foto_url, fotosUrls, laudo_gerado_em'
+          'id, protocolo, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, nivelRisco, pontuacaoTotal, dataVistoria, agenteNome, status, fotoUrl, fotosUrls, laudo_gerado_em'
         )
         .order('dataVistoria', { ascending: false })
         .limit(PAGE);

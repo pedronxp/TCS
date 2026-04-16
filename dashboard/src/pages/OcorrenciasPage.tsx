@@ -72,7 +72,7 @@ function PainelDetalhe({ vistoria, onClose }: { vistoria: Vistoria; onClose: () 
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [fotoAberta, setFotoAberta] = useState<string | null>(null);
 
-  const urls = vistoria.fotosUrls ?? (vistoria.foto_url ? [vistoria.foto_url] : []);
+  const urls = vistoria.fotosUrls ?? (vistoria.fotoUrl ? [vistoria.fotoUrl] : []);
 
   useEffect(() => {
     if (!urls.length) return;
