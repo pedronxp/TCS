@@ -9,6 +9,7 @@ import { UsuariosPage } from '@/pages/UsuariosPage';
 import { OcorrenciasPage } from '@/pages/OcorrenciasPage';
 import { AgendamentosPage } from '@/pages/AgendamentosPage';
 import { MapaPage } from '@/pages/MapaPage';
+import { LaudosPage } from '@/pages/LaudosPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -40,7 +41,7 @@ export default function App() {
               <Route path="usuarios" element={<UsuariosPage />} />
               <Route path="agendamentos" element={<AgendamentosPage />} />
               <Route path="mapa" element={<MapaPage />} />
-              <Route path="laudos" element={<PlaceholderPage titulo="Laudos" fase="Fase 6" />} />
+              <Route path="laudos" element={<LaudosPage />} />
               <Route
                 path="relatorios"
                 element={<PlaceholderPage titulo="Relatórios" fase="Fase 7" />}
