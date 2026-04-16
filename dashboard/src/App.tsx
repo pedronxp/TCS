@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardHome } from '@/pages/DashboardHome';
 import { UsuariosPage } from '@/pages/UsuariosPage';
+import { OcorrenciasPage } from '@/pages/OcorrenciasPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -33,10 +34,7 @@ export default function App() {
               }
             >
               <Route index element={<DashboardHome />} />
-              <Route
-                path="ocorrencias"
-                element={<PlaceholderPage titulo="Ocorrências" fase="Fase 3" />}
-              />
+              <Route path="ocorrencias" element={<OcorrenciasPage />} />
               <Route path="usuarios" element={<UsuariosPage />} />
               <Route
                 path="agendamentos"
