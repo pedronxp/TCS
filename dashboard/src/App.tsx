@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { DashboardHome } from '@/pages/DashboardHome';
 import { UsuariosPage } from '@/pages/UsuariosPage';
 import { OcorrenciasPage } from '@/pages/OcorrenciasPage';
+import { AgendamentosPage } from '@/pages/AgendamentosPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -36,10 +37,7 @@ export default function App() {
               <Route index element={<DashboardHome />} />
               <Route path="ocorrencias" element={<OcorrenciasPage />} />
               <Route path="usuarios" element={<UsuariosPage />} />
-              <Route
-                path="agendamentos"
-                element={<PlaceholderPage titulo="Agendamentos" fase="Fase 4" />}
-              />
+              <Route path="agendamentos" element={<AgendamentosPage />} />
               <Route path="mapa" element={<PlaceholderPage titulo="Mapa" fase="Fase 5" />} />
               <Route path="laudos" element={<PlaceholderPage titulo="Laudos" fase="Fase 6" />} />
               <Route
