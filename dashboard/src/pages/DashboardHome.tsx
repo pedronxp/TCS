@@ -1,5 +1,18 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Circle } from 'lucide-react';
+
+const FASES = [
+  { num: 1, titulo: 'Setup + Auth Shell', feita: true },
+  { num: 2, titulo: 'Usuários (tabela, aprovação, tokens)', feita: true },
+  { num: 3, titulo: 'Ocorrências (vistorias + fotos)', feita: false },
+  { num: 4, titulo: 'Agendamentos', feita: false },
+  { num: 5, titulo: 'Mapa (MapLibre + clusters + heatmap)', feita: false },
+  { num: 6, titulo: 'Laudos (Edge Function unificada)', feita: false },
+  { num: 7, titulo: 'Relatórios (Recharts + CSV/PDF)', feita: false },
+  { num: 8, titulo: 'Storage Lifecycle Drive', feita: false },
+  { num: 9, titulo: 'Builds APK (EAS + GitHub Actions)', feita: false },
+  { num: 10, titulo: 'Polish + Deploy', feita: false },
+];
 
 export function DashboardHome() {
   const { profile } = useAuth();
@@ -7,22 +20,33 @@ export function DashboardHome() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Bem-vindo, {profile?.name?.split(' ')[0]}</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Bem-vindo, {profile?.name?.split(' ')[0]}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Painel administrativo do TCS — Relatório de Risco
         </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
-          <div>
-            <h2 className="font-semibold text-slate-900">Fase 1 concluída — Setup + Auth</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Estrutura, autenticação e gate de role estão funcionando. As próximas fases adicionarão
-              as telas de cada área (ocorrências, usuários, agendamentos, mapa, laudos, relatórios).
-            </p>
-          </div>
+        <h2 className="font-semibold text-slate-900 mb-4">Progresso do Dashboard</h2>
+        <div className="space-y-2.5">
+          {FASES.map((f) => (
+            <div key={f.num} className="flex items-center gap-3">
+              {f.feita ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <Circle className="w-4 h-4 text-slate-300 shrink-0" />
+              )}
+              <span
+                className={
+                  f.feita ? 'text-sm text-slate-900' : 'text-sm text-muted-foreground'
+                }
+              >
+                <span className="font-medium">Fase {f.num}</span> — {f.titulo}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

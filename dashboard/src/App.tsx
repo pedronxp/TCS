@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardHome } from '@/pages/DashboardHome';
+import { UsuariosPage } from '@/pages/UsuariosPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -36,10 +37,7 @@ export default function App() {
                 path="ocorrencias"
                 element={<PlaceholderPage titulo="Ocorrências" fase="Fase 3" />}
               />
-              <Route
-                path="usuarios"
-                element={<PlaceholderPage titulo="Usuários" fase="Fase 2" />}
-              />
+              <Route path="usuarios" element={<UsuariosPage />} />
               <Route
                 path="agendamentos"
                 element={<PlaceholderPage titulo="Agendamentos" fase="Fase 4" />}
