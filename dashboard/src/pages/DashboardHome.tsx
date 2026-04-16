@@ -6,7 +6,7 @@ const FASES = [
   { num: 2, titulo: 'Usuários (tabela, aprovação, tokens)', feita: true },
   { num: 3, titulo: 'Ocorrências (vistorias + fotos)', feita: true },
   { num: 4, titulo: 'Agendamentos', feita: true },
-  { num: 5, titulo: 'Mapa (MapLibre + clusters + heatmap)', feita: false },
+  { num: 5, titulo: 'Mapa (MapLibre + clusters + heatmap)', feita: true },
   { num: 6, titulo: 'Laudos (Edge Function unificada)', feita: false },
   { num: 7, titulo: 'Relatórios (Recharts + CSV/PDF)', feita: false },
   { num: 8, titulo: 'Storage Lifecycle Drive', feita: false },
