@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Users,
   Key,
@@ -155,18 +156,17 @@ function ModalResetSenha({
 
 // ─── Modal Novo Token ─────────────────────────────────────────────────────────
 
-const MUNICIPIOS = [
-  'Acará',
-  'Ananindeua',
-  'Barcarena',
-  'Belém',
-  'Benevides',
-  'Castanhal',
-  'Marituba',
-  'Marapanim',
-  'Santa Bárbara do Pará',
-  'Santa Izabel do Pará',
-];
+function useMunicipios() {
+  const [municipios, setMunicipios] = useState<string[]>([]);
+  useEffect(() => {
+    supabase
+      .from('municipios')
+      .select('nome')
+      .order('nome')
+      .then(({ data }) => setMunicipios((data ?? []).map((m: { nome: string }) => m.nome)));
+  }, []);
+  return municipios;
+}
 
 const ROLES_DISPONIVEIS = [
   { value: 'agent', label: 'Agente' },
@@ -181,6 +181,7 @@ function ModalNovoToken({
   municipioPadrao: string | null;
   onClose: (codigo?: string) => void;
 }) {
+  const municipios = useMunicipios();
   const [role, setRole] = useState('agent');
   const [municipio, setMunicipio] = useState(municipioPadrao ?? '');
   const [horas, setHoras] = useState(72);
