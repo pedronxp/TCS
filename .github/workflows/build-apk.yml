@@ -1,0 +1,91 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile (preview | production)'
+        required: true
+        default: 'preview'
+        type: choice
+        options: [preview, production]
+      version:
+        description: 'App version (ex: 1.4.0)'
+        required: true
+        type: string
+      changelog:
+        description: 'Changelog desta versão'
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: EAS Build APK (${{ inputs.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build APK via EAS
+        id: eas_build
+        run: |
+          BUILD_OUTPUT=$(eas build \
+            --platform android \
+            --profile ${{ inputs.profile }} \
+            --non-interactive \
+            --json 2>/dev/null || echo '{}')
+          echo "build_output=$BUILD_OUTPUT" >> $GITHUB_OUTPUT
+          APK_URL=$(echo "$BUILD_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0].get('artifacts',{}).get('buildUrl',''))" 2>/dev/null || echo '')
+          echo "apk_url=$APK_URL" >> $GITHUB_OUTPUT
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0].get('id',''))" 2>/dev/null || echo '')
+          echo "eas_build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+      - name: Atualizar status no Supabase
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          APK_URL: ${{ steps.eas_build.outputs.apk_url }}
+          EAS_BUILD_ID: ${{ steps.eas_build.outputs.eas_build_id }}
+          VERSION: ${{ inputs.version }}
+          PROFILE: ${{ inputs.profile }}
+          CHANGELOG: ${{ inputs.changelog }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          STATUS="success"
+          if [ "$JOB_STATUS" != "success" ]; then STATUS="failed"; fi
+
+          curl -s -X POST "$SUPABASE_URL/rest/v1/builds" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            -d "{
+              \"github_run_id\": \"$GITHUB_RUN_ID\",
+              \"provider\": \"github_actions\",
+              \"version\": \"$VERSION\",
+              \"profile\": \"$PROFILE\",
+              \"changelog\": \"$CHANGELOG\",
+              \"status\": \"$STATUS\",
+              \"eas_build_id\": \"$EAS_BUILD_ID\",
+              \"apk_url\": \"$APK_URL\",
+              \"completed_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }" || true

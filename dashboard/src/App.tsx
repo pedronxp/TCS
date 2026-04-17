@@ -12,6 +12,7 @@ import { MapaPage } from '@/pages/MapaPage';
 import { LaudosPage } from '@/pages/LaudosPage';
 import { RelatoriosPage } from '@/pages/RelatoriosPage';
 import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
+import { BuildsPage } from '@/pages/BuildsPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -57,11 +58,7 @@ export default function App() {
                 path="builds"
                 element={
                   <ProtectedRoute requireRole={['master_admin']}>
-                    <PlaceholderPage
-                      titulo="Builds APK"
-                      fase="Fase 9"
-                      descricao="Geração remota via EAS Build / GitHub Actions"
-                    />
+                    <BuildsPage />
                   </ProtectedRoute>
                 }
               />
