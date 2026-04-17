@@ -11,6 +11,7 @@ import { AgendamentosPage } from '@/pages/AgendamentosPage';
 import { MapaPage } from '@/pages/MapaPage';
 import { LaudosPage } from '@/pages/LaudosPage';
 import { RelatoriosPage } from '@/pages/RelatoriosPage';
+import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
 const queryClient = new QueryClient({
@@ -48,11 +49,7 @@ export default function App() {
                 path="arquivamento"
                 element={
                   <ProtectedRoute requireRole={['master_admin']}>
-                    <PlaceholderPage
-                      titulo="Arquivamento (Drive)"
-                      fase="Fase 8"
-                      descricao="Lifecycle de arquivos: Supabase → Google Drive após 7 dias"
-                    />
+                    <ArquivamentoPage />
                   </ProtectedRoute>
                 }
               />
