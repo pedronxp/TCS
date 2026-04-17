@@ -13,7 +13,7 @@ import { LaudosPage } from '@/pages/LaudosPage';
 import { RelatoriosPage } from '@/pages/RelatoriosPage';
 import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
 import { BuildsPage } from '@/pages/BuildsPage';
-import { PlaceholderPage } from '@/pages/PlaceholderPage';
+import { ConfiguracoesPage } from '@/pages/ConfiguracoesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,7 +66,7 @@ export default function App() {
                 path="configuracoes"
                 element={
                   <ProtectedRoute requireRole={['master_admin']}>
-                    <PlaceholderPage titulo="Configurações" fase="Fase 8/9" />
+                    <ConfiguracoesPage />
                   </ProtectedRoute>
                 }
               />
