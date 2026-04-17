@@ -300,7 +300,7 @@ export function RelatoriosPage() {
                       cy="50%"
                       outerRadius={80}
                       label={({ name, percent }) =>
-                        `${name} ${(percent * 100).toFixed(0)}%`
+                        `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
                       }
                       labelLine={false}
                     >

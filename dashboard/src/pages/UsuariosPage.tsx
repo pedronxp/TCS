@@ -267,7 +267,7 @@ function ModalNovoToken({
                   required
                 >
                   <option value="">Selecionar município</option>
-                  {MUNICIPIOS.map((m) => (
+                  {municipios.map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>

@@ -11,7 +11,7 @@ const FASES = [
   { num: 7, titulo: 'Relatórios (Recharts + CSV/PDF)', feita: true },
   { num: 8, titulo: 'Storage Lifecycle Drive', feita: true },
   { num: 9, titulo: 'Builds APK (EAS + GitHub Actions)', feita: true },
-  { num: 10, titulo: 'Polish + Deploy', feita: false },
+  { num: 10, titulo: 'Polish + Deploy', feita: true },
 ];
 
 export function DashboardHome() {
