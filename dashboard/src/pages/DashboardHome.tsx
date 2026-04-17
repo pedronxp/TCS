@@ -8,7 +8,7 @@ const FASES = [
   { num: 4, titulo: 'Agendamentos', feita: true },
   { num: 5, titulo: 'Mapa (MapLibre + clusters + heatmap)', feita: true },
   { num: 6, titulo: 'Laudos (Edge Function unificada)', feita: true },
-  { num: 7, titulo: 'Relatórios (Recharts + CSV/PDF)', feita: false },
+  { num: 7, titulo: 'Relatórios (Recharts + CSV/PDF)', feita: true },
   { num: 8, titulo: 'Storage Lifecycle Drive', feita: false },
   { num: 9, titulo: 'Builds APK (EAS + GitHub Actions)', feita: false },
   { num: 10, titulo: 'Polish + Deploy', feita: false },
