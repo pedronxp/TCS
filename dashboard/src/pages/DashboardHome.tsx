@@ -85,15 +85,9 @@ export function DashboardHome() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <img
-          src="/app-icon.png"
-          alt="TCS"
-          className="w-16 h-16 object-contain shrink-0"
-          style={{
-            maskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
-          }}
-        />
+        <div className="w-16 h-16 rounded-2xl bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center">
+          <img src="/app-icon.png" alt="TCS" className="w-14 h-14 object-contain" />
+        </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
             Bem-vindo, {profile?.name?.split(' ')[0]}
