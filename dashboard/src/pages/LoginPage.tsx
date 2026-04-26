@@ -86,9 +86,10 @@ export function LoginPage() {
           <img
             src="/app-icon.png"
             alt="TCS"
-            className="w-28 h-28 object-contain mx-auto"
+            className="w-36 h-36 object-contain mx-auto"
             style={{
-              mixBlendMode: 'screen',
+              maskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
               animation: 'popIn .6s .06s cubic-bezier(.34,1.56,.64,1) both',
             }}
           />
