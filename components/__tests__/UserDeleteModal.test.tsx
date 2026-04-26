@@ -51,6 +51,8 @@ describe('UserDeleteModal', () => {
         impactError={null}
         loadingImpact={false}
         deleting={false}
+        deleteVistorias={false}
+        onDeleteVistoriasChange={jest.fn()}
         confirmDisabled
         onCancel={jest.fn()}
         onConfirm={jest.fn()}
