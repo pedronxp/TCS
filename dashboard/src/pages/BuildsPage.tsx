@@ -79,19 +79,11 @@ function useTriggerBuild() {
       profile: string;
       changelog: string;
     }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trigger-build`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify(payload),
+      const { data, error } = await supabase.functions.invoke('trigger-build', {
+        body: payload,
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-      return json;
+      if (error) throw new Error((error as any)?.message ?? JSON.stringify(error));
+      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['builds'] }),
   });
