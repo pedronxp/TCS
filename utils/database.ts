@@ -383,6 +383,11 @@ export function getVistoriaById(id: string): VistoriaLocal | null {
   ) ?? null;
 }
 
+export function deleteVistoriaOffline(id: string): void {
+  const database = getDb();
+  database.runSync(`DELETE FROM vistorias_offline WHERE id = ?`, [id]);
+}
+
 export function incrementTentativasSync(id: string): void {
   const database = getDb();
   database.runSync(

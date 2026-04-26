@@ -247,23 +247,23 @@ export function MapaPage() {
   const isLoading = vistorias.isLoading || agendamentos.isLoading;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
-      {/* Cabeçalho + busca */}
-      <div className="mb-4 flex items-center gap-4 flex-wrap">
-        <div>
+    <div className="flex flex-col gap-4">
+      {/* Cabeçalho */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="shrink-0">
           <h1 className="text-2xl font-bold text-slate-900">Mapa</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Vistorias e agendamentos georreferenciados</p>
         </div>
 
-        {/* Barra de busca */}
-        <form onSubmit={handleBusca} className="flex gap-2 ml-auto">
-          <div className="relative">
+        {/* Barra de busca — full width mobile */}
+        <form onSubmit={handleBusca} className="flex gap-2 sm:ml-auto w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               value={busca}
               onChange={(e) => { setBusca(e.target.value); setErroBusca(''); }}
               placeholder="Cidade ou CEP..."
-              className="h-9 pl-9 pr-8 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ring w-52"
+              className="h-9 pl-9 pr-8 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ring w-full sm:w-52"
             />
             {busca && (
               <button type="button" onClick={() => { setBusca(''); setErroBusca(''); geoMarkerRef.current?.remove(); }}
@@ -273,31 +273,31 @@ export function MapaPage() {
             )}
           </div>
           <button type="submit" disabled={buscando || !busca.trim()}
-            className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5">
+            className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 shrink-0">
             {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Buscar
+            <span className="hidden sm:inline">Buscar</span>
           </button>
           <button type="button" onClick={handleGeolocalizacao} disabled={geolocalizando} title="Minha localização"
-            className="h-9 w-9 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            className="h-9 w-9 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-50 shrink-0">
             {geolocalizando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
           </button>
+          {isLoading && (
+            <div className="flex items-center gap-1.5 text-muted-foreground text-sm shrink-0">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+          )}
         </form>
-
-        {isLoading && (
-          <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
-          </div>
-        )}
       </div>
 
       {erroBusca && (
-        <p className="text-xs text-red-500 mb-2">{erroBusca}</p>
+        <p className="text-xs text-red-500 -mt-2">{erroBusca}</p>
       )}
 
-      <div className="flex gap-4 flex-1 min-h-0">
+      {/* Corpo: mapa + painel — coluna no mobile, linha no desktop */}
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* Mapa */}
-        <div className="flex-1 rounded-xl overflow-hidden border border-slate-200 relative">
-          <div ref={containerRef} className="w-full h-full" />
+        <div className="flex-1 rounded-xl overflow-hidden border border-slate-200 relative" style={{ minHeight: 0 }}>
+          <div ref={containerRef} className="w-full h-[55vw] sm:h-[420px] lg:h-[calc(100vh-220px)]" />
 
           {/* Camadas */}
           <div className="absolute top-3 left-3 z-10 bg-white rounded-xl shadow-md border border-slate-200 p-3 space-y-2">
@@ -319,14 +319,15 @@ export function MapaPage() {
           </div>
         </div>
 
-        {/* Painel lateral */}
-        <div className="w-52 shrink-0 space-y-3">
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
+        {/* Painel de stats — linha no mobile, coluna no desktop */}
+        <div className="flex flex-row lg:flex-col gap-3 lg:w-52 lg:shrink-0">
+          <div className="flex-1 bg-white border border-slate-200 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">Vistorias por risco</h3>
             {statsRisco.map((s) => (
               <div key={s.nivel} className="flex items-center gap-2 mb-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: RISCO_COR[s.nivel] }} />
-                <span className="text-xs text-slate-600 flex-1">{RISCO_LABEL[s.nivel]}</span>
+                <span className="text-xs text-slate-600 flex-1 hidden sm:block">{RISCO_LABEL[s.nivel]}</span>
+                <span className="text-xs text-slate-600 flex-1 sm:hidden">{s.nivel.toUpperCase()}</span>
                 <span className="text-xs font-bold text-slate-900">{s.count}</span>
               </div>
             ))}
@@ -336,7 +337,7 @@ export function MapaPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex-1 lg:flex-none bg-white border border-slate-200 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">Agendamentos</h3>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
@@ -346,14 +347,14 @@ export function MapaPage() {
           </div>
 
           {!isLoading && (vistorias.data?.length ?? 0) === 0 && totalAgendados === 0 && (
-            <div className={cn('bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center')}>
+            <div className={cn('flex-1 lg:flex-none bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center')}>
               <MapPin className="w-6 h-6 mx-auto mb-2 text-slate-300" />
               <p className="text-xs text-muted-foreground">Nenhum ponto georreferenciado ainda.</p>
             </div>
           )}
 
           {(vistorias.isError || agendamentos.isError) && (
-            <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-start gap-2">
+            <div className="flex-1 lg:flex-none bg-red-50 border border-red-100 rounded-xl p-3 flex items-start gap-2">
               <RotateCcw className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
               <p className="text-xs text-red-600">Erro ao carregar dados do mapa.</p>
             </div>

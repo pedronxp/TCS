@@ -54,3 +54,13 @@
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
 }
+
+/* Scrollbar customizada — fina e discreta */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.7); }
+
+/* Sidebar esconde scrollbar mas mantém scroll */
+.sidebar-scroll { scrollbar-width: none; }
+.sidebar-scroll::-webkit-scrollbar { display: none; }
