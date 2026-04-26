@@ -79,8 +79,12 @@ function useTriggerBuild() {
       profile: string;
       changelog: string;
     }) => {
+      // getSession dispara auto-refresh se o access_token estiver expirado
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Sessão expirada. Faça login novamente.');
       const { data, error } = await supabase.functions.invoke('trigger-build', {
         body: payload,
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (error) throw new Error((error as any)?.message ?? JSON.stringify(error));
       return data;
