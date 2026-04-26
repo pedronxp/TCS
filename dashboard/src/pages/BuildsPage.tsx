@@ -80,14 +80,18 @@ function useTriggerBuild() {
       changelog: string;
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke('trigger-build', {
-        body: payload,
-        headers: session?.access_token
-          ? { Authorization: `Bearer ${session.access_token}` }
-          : {},
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trigger-build`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify(payload),
       });
-      if (res.error) throw res.error;
-      return res.data;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
+      return json;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['builds'] }),
   });
@@ -276,7 +280,7 @@ function FormNovoBuild({ onClose }: { onClose: () => void }) {
 
       {trigger.isError && (
         <p className="text-xs text-red-600">
-          Falha ao disparar build. Verifique se a Edge Function está publicada e as variáveis de ambiente configuradas (EAS_TOKEN, EAS_PROJECT_ID).
+          Falha ao disparar build: {(trigger.error as Error)?.message ?? 'erro desconhecido'}
         </p>
       )}
     </form>
