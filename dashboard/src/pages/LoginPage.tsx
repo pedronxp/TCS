@@ -94,16 +94,14 @@ export function LoginPage() {
           style={{ animation: 'fadeUp .55s cubic-bezier(.16,1,.3,1) both' }}
         >
           <div
-            className="relative inline-flex mb-5"
+            className="inline-flex mb-5"
             style={{ animation: 'popIn .65s .08s cubic-bezier(.34,1.56,.64,1) both' }}
           >
-            {/* Glow atrás do ícone */}
-            <div className="absolute inset-0 rounded-[28px] blur-2xl scale-[1.6] opacity-60"
-              style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
             <img
               src="/app-icon.png"
               alt="TCS"
-              className="relative w-24 h-24 rounded-[28px] shadow-2xl object-cover ring-2 ring-white/10"
+              className="w-28 h-28 object-contain drop-shadow-2xl"
+              style={{ mixBlendMode: 'screen' }}
             />
           </div>
           <h1 className="text-4xl font-extrabold text-white tracking-tight">TCS — Painel</h1>
