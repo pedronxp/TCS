@@ -60,13 +60,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="px-4 py-5 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-slate-800">
-              <img
-                src="/app-icon.png"
-                alt="TCS"
-                className="w-full h-full object-cover"
-              />
-            </div>
+            <img
+              src="/app-icon.png"
+              alt="TCS"
+              className="w-11 h-11 object-contain shrink-0"
+              style={{
+                maskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
+                WebkitMaskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
+              }}
+            />
             <div>
               <h1 className="font-bold text-sm leading-tight tracking-wide">TCS</h1>
               <p className="text-[11px] text-slate-400 leading-tight">Painel Admin</p>
