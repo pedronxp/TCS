@@ -46,9 +46,11 @@ export function Sidebar() {
     <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col h-screen sticky top-0">
       <div className="px-5 py-6 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 ring-1 ring-primary/40 grid place-items-center">
-            <ShieldAlert className="w-5 h-5 text-primary-foreground" />
-          </div>
+          <img
+            src="/app-icon.png"
+            alt="TCS"
+            className="w-10 h-10 rounded-lg object-cover"
+          />
           <div>
             <h1 className="font-bold text-sm leading-tight">TCS</h1>
             <p className="text-xs text-slate-400 leading-tight">Painel Admin</p>

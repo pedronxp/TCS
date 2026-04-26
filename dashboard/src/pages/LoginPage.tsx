@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldAlert, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -31,8 +31,8 @@ export function LoginPage() {
     <div className="min-h-screen grid place-items-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 ring-1 ring-primary/30 mb-4">
-            <ShieldAlert className="w-8 h-8 text-primary-foreground" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img src="/app-icon.png" alt="TCS" className="w-20 h-20 rounded-3xl shadow-xl ring-2 ring-white/20 object-cover" />
           </div>
           <h1 className="text-3xl font-bold text-white">TCS — Painel</h1>
           <p className="text-sm text-slate-400 mt-2">Acesso restrito a administradores</p>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Hammer, Loader2, CheckCircle2, XCircle, Clock,
-  ExternalLink, Copy, ChevronDown, ChevronUp, AlertCircle,
+  ExternalLink, Copy, ChevronDown, ChevronUp, AlertCircle, Info,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -174,12 +174,43 @@ function FormNovoBuild({ onClose }: { onClose: () => void }) {
   const [version, setVersion] = useState('1.4.0');
   const [profile, setProfile] = useState('preview');
   const [changelog, setChangelog] = useState('');
+  const [iniciado, setIniciado] = useState<string | null>(null);
   const trigger = useTriggerBuild();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     await trigger.mutateAsync({ provider, version, profile, changelog });
-    onClose();
+    setIniciado(new Date().toLocaleString('pt-BR'));
+  }
+
+  if (iniciado) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-blue-800 text-sm">Build enviado para a fila!</p>
+            <p className="text-sm text-blue-700 mt-1">
+              Iniciado em: <span className="font-medium">{iniciado}</span>
+            </p>
+            <div className="mt-3 flex items-start gap-2 bg-blue-100 rounded-lg px-3 py-2.5">
+              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700 leading-relaxed">
+                Você pode <strong>fechar esta aba</strong> ou navegar para outras seções.
+                O link do APK ficará disponível nesta página assim que o build finalizar
+                — status atualiza automaticamente a cada 30s.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-xs text-blue-600 hover:underline mt-3 font-medium"
+            >
+              Fechar aviso
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
