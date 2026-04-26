@@ -10,7 +10,7 @@ import { getSignedUrl } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
-import { getVistoriaById } from '../../../utils/database';
+import { getVistoriaById, deleteVistoriaOffline } from '../../../utils/database';
 import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
 import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
@@ -96,6 +96,12 @@ export default function VistoriaDetalhesScreen() {
       // Fallback: SQLite local (vistorias não sincronizadas)
       const local = getVistoriaById(id as string);
       if (local) {
+        // Se já estava sincronizada e sumiu do Supabase → foi deletada externamente
+        if (local.sincronizado === 1) {
+          deleteVistoriaOffline(id as string);
+          logger.warn('vistoria', 'Vistoria removida localmente — deletada no servidor');
+          return;
+        }
         // Verificar se pertence ao agente atual (segurança offline)
         if (profile?.role === 'agent' && local.agente_uid !== profile.uid) {
           logger.warn('vistoria', 'Acesso negado — vistoria de outro agente (SQLite)');
@@ -182,8 +188,9 @@ export default function VistoriaDetalhesScreen() {
           }</Text>
         </View>
         <TouchableOpacity
-          style={[styles.laudoBtn, { backgroundColor: theme.primary }]}
+          style={[styles.laudoBtn, { backgroundColor: vistoria.status === 'Pendente Sync' ? theme.textSecondary : theme.primary }]}
           onPress={() => router.push(`/(panel)/inspecoes/laudo?id=${id}`)}
+          disabled={vistoria.status === 'Pendente Sync'}
         >
           <Feather name="file-text" size={16} color="#FFF" />
           <Text style={styles.laudoBtnText}>Laudo</Text>
@@ -292,15 +299,18 @@ export default function VistoriaDetalhesScreen() {
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Ações</Text>
 
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+          style={[styles.actionBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder, opacity: vistoria.status === 'Pendente Sync' ? 0.45 : 1 }]}
           onPress={() => router.push(`/(panel)/inspecoes/laudo?id=${id}`)}
+          disabled={vistoria.status === 'Pendente Sync'}
         >
           <View style={[styles.actionIconWrap, { backgroundColor: `${theme.primary}15` }]}>
             <Feather name="file-text" size={20} color={theme.primary} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.actionTitle, { color: theme.text }]}>Ver Laudo Técnico</Text>
-            <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Visualizar e exportar PDF</Text>
+            <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>
+              {vistoria.status === 'Pendente Sync' ? 'Sincronize primeiro para gerar o laudo' : 'Visualizar e exportar PDF'}
+            </Text>
           </View>
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />
         </TouchableOpacity>

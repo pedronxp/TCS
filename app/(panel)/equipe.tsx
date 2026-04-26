@@ -450,10 +450,10 @@ export default function EquipeScreen() {
                 <Text style={[styles.agenteName, { color: theme.text }]} numberOfLines={1}>{agente.name}</Text>
                 <Text style={[styles.agenteEmail, { color: theme.textSecondary }]} numberOfLines={1}>{agente.email}</Text>
 
-                {/* Badges de município e supervisor (master) */}
-                {isMaster && (agente.municipio || agente.supervisor) && (
+                {/* Badges de município (master) e supervisor (todos) */}
+                {(agente.supervisor || (isMaster && agente.municipio)) && (
                   <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                    {agente.municipio && (
+                    {isMaster && agente.municipio && (
                       <View style={[styles.tagChip, { backgroundColor: `${theme.primary}12` }]}>
                         <Feather name="map-pin" size={9} color={theme.primary} />
                         <Text style={{ color: theme.primary, fontSize: 10, fontWeight: '700' }}>
