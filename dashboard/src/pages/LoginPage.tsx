@@ -13,11 +13,10 @@ export function LoginPage() {
   const [erro, setErro]         = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const mapContainerRef  = useRef<HTMLDivElement>(null);
-  const mapRef           = useRef<maplibregl.Map | null>(null);
-  const rafRef           = useRef<number>(0);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef          = useRef<maplibregl.Map | null>(null);
+  const rafRef          = useRef<number>(0);
 
-  /* ── Mapa de fundo ── */
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -75,54 +74,57 @@ export function LoginPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950">
 
-      {/* Mapa */}
+      {/* ── Mapa de fundo ── */}
       <div ref={mapContainerRef} className="absolute inset-0" />
 
-      {/* Camadas de overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-950/75 via-slate-900/55 to-slate-950/75 pointer-events-none" />
+      {/* ── Overlays (sem z-index explícito — ficam no root stacking context) ── */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-slate-950/80 pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 25%, rgba(2,6,23,.9) 100%)' }} />
+
+      {/* ── Logo — fora do stacking context z-10 para mix-blend-mode funcionar ── */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(2,6,23,.85) 100%)' }}
-      />
-
-      {/* Conteúdo */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-4">
-
-        {/* Logo + título */}
-        <div
-          className="text-center mb-8"
-          style={{ animation: 'fadeUp .55s cubic-bezier(.16,1,.3,1) both' }}
+        className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-center"
+        style={{ top: '8%', animation: 'fadeUp .55s cubic-bezier(.16,1,.3,1) both' }}
+      >
+        <img
+          src="/app-icon.png"
+          alt="TCS"
+          className="w-32 h-32 object-contain mx-auto"
+          style={{
+            mixBlendMode: 'screen',
+            animation: 'popIn .65s .08s cubic-bezier(.34,1.56,.64,1) both',
+          }}
+        />
+        <h1
+          className="text-4xl font-extrabold text-white tracking-tight mt-2"
+          style={{ animation: 'fadeUp .55s .1s cubic-bezier(.16,1,.3,1) both' }}
         >
-          <div
-            className="inline-flex mb-5"
-            style={{ animation: 'popIn .65s .08s cubic-bezier(.34,1.56,.64,1) both' }}
-          >
-            <img
-              src="/app-icon.png"
-              alt="TCS"
-              className="w-28 h-28 object-contain drop-shadow-2xl"
-              style={{ mixBlendMode: 'screen' }}
-            />
-          </div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight">TCS — Painel</h1>
-          <p className="text-slate-400 mt-1.5 text-sm">Acesso restrito a administradores</p>
-        </div>
+          TCS — Painel
+        </h1>
+        <p
+          className="text-slate-400 mt-1 text-sm"
+          style={{ animation: 'fadeUp .55s .15s cubic-bezier(.16,1,.3,1) both' }}
+        >
+          Acesso restrito a administradores
+        </p>
+      </div>
 
-        {/* Card glassmorphism */}
+      {/* ── Formulário — z-10 apenas aqui ── */}
+      <div className="relative z-10 min-h-screen flex items-end justify-center pb-12 px-4 pt-[320px] sm:items-center sm:pt-0 sm:pb-0">
         <div
           className="w-full max-w-sm rounded-2xl p-8 space-y-5"
           style={{
-            background: 'rgba(8,14,36,0.65)',
+            background: 'rgba(8,14,36,0.70)',
             backdropFilter: 'blur(28px)',
             WebkitBackdropFilter: 'blur(28px)',
             border: '1px solid rgba(255,255,255,0.09)',
             boxShadow: '0 32px 64px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.07)',
-            animation: 'fadeUp .55s .12s cubic-bezier(.16,1,.3,1) both',
+            animation: 'fadeUp .55s .2s cubic-bezier(.16,1,.3,1) both',
           }}
         >
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* E-mail */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-400 tracking-wide uppercase">E-mail</label>
               <input
@@ -134,17 +136,12 @@ export function LoginPage() {
                 disabled={submitting}
                 placeholder="seu@email.com"
                 className="w-full h-11 px-4 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none transition-all disabled:opacity-50"
-                style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  boxShadow: 'inset 0 1px 3px rgba(0,0,0,.3)',
-                }}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,.3)' }}
                 onFocus={e => e.currentTarget.style.borderColor = 'rgba(59,130,246,.6)'}
                 onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
               />
             </div>
 
-            {/* Senha */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-400 tracking-wide uppercase">Senha</label>
               <div className="relative">
@@ -156,49 +153,27 @@ export function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   disabled={submitting}
                   className="w-full h-11 px-4 pr-11 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none transition-all disabled:opacity-50"
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,.3)',
-                  }}
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,.3)' }}
                   onFocus={e => e.currentTarget.style.borderColor = 'rgba(59,130,246,.6)'}
                   onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(v => !v)}
-                  tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                >
+                <button type="button" onClick={() => setShowPw(v => !v)} tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Erro */}
             {erro && (
-              <div
-                className="rounded-xl px-4 py-3 text-sm text-red-300"
-                style={{
-                  background: 'rgba(239,68,68,0.12)',
-                  border: '1px solid rgba(239,68,68,0.25)',
-                  animation: 'shake .4s cubic-bezier(.36,.07,.19,.97) both',
-                }}
-              >
+              <div className="rounded-xl px-4 py-3 text-sm text-red-300"
+                style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', animation: 'shake .4s cubic-bezier(.36,.07,.19,.97) both' }}>
                 {erro}
               </div>
             )}
 
-            {/* Botão */}
-            <button
-              type="submit"
-              disabled={submitting}
+            <button type="submit" disabled={submitting}
               className="w-full h-11 rounded-xl text-sm font-bold text-white transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
-              style={{
-                background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)',
-                boxShadow: submitting ? 'none' : '0 4px 24px rgba(37,99,235,.5), inset 0 1px 0 rgba(255,255,255,.15)',
-              }}
-            >
+              style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)', boxShadow: '0 4px 24px rgba(37,99,235,.45), inset 0 1px 0 rgba(255,255,255,.15)' }}>
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {submitting ? 'Entrando…' : 'Entrar'}
             </button>
@@ -209,18 +184,12 @@ export function LoginPage() {
             <span className="text-slate-500 font-medium">master_admin</span> aprovadas têm acesso.
           </p>
         </div>
-
-        {/* Crédito mapa */}
-        <p className="relative z-10 mt-6 text-[10px] text-slate-700">
-          © <a href="https://carto.com" target="_blank" rel="noreferrer" className="hover:text-slate-500 transition-colors">CartoDB</a>
-          {' · '}© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="hover:text-slate-500 transition-colors">OpenStreetMap</a>
-        </p>
       </div>
 
       <style>{`
         @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(28px); }
-          to   { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(24px) translateX(-50%); }
+          to   { opacity: 1; transform: translateY(0)   translateX(-50%); }
         }
         @keyframes popIn {
           from { opacity: 0; transform: scale(.6); }
@@ -233,7 +202,6 @@ export function LoginPage() {
           60%     { transform: translateX(-4px); }
           80%     { transform: translateX(4px); }
         }
-        /* esconde controles do mapa */
         .maplibregl-ctrl-logo,
         .maplibregl-ctrl-attrib { display: none !important; }
       `}</style>
