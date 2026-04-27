@@ -55,32 +55,54 @@ async function geocodificarNominatim(query: string): Promise<[number, number] | 
 
 function popupVistoria(v: PinVistoria): string {
   const cor = RISCO_COR[v.nivelRisco] ?? '#94a3b8';
+  const risco = escapeHtml(RISCO_LABEL[v.nivelRisco] ?? v.nivelRisco);
+  const endereco = escapeHtml(v.endereco ?? '—');
+  const municipio = escapeHtml(v.municipio ?? '');
+  const agenteNome = escapeHtml(v.agenteNome ?? '');
+  const protocolo = escapeHtml(v.protocolo ?? '');
   return `
     <div style="font-family:system-ui;min-width:200px;padding:4px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="width:10px;height:10px;border-radius:50%;background:${cor};flex-shrink:0"></span>
-        <strong style="font-size:13px">${RISCO_LABEL[v.nivelRisco] ?? v.nivelRisco}</strong>
+        <strong style="font-size:13px">${risco}</strong>
       </div>
-      <p style="font-size:12px;color:#475569;margin:0 0 4px">${v.endereco ?? '—'}</p>
-      ${v.municipio ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">${v.municipio}</p>` : ''}
-      ${v.agenteNome ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">Agente: ${v.agenteNome}</p>` : ''}
+      <p style="font-size:12px;color:#475569;margin:0 0 4px">${endereco}</p>
+      ${municipio ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">${municipio}</p>` : ''}
+      ${agenteNome ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">Agente: ${agenteNome}</p>` : ''}
       ${v.dataVistoria ? `<p style="font-size:11px;color:#94a3b8;margin:0">${new Date(v.dataVistoria).toLocaleDateString('pt-BR')}</p>` : ''}
-      ${v.protocolo ? `<p style="font-size:10px;color:#94a3b8;margin:4px 0 0;font-family:monospace">${v.protocolo}</p>` : ''}
+      ${protocolo ? `<p style="font-size:10px;color:#94a3b8;margin:4px 0 0;font-family:monospace">${protocolo}</p>` : ''}
     </div>`;
 }
 
 function popupAgendamento(a: PinAgendamento): string {
+  const titulo = escapeHtml(a.titulo ?? 'Agendamento');
+  const endereco = escapeHtml(a.endereco ?? '—');
+  const municipio = escapeHtml(a.municipio ?? '');
+  const agenteNome = escapeHtml(a.agente_nome ?? '');
   return `
     <div style="font-family:system-ui;min-width:200px;padding:4px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>
-        <strong style="font-size:13px">${a.titulo ?? 'Agendamento'}</strong>
+        <strong style="font-size:13px">${titulo}</strong>
       </div>
-      <p style="font-size:12px;color:#475569;margin:0 0 4px">${a.endereco ?? '—'}</p>
-      ${a.municipio ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">${a.municipio}</p>` : ''}
-      ${a.agente_nome ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">Agente: ${a.agente_nome}</p>` : ''}
+      <p style="font-size:12px;color:#475569;margin:0 0 4px">${endereco}</p>
+      ${municipio ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">${municipio}</p>` : ''}
+      ${agenteNome ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">Agente: ${agenteNome}</p>` : ''}
       ${a.data_agendada ? `<p style="font-size:11px;color:#94a3b8;margin:0">${new Date(a.data_agendada).toLocaleString('pt-BR')}</p>` : ''}
     </div>`;
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[char];
+  });
 }
 
 // ─── Marker SVG ───────────────────────────────────────────────────────────────
@@ -143,16 +165,6 @@ export function MapaPage() {
     map.on('load', () => setMapPronto(true));
 
     mapRef.current = map;
-
-    // Tenta geolocalização automática ao abrir
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: ZOOM, duration: 1200 });
-        },
-        () => { /* silencioso — mantém centro padrão */ }
-      );
-    }
 
     return () => {
       map.remove();

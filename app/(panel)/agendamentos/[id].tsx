@@ -22,12 +22,14 @@ const STATUS_COLORS = {
   pendente: { bg: 'rgba(59,130,246,0.12)', text: '#3B82F6' },
   concluido: { bg: 'rgba(16,185,129,0.12)', text: '#10B981' },
   cancelado: { bg: 'rgba(239,68,68,0.12)', text: '#EF4444' },
+  deletado: { bg: 'rgba(100,116,139,0.12)', text: '#64748B' },
 };
 
 const STATUS_LABELS = {
   pendente: 'Pendente',
   concluido: 'Concluído',
   cancelado: 'Cancelado',
+  deletado: 'Deletado',
 };
 
 function formatDataExtensa(iso: string): string {

@@ -130,7 +130,7 @@ export default function ResultadoScreen() {
         // Resolver paths de storage → URLs assinadas antes de exibir/usar em PDF
         if (norm.foto_url) norm.foto_url = await getSignedUrl(norm.foto_url) ?? norm.foto_url;
         if (norm.fotosUrls) {
-          norm.fotosUrls = (await Promise.all(norm.fotosUrls.map(u => getSignedUrl(u)))).filter(Boolean) as string[];
+          norm.fotosUrls = (await Promise.all(norm.fotosUrls.map((u: string) => getSignedUrl(u)))).filter(Boolean) as string[];
         }
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || profile?.name || '—');

@@ -15,10 +15,21 @@ function useOverviewStats() {
       const applyMunicFilter = (q: any) =>
         profile?.role !== 'master_admin' ? q.eq('municipio', profile?.municipio) : q;
 
-      const [vistorias30d, agendamentos, usuarios, recentes] = await Promise.all([
-        applyMunicFilter(
-          supabase.from('vistorias').select('nivelRisco', { count: 'exact' }).gte('dataVistoria', desde30d)
-        ),
+      const vistoriaCount = (risco?: string) => {
+        let q = supabase
+          .from('vistorias')
+          .select('id', { count: 'exact', head: true })
+          .gte('dataVistoria', desde30d);
+        if (risco) q = q.eq('nivelRisco', risco);
+        return applyMunicFilter(q);
+      };
+
+      const [total30d, r1Count, r2Count, r3Count, r4Count, agendamentos, usuarios, recentes] = await Promise.all([
+        vistoriaCount(),
+        vistoriaCount('r1'),
+        vistoriaCount('r2'),
+        vistoriaCount('r3'),
+        vistoriaCount('r4'),
         applyMunicFilter(
           supabase.from('agendamentos').select('id, status', { count: 'exact' })
             .in('status', ['pendente', 'agendado'])
@@ -37,12 +48,11 @@ function useOverviewStats() {
         ),
       ]);
 
-      const vs = vistorias30d.data ?? [];
-      const r1 = vs.filter((v: any) => v.nivelRisco === 'r1').length;
-      const r2 = vs.filter((v: any) => v.nivelRisco === 'r2').length;
-      const r3 = vs.filter((v: any) => v.nivelRisco === 'r3').length;
-      const r4 = vs.filter((v: any) => v.nivelRisco === 'r4').length;
-      const totalVist = vistorias30d.count ?? vs.length;
+      const r1 = r1Count.count ?? 0;
+      const r2 = r2Count.count ?? 0;
+      const r3 = r3Count.count ?? 0;
+      const r4 = r4Count.count ?? 0;
+      const totalVist = total30d.count ?? 0;
 
       const usersData = usuarios.data ?? [];
       const ativos = usersData.filter((u: any) => u.isApproved).length;

@@ -40,7 +40,29 @@ export default function AgenteVistoriasScreen() {
           .eq('agenteUid', uid)
           .order('dataVistoria', { ascending: false }),
       ]);
-      setAgente(agenteRes.data);
+      let supervisores = '';
+      const { data: atribuicoes } = await supabase
+        .from('atribuicoes')
+        .select('supervisor_uid')
+        .eq('agente_uid', uid);
+
+      const supervisorUids = (atribuicoes || [])
+        .map((a: any) => a.supervisor_uid)
+        .filter(Boolean);
+
+      if (supervisorUids.length > 0) {
+        const { data: supervisoresData } = await supabase
+          .from('users')
+          .select('uid, name')
+          .in('uid', supervisorUids);
+
+        supervisores = (supervisoresData || [])
+          .map((s: any) => s.name)
+          .filter(Boolean)
+          .join(', ');
+      }
+
+      setAgente({ ...(agenteRes.data || {}), supervisores });
       setVistorias(vistoriasRes.data || []);
     } catch (e) {
       logger.error('system', 'Erro ao carregar agente', { erro: String(e) });
@@ -86,6 +108,11 @@ export default function AgenteVistoriasScreen() {
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {agente?.municipio} · {total} vistorias
           </Text>
+          {!!agente?.supervisores && (
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+              Supervisor: {agente.supervisores}
+            </Text>
+          )}
         </View>
       </View>
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal, Pressable, Dimensions } from 'react-native';
+import { Alert, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal, Pressable, Dimensions } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
@@ -61,6 +61,25 @@ export default function VistoriaDetalhesScreen() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleDeleteLocal = () => {
+    if (!id) return;
+    Alert.alert(
+      'Excluir vistoria local?',
+      'Esta vistoria ainda está pendente de sincronização. A exclusão remove apenas o registro salvo neste aparelho.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => {
+            deleteVistoriaOffline(id as string);
+            router.replace('/(panel)/inspecoes');
+          },
+        },
+      ]
+    );
   };
 
   const fetchDetalhes = async () => {
@@ -342,6 +361,22 @@ export default function VistoriaDetalhesScreen() {
           </View>
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />
         </TouchableOpacity>
+
+        {vistoria.status === 'Pendente Sync' && (
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)' }]}
+            onPress={handleDeleteLocal}
+          >
+            <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+              <Feather name="trash-2" size={20} color="#EF4444" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.actionTitle, { color: '#EF4444' }]}>Excluir vistoria local</Text>
+              <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Remover registro pendente deste aparelho</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#EF4444" />
+          </TouchableOpacity>
+        )}
 
         {hasCoords && (
           <TouchableOpacity

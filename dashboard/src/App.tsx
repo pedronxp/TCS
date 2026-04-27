@@ -41,7 +41,14 @@ export default function App() {
             >
               <Route index element={<DashboardHome />} />
               <Route path="ocorrencias" element={<OcorrenciasPage />} />
-              <Route path="usuarios" element={<UsuariosPage />} />
+              <Route
+                path="usuarios"
+                element={
+                  <ProtectedRoute requireRole={['master_admin', 'admin']}>
+                    <UsuariosPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="agendamentos" element={<AgendamentosPage />} />
               <Route path="mapa" element={<MapaPage />} />
               <Route path="laudos" element={<LaudosPage />} />

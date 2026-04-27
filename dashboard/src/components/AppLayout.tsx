@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
@@ -21,9 +21,9 @@ export function AppLayout() {
   const title = ROUTE_TITLES[pathname] ?? 'TCS';
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  if (typeof document !== 'undefined') {
+  useEffect(() => {
     document.title = `${title} — TCS Painel Admin`;
-  }
+  }, [title]);
 
   return (
     <div className="flex min-h-screen bg-slate-50">

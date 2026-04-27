@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -7,7 +7,7 @@ import { Card, EmptyState, LoadingState, ErrorState } from '../../../components/
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
-import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, VistoriaLocal } from '../../../utils/database';
+import { deleteVistoriaOffline, getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, VistoriaLocal } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
 import { syncPendentes, forceSyncAll } from '../../../services/SyncService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,9 +24,10 @@ const RISCO_COLORS: Record<string, string> = {
 interface InspecaoCardProps {
   item: VistoriaLocal;
   theme: any;
+  onDeleteLocal: (item: VistoriaLocal) => void;
 }
 
-const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
+const InspecaoCard = React.memo(({ item, theme, onDeleteLocal }: InspecaoCardProps) => {
   const cor = RISCO_COLORS[item.nivel_risco] || '#94A3B8';
   const isPendente = item.sincronizado === 0;
   const hasErro = isPendente && !!item.erro_sync;
@@ -66,6 +67,17 @@ const InspecaoCard = React.memo(({ item, theme }: InspecaoCardProps) => {
                 <Feather name="wifi-off" size={10} color="#8B5CF6" />
                 <Text style={styles.offlineBadgeText}>Feito offline</Text>
               </View>
+            )}
+            {isPendente && (
+              <TouchableOpacity
+                style={styles.deleteLocalBtn}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onDeleteLocal(item);
+                }}
+              >
+                <Feather name="trash-2" size={13} color="#EF4444" />
+              </TouchableOpacity>
             )}
             {/* Sem badge para vistorias feitas online — não precisa de marcação */}
             <Text style={[styles.dateText, { color: theme.textSecondary }]}>
@@ -138,7 +150,7 @@ export default function InspecoesListScreen() {
         // master_admin: sem filtro — vê todas as vistorias do sistema
 
         const { data } = await query;
-        if (data && data.length > 0) {
+        if (data) {
           // Mapear Supabase → formato VistoriaLocal para exibição unificada
           const remotas: VistoriaLocal[] = data.map((r: any) => ({
             id: r.id,
@@ -205,9 +217,27 @@ export default function InspecoesListScreen() {
     }
   };
 
+  const handleDeleteLocal = useCallback((item: VistoriaLocal) => {
+    Alert.alert(
+      'Excluir vistoria local?',
+      'Esta vistoria ainda está pendente de sincronização. A exclusão remove apenas o registro salvo neste aparelho.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            deleteVistoriaOffline(item.id);
+            if (profile) await fetchVistorias(profile);
+          },
+        },
+      ]
+    );
+  }, [profile]);
+
   const renderItem = useCallback(({ item }: { item: VistoriaLocal }) => (
-    <InspecaoCard item={item} theme={theme} />
-  ), [theme]);
+    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} />
+  ), [theme, handleDeleteLocal]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -301,6 +331,14 @@ const styles = StyleSheet.create({
   erroText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
   offlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(139,92,246,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   offlineBadgeText: { color: '#8B5CF6', fontSize: 10, fontWeight: '700' },
+  deleteLocalBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239,68,68,0.12)',
+  },
   dateText: { fontSize: 12, fontWeight: '500' },
   address: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
   agente: { fontSize: 12, fontWeight: '400' },

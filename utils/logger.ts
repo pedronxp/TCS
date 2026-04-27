@@ -12,6 +12,7 @@ export type LogCategory =
   | 'form'
   | 'system'
   | 'mapa'
+  | 'storage'
   | 'notifications';
 
 export interface LogEntry {
