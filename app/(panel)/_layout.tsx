@@ -24,7 +24,7 @@ const ROUTE_ROLES: Record<string, readonly string[]> = {
 };
 
 function useRouteGuard() {
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const { profile, loading } = useAuth();
 
   useEffect(() => {

@@ -7,10 +7,30 @@
   "descricao": "Formulário de campo para avaliação de risco de deslizamento em encostas e taludes. Pontuação total classifica o risco global.",
   "classificacao": {
     "limites": [
-      { "max": 1,    "nivel": "baixo",    "label": "R1 — BAIXO — Sem intervenção imediata necessária",     "cor": "verde"   },
-      { "max": 3,    "nivel": "medio",    "label": "R2 — MÉDIO — Monitoramento e medidas preventivas",     "cor": "amarelo" },
-      { "max": 5,    "nivel": "alto",     "label": "R3 — ALTO — Intervenção técnica urgente necessária",   "cor": "laranja" },
-      { "max": 9999, "nivel": "iminente", "label": "R4 — MUITO ALTO — Evacuação e interdição imediata",    "cor": "vermelho"}
+      {
+        "max": 1,
+        "nivel": "baixo",
+        "label": "R1 — BAIXO — Sem intervenção imediata necessária",
+        "cor": "verde"
+      },
+      {
+        "max": 3,
+        "nivel": "medio",
+        "label": "R2 — MÉDIO — Monitoramento e medidas preventivas",
+        "cor": "amarelo"
+      },
+      {
+        "max": 5,
+        "nivel": "alto",
+        "label": "R3 — ALTO — Intervenção técnica urgente necessária",
+        "cor": "laranja"
+      },
+      {
+        "max": 9999,
+        "nivel": "iminente",
+        "label": "R4 — MUITO ALTO — Evacuação e interdição imediata",
+        "cor": "vermelho"
+      }
     ]
   },
   "fases": [
@@ -32,8 +52,26 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q1_a", "texto": "Encosta Natural", "descricao": "Terreno sem intervenção humana", "svgKey": "desl2_q1_a", "pesoRisco": 0 },
-            { "id": "q1_b", "texto": "Aterro",          "descricao": "Terreno com material depositado artificialmente", "svgKey": "desl2_q1_b", "pesoRisco": 2 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q1_a",
+              "texto": "Encosta Natural",
+              "descricao": "Terreno sem intervenção humana",
+              "svgKey": "desl2_q1_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q1_b",
+              "texto": "Aterro",
+              "descricao": "Terreno com material depositado artificialmente",
+              "svgKey": "desl2_q1_b",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -42,11 +80,47 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q2_a", "texto": "≤ 10°",           "descricao": "Inclinação suave",           "svgKey": "desl2_q2_a", "pesoRisco": 0 },
-            { "id": "q2_b", "texto": "~17°",             "descricao": "Inclinação moderada",        "svgKey": "desl2_q2_b", "pesoRisco": 1 },
-            { "id": "q2_c", "texto": "~30°",             "descricao": "Inclinação acentuada",       "svgKey": "desl2_q2_c", "pesoRisco": 2 },
-            { "id": "q2_d", "texto": "~60°",             "descricao": "Inclinação muito acentuada", "svgKey": "desl2_q2_d", "pesoRisco": 3 },
-            { "id": "q2_e", "texto": "≥90° (vertical)",  "descricao": "Parede vertical",           "svgKey": "desl2_q2_e", "pesoRisco": 4 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q2_a",
+              "texto": "≤ 10°",
+              "descricao": "Inclinação suave",
+              "svgKey": "desl2_q2_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q2_b",
+              "texto": "~17°",
+              "descricao": "Inclinação moderada",
+              "svgKey": "desl2_q2_b",
+              "pesoRisco": 1
+            },
+            {
+              "id": "q2_c",
+              "texto": "~30°",
+              "descricao": "Inclinação acentuada",
+              "svgKey": "desl2_q2_c",
+              "pesoRisco": 2
+            },
+            {
+              "id": "q2_d",
+              "texto": "~60°",
+              "descricao": "Inclinação muito acentuada",
+              "svgKey": "desl2_q2_d",
+              "pesoRisco": 3
+            },
+            {
+              "id": "q2_e",
+              "texto": "≥90° (vertical)",
+              "descricao": "Parede vertical",
+              "svgKey": "desl2_q2_e",
+              "pesoRisco": 4
+            }
           ]
         },
         {
@@ -55,9 +129,27 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q3_a", "texto": "Satisfatória", "descricao": "Drenagem funcional, sem acúmulo de água",           "svgKey": "desl2_q3_a", "pesoRisco": 0 },
-            { "id": "q3_b", "texto": "Precária",     "descricao": "Drenagem deficiente, alguns pontos de acúmulo",    "svgKey": "desl2_q3_b", "pesoRisco": 1 },
-            { "id": "q3_c", "texto": "Inexistente",  "descricao": "Sem drenagem — água acumula livremente",           "svgKey": "desl2_q3_c", "pesoRisco": 2 }
+            {
+              "id": "q3_a",
+              "texto": "Satisfatória",
+              "descricao": "Drenagem funcional, sem acúmulo de água",
+              "svgKey": "desl2_q3_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q3_b",
+              "texto": "Precária",
+              "descricao": "Drenagem deficiente, alguns pontos de acúmulo",
+              "svgKey": "desl2_q3_b",
+              "pesoRisco": 1
+            },
+            {
+              "id": "q3_c",
+              "texto": "Inexistente",
+              "descricao": "Sem drenagem — água acumula livremente",
+              "svgKey": "desl2_q3_c",
+              "pesoRisco": 0
+            }
           ]
         },
         {
@@ -66,10 +158,40 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q4_a", "texto": "Presença de Árvores", "descricao": "Vegetação arbórea — raízes profundas estabilizando o solo", "svgKey": "desl2_q4_a", "pesoRisco": 0 },
-            { "id": "q4_b", "texto": "Vegetação Rasteira",  "descricao": "Capim ou arbustos — proteção superficial limitada",        "svgKey": "desl2_q4_b", "pesoRisco": 1 },
-            { "id": "q4_c", "texto": "Área Desmatada",      "descricao": "Solo exposto sem cobertura vegetal",                       "svgKey": "desl2_q4_c", "pesoRisco": 2 },
-            { "id": "q4_d", "texto": "Área de Cultivo",     "descricao": "Cultivo agrícola — solo revolvido e pouco protegido",      "svgKey": "desl2_q4_d", "pesoRisco": 2 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q4_a",
+              "texto": "Presença de Árvores",
+              "descricao": "Vegetação arbórea — raízes profundas estabilizando o solo",
+              "svgKey": "desl2_q4_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q4_b",
+              "texto": "Vegetação Rasteira",
+              "descricao": "Capim ou arbustos — proteção superficial limitada",
+              "svgKey": "desl2_q4_b",
+              "pesoRisco": 1
+            },
+            {
+              "id": "q4_c",
+              "texto": "Área Desmatada",
+              "descricao": "Solo exposto sem cobertura vegetal",
+              "svgKey": "desl2_q4_c",
+              "pesoRisco": 2
+            },
+            {
+              "id": "q4_d",
+              "texto": "Área de Cultivo",
+              "descricao": "Cultivo agrícola — solo revolvido e pouco protegido",
+              "svgKey": "desl2_q4_d",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -78,8 +200,26 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q5_a", "texto": "Não", "descricao": "Sem trincas visíveis",                              "svgKey": "desl2_q5_a", "pesoRisco": 0 },
-            { "id": "q5_b", "texto": "Sim", "descricao": "Trincas visíveis no solo ou estruturas",            "svgKey": "desl2_q5_b", "pesoRisco": 2 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q5_a",
+              "texto": "Não",
+              "descricao": "Sem trincas visíveis",
+              "svgKey": "desl2_q5_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q5_b",
+              "texto": "Sim",
+              "descricao": "Trincas visíveis no solo ou estruturas",
+              "svgKey": "desl2_q5_b",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -88,8 +228,26 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q6_a", "texto": "Não", "descricao": "Superfície do solo contínua, sem degraus",          "svgKey": "desl2_q6_a", "pesoRisco": 0 },
-            { "id": "q6_b", "texto": "Sim", "descricao": "Degraus ou rupturas no solo",                       "svgKey": "desl2_q6_b", "pesoRisco": 2 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q6_a",
+              "texto": "Não",
+              "descricao": "Superfície do solo contínua, sem degraus",
+              "svgKey": "desl2_q6_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q6_b",
+              "texto": "Sim",
+              "descricao": "Degraus ou rupturas no solo",
+              "svgKey": "desl2_q6_b",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -98,8 +256,26 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q7_a", "texto": "Não", "descricao": "Estruturas e árvores verticais, sem inclinação",    "svgKey": "desl2_q7_a", "pesoRisco": 0 },
-            { "id": "q7_b", "texto": "Sim", "descricao": "Postes, muros ou árvores inclinados",               "svgKey": "desl2_q7_b", "pesoRisco": 2 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q7_a",
+              "texto": "Não",
+              "descricao": "Estruturas e árvores verticais, sem inclinação",
+              "svgKey": "desl2_q7_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q7_b",
+              "texto": "Sim",
+              "descricao": "Postes, muros ou árvores inclinados",
+              "svgKey": "desl2_q7_b",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -108,8 +284,26 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q8_a", "texto": "Não", "descricao": "Muros verticais e sem deformação",                  "svgKey": "desl2_q8_a", "pesoRisco": 0 },
-            { "id": "q8_b", "texto": "Sim", "descricao": "Muros com protuberância — pressão lateral do solo", "svgKey": "desl2_q8_b", "pesoRisco": 2 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q8_a",
+              "texto": "Não",
+              "descricao": "Muros verticais e sem deformação",
+              "svgKey": "desl2_q8_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q8_b",
+              "texto": "Sim",
+              "descricao": "Muros com protuberância — pressão lateral do solo",
+              "svgKey": "desl2_q8_b",
+              "pesoRisco": 2
+            }
           ]
         },
         {
@@ -118,9 +312,33 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q9_a", "texto": "Sem risco aparente", "descricao": "Nenhuma trinca identificada nas proximidades",           "svgKey": "desl2_q9_a", "pesoRisco": 0 },
-            { "id": "q9_b", "texto": "Esperado",           "descricao": "Condições propícias mas sem evento confirmado",         "svgKey": "desl2_q9_b", "pesoRisco": 1 },
-            { "id": "q9_c", "texto": "Já ocorrido",        "descricao": "Escorregamento próximo já registrado",                  "svgKey": "desl2_q9_c", "pesoRisco": 3 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q9_a",
+              "texto": "Sem risco aparente",
+              "descricao": "Nenhuma trinca identificada nas proximidades",
+              "svgKey": "desl2_q9_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q9_b",
+              "texto": "Esperado",
+              "descricao": "Condições propícias mas sem evento confirmado",
+              "svgKey": "desl2_q9_b",
+              "pesoRisco": 1
+            },
+            {
+              "id": "q9_c",
+              "texto": "Já ocorrido",
+              "descricao": "Escorregamento próximo já registrado",
+              "svgKey": "desl2_q9_c",
+              "pesoRisco": 3
+            }
           ]
         },
         {
@@ -129,9 +347,33 @@
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
-            { "id": "q10_a", "texto": "Sem risco aparente", "descricao": "Nenhum processo de instabilização observado",          "svgKey": "desl2_q10_a", "pesoRisco": 0 },
-            { "id": "q10_b", "texto": "Esperado",           "descricao": "Sinais de instabilização — deslizamento esperado",    "svgKey": "desl2_q10_b", "pesoRisco": 1 },
-            { "id": "q10_c", "texto": "Já ocorrido",        "descricao": "Deslizamento ou escorregamento já ocorreu no local",  "svgKey": "desl2_q10_c", "pesoRisco": 3 }
+            {
+              "id": "inexistente",
+              "texto": "Inexistente",
+              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q10_a",
+              "texto": "Sem risco aparente",
+              "descricao": "Nenhum processo de instabilização observado",
+              "svgKey": "desl2_q10_a",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q10_b",
+              "texto": "Esperado",
+              "descricao": "Sinais de instabilização — deslizamento esperado",
+              "svgKey": "desl2_q10_b",
+              "pesoRisco": 1
+            },
+            {
+              "id": "q10_c",
+              "texto": "Já ocorrido",
+              "descricao": "Deslizamento ou escorregamento já ocorreu no local",
+              "svgKey": "desl2_q10_c",
+              "pesoRisco": 3
+            }
           ]
         },
         {

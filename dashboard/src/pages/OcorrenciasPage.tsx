@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search,
   X,
@@ -15,7 +15,6 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useOcorrencias,
-  filtrarBusca,
   getSignedUrl,
   type Vistoria,
   type FiltroPeriodo,
@@ -246,7 +245,7 @@ export function OcorrenciasPage() {
     busca
   );
 
-  const vistorias = useMemo(() => filtrarBusca(data, busca), [data, busca]);
+  const vistorias = data;
 
   const periodos: { key: FiltroPeriodo; label: string }[] = [
     { key: '7d', label: '7 dias' },

@@ -183,7 +183,7 @@ export default function EquipeScreen() {
       }
       const { data: supervisorsList } = await supQuery;
 
-      if (master && supervisorsList) setSupervisores(supervisorsList as any[]);
+      if (supervisorsList) setSupervisores(supervisorsList as any[]);
 
       let query = supabase
         .from('users')

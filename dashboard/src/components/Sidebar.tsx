@@ -12,12 +12,13 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   masterOnly?: boolean;
+  roles?: string[];
 }
 
 const NAV: NavItem[] = [
   { to: '/',             label: 'Visão Geral',  icon: LayoutDashboard },
   { to: '/ocorrencias',  label: 'Ocorrências',  icon: AlertTriangle },
-  { to: '/usuarios',     label: 'Usuários',     icon: Users },
+  { to: '/usuarios',     label: 'Usuários',     icon: Users, roles: ['master_admin', 'admin'] },
   { to: '/agendamentos', label: 'Agendamentos', icon: Calendar },
   { to: '/mapa',         label: 'Mapa',         icon: Map },
   { to: '/laudos',       label: 'Laudos',       icon: FileText },
@@ -35,7 +36,17 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const isMaster = profile?.role === 'master_admin';
-  const visibleNav = NAV.filter((item) => !item.masterOnly || isMaster);
+  const visibleNav = NAV.filter((item) => {
+    if (item.masterOnly && !isMaster) return false;
+    if (item.roles && !item.roles.includes(profile?.role ?? '')) return false;
+    return true;
+  });
+  const roleLabel =
+    profile?.role === 'master_admin'
+      ? 'Master Admin'
+      : profile?.role === 'supervisor'
+        ? 'Supervisor'
+        : 'Admin';
 
   return (
     <>
@@ -108,7 +119,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <p className="text-[11px] text-slate-500">Logado como</p>
             <p className="text-sm font-semibold truncate leading-tight mt-0.5">{profile?.name ?? '…'}</p>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {profile?.role === 'master_admin' ? 'Master Admin' : 'Admin'}
+              {roleLabel}
               {profile?.municipio ? ` · ${profile.municipio}` : ''}
             </p>
           </div>

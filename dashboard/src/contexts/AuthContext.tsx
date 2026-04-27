@@ -24,7 +24,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const ALLOWED_ROLES: UserRole[] = ['master_admin', 'admin'];
+const ALLOWED_ROLES: UserRole[] = ['master_admin', 'admin', 'supervisor'];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!ALLOWED_ROLES.includes(p.role)) {
       await supabase.auth.signOut();
-      return { error: 'Acesso restrito a administradores. Use o app móvel.' };
+      return { error: 'Acesso restrito a administradores e supervisores. Use o app móvel.' };
     }
     if (!p.isApproved) {
       await supabase.auth.signOut();

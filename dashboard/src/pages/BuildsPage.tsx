@@ -31,6 +31,10 @@ type Build = {
   completed_at: string | null;
 };
 
+const EXPO_ACCOUNT = 'pedrontz';
+const EXPO_PROJECT = 'tcs-relatorio-de-risco';
+const CURRENT_APP_VERSION = '1.3.1';
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<BuildStatus, { label: string; bg: string; text: string; Icon: React.FC<{ className?: string }> }> = {
@@ -107,7 +111,7 @@ function BuildCard({ b }: { b: Build }) {
   }
 
   const easUrl = b.eas_build_id
-    ? `https://expo.dev/accounts/pedronxp/projects/app-defesa-civil/builds/${b.eas_build_id}`
+    ? `https://expo.dev/accounts/${EXPO_ACCOUNT}/projects/${EXPO_PROJECT}/builds/${b.eas_build_id}`
     : null;
 
   return (
@@ -171,7 +175,7 @@ function BuildCard({ b }: { b: Build }) {
 
 function FormNovoBuild({ onClose }: { onClose: () => void }) {
   const [provider, setProvider] = useState<BuildProvider>('eas');
-  const [version, setVersion] = useState('1.4.0');
+  const [version, setVersion] = useState(CURRENT_APP_VERSION);
   const [profile, setProfile] = useState('preview');
   const [changelog, setChangelog] = useState('');
   const [iniciado, setIniciado] = useState<string | null>(null);
@@ -247,7 +251,7 @@ function FormNovoBuild({ onClose }: { onClose: () => void }) {
         <Input
           value={version}
           onChange={(e) => setVersion(e.target.value)}
-          placeholder="ex: 1.4.0"
+          placeholder={`ex: ${CURRENT_APP_VERSION}`}
           required
         />
       </div>

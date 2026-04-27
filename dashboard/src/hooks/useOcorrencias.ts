@@ -30,6 +30,10 @@ const BUCKETS: Record<string, string> = {
   'laudos:': 'laudos',
 };
 
+function escapeIlike(value: string) {
+  return value.replace(/[,()]/g, ' ').replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 export async function getSignedUrl(stored: string, expiresIn = 3600): Promise<string | null> {
   if (!stored) return null;
   if (stored.startsWith('http')) return stored;
@@ -88,6 +92,19 @@ export function useOcorrencias(
         const dias = periodo === '7d' ? 7 : periodo === '30d' ? 30 : 90;
         const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
         query = query.gte('dataVistoria', desde);
+      }
+
+      if (busca.trim()) {
+        const term = `%${escapeIlike(busca.trim())}%`;
+        query = query.or(
+          [
+            `endereco.ilike.${term}`,
+            `enderecoRua.ilike.${term}`,
+            `enderecoBairro.ilike.${term}`,
+            `agenteNome.ilike.${term}`,
+            `protocolo.ilike.${term}`,
+          ].join(',')
+        );
       }
 
       const { data, error } = await query;
