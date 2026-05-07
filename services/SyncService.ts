@@ -309,6 +309,10 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     try { return v.fotos_urls ? JSON.parse(v.fotos_urls) : []; }
     catch { return []; }
   })();
+  const calculoRisco = (() => {
+    try { return v.calculo_json ? JSON.parse(v.calculo_json) : null; }
+    catch { return null; }
+  })();
 
   // Nunca enviar file:// ao Supabase — se foto ainda for local, omitir
   const fotoUrlSafe = v.foto_url && !v.foto_url.startsWith('file://') ? v.foto_url : null;
@@ -329,6 +333,7 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     formularioId: v.formulario_id,
     formularioVersao: v.formulario_versao,
     respostasJson: v.respostas_json,
+    calculoRisco,
     nivelRisco: v.nivel_risco,
     pontuacaoTotal: v.pontuacao_total,
     fotoUrl: fotoUrlSafe,

@@ -21,7 +21,14 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { WizardParams } from '../../../types/vistoria';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import {
+  calcularRiscoFormulario,
+  CalculoRiscoSnapshot,
+  LimiteRisco,
+  limitarPontuacaoRisco,
+  riscoLabel,
+  riscoColor,
+} from '../../../utils/riscoUtils';
 import { ASSETS, flattenPerguntas, PerguntaModel } from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
 import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
@@ -116,7 +123,7 @@ export default function WizardAvaliacaoScreen() {
   const [respostas, setRespostas] = useState<Respostas>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const [limites, setLimites] = useState<{max: number; nivel: string}[]>([]);
+  const [limites, setLimites] = useState<LimiteRisco[]>([]);
   const [tipoCalculo, setTipoCalculo] = useState<string>('soma_total');
   const [faseConfigs, setFaseConfigs] = useState<{id: string; peso: number}[]>([]);
   const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
@@ -262,14 +269,22 @@ export default function WizardAvaliacaoScreen() {
     return !!resposta;
   };
 
-  const calcularNivelRisco = (visiveis: PerguntaModel[] = perguntasVisiveis): { nivel: string; pontuacao: number } => {
-    const nivelMap: Record<string, string> = {
-      sem_risco: 'r1', baixo: 'r1', muito_baixo: 'r1',
-      medio: 'r2', medio_baixo: 'r2',
-      alto: 'r3', medio_alto: 'r3',
-      iminente: 'r4', critico: 'r4', muito_alto: 'r4',
-    };
+  const montarSnapshotPonderado = (
+    nivel: string,
+    pontuacao: number,
+  ): CalculoRiscoSnapshot => ({
+    versaoRegra: 'ponderada_max_elemento_legacy',
+    escala: { min: 0, max: 10 },
+    formularioId: params.formularioId,
+    formularioVersao: parseInt(params.formularioVersao || '1') || 1,
+    tipoCalculo,
+    pontuacaoTotal: pontuacao,
+    nivelRisco: nivel as CalculoRiscoSnapshot['nivelRisco'],
+    limites,
+    itens: [],
+  });
 
+  const calcularNivelRisco = (visiveis: PerguntaModel[] = perguntasVisiveis): { nivel: string; pontuacao: number; calculo: CalculoRiscoSnapshot } => {
     // ── Cálculo ponderado por elemento (Risco Estrutural) ─────────────────────
     if (tipoCalculo === 'ponderada_max_elemento') {
       // Acumula score bruto por fase
@@ -291,7 +306,10 @@ export default function WizardAvaliacaoScreen() {
         return raw * (cfg?.peso ?? 1);
       });
 
-      if (weighted.length === 0) return { nivel: 'r1', pontuacao: 0 };
+      if (weighted.length === 0) {
+        const calculo = montarSnapshotPonderado('r1', 0);
+        return { nivel: 'r1', pontuacao: 0, calculo };
+      }
 
       const maxScore = Math.max(...weighted);
       const mediaScore = weighted.reduce((a, b) => a + b, 0) / weighted.length;
@@ -304,35 +322,20 @@ export default function WizardAvaliacaoScreen() {
       else if (maxScore >= 6 || mediaScore >= 6) nivel = 'r2';
       else nivel = 'r1';
 
-      return { nivel, pontuacao: Math.round(maxScore * 10) / 10 };
+      const pontuacao = limitarPontuacaoRisco(maxScore);
+      const calculo = montarSnapshotPonderado(nivel, pontuacao);
+      return { nivel, pontuacao, calculo };
     }
 
-    // ── Cálculo soma total (padrão) ───────────────────────────────────────────
-    let pontuacao = 0;
-    visiveis.forEach(p => {
-      const r = respostas[p.id];
-      if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
-        const opcao = p.opcoes.find(o => o.id === r);
-        if (opcao) pontuacao += opcao.pesoRisco;
-      }
+    const calculo = calcularRiscoFormulario({
+      perguntas: visiveis,
+      respostas,
+      limites,
+      formularioId: params.formularioId,
+      formularioVersao: parseInt(params.formularioVersao || '1') || 1,
+      tipoCalculo,
     });
-
-    if (limites.length > 0) {
-      const sorted = [...limites].sort((a, b) => a.max - b.max);
-      for (const l of sorted) {
-        if (pontuacao <= l.max) {
-          return { nivel: nivelMap[l.nivel] || 'r2', pontuacao };
-        }
-      }
-      return { nivel: 'r4', pontuacao };
-    }
-
-    // Fallback hardcoded
-    let nivel = 'r1';
-    if (pontuacao >= 75) nivel = 'r4';
-    else if (pontuacao >= 50) nivel = 'r3';
-    else if (pontuacao >= 25) nivel = 'r2';
-    return { nivel, pontuacao };
+    return { nivel: calculo.nivelRisco, pontuacao: calculo.pontuacaoTotal, calculo };
   };
 
   // Risco calculado em tempo real — recalcula a cada resposta
@@ -407,7 +410,7 @@ export default function WizardAvaliacaoScreen() {
     try {
       if (!profile?.uid) throw new Error('Perfil não carregado — tente novamente.');
 
-      const { nivel, pontuacao } = calcularNivelRisco(perguntasVisiveis);
+      const { nivel, pontuacao, calculo } = calcularNivelRisco(perguntasVisiveis);
       const agora = new Date().toISOString();
 
       // UUID via crypto (Hermes suporta desde RN 0.73+)
@@ -435,6 +438,7 @@ export default function WizardAvaliacaoScreen() {
         formulario_id: params.formularioId,
         formulario_versao: parseInt(params.formularioVersao || '1') || 1,
         respostas_json: JSON.stringify(respostas),
+        calculo_json: JSON.stringify(calculo),
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
         foto_url: fotoUri,
@@ -498,6 +502,7 @@ export default function WizardAvaliacaoScreen() {
           formularioId: vistoriaLocal.formulario_id,
           formularioVersao: vistoriaLocal.formulario_versao,
           respostasJson: vistoriaLocal.respostas_json,
+          calculoRisco: calculo,
           nivelRisco: nivel,
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,

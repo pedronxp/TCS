@@ -22,6 +22,7 @@ export interface VistoriaSupabase {
   formularioId: string;
   formularioVersao?: number;
   respostasJson: string;
+  calculoRisco?: unknown;
   nivelRisco: string;
   pontuacaoTotal: number;
   fotoUrl?: string | null;
@@ -41,6 +42,7 @@ export interface VistoriaNormalizada {
   agenteNome: string;
   agenteUid?: string;
   respostasJson: string;
+  calculoRisco?: unknown;
   formularioId: string;
   status?: string;
   responsavelNome?: string | null;

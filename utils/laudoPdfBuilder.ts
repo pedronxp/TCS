@@ -6,7 +6,15 @@
 
 import * as FileSystem from 'expo-file-system';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
-import { riscoLabel, riscoColor, riscoConduta } from './riscoUtils';
+import {
+  CalculoRiscoSnapshot,
+  formatarPontuacaoRisco,
+  normalizarNivelRisco,
+  parseCalculoRiscoSnapshot,
+  riscoLabel,
+  riscoColor,
+  riscoConduta,
+} from './riscoUtils';
 import { logoBase64 } from './logoBase64';
 import { ASSETS, flattenPerguntas, PerguntaModel } from './formulariosAssets';
 
@@ -20,6 +28,7 @@ export interface LaudoData {
   agenteNome: string;
   formularioId?: string;
   respostasJson?: string;
+  calculoRisco?: CalculoRiscoSnapshot | string | null;
   foto_url?: string | null;
   fotosUrls?: string[] | null;
   // Campos opcionais do relatório técnico editável
@@ -68,7 +77,8 @@ export function buildTermoInterdicaoHtml(
   const dataExt = dataExtenso(laudo.dataVistoria);
   const ano = laudo.dataVistoria ? new Date(laudo.dataVistoria).getFullYear() : new Date().getFullYear();
   const cidade = notificado.cidade || laudo.municipio || '—';
-  const nivel = laudo.nivelRisco || 'r3';
+  const calculo = parseCalculoRiscoSnapshot(laudo.calculoRisco);
+  const nivel = normalizarNivelRisco(laudo.nivelRisco || calculo?.nivelRisco, 'r1');
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -290,7 +300,9 @@ export function buildTermoInterdicaoHtml(
  * data por extenso, itens de resposta numerados e seção de assinatura formal.
  */
 export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
-  const nivel = dados.nivelRisco || 'r1';
+  const calculo = parseCalculoRiscoSnapshot(dados.calculoRisco);
+  const nivel = normalizarNivelRisco(dados.nivelRisco || calculo?.nivelRisco, 'r1');
+  const pontuacaoTotal = calculo?.pontuacaoTotal ?? dados.pontuacaoTotal ?? 0;
   const cor = riscoColor(nivel);
   const label = riscoLabel(nivel);
   const data = formatarDataHora(dados.dataVistoria);
@@ -310,7 +322,15 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   // Gerar tabela de respostas mapeadas
   let respostasHtml = '';
   let itemCount = 0;
-  if (dados.respostasJson) {
+  if (calculo?.itens?.length) {
+    itemCount = calculo.itens.length;
+    respostasHtml = calculo.itens.map((item, index) => {
+      const pontuacaoDesc = item.pesoRisco > 0
+        ? `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${formatarPontuacaoRisco(item.pesoRisco)} pts]</div>`
+        : '';
+      return `<tr><td class="td-num">${String(index + 1).padStart(2, '0')}</td><td class="td-param">${escapeHtml(item.pergunta)}</td><td class="td-resp">${escapeHtml(item.resposta)}${pontuacaoDesc}</td></tr>`;
+    }).join('');
+  } else if (dados.respostasJson) {
     try {
       const respostas = typeof dados.respostasJson === 'string'
         ? JSON.parse(dados.respostasJson)
@@ -338,7 +358,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
                   if (opDef.descricao) vExtenso += `<br/><span style="font-size: 10px; color: #64748B;">(${escapeHtml(opDef.descricao)})</span>`;
                   safeVal = vExtenso;
                   if (opDef.pesoRisco > 0) {
-                      pontuacaoDesc = `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${opDef.pesoRisco} pts]</div>`;
+                      pontuacaoDesc = `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${formatarPontuacaoRisco(opDef.pesoRisco)} pts]</div>`;
                   }
                 }
               }
@@ -722,7 +742,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     <div class="risk-indicator">
       <div class="risk-level-label">Nível de Risco</div>
       <div class="risk-level-value">${escapeHtml(nivel.toUpperCase())}</div>
-      <div class="risk-pts">${escapeHtml(label)} · ${dados.pontuacaoTotal ?? 0} pts</div>
+      <div class="risk-pts">${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts</div>
     </div>
     <div class="risk-details">
       <div class="risk-conduta-title">Conduta Recomendada</div>

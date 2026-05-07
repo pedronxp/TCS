@@ -1,5 +1,7 @@
 export const ASSETS: Record<string, any> = {
+  'vistoria_deslizamento_v3': require('../assets/formularios/vistoria_deslizamento_v3.json'),
   'vistoria_deslizamento_v2': require('../assets/formularios/vistoria_deslizamento_v2.json'),
+  'risco_estrutural_novo_v2': require('../assets/formularios/risco_estrutural_novo_v2.json'),
   'risco_estrutural_novo_v1': require('../assets/formularios/risco_estrutural_novo_v1.json'),
 };
 

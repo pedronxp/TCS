@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import type { CalculoRiscoSnapshot } from '../utils/riscoUtils';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ export interface ReportDraft {
   nivelRisco: string;
   pontuacaoTotal: number;
   respostas: Record<string, string>; // id → valor
+  calculoRisco?: CalculoRiscoSnapshot | string | null;
   foto_url?: string | null;
   fotosUrls?: string[] | null;
   // Campos editáveis pelo técnico

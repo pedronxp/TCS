@@ -13,22 +13,34 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarPontuacaoRisco, parseCalculoRiscoSnapshot, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { getSignedUrl } from '../../../services/StorageService';
+import { ASSETS } from '../../../utils/formulariosAssets';
 
 // ─── Form JSONs ──────────────────────────────────────────────────────────────
 const FORM_JSONS: Record<string, any> = {
-  vistoria_deslizamento_v2: require('../../../assets/formularios/vistoria_deslizamento_v2.json'),
-  risco_estrutural_novo_v1: require('../../../assets/formularios/risco_estrutural_novo_v1.json'),
+  ...ASSETS,
 };
 
 function resolverItensVistoriados(
   formularioId: string,
   respostasJson: any,
+  calculoRisco?: unknown,
 ): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }[] {
+  const calculo = parseCalculoRiscoSnapshot(calculoRisco);
+  if (calculo?.itens?.length) {
+    const grupos = new Map<string, { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }>();
+    for (const item of calculo.itens) {
+      const key = item.faseId || item.grupo || 'snapshot';
+      if (!grupos.has(key)) grupos.set(key, { grupo: item.grupo || 'Itens avaliados', itens: [] });
+      grupos.get(key)!.itens.push({ pergunta: item.pergunta, resposta: item.resposta, pesoRisco: item.pesoRisco });
+    }
+    return Array.from(grupos.values());
+  }
+
   let respostas: Record<string, string> = {};
   try {
     respostas = typeof respostasJson === 'string'
@@ -164,6 +176,7 @@ export default function LaudoScreen() {
         respostasJson: typeof vistoria.respostasJson === 'string'
           ? vistoria.respostasJson
           : JSON.stringify(vistoria.respostasJson || {}),
+        calculoRisco: vistoria.calculoRisco ?? null,
         bairro: vistoria.enderecoBairro,
         responsavelNome: vistoria.responsavelNome,
         foto_url: vistoria.fotosUrls?.[0] || vistoria.fotoUrl || null,
@@ -225,7 +238,7 @@ export default function LaudoScreen() {
         dataVistoria: vistoria.dataVistoria || new Date().toISOString(),
         municipio: vistoria.municipio || '—',
         agenteNome: vistoria.agenteNome || profile?.name || '—',
-        nivelRisco: vistoria.nivelRisco || 'r3',
+        nivelRisco: vistoria.nivelRisco || 'r1',
         pontuacaoTotal: vistoria.pontuacaoTotal || 0,
         endereco: vistoria.endereco || '—',
       };
@@ -315,7 +328,7 @@ export default function LaudoScreen() {
             <Text style={[styles.nivelLabel, { color: theme.textSecondary }]}>NÍVEL DE RISCO</Text>
             <Text style={[styles.nivelText, { color: cor }]}>{nivel}</Text>
           </View>
-          <Text style={[styles.pontuacao, { color: cor }]}>{vistoria.pontuacaoTotal ?? '—'}<Text style={{ fontSize: 14 }}>pts</Text></Text>
+          <Text style={[styles.pontuacao, { color: cor }]}>{formatarPontuacaoRisco(vistoria.pontuacaoTotal ?? 0)}<Text style={{ fontSize: 14 }}>pts</Text></Text>
         </View>
 
         {/* Banner — laudo já gerado */}
@@ -353,7 +366,7 @@ export default function LaudoScreen() {
 
         {/* Itens Vistoriados */}
         {vistoria.respostasJson && (() => {
-          const grupos = resolverItensVistoriados(vistoria.formularioId || '', vistoria.respostasJson);
+          const grupos = resolverItensVistoriados(vistoria.formularioId || '', vistoria.respostasJson, vistoria.calculoRisco);
           if (grupos.length === 0) return null;
           const riscoColors: Record<string, string> = {
             r1: '#10B981', r2: '#F59E0B', r3: '#F97316', r4: '#EF4444',

@@ -113,6 +113,7 @@ const makeVistoria = (overrides: Partial<any> = {}) => ({
   formulario_id: 'f1',
   formulario_versao: 1,
   respostas_json: '{}',
+  calculo_json: null,
   nivel_risco: 'r2',
   pontuacao_total: 35,
   foto_url: null,

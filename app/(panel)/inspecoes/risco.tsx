@@ -90,7 +90,7 @@ export default function ResultadoRiscoScreen() {
   const [showRespostas, setShowRespostas] = useState(false);
 
   const config = RISCO_CONFIG[nivel?.toLowerCase() || 'r1'] || RISCO_CONFIG.r1;
-  const pontosNum = parseInt(pontos || '0', 10);
+  const pontosNum = parseFloat(pontos || '0') || 0;
 
   // Normaliza nivel para variante do Badge (R1/R2/R3/R4)
   const nivelBadgeVariant = (() => {
@@ -140,6 +140,7 @@ export default function ResultadoRiscoScreen() {
           formulario_versao: 1,
           nivel_risco: nivel || 'r1',
           pontuacao_total: pontosNum,
+          calculo_json: null,
           respostas_json: respostas || '{}',
           foto_url: null,
           feita_online: isConnected ? 1 : 0,
@@ -155,6 +156,7 @@ export default function ResultadoRiscoScreen() {
             endereco: endereco,
             nivelRisco: nivel,
             pontuacaoTotal: pontosNum,
+            calculoRisco: null,
             respostasJson: respostas,
             dataVistoria: now,
           });

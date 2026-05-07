@@ -13,21 +13,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
   {
-    id: 'vistoria_deslizamento_v2',
+    id: 'vistoria_deslizamento_v3',
     titulo: 'Vistoria de Risco de Deslizamento',
-    descricao: '10 questões · SVG por pergunta · Pontuação R1–R4',
-    asset: require('../../../assets/formularios/vistoria_deslizamento_v2.json'),
+    descricao: 'Escala 0-10 · R1-R4 padronizado',
+    asset: require('../../../assets/formularios/vistoria_deslizamento_v3.json'),
     icon: 'trending-down' as const,
     isBuiltin: true,
     isNew: true,
   },
   {
-    id: 'risco_estrutural_novo_v1',
+    id: 'risco_estrutural_novo_v2',
     titulo: 'Avaliação de Risco Estrutural',
-    descricao: '10 elementos · Inspeção técnica de edificações',
-    asset: require('../../../assets/formularios/risco_estrutural_novo_v1.json'),
+    descricao: 'Escala 0-10 · Inspeção técnica',
+    asset: require('../../../assets/formularios/risco_estrutural_novo_v2.json'),
     icon: 'home' as const,
     isBuiltin: true,
+    isNew: true,
   },
 ];
 
@@ -163,7 +164,7 @@ export default function SelecaoFormularioScreen() {
       params: {
         ...params,
         formularioId: form.id,
-        formularioVersao: isBuiltin ? '1' : String((form as any).versao || 1),
+        formularioVersao: isBuiltin ? String((form as any).asset?.versao || 1) : String((form as any).versao || 1),
         formularioTitulo: form.titulo,
         isBuiltin: isBuiltin ? 'true' : 'false',
       }

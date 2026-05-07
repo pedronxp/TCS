@@ -35,6 +35,7 @@ describe('VistoriaLocal shape', () => {
       formulario_id: 'estrutural_v1',
       formulario_versao: 1,
       respostas_json: '{}',
+      calculo_json: null,
       nivel_risco: 'r2',
       pontuacao_total: 35,
       foto_url: null,
@@ -128,6 +129,7 @@ describe('insertVistoria — persistência offline', () => {
       respostas_json: JSON.stringify({ e1q1: 'rachadura', e2q1: 'loc_pilares' }),
       nivel_risco: 'r3',
       pontuacao_total: 60,
+      calculo_json: null,
       foto_url: null,
       criado_em: new Date().toISOString(),
     };
