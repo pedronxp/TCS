@@ -70,6 +70,53 @@ describe('calcularRiscoFormulario', () => {
     expect(calculo.itens).toHaveLength(2);
     expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.pontuacaoTotal).toBe(10);
   });
+
+  it('forca R4 quando inclinacao negativa de deslizamento e marcada', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      formularioVersao: 3,
+      tipoCalculo: 'soma_total',
+      respostas: { desl2_q2: 'q2_f' },
+      perguntas: [
+        {
+          id: 'desl2_q2',
+          texto: 'Inclinação da encosta',
+          tipo: 'cards',
+          opcoes: [
+            { id: 'q2_a', texto: '≤ 10°', pesoRisco: 0 },
+            { id: 'q2_f', texto: 'Inclinação negativa / talude solapado', pesoRisco: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(calculo.pontuacaoBase).toBe(1);
+    expect(calculo.pontuacaoTotal).toBe(7);
+    expect(calculo.nivelRisco).toBe('r4');
+    expect(calculo.agravantes).toHaveLength(1);
+    expect(calculo.agravantes?.[0].id).toBe('inclinacao_negativa_talude_solapado');
+  });
+
+  it('nao aplica agravante de inclinacao negativa em outros formularios', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: { desl2_q2: 'q2_f' },
+      perguntas: [
+        {
+          id: 'desl2_q2',
+          texto: 'Inclinação da encosta',
+          tipo: 'cards',
+          opcoes: [{ id: 'q2_f', texto: 'Inclinação negativa / talude solapado', pesoRisco: 1 }],
+        },
+      ],
+    });
+
+    expect(calculo.pontuacaoTotal).toBe(1);
+    expect(calculo.nivelRisco).toBe('r1');
+    expect(calculo.agravantes).toHaveLength(0);
+  });
 });
 
 describe('normalizacao e formatacao', () => {

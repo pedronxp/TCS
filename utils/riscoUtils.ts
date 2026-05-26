@@ -46,17 +46,39 @@ export interface CalculoRiscoItem {
   grupo?: string;
 }
 
+export interface CalculoRiscoAgravante {
+  id: string;
+  label: string;
+  descricao: string;
+  perguntaId: string;
+  respostaId: string;
+  pontuacaoMinima: number;
+  nivelMinimo: NivelRisco;
+}
+
 export interface CalculoRiscoSnapshot {
   versaoRegra: string;
   escala: { min: 0; max: 10 };
   formularioId?: string;
   formularioVersao?: number;
   tipoCalculo: string;
+  pontuacaoBase?: number;
   pontuacaoTotal: number;
   nivelRisco: NivelRisco;
   limites: LimiteRisco[];
   itens: CalculoRiscoItem[];
+  agravantes?: CalculoRiscoAgravante[];
 }
+
+const AGRAVANTE_INCLINACAO_NEGATIVA: CalculoRiscoAgravante = {
+  id: 'inclinacao_negativa_talude_solapado',
+  label: 'Inclinação negativa / talude solapado',
+  descricao: 'Talude com face verticalizada, base erodida/solapada, em balanço ou com perda de apoio visível.',
+  perguntaId: 'desl2_q2',
+  respostaId: 'q2_f',
+  pontuacaoMinima: 7.0,
+  nivelMinimo: 'r4',
+};
 
 /** Labels de exibição para cada nível de risco */
 export const RISCO_LABELS: Record<NivelRisco, string> = {
@@ -154,6 +176,20 @@ export function calcularNivelRiscoPorPontuacao(
   return ultimo ? normalizarNivelRisco(ultimo.nivel, 'r4') : 'r4';
 }
 
+function identificarAgravantesCriticos(params: {
+  formularioId?: string;
+  respostas: Record<string, string>;
+}): CalculoRiscoAgravante[] {
+  if (
+    params.formularioId === 'vistoria_deslizamento_v3'
+    && params.respostas[AGRAVANTE_INCLINACAO_NEGATIVA.perguntaId] === AGRAVANTE_INCLINACAO_NEGATIVA.respostaId
+  ) {
+    return [AGRAVANTE_INCLINACAO_NEGATIVA];
+  }
+
+  return [];
+}
+
 export function calcularRiscoFormulario(params: {
   perguntas: PerguntaRiscoCalculo[];
   respostas: Record<string, string>;
@@ -188,8 +224,20 @@ export function calcularRiscoFormulario(params: {
   }
 
   const limites = params.limites && params.limites.length > 0 ? params.limites : RISCO_0_10_LIMITES;
-  const pontuacaoTotal = limitarPontuacaoRisco(total);
-  const nivelRisco = calcularNivelRiscoPorPontuacao(pontuacaoTotal, limites);
+  const pontuacaoBase = limitarPontuacaoRisco(total);
+  const agravantes = identificarAgravantesCriticos({
+    formularioId: params.formularioId,
+    respostas: params.respostas,
+  });
+  const pontuacaoMinimaAgravante = agravantes.reduce(
+    (max, agravante) => Math.max(max, agravante.pontuacaoMinima),
+    0,
+  );
+  const pontuacaoTotal = limitarPontuacaoRisco(Math.max(pontuacaoBase, pontuacaoMinimaAgravante));
+  let nivelRisco = calcularNivelRiscoPorPontuacao(pontuacaoTotal, limites);
+  if (agravantes.some(agravante => agravante.nivelMinimo === 'r4')) {
+    nivelRisco = 'r4';
+  }
 
   return {
     versaoRegra: params.versaoRegra || REGRA_RISCO_0_10_V1,
@@ -197,10 +245,12 @@ export function calcularRiscoFormulario(params: {
     formularioId: params.formularioId,
     formularioVersao: params.formularioVersao,
     tipoCalculo: params.tipoCalculo || 'soma_total',
+    pontuacaoBase,
     pontuacaoTotal,
     nivelRisco,
     limites,
     itens,
+    agravantes,
   };
 }
 
@@ -217,6 +267,9 @@ export function parseCalculoRiscoSnapshot(raw: unknown): CalculoRiscoSnapshot | 
       formularioId: snapshot.formularioId,
       formularioVersao: snapshot.formularioVersao,
       tipoCalculo: snapshot.tipoCalculo || 'soma_total',
+      pontuacaoBase: snapshot.pontuacaoBase !== undefined
+        ? limitarPontuacaoRisco(Number(snapshot.pontuacaoBase ?? 0))
+        : undefined,
       pontuacaoTotal: limitarPontuacaoRisco(Number(snapshot.pontuacaoTotal ?? 0)),
       nivelRisco: normalizarNivelRisco(snapshot.nivelRisco, 'r1'),
       limites: Array.isArray(snapshot.limites) ? snapshot.limites : RISCO_0_10_LIMITES,
@@ -229,6 +282,17 @@ export function parseCalculoRiscoSnapshot(raw: unknown): CalculoRiscoSnapshot | 
         faseId: item.faseId,
         grupo: item.grupo,
       })),
+      agravantes: Array.isArray(snapshot.agravantes)
+        ? snapshot.agravantes.map(agravante => ({
+          id: String(agravante.id || ''),
+          label: String(agravante.label || ''),
+          descricao: String(agravante.descricao || ''),
+          perguntaId: String(agravante.perguntaId || ''),
+          respostaId: String(agravante.respostaId || ''),
+          pontuacaoMinima: limitarPontuacaoRisco(Number(agravante.pontuacaoMinima ?? 0)),
+          nivelMinimo: normalizarNivelRisco(agravante.nivelMinimo, 'r4'),
+        }))
+        : undefined,
     };
   } catch {
     return null;

@@ -308,6 +308,18 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   const data = formatarDataHora(dados.dataVistoria);
   const protocolo = (dados.id || '000000').slice(0, 8).toUpperCase();
   const conduta = dados.condutaRecomendada || riscoConduta(nivel);
+  const agravantes = calculo?.agravantes || [];
+  const agravantesHtml = agravantes.length
+    ? `<div class="risk-aggravants">
+        <div class="risk-aggravants-title">Agravante crítico aplicado</div>
+        ${agravantes.map(agravante => `
+          <div class="risk-aggravant-item">
+            <strong>${escapeHtml(agravante.label)}</strong><br/>
+            ${escapeHtml(agravante.descricao)}
+          </div>
+        `).join('')}
+      </div>`
+    : '';
   const dataExt = dataExtenso(dados.dataVistoria);
   const ano = dados.dataVistoria ? new Date(dados.dataVistoria).getFullYear() : new Date().getFullYear();
 
@@ -537,6 +549,24 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     line-height: 1.6;
     color: #2D3748;
   }
+  .risk-aggravants {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid ${corBorder};
+  }
+  .risk-aggravants-title {
+    font-size: 9px;
+    font-weight: 800;
+    color: ${cor};
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .risk-aggravant-item {
+    font-size: 11px;
+    line-height: 1.5;
+    color: #2D3748;
+  }
 
   /* ═══ SEÇÕES ═══ */
   .section { margin-bottom: 24px; }
@@ -747,6 +777,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     <div class="risk-details">
       <div class="risk-conduta-title">Conduta Recomendada</div>
       <div class="risk-conduta-text">${escapeHtml(conduta)}</div>
+      ${agravantesHtml}
     </div>
   </div>
 

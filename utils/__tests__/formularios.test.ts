@@ -75,4 +75,15 @@ describe('vistoria_deslizamento_v3 - ajustes tecnicos', () => {
     expect(drenagem.opcoes.find((o: any) => o.id === 'q3_c').texto).toBe('Sem drenagem');
     expect(drenagem.opcoes.find((o: any) => o.id === 'q3_c').pesoRisco).toBe(1);
   });
+
+  it('inclui inclinacao negativa apos a opcao vertical', () => {
+    const inclinacao = vistoriaDeslizamento.fases[0].perguntas.find((p: any) => p.id === 'desl2_q2');
+    const verticalIdx = inclinacao.opcoes.findIndex((o: any) => o.id === 'q2_e');
+    const negativaIdx = inclinacao.opcoes.findIndex((o: any) => o.id === 'q2_f');
+
+    expect(verticalIdx).toBeGreaterThan(-1);
+    expect(negativaIdx).toBe(verticalIdx + 1);
+    expect(inclinacao.opcoes[negativaIdx].texto).toBe('Inclinação negativa / talude solapado');
+    expect(inclinacao.opcoes[negativaIdx].pesoRisco).toBe(1);
+  });
 });

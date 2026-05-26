@@ -120,6 +120,13 @@
               "descricao": "Parede vertical",
               "svgKey": "desl2_q2_e",
               "pesoRisco": 1.0
+            },
+            {
+              "id": "q2_f",
+              "texto": "Inclinação negativa / talude solapado",
+              "descricao": "Face verticalizada ou com base erodida/solapada, comida por baixo, em balanço ou com perda de apoio visível",
+              "svgKey": "desl2_q2_e",
+              "pesoRisco": 1.0
             }
           ]
         },
