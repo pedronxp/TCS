@@ -5,6 +5,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [v1.3.3] - 2026-05-26 - Inclinacao negativa e novo APK
+
+### Alterado
+- Atualizada a versao do app para `1.3.3`.
+- Atualizado o Android `versionCode` para `7`.
+- Adicionada a opcao `Inclinacao negativa / talude solapado` na pergunta de inclinacao da vistoria de deslizamento.
+- Implementado agravante critico: quando essa opcao e marcada, o calculo registra R4 com pontuacao minima 7,0.
+- O laudo passa a exibir o agravante critico aplicado.
+
+---
+
 ## [v1.2.0] — 2026-04-03 · Correções Críticas + Funcionalidades Core
 
 ### ✅ Fase 18 — Segurança (2026-04-03)
