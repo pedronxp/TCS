@@ -176,6 +176,8 @@
         {
           "id": "desl2_q2_justificativa_tecnica",
           "texto": "Justificativa técnica da classificação altura x distância",
+          "descricao": "Informe altura aproximada, distância até o alvo vulnerável e sinais observados, como base solapada, crista em balanço, trincas, erosão, material desprendido ou queda recente.",
+          "placeholder": "Ex.: talude com cerca de 10 m de altura, imóvel a 8 m da base, base solapada e trincas na crista.",
           "tipo": "texto",
           "obrigatoria": true,
           "auxiliarCalculo": true,

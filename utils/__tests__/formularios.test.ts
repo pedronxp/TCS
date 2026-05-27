@@ -113,6 +113,8 @@ describe('vistoria_deslizamento_v3 - ajustes tecnicos', () => {
     expect(justificativa.tipo).toBe('texto');
     expect(justificativa.obrigatoria).toBe(true);
     expect(justificativa.auxiliarCalculo).toBe(true);
+    expect(justificativa.descricao).toContain('altura aproximada');
+    expect(justificativa.placeholder).toContain('talude');
     expect(justificativa.mostrarQuando).toEqual(classificacao.mostrarQuando);
   });
 

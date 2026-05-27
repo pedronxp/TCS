@@ -266,13 +266,23 @@ export default function WizardAvaliacaoScreen() {
   const safeStep = Math.min(step, Math.max(0, perguntasVisiveis.length - 1));
   const perguntaAtual = perguntasVisiveis[safeStep];
   const totalPerguntas = perguntasVisiveis.length;
-  const progress = totalPerguntas > 0 ? ((step + 1) / totalPerguntas) : 0;
+  const progress = totalPerguntas > 0 ? ((safeStep + 1) / totalPerguntas) : 0;
 
   const resposta = perguntaAtual ? respostasVisiveis[perguntaAtual.id] : undefined;
 
+  useEffect(() => {
+    if (step !== safeStep) setStep(safeStep);
+  }, [safeStep, step]);
+
+  const respostaObrigatoriaPreenchida = (pergunta: PerguntaModel | undefined, valor: string | undefined): boolean => {
+    if (!pergunta) return false;
+    if (pergunta.tipo === 'texto') return String(valor ?? '').trim().length > 0;
+    return !!valor;
+  };
+
   const podeAvancar = () => {
     if (!perguntaAtual?.obrigatoria) return true;
-    return !!resposta;
+    return respostaObrigatoriaPreenchida(perguntaAtual, resposta);
   };
 
   const montarSnapshotPonderado = (
@@ -355,12 +365,12 @@ export default function WizardAvaliacaoScreen() {
 
   // Calcula elemento atual (faseId) para exibição no header
   const elementoAtual = useMemo(() => {
-    const p = perguntasVisiveis[step];
+    const p = perguntasVisiveis[safeStep];
     if (!p?.faseId) return null;
     const fasesUnicas = [...new Set(perguntasVisiveis.map(x => x.faseId).filter(Boolean))];
     const idx = fasesUnicas.indexOf(p.faseId);
     return idx >= 0 ? { atual: idx + 1, total: fasesUnicas.length } : null;
-  }, [perguntasVisiveis, step]);
+  }, [perguntasVisiveis, safeStep]);
 
   // Anima entrada/saída do banner quando riscoAtual muda
   useEffect(() => {
@@ -399,7 +409,7 @@ export default function WizardAvaliacaoScreen() {
 
   const finalizar = async () => {
     // Verifica obrigatórias
-    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !respostas[p.id]);
+    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !respostaObrigatoriaPreenchida(p, respostasVisiveis[p.id]));
     if (pendente) {
       Alert.alert('Pergunta obrigatória', `Responda: "${pendente.texto}"`);
       const idx = perguntasVisiveis.indexOf(pendente);
@@ -563,7 +573,7 @@ export default function WizardAvaliacaoScreen() {
       Alert.alert('Resposta obrigatória', 'Responda esta pergunta para continuar.');
       return;
     }
-    if (step < totalPerguntas - 1) setStep(s => s + 1);
+    if (safeStep < totalPerguntas - 1) setStep(safeStep + 1);
     else finalizar();
   };
 
@@ -580,15 +590,15 @@ export default function WizardAvaliacaoScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => step > 0 ? setStep(s => s - 1) : router.back()}>
-          <Feather name={step > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
+        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeStep > 0 ? setStep(safeStep - 1) : router.back()}>
+          <Feather name={safeStep > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>
             PASSO 3 DE 3 ·{' '}
             {elementoAtual
               ? `ELEMENTO ${elementoAtual.atual}/${elementoAtual.total}`
-              : `PERGUNTA ${step + 1}/${totalPerguntas}`}
+              : `PERGUNTA ${safeStep + 1}/${totalPerguntas}`}
           </Text>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{params.formularioTitulo}</Text>
         </View>
@@ -624,6 +634,9 @@ export default function WizardAvaliacaoScreen() {
               {perguntaAtual.texto}
               {perguntaAtual.obrigatoria && <Text style={{ color: '#EF4444' }}> *</Text>}
             </Text>
+            {perguntaAtual.descricao && (
+              <Text style={[styles.questionDesc, { color: theme.textSecondary }]}>{perguntaAtual.descricao}</Text>
+            )}
 
 
             {/* CARDS / MULTIPLA ESCOLHA */}
@@ -670,7 +683,7 @@ export default function WizardAvaliacaoScreen() {
                 style={[styles.textArea, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }]}
                 multiline
                 numberOfLines={5}
-                placeholder="Digite sua resposta..."
+                placeholder={perguntaAtual.placeholder || 'Digite sua resposta...'}
                 placeholderTextColor={theme.textSecondary}
                 value={resposta || ''}
                 onChangeText={t => setResposta(perguntaAtual.id, t)}
@@ -739,7 +752,7 @@ export default function WizardAvaliacaoScreen() {
         )}
         <View style={{ flexDirection: 'row', gap: 12 }}>
           {step > 0 && (
-            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(s => s - 1)}>
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(Math.max(0, safeStep - 1))}>
               <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
             </TouchableOpacity>
           )}
@@ -751,8 +764,8 @@ export default function WizardAvaliacaoScreen() {
             {salvando
               ? <ActivityIndicator size="small" color="#FFF" />
               : <>
-                  <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
-                  <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
+                  <Text style={styles.nextBtnText}>{safeStep < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
+                  <Feather name={safeStep < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
                 </>}
           </TouchableOpacity>
         </View>
@@ -775,6 +788,7 @@ const styles = StyleSheet.create({
   instrucao: { fontSize: 14, lineHeight: 22, marginBottom: 12 },
   exampleImage: { width: '100%', height: 180, borderRadius: 14, marginBottom: 20 },
   question: { fontSize: 20, fontWeight: '700', lineHeight: 28, marginBottom: 24 },
+  questionDesc: { fontSize: 13, lineHeight: 20, marginTop: -14, marginBottom: 20 },
   optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   optionCard: { width: '47%', borderRadius: 14, borderWidth: 1.5, padding: 16, alignItems: 'center', position: 'relative' },
   optionImage: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10 },

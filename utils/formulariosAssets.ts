@@ -28,9 +28,11 @@ export interface MostrarQuando {
 export interface PerguntaModel {
   id: string;
   texto: string;
+  descricao?: string;
   faseId?: string;
   grupo?: string;
   instrucao?: string;
+  placeholder?: string;
   tipo: 'cards' | 'multipla_escolha' | 'texto' | 'foto';
   layout?: string;
   imagemExemplo?: string | null;
@@ -50,9 +52,11 @@ export function flattenPerguntas(json: any): PerguntaModel[] {
       result.push({
         id: p.id,
         texto: p.texto,
+        descricao: p.descricao,
         faseId: fase.id,
         grupo: fase.titulo,
         instrucao: fase.instrucao,
+        placeholder: p.placeholder,
         tipo: p.tipo ?? (fase.tipoFase?.startsWith('radio') ? 'cards' : 'texto'),
         imagemExemplo: p.imagemLocal || null,
         obrigatoria: p.obrigatoria ?? true,
