@@ -34,6 +34,9 @@ import {
   filtrarPerguntasVisiveis,
   filtrarRespostasPorPerguntas,
   flattenPerguntas,
+  getObservacaoCondicionalRiscoConfig,
+  getObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
   PerguntaModel,
 } from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
@@ -259,8 +262,8 @@ export default function WizardAvaliacaoScreen() {
     [perguntas, respostas],
   );
   const respostasVisiveis = useMemo(
-    () => filtrarRespostasPorPerguntas(respostas, perguntasVisiveis),
-    [respostas, perguntasVisiveis],
+    () => filtrarRespostasPorPerguntas(respostas, perguntasVisiveis, params.formularioId),
+    [respostas, perguntasVisiveis, params.formularioId],
   );
 
   const safeStep = Math.min(step, Math.max(0, perguntasVisiveis.length - 1));
@@ -269,6 +272,19 @@ export default function WizardAvaliacaoScreen() {
   const progress = totalPerguntas > 0 ? ((safeStep + 1) / totalPerguntas) : 0;
 
   const resposta = perguntaAtual ? respostasVisiveis[perguntaAtual.id] : undefined;
+  const observacaoConfig = getObservacaoCondicionalRiscoConfig(params.formularioId);
+  const opcaoSelecionada = perguntaAtual?.opcoes.find(op => op.id === resposta);
+  const observacaoCondicionalAtiva = opcaoAcionaObservacaoCondicionalRisco(
+    params.formularioId,
+    perguntaAtual,
+    resposta,
+  );
+  const observacaoCondicionalKey = perguntaAtual
+    ? getObservacaoCondicionalRiscoKey(perguntaAtual.id)
+    : '';
+  const observacaoCondicionalValor = observacaoCondicionalKey
+    ? (respostas[observacaoCondicionalKey] || '')
+    : '';
 
   useEffect(() => {
     if (step !== safeStep) setStep(safeStep);
@@ -283,6 +299,17 @@ export default function WizardAvaliacaoScreen() {
   const podeAvancar = () => {
     if (!perguntaAtual?.obrigatoria) return true;
     return respostaObrigatoriaPreenchida(perguntaAtual, resposta);
+  };
+
+  const placeholderObservacaoCondicional = () => {
+    const peso = Number(opcaoSelecionada?.pesoRisco ?? 0);
+    if (peso >= 1) {
+      return 'Descreva a evidência crítica, risco imediato, área/pessoas expostas e orientação dada em campo.';
+    }
+    if (peso >= 0.6) {
+      return 'Descreva o dano observado, local exato, evolução aparente, elementos expostos e providência recomendada.';
+    }
+    return 'Descreva o sinal observado, extensão aproximada e se requer monitoramento ou medida preventiva.';
   };
 
   const montarSnapshotPonderado = (
@@ -677,6 +704,30 @@ export default function WizardAvaliacaoScreen() {
               </View>
             )}
 
+            {observacaoCondicionalAtiva && (
+              <View style={[styles.conditionalNote, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+                <View style={styles.conditionalNoteHeader}>
+                  <Feather name="edit-3" size={15} color={theme.primary} />
+                  <Text style={[styles.conditionalNoteTitle, { color: theme.text }]}>
+                    {observacaoConfig?.titulo || 'Observação técnica da resposta'}
+                  </Text>
+                </View>
+                <Text style={[styles.conditionalNoteDesc, { color: theme.textSecondary }]}>
+                  {`Campo opcional para complementar: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`}
+                </Text>
+                <TextInput
+                  style={[styles.conditionalNoteInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  multiline
+                  numberOfLines={4}
+                  placeholder={placeholderObservacaoCondicional()}
+                  placeholderTextColor={theme.textSecondary}
+                  value={observacaoCondicionalValor}
+                  onChangeText={t => setResposta(observacaoCondicionalKey, t)}
+                  textAlignVertical="top"
+                />
+              </View>
+            )}
+
             {/* TEXTO LIVRE */}
             {perguntaAtual.tipo === 'texto' && (
               <TextInput
@@ -796,6 +847,11 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
   optionDesc: { fontSize: 12, textAlign: 'center', marginTop: 4 },
   selectedBadge: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  conditionalNote: { marginTop: 18, borderRadius: 14, borderWidth: 1, padding: 14 },
+  conditionalNoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  conditionalNoteTitle: { fontSize: 14, fontWeight: '800' },
+  conditionalNoteDesc: { fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  conditionalNoteInput: { minHeight: 96, borderRadius: 10, borderWidth: 1, padding: 12, fontSize: 14, lineHeight: 20 },
   textArea: { borderRadius: 14, borderWidth: 1, padding: 16, fontSize: 15, minHeight: 140 },
   fotoButton: { height: 160, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 12 },
   fotoButtonText: { fontSize: 15, fontWeight: '600' },

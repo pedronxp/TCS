@@ -187,6 +187,56 @@ describe('calcularRiscoFormulario', () => {
     expect(calculo.agravantes).toHaveLength(0);
     expect(calculo.regrasCondicionais).toHaveLength(0);
   });
+
+  it('anexa observacao condicional estrutural sem alterar pontuacao', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        est_q1: 'q1_c',
+        est_q1__observacao_risco: 'Trinca diagonal na base, com recalque aparente.',
+      },
+      perguntas: [{
+        id: 'est_q1',
+        texto: 'Fundacao',
+        tipo: 'cards',
+        opcoes: [
+          { id: 'q1_a', texto: 'Bom', pesoRisco: 0 },
+          { id: 'q1_c', texto: 'Ruim', pesoRisco: 0.6 },
+        ],
+      }],
+    });
+
+    expect(calculo.pontuacaoBase).toBe(0.6);
+    expect(calculo.pontuacaoTotal).toBe(0.6);
+    expect(calculo.itens[0].observacao).toContain('Trinca diagonal');
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.itens[0].observacao).toContain('Trinca diagonal');
+  });
+
+  it('ignora observacao condicional estrutural quando a opcao nao aciona risco', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        est_q1: 'q1_a',
+        est_q1__observacao_risco: 'Texto antigo que nao deve aparecer.',
+      },
+      perguntas: [{
+        id: 'est_q1',
+        texto: 'Fundacao',
+        tipo: 'cards',
+        opcoes: [
+          { id: 'q1_a', texto: 'Bom', pesoRisco: 0 },
+          { id: 'q1_c', texto: 'Ruim', pesoRisco: 0.6 },
+        ],
+      }],
+    });
+
+    expect(calculo.pontuacaoTotal).toBe(0);
+    expect(calculo.itens[0].observacao).toBeUndefined();
+  });
 });
 
 describe('normalizacao e formatacao', () => {

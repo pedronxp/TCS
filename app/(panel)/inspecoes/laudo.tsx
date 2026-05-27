@@ -18,7 +18,12 @@ import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { getSignedUrl } from '../../../services/StorageService';
-import { ASSETS } from '../../../utils/formulariosAssets';
+import {
+  ASSETS,
+  getObservacaoCondicionalRiscoKey,
+  getPerguntaIdFromObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+} from '../../../utils/formulariosAssets';
 
 // ─── Form JSONs ──────────────────────────────────────────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -29,14 +34,14 @@ function resolverItensVistoriados(
   formularioId: string,
   respostasJson: any,
   calculoRisco?: unknown,
-): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }[] {
+): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }[] {
   const calculo = parseCalculoRiscoSnapshot(calculoRisco);
   if (calculo?.itens?.length) {
-    const grupos = new Map<string, { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }>();
+    const grupos = new Map<string, { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }>();
     for (const item of calculo.itens) {
       const key = item.faseId || item.grupo || 'snapshot';
       if (!grupos.has(key)) grupos.set(key, { grupo: item.grupo || 'Itens avaliados', itens: [] });
-      grupos.get(key)!.itens.push({ pergunta: item.pergunta, resposta: item.resposta, pesoRisco: item.pesoRisco });
+      grupos.get(key)!.itens.push({ pergunta: item.pergunta, resposta: item.resposta, pesoRisco: item.pesoRisco, observacao: item.observacao });
     }
     return Array.from(grupos.values());
   }
@@ -51,6 +56,7 @@ function resolverItensVistoriados(
   const form = FORM_JSONS[formularioId];
   if (!form) {
     const itens = Object.entries(respostas)
+      .filter(([k]) => !getPerguntaIdFromObservacaoCondicionalRiscoKey(k))
       .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
       .map(([k, v]) => ({ pergunta: k, resposta: String(v), pesoRisco: 0 }));
     return itens.length ? [{ grupo: 'Respostas', itens }] : [];
@@ -58,7 +64,7 @@ function resolverItensVistoriados(
 
   const grupos: { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }[] = [];
   for (const fase of form.fases || []) {
-    const itens: { pergunta: string; resposta: string; pesoRisco: number }[] = [];
+    const itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] = [];
     for (const p of fase.perguntas || []) {
       if (p.tipo === 'foto') continue;
       const raw = respostas[p.id];
@@ -69,7 +75,11 @@ function resolverItensVistoriados(
         const op = (p.opcoes || []).find((o: any) => o.id === raw);
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
       }
-      itens.push({ pergunta: p.texto, resposta: respostaTexto, pesoRisco });
+      const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
+      const observacao = opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
+        ? respostas[observacaoKey]?.trim()
+        : undefined;
+      itens.push({ pergunta: p.texto, resposta: respostaTexto, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, itens });
   }
@@ -402,6 +412,12 @@ export default function LaudoScreen() {
                           ) : (
                             <Text style={[styles.respostaValor, { color: theme.text }]}>{item.resposta}</Text>
                           )}
+                          {item.observacao && (
+                            <View style={[styles.observacaoBox, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
+                              <Text style={[styles.observacaoLabel, { color: theme.textSecondary }]}>Observação do agente</Text>
+                              <Text style={[styles.observacaoText, { color: theme.text }]}>{item.observacao}</Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                     );
@@ -637,6 +653,9 @@ const styles = StyleSheet.create({
   respostaValor: { fontSize: 14, fontWeight: '700' },
   respostaBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   respostaBadgeText: { fontSize: 12, fontWeight: '800' },
+  observacaoBox: { marginTop: 10, borderRadius: 10, borderWidth: 1, padding: 10 },
+  observacaoLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
+  observacaoText: { fontSize: 13, lineHeight: 19 },
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 12, height: 60, borderRadius: 18, marginTop: 8,

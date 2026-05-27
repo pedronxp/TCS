@@ -43,6 +43,48 @@ export interface PerguntaModel {
   mostrarQuando?: MostrarQuando | null;
 }
 
+export const OBSERVACAO_CONDICIONAL_RISCO_SUFFIX = '__observacao_risco';
+
+export function getObservacaoCondicionalRiscoKey(perguntaId: string): string {
+  return `${perguntaId}${OBSERVACAO_CONDICIONAL_RISCO_SUFFIX}`;
+}
+
+export function getPerguntaIdFromObservacaoCondicionalRiscoKey(key: string): string | null {
+  return key.endsWith(OBSERVACAO_CONDICIONAL_RISCO_SUFFIX)
+    ? key.slice(0, -OBSERVACAO_CONDICIONAL_RISCO_SUFFIX.length)
+    : null;
+}
+
+export function getObservacaoCondicionalRiscoConfig(formularioId?: string | null): {
+  ativo: boolean;
+  pesoMinimo: number;
+  titulo?: string;
+  descricao?: string;
+} | null {
+  if (!formularioId) return null;
+  const config = ASSETS[formularioId]?.observacaoCondicionalRisco;
+  if (!config?.ativo) return null;
+  return {
+    ativo: true,
+    pesoMinimo: Number(config.pesoMinimo ?? 0.3),
+    titulo: config.titulo,
+    descricao: config.descricao,
+  };
+}
+
+export function opcaoAcionaObservacaoCondicionalRisco(
+  formularioId: string | undefined | null,
+  pergunta: Pick<PerguntaModel, 'tipo' | 'auxiliarCalculo' | 'opcoes'> | undefined,
+  respostaId: string | undefined,
+): boolean {
+  const config = getObservacaoCondicionalRiscoConfig(formularioId);
+  if (!config || !pergunta || !respostaId) return false;
+  if (pergunta.auxiliarCalculo) return false;
+  if (pergunta.tipo !== 'cards' && pergunta.tipo !== 'multipla_escolha') return false;
+  const opcao = (pergunta.opcoes || []).find(o => o.id === respostaId);
+  return Number(opcao?.pesoRisco ?? 0) >= config.pesoMinimo;
+}
+
 export function flattenPerguntas(json: any): PerguntaModel[] {
   const result: PerguntaModel[] = [];
   const fases: any[] = json?.fases || [];
@@ -100,9 +142,21 @@ export function filtrarPerguntasVisiveis(perguntas: PerguntaModel[], respostas: 
 export function filtrarRespostasPorPerguntas(
   respostas: Record<string, string>,
   perguntasVisiveis: PerguntaModel[],
+  formularioId?: string | null,
 ): Record<string, string> {
   const visiveis = new Set(perguntasVisiveis.map(pergunta => pergunta.id));
+  const perguntaPorId = new Map(perguntasVisiveis.map(pergunta => [pergunta.id, pergunta]));
   return Object.fromEntries(
-    Object.entries(respostas).filter(([perguntaId]) => visiveis.has(perguntaId)),
+    Object.entries(respostas).filter(([perguntaId, valor]) => {
+      if (visiveis.has(perguntaId)) return true;
+      const perguntaBaseId = getPerguntaIdFromObservacaoCondicionalRiscoKey(perguntaId);
+      if (!perguntaBaseId || !String(valor ?? '').trim()) return false;
+      const perguntaBase = perguntaPorId.get(perguntaBaseId);
+      return opcaoAcionaObservacaoCondicionalRisco(
+        formularioId,
+        perguntaBase,
+        respostas[perguntaBaseId],
+      );
+    }),
   );
 }

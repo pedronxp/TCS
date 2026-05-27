@@ -4,6 +4,12 @@
   "versao": 2,
   "ativo": true,
   "tipoCalculo": "soma_total",
+  "observacaoCondicionalRisco": {
+    "ativo": true,
+    "pesoMinimo": 0.3,
+    "titulo": "Observação técnica da resposta",
+    "descricao": "Campo opcional exibido quando o agente marcar uma opção de risco médio, alto ou muito alto."
+  },
   "descricao": "Formulário técnico em escala padronizada de 0,0 a 10,0 para avaliação de risco estrutural de edificações.",
   "classificacao": {
     "limites": [

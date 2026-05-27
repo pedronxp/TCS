@@ -24,7 +24,12 @@ import { useAuth } from '../../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../utils/supabase';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
-import { ASSETS } from '../../../utils/formulariosAssets';
+import {
+  ASSETS,
+  getObservacaoCondicionalRiscoKey,
+  getPerguntaIdFromObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+} from '../../../utils/formulariosAssets';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -38,6 +43,7 @@ interface ItemResolvido {
   resposta: string;
   tipo: string;
   pesoRisco: number;
+  observacao?: string;
 }
 
 interface GrupoResolvido {
@@ -64,6 +70,7 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
         resposta: item.resposta,
         tipo: 'cards',
         pesoRisco: item.pesoRisco,
+        observacao: item.observacao,
       });
     }
     return Array.from(grupos.values());
@@ -73,6 +80,7 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
   if (!form) {
     // Fallback genérico: mostra chave → valor bruto
     const itens = Object.entries(respostas)
+      .filter(([k]) => !getPerguntaIdFromObservacaoCondicionalRiscoKey(k))
       .filter(([, v]) => v)
       .map(([k, v]) => ({ perguntaId: k, pergunta: k, resposta: v, tipo: 'texto', pesoRisco: 0 }));
     return itens.length ? [{ grupo: 'Respostas', faseId: 'raw', itens }] : [];
@@ -93,7 +101,11 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
       }
 
-      itens.push({ perguntaId: p.id, pergunta: p.texto, resposta: respostaTexto, tipo: p.tipo, pesoRisco });
+      const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
+      const observacao = opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
+        ? respostas[observacaoKey]?.trim()
+        : undefined;
+      itens.push({ perguntaId: p.id, pergunta: p.texto, resposta: respostaTexto, tipo: p.tipo, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, faseId: fase.id, peso: fase.peso, itens });
   }
@@ -568,6 +580,12 @@ export default function RelatorioScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[s.itemPergunta, { color: theme.textSecondary }]}>{item.pergunta}</Text>
                     <Text style={[s.itemResposta, { color: theme.text }]}>{item.resposta}</Text>
+                    {item.observacao && (
+                      <View style={[s.itemObsBox, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
+                        <Text style={[s.itemObsLabel, { color: theme.textSecondary }]}>Observação do agente</Text>
+                        <Text style={[s.itemObsText, { color: theme.text }]}>{item.observacao}</Text>
+                      </View>
+                    )}
                   </View>
                   {item.pesoRisco > 0 && (
                     <View style={[s.pesoBadge, { backgroundColor: pesoColor(item.pesoRisco) + '22' }]}>
@@ -904,6 +922,9 @@ const s = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0, marginTop: 2 },
   itemPergunta: { fontSize: 11, fontWeight: '600', marginBottom: 3 },
   itemResposta: { fontSize: 14, fontWeight: '700' },
+  itemObsBox: { marginTop: 8, borderRadius: 10, borderWidth: 1, padding: 10 },
+  itemObsLabel: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 },
+  itemObsText: { fontSize: 12, lineHeight: 18 },
   pesoBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   pesoBadgeText: { fontSize: 11, fontWeight: '800' },
 

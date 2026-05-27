@@ -3,7 +3,14 @@
  * Garante que os formularios publicados no app usam a escala padronizada 0-10.
  */
 
-import { filtrarPerguntasVisiveis, flattenPerguntas } from '../formulariosAssets';
+import {
+  filtrarPerguntasVisiveis,
+  filtrarRespostasPorPerguntas,
+  flattenPerguntas,
+  getObservacaoCondicionalRiscoConfig,
+  getObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+} from '../formulariosAssets';
 
 const riscoEstrutural = require('../../assets/formularios/risco_estrutural_novo_v2.json');
 const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v3.json');
@@ -124,5 +131,39 @@ describe('vistoria_deslizamento_v3 - ajustes tecnicos', () => {
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(false);
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_e' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(true);
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_f' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(true);
+  });
+});
+
+describe('risco_estrutural_novo_v2 - observacao condicional de risco', () => {
+  it('habilita observacao opcional para opcoes com peso a partir de 0.3', () => {
+    const config = getObservacaoCondicionalRiscoConfig('risco_estrutural_novo_v2');
+    const perguntas = flattenPerguntas(riscoEstrutural);
+    const fundacao = perguntas.find(p => p.id === 'est_q1')!;
+
+    expect(config?.ativo).toBe(true);
+    expect(config?.pesoMinimo).toBe(0.3);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_a')).toBe(false);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_b')).toBe(true);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_c')).toBe(true);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_d')).toBe(true);
+  });
+
+  it('mantem observacao visivel somente quando a resposta atual aciona a regra', () => {
+    const perguntas = flattenPerguntas(riscoEstrutural);
+    const obsKey = getObservacaoCondicionalRiscoKey('est_q1');
+
+    const comRisco = filtrarRespostasPorPerguntas(
+      { est_q1: 'q1_c', [obsKey]: 'Recalque visivel na fundacao.' },
+      perguntas,
+      'risco_estrutural_novo_v2',
+    );
+    const semRisco = filtrarRespostasPorPerguntas(
+      { est_q1: 'q1_a', [obsKey]: 'Texto antigo.' },
+      perguntas,
+      'risco_estrutural_novo_v2',
+    );
+
+    expect(comRisco[obsKey]).toContain('Recalque');
+    expect(semRisco[obsKey]).toBeUndefined();
   });
 });

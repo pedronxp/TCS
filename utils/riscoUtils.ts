@@ -4,6 +4,11 @@
  * Fonte única da verdade — consolidado de 7 arquivos que tinham cópias inline.
  */
 
+import {
+  getObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+} from './formulariosAssets';
+
 export type NivelRisco = 'r1' | 'r2' | 'r3' | 'r4';
 
 export interface LimiteRisco {
@@ -45,6 +50,8 @@ export interface CalculoRiscoItem {
   pesoRisco: number;
   faseId?: string;
   grupo?: string;
+  observacao?: string;
+  observacaoPerguntaId?: string;
 }
 
 export interface CalculoRiscoAgravante {
@@ -314,6 +321,10 @@ export function calcularRiscoFormulario(params: {
     if (!opcao) continue;
 
     const peso = arredondarPontuacaoRisco(Number(opcao.pesoRisco ?? 0));
+    const observacaoKey = getObservacaoCondicionalRiscoKey(pergunta.id);
+    const observacao = opcaoAcionaObservacaoCondicionalRisco(params.formularioId, pergunta as any, respostaId)
+      ? params.respostas[observacaoKey]?.trim()
+      : undefined;
     total += peso;
     itens.push({
       perguntaId: pergunta.id,
@@ -323,6 +334,8 @@ export function calcularRiscoFormulario(params: {
       pesoRisco: peso,
       faseId: pergunta.faseId,
       grupo: pergunta.grupo,
+      observacao: observacao || undefined,
+      observacaoPerguntaId: observacao ? observacaoKey : undefined,
     });
   }
 
@@ -386,6 +399,10 @@ export function parseCalculoRiscoSnapshot(raw: unknown): CalculoRiscoSnapshot | 
         pesoRisco: arredondarPontuacaoRisco(Number(item.pesoRisco ?? 0)),
         faseId: item.faseId,
         grupo: item.grupo,
+        observacao: item.observacao ? String(item.observacao) : undefined,
+        observacaoPerguntaId: item.observacaoPerguntaId
+          ? String(item.observacaoPerguntaId)
+          : undefined,
       })),
       agravantes: Array.isArray(snapshot.agravantes)
         ? snapshot.agravantes.map(agravante => ({
