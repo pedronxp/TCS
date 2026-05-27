@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import { NotificationProvider, useNotifications } from '../context/NotificationContext';
 import { ReportProvider } from '../context/ReportContext';
 import { ConnectivityBanner } from '../components/ConnectivityBanner';
+import { ForceUpdateGate } from '../components/ForceUpdateGate';
 import { LogBox } from 'react-native';
 
 // Silencia erros internos do Expo Go no Android
@@ -147,7 +148,9 @@ export default function RootLayout() {
         <AuthProvider>
           <ReportProvider>
             <NotificationProvider>
-              <RootNavigator />
+              <ForceUpdateGate>
+                <RootNavigator />
+              </ForceUpdateGate>
             </NotificationProvider>
           </ReportProvider>
         </AuthProvider>
