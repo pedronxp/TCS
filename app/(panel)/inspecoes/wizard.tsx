@@ -29,7 +29,13 @@ import {
   riscoLabel,
   riscoColor,
 } from '../../../utils/riscoUtils';
-import { ASSETS, flattenPerguntas, PerguntaModel } from '../../../utils/formulariosAssets';
+import {
+  ASSETS,
+  filtrarPerguntasVisiveis,
+  filtrarRespostasPorPerguntas,
+  flattenPerguntas,
+  PerguntaModel,
+} from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
 import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -248,13 +254,13 @@ export default function WizardAvaliacaoScreen() {
     }
   };
 
-  const perguntasVisiveis = useMemo(() =>
-    perguntas.filter(p => {
-      if (!p.skipSe) return true;
-      const resposta = respostas[p.skipSe.perguntaId];
-      return resposta !== p.skipSe.opcaoId;
-    }),
-    [perguntas, respostas]
+  const perguntasVisiveis = useMemo(
+    () => filtrarPerguntasVisiveis(perguntas, respostas),
+    [perguntas, respostas],
+  );
+  const respostasVisiveis = useMemo(
+    () => filtrarRespostasPorPerguntas(respostas, perguntasVisiveis),
+    [respostas, perguntasVisiveis],
   );
 
   const safeStep = Math.min(step, Math.max(0, perguntasVisiveis.length - 1));
@@ -262,7 +268,7 @@ export default function WizardAvaliacaoScreen() {
   const totalPerguntas = perguntasVisiveis.length;
   const progress = totalPerguntas > 0 ? ((step + 1) / totalPerguntas) : 0;
 
-  const resposta = perguntaAtual ? respostas[perguntaAtual.id] : undefined;
+  const resposta = perguntaAtual ? respostasVisiveis[perguntaAtual.id] : undefined;
 
   const podeAvancar = () => {
     if (!perguntaAtual?.obrigatoria) return true;
@@ -284,14 +290,17 @@ export default function WizardAvaliacaoScreen() {
     itens: [],
   });
 
-  const calcularNivelRisco = (visiveis: PerguntaModel[] = perguntasVisiveis): { nivel: string; pontuacao: number; calculo: CalculoRiscoSnapshot } => {
+  const calcularNivelRisco = (
+    visiveis: PerguntaModel[] = perguntasVisiveis,
+    respostasBase: Respostas = respostasVisiveis,
+  ): { nivel: string; pontuacao: number; calculo: CalculoRiscoSnapshot } => {
     // ── Cálculo ponderado por elemento (Risco Estrutural) ─────────────────────
     if (tipoCalculo === 'ponderada_max_elemento') {
       // Acumula score bruto por fase
       const faseRaw: Record<string, number> = {};
       visiveis.forEach(p => {
         if (!p.faseId) return;
-        const r = respostas[p.id];
+        const r = respostasBase[p.id];
         if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
           const opcao = p.opcoes.find(o => o.id === r);
           if (opcao && opcao.pesoRisco > 0) {
@@ -329,7 +338,7 @@ export default function WizardAvaliacaoScreen() {
 
     const calculo = calcularRiscoFormulario({
       perguntas: visiveis,
-      respostas,
+      respostas: respostasBase,
       limites,
       formularioId: params.formularioId,
       formularioVersao: parseInt(params.formularioVersao || '1') || 1,
@@ -341,8 +350,8 @@ export default function WizardAvaliacaoScreen() {
   // Risco calculado em tempo real — recalcula a cada resposta
   const riscoAtual = useMemo(() => {
     if (Object.keys(respostas).length === 0) return null;
-    return calcularNivelRisco(perguntasVisiveis);
-  }, [respostas, perguntasVisiveis, limites, tipoCalculo, faseConfigs]);
+    return calcularNivelRisco(perguntasVisiveis, respostasVisiveis);
+  }, [respostasVisiveis, perguntasVisiveis, limites, tipoCalculo, faseConfigs]);
 
   // Calcula elemento atual (faseId) para exibição no header
   const elementoAtual = useMemo(() => {
@@ -410,7 +419,7 @@ export default function WizardAvaliacaoScreen() {
     try {
       if (!profile?.uid) throw new Error('Perfil não carregado — tente novamente.');
 
-      const { nivel, pontuacao, calculo } = calcularNivelRisco(perguntasVisiveis);
+      const { nivel, pontuacao, calculo } = calcularNivelRisco(perguntasVisiveis, respostasVisiveis);
       const agora = new Date().toISOString();
 
       // UUID via crypto (Hermes suporta desde RN 0.73+)
@@ -418,7 +427,7 @@ export default function WizardAvaliacaoScreen() {
 
       // Extrair URI da foto das respostas (pergunta do tipo 'foto')
       const perguntaFoto = perguntas.find(p => p.tipo === 'foto');
-      const fotoUri = perguntaFoto ? (respostas[perguntaFoto.id] || null) : null;
+      const fotoUri = perguntaFoto ? (respostasVisiveis[perguntaFoto.id] || null) : null;
 
       const municipioVistoria = params.municipio || profile?.municipio || '';
       const vistoriaLocal = {
@@ -437,7 +446,7 @@ export default function WizardAvaliacaoScreen() {
         data_vistoria: agora,
         formulario_id: params.formularioId,
         formulario_versao: parseInt(params.formularioVersao || '1') || 1,
-        respostas_json: JSON.stringify(respostas),
+        respostas_json: JSON.stringify(respostasVisiveis),
         calculo_json: JSON.stringify(calculo),
         nivel_risco: nivel,
         pontuacao_total: pontuacao,

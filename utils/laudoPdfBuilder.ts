@@ -309,6 +309,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   const protocolo = (dados.id || '000000').slice(0, 8).toUpperCase();
   const conduta = dados.condutaRecomendada || riscoConduta(nivel);
   const agravantes = calculo?.agravantes || [];
+  const regrasCondicionais = calculo?.regrasCondicionais || [];
   const agravantesHtml = agravantes.length
     ? `<div class="risk-aggravants">
         <div class="risk-aggravants-title">Agravante crítico aplicado</div>
@@ -316,6 +317,20 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
           <div class="risk-aggravant-item">
             <strong>${escapeHtml(agravante.label)}</strong><br/>
             ${escapeHtml(agravante.descricao)}
+          </div>
+        `).join('')}
+      </div>`
+    : '';
+  const regrasCondicionaisHtml = regrasCondicionais.length
+    ? `<div class="risk-rules">
+        <div class="risk-rules-title">Regra técnica aplicada</div>
+        ${regrasCondicionais.map(regra => `
+          <div class="risk-rule-item">
+            <strong>${escapeHtml(regra.label)}</strong><br/>
+            <span>${escapeHtml(regra.descricao)}</span><br/>
+            <span><strong>Resposta do agente:</strong> ${escapeHtml(regra.resposta)}</span><br/>
+            <span><strong>Efeito no cálculo:</strong> ${escapeHtml(regra.efeito)}</span>
+            ${regra.justificativa ? `<div class="risk-rule-justification"><strong>Justificativa técnica:</strong> ${escapeHtml(regra.justificativa)}</div>` : ''}
           </div>
         `).join('')}
       </div>`
@@ -554,7 +569,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     padding-top: 10px;
     border-top: 1px solid ${corBorder};
   }
-  .risk-aggravants-title {
+  .risk-rules {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid ${corBorder};
+  }
+  .risk-aggravants-title,
+  .risk-rules-title {
     font-size: 9px;
     font-weight: 800;
     color: ${cor};
@@ -562,10 +583,18 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     text-transform: uppercase;
     margin-bottom: 5px;
   }
-  .risk-aggravant-item {
+  .risk-aggravant-item,
+  .risk-rule-item {
     font-size: 11px;
     line-height: 1.5;
     color: #2D3748;
+  }
+  .risk-rule-justification {
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid ${corBorder};
+    border-radius: 6px;
   }
 
   /* ═══ SEÇÕES ═══ */
@@ -775,11 +804,12 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
       <div class="risk-pts">${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts</div>
     </div>
     <div class="risk-details">
-      <div class="risk-conduta-title">Conduta Recomendada</div>
-      <div class="risk-conduta-text">${escapeHtml(conduta)}</div>
-      ${agravantesHtml}
-    </div>
-  </div>
+            <div class="risk-conduta-title">Conduta Recomendada</div>
+            <div class="risk-conduta-text">${escapeHtml(conduta)}</div>
+            ${agravantesHtml}
+            ${regrasCondicionaisHtml}
+          </div>
+        </div>
 
   <!-- DADOS DA VISTORIA -->
   <div class="section">

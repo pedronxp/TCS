@@ -131,6 +131,61 @@
           ]
         },
         {
+          "id": "desl2_q2_exposicao_altura_distancia",
+          "texto": "Classificação do risco considerando altura do talude e distância até o alvo vulnerável",
+          "tipo": "multipla_escolha",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": {
+            "perguntaId": "desl2_q2",
+            "respostaIds": ["q2_e", "q2_f"]
+          },
+          "opcoes": [
+            {
+              "id": "baixo",
+              "texto": "Baixo",
+              "descricao": "Distância bem maior que a altura do talude e sem alvo diretamente atingível",
+              "pesoRisco": 0.0
+            },
+            {
+              "id": "medio",
+              "texto": "Médio",
+              "descricao": "Distância moderada, com possibilidade limitada de impacto",
+              "pesoRisco": 0.0
+            },
+            {
+              "id": "alto",
+              "texto": "Alto",
+              "descricao": "Alvo próximo, dentro da zona provável de alcance",
+              "pesoRisco": 0.0
+            },
+            {
+              "id": "muito_alto",
+              "texto": "Muito alto",
+              "descricao": "Alvo muito próximo ou imediato, especialmente com base solapada, massa em balanço, trincas, erosão ativa ou sinais de queda iminente",
+              "pesoRisco": 0.0
+            },
+            {
+              "id": "nao_estimado",
+              "texto": "Não foi possível estimar",
+              "descricao": "Manter postura conservadora quando altura, distância ou alcance provável não puderem ser estimados",
+              "pesoRisco": 0.0
+            }
+          ]
+        },
+        {
+          "id": "desl2_q2_justificativa_tecnica",
+          "texto": "Justificativa técnica da classificação altura x distância",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": {
+            "perguntaId": "desl2_q2",
+            "respostaIds": ["q2_e", "q2_f"]
+          },
+          "opcoes": []
+        },
+        {
           "id": "desl2_q3",
           "texto": "Drenagem superficial da encosta",
           "tipo": "cards",

@@ -3,6 +3,8 @@
  * Garante que os formularios publicados no app usam a escala padronizada 0-10.
  */
 
+import { filtrarPerguntasVisiveis, flattenPerguntas } from '../formulariosAssets';
+
 const riscoEstrutural = require('../../assets/formularios/risco_estrutural_novo_v2.json');
 const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v3.json');
 
@@ -12,7 +14,7 @@ const NIVEL_VALIDOS_LIMITES = ['r1', 'r2', 'r3', 'r4'];
 
 function perguntasPontuaveis(form: any) {
   return form.fases.flatMap((fase: any) =>
-    (fase.perguntas || []).filter((p: any) => ['cards', 'multipla_escolha'].includes(p.tipo)),
+    (fase.perguntas || []).filter((p: any) => ['cards', 'multipla_escolha'].includes(p.tipo) && !p.auxiliarCalculo),
   );
 }
 
@@ -84,6 +86,41 @@ describe('vistoria_deslizamento_v3 - ajustes tecnicos', () => {
     expect(verticalIdx).toBeGreaterThan(-1);
     expect(negativaIdx).toBe(verticalIdx + 1);
     expect(inclinacao.opcoes[negativaIdx].texto).toBe('Inclinação negativa / talude solapado');
-    expect(inclinacao.opcoes[negativaIdx].pesoRisco).toBe(1);
+    expect(inclinacao.opcoes[negativaIdx].pesoRisco).toBe(inclinacao.opcoes[verticalIdx].pesoRisco);
+  });
+
+  it('inclui perguntas auxiliares condicionais apos a inclinacao', () => {
+    const perguntas = vistoriaDeslizamento.fases[0].perguntas;
+    const inclinacaoIdx = perguntas.findIndex((p: any) => p.id === 'desl2_q2');
+    const classificacao = perguntas[inclinacaoIdx + 1];
+    const justificativa = perguntas[inclinacaoIdx + 2];
+
+    expect(classificacao.id).toBe('desl2_q2_exposicao_altura_distancia');
+    expect(classificacao.auxiliarCalculo).toBe(true);
+    expect(classificacao.mostrarQuando).toEqual({
+      perguntaId: 'desl2_q2',
+      respostaIds: ['q2_e', 'q2_f'],
+    });
+    expect(classificacao.opcoes.map((o: any) => o.id)).toEqual([
+      'baixo',
+      'medio',
+      'alto',
+      'muito_alto',
+      'nao_estimado',
+    ]);
+
+    expect(justificativa.id).toBe('desl2_q2_justificativa_tecnica');
+    expect(justificativa.tipo).toBe('texto');
+    expect(justificativa.obrigatoria).toBe(true);
+    expect(justificativa.auxiliarCalculo).toBe(true);
+    expect(justificativa.mostrarQuando).toEqual(classificacao.mostrarQuando);
+  });
+
+  it('mostra perguntas auxiliares somente para inclinacao vertical ou negativa', () => {
+    const perguntas = flattenPerguntas(vistoriaDeslizamento);
+
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(false);
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_e' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(true);
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_f' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(true);
   });
 });

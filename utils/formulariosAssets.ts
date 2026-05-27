@@ -19,6 +19,12 @@ export interface SkipSe {
   opcaoId: string;
 }
 
+export interface MostrarQuando {
+  perguntaId: string;
+  opcaoId?: string;
+  respostaIds?: string[];
+}
+
 export interface PerguntaModel {
   id: string;
   texto: string;
@@ -29,8 +35,10 @@ export interface PerguntaModel {
   layout?: string;
   imagemExemplo?: string | null;
   obrigatoria: boolean;
+  auxiliarCalculo?: boolean;
   opcoes: OpcaoModel[];
   skipSe?: SkipSe | null;
+  mostrarQuando?: MostrarQuando | null;
 }
 
 export function flattenPerguntas(json: any): PerguntaModel[] {
@@ -48,6 +56,7 @@ export function flattenPerguntas(json: any): PerguntaModel[] {
         tipo: p.tipo ?? (fase.tipoFase?.startsWith('radio') ? 'cards' : 'texto'),
         imagemExemplo: p.imagemLocal || null,
         obrigatoria: p.obrigatoria ?? true,
+        auxiliarCalculo: Boolean(p.auxiliarCalculo),
         opcoes: (p.opcoes || []).map((o: any) => ({
           id: o.id,
           texto: o.texto,
@@ -57,8 +66,39 @@ export function flattenPerguntas(json: any): PerguntaModel[] {
           pesoRisco: o.pesoRisco || 0,
         })),
         skipSe: p.skipSe || null,
+        mostrarQuando: p.mostrarQuando || null,
       });
     }
   }
   return result;
+}
+
+export function perguntaEstaVisivel(pergunta: PerguntaModel, respostas: Record<string, string>): boolean {
+  if (pergunta.skipSe) {
+    const resposta = respostas[pergunta.skipSe.perguntaId];
+    if (resposta === pergunta.skipSe.opcaoId) return false;
+  }
+
+  if (pergunta.mostrarQuando) {
+    const resposta = respostas[pergunta.mostrarQuando.perguntaId];
+    const permitidas = pergunta.mostrarQuando.respostaIds
+      || (pergunta.mostrarQuando.opcaoId ? [pergunta.mostrarQuando.opcaoId] : []);
+    return permitidas.includes(resposta);
+  }
+
+  return true;
+}
+
+export function filtrarPerguntasVisiveis(perguntas: PerguntaModel[], respostas: Record<string, string>): PerguntaModel[] {
+  return perguntas.filter(pergunta => perguntaEstaVisivel(pergunta, respostas));
+}
+
+export function filtrarRespostasPorPerguntas(
+  respostas: Record<string, string>,
+  perguntasVisiveis: PerguntaModel[],
+): Record<string, string> {
+  const visiveis = new Set(perguntasVisiveis.map(pergunta => pergunta.id));
+  return Object.fromEntries(
+    Object.entries(respostas).filter(([perguntaId]) => visiveis.has(perguntaId)),
+  );
 }

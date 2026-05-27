@@ -33,6 +33,7 @@ export interface PerguntaRiscoCalculo {
   faseId?: string;
   grupo?: string;
   tipo: string;
+  auxiliarCalculo?: boolean;
   opcoes?: OpcaoRiscoCalculo[];
 }
 
@@ -56,6 +57,20 @@ export interface CalculoRiscoAgravante {
   nivelMinimo: NivelRisco;
 }
 
+export interface CalculoRiscoRegraCondicional {
+  id: string;
+  label: string;
+  descricao: string;
+  perguntaId: string;
+  respostaId: string;
+  resposta: string;
+  efeito: string;
+  nivelMinimo?: NivelRisco;
+  pontuacaoMinima?: number;
+  justificativaPerguntaId?: string;
+  justificativa?: string;
+}
+
 export interface CalculoRiscoSnapshot {
   versaoRegra: string;
   escala: { min: 0; max: 10 };
@@ -68,16 +83,24 @@ export interface CalculoRiscoSnapshot {
   limites: LimiteRisco[];
   itens: CalculoRiscoItem[];
   agravantes?: CalculoRiscoAgravante[];
+  regrasCondicionais?: CalculoRiscoRegraCondicional[];
 }
 
-const AGRAVANTE_INCLINACAO_NEGATIVA: CalculoRiscoAgravante = {
-  id: 'inclinacao_negativa_talude_solapado',
-  label: 'Inclinação negativa / talude solapado',
-  descricao: 'Talude com face verticalizada, base erodida/solapada, em balanço ou com perda de apoio visível.',
-  perguntaId: 'desl2_q2',
-  respostaId: 'q2_f',
-  pontuacaoMinima: 7.0,
-  nivelMinimo: 'r4',
+const PERGUNTA_INCLINACAO_ENCOSTA = 'desl2_q2';
+const RESPOSTAS_INCLINACAO_VERTICAL_OU_NEGATIVA = ['q2_e', 'q2_f'];
+const PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA = 'desl2_q2_exposicao_altura_distancia';
+const PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA = 'desl2_q2_justificativa_tecnica';
+const PONTUACAO_MINIMA_NIVEL: Record<NivelRisco, number> = {
+  r1: 0,
+  r2: 2.1,
+  r3: 4.0,
+  r4: 7.0,
+};
+const ORDEM_NIVEL_RISCO: Record<NivelRisco, number> = {
+  r1: 1,
+  r2: 2,
+  r3: 3,
+  r4: 4,
 };
 
 /** Labels de exibição para cada nível de risco */
@@ -176,18 +199,97 @@ export function calcularNivelRiscoPorPontuacao(
   return ultimo ? normalizarNivelRisco(ultimo.nivel, 'r4') : 'r4';
 }
 
-function identificarAgravantesCriticos(params: {
+function identificarRegrasCondicionais(params: {
   formularioId?: string;
   respostas: Record<string, string>;
-}): CalculoRiscoAgravante[] {
-  if (
-    params.formularioId === 'vistoria_deslizamento_v3'
-    && params.respostas[AGRAVANTE_INCLINACAO_NEGATIVA.perguntaId] === AGRAVANTE_INCLINACAO_NEGATIVA.respostaId
-  ) {
-    return [AGRAVANTE_INCLINACAO_NEGATIVA];
-  }
+}): CalculoRiscoRegraCondicional[] {
+  if (params.formularioId !== 'vistoria_deslizamento_v3') return [];
 
+  const inclinacao = params.respostas[PERGUNTA_INCLINACAO_ENCOSTA];
+  if (!RESPOSTAS_INCLINACAO_VERTICAL_OU_NEGATIVA.includes(inclinacao)) return [];
+
+  const classificacao = params.respostas[PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA];
+  if (!classificacao) return [];
+  const justificativa = params.respostas[PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA]?.trim();
+  const regras: Record<string, Omit<CalculoRiscoRegraCondicional, 'respostaId' | 'justificativa'>> = {
+    baixo: {
+      id: 'exposicao_altura_distancia_baixo',
+      label: 'Relação altura x distância: Baixo',
+      descricao: 'Distância bem maior que a altura do talude e sem alvo diretamente atingível.',
+      perguntaId: PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA,
+      resposta: 'Baixo',
+      efeito: 'Sem agravamento adicional pela exposição do alvo vulnerável.',
+      justificativaPerguntaId: PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA,
+    },
+    medio: {
+      id: 'exposicao_altura_distancia_medio',
+      label: 'Relação altura x distância: Médio',
+      descricao: 'Distância moderada, com possibilidade limitada de impacto.',
+      perguntaId: PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA,
+      resposta: 'Médio',
+      efeito: 'Classifica o risco em no mínimo R2.',
+      nivelMinimo: 'r2',
+      pontuacaoMinima: PONTUACAO_MINIMA_NIVEL.r2,
+      justificativaPerguntaId: PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA,
+    },
+    alto: {
+      id: 'exposicao_altura_distancia_alto',
+      label: 'Relação altura x distância: Alto',
+      descricao: 'Alvo próximo, dentro da zona provável de alcance.',
+      perguntaId: PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA,
+      resposta: 'Alto',
+      efeito: 'Classifica o risco em no mínimo R3.',
+      nivelMinimo: 'r3',
+      pontuacaoMinima: PONTUACAO_MINIMA_NIVEL.r3,
+      justificativaPerguntaId: PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA,
+    },
+    muito_alto: {
+      id: 'exposicao_altura_distancia_muito_alto',
+      label: 'Relação altura x distância: Muito alto',
+      descricao: 'Alvo muito próximo ou imediato, com sinais de instabilidade ou queda iminente.',
+      perguntaId: PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA,
+      resposta: 'Muito alto',
+      efeito: 'Classifica diretamente como R4.',
+      nivelMinimo: 'r4',
+      pontuacaoMinima: PONTUACAO_MINIMA_NIVEL.r4,
+      justificativaPerguntaId: PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA,
+    },
+    nao_estimado: {
+      id: 'exposicao_altura_distancia_nao_estimado',
+      label: 'Relação altura x distância: Não foi possível estimar',
+      descricao: 'Altura, distância ou alcance provável não puderam ser estimados em campo.',
+      perguntaId: PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA,
+      resposta: 'Não foi possível estimar',
+      efeito: 'Mantém postura conservadora, classificando o risco em no mínimo R3.',
+      nivelMinimo: 'r3',
+      pontuacaoMinima: PONTUACAO_MINIMA_NIVEL.r3,
+      justificativaPerguntaId: PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA,
+    },
+  };
+
+  const regra = regras[classificacao];
+  if (!regra) return [];
+
+  return [{
+    ...regra,
+    respostaId: classificacao,
+    justificativa: justificativa || undefined,
+  }];
+}
+
+function elevarNivelRisco(nivelAtual: NivelRisco, nivelMinimo?: NivelRisco): NivelRisco {
+  if (!nivelMinimo) return nivelAtual;
+  return ORDEM_NIVEL_RISCO[nivelAtual] >= ORDEM_NIVEL_RISCO[nivelMinimo]
+    ? nivelAtual
+    : nivelMinimo;
+}
+
+function identificarAgravantesCriticos(): CalculoRiscoAgravante[] {
   return [];
+}
+
+function maxPontuacaoMinima(regras: Array<{ pontuacaoMinima?: number }>): number {
+  return regras.reduce((max, regra) => Math.max(max, Number(regra.pontuacaoMinima ?? 0)), 0);
 }
 
 export function calcularRiscoFormulario(params: {
@@ -203,6 +305,7 @@ export function calcularRiscoFormulario(params: {
   let total = 0;
 
   for (const pergunta of params.perguntas) {
+    if (pergunta.auxiliarCalculo) continue;
     if (pergunta.tipo !== 'cards' && pergunta.tipo !== 'multipla_escolha') continue;
     const respostaId = params.respostas[pergunta.id];
     if (!respostaId) continue;
@@ -224,19 +327,20 @@ export function calcularRiscoFormulario(params: {
   }
 
   const limites = params.limites && params.limites.length > 0 ? params.limites : RISCO_0_10_LIMITES;
-  const pontuacaoBase = limitarPontuacaoRisco(total);
-  const agravantes = identificarAgravantesCriticos({
+  const agravantes = identificarAgravantesCriticos();
+  const regrasCondicionais = identificarRegrasCondicionais({
     formularioId: params.formularioId,
     respostas: params.respostas,
   });
-  const pontuacaoMinimaAgravante = agravantes.reduce(
-    (max, agravante) => Math.max(max, agravante.pontuacaoMinima),
-    0,
-  );
+  const pontuacaoBase = limitarPontuacaoRisco(total);
+  const pontuacaoMinimaAgravante = maxPontuacaoMinima([...agravantes, ...regrasCondicionais]);
   const pontuacaoTotal = limitarPontuacaoRisco(Math.max(pontuacaoBase, pontuacaoMinimaAgravante));
   let nivelRisco = calcularNivelRiscoPorPontuacao(pontuacaoTotal, limites);
   if (agravantes.some(agravante => agravante.nivelMinimo === 'r4')) {
     nivelRisco = 'r4';
+  }
+  for (const regra of regrasCondicionais) {
+    nivelRisco = elevarNivelRisco(nivelRisco, regra.nivelMinimo);
   }
 
   return {
@@ -251,6 +355,7 @@ export function calcularRiscoFormulario(params: {
     limites,
     itens,
     agravantes,
+    regrasCondicionais,
   };
 }
 
@@ -291,6 +396,25 @@ export function parseCalculoRiscoSnapshot(raw: unknown): CalculoRiscoSnapshot | 
           respostaId: String(agravante.respostaId || ''),
           pontuacaoMinima: limitarPontuacaoRisco(Number(agravante.pontuacaoMinima ?? 0)),
           nivelMinimo: normalizarNivelRisco(agravante.nivelMinimo, 'r4'),
+        }))
+        : undefined,
+      regrasCondicionais: Array.isArray(snapshot.regrasCondicionais)
+        ? snapshot.regrasCondicionais.map(regra => ({
+          id: String(regra.id || ''),
+          label: String(regra.label || ''),
+          descricao: String(regra.descricao || ''),
+          perguntaId: String(regra.perguntaId || ''),
+          respostaId: String(regra.respostaId || ''),
+          resposta: String(regra.resposta || regra.respostaId || ''),
+          efeito: String(regra.efeito || ''),
+          nivelMinimo: regra.nivelMinimo ? normalizarNivelRisco(regra.nivelMinimo, 'r1') : undefined,
+          pontuacaoMinima: regra.pontuacaoMinima !== undefined
+            ? limitarPontuacaoRisco(Number(regra.pontuacaoMinima ?? 0))
+            : undefined,
+          justificativaPerguntaId: regra.justificativaPerguntaId
+            ? String(regra.justificativaPerguntaId)
+            : undefined,
+          justificativa: regra.justificativa ? String(regra.justificativa) : undefined,
         }))
         : undefined,
     };

@@ -71,30 +71,106 @@ describe('calcularRiscoFormulario', () => {
     expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.pontuacaoTotal).toBe(10);
   });
 
-  it('forca R4 quando inclinacao negativa de deslizamento e marcada', () => {
+  const perguntaInclinacao = {
+    id: 'desl2_q2',
+    texto: 'Inclinação da encosta',
+    tipo: 'cards',
+    opcoes: [
+      { id: 'q2_e', texto: '≥90° (vertical)', pesoRisco: 1 },
+      { id: 'q2_f', texto: 'Inclinação negativa / talude solapado', pesoRisco: 1 },
+    ],
+  };
+
+  const perguntaExposicao = {
+    id: 'desl2_q2_exposicao_altura_distancia',
+    texto: 'Classificação do risco considerando altura do talude e distância até o alvo vulnerável',
+    tipo: 'multipla_escolha',
+    auxiliarCalculo: true,
+    opcoes: [
+      { id: 'baixo', texto: 'Baixo', pesoRisco: 0 },
+      { id: 'medio', texto: 'Médio', pesoRisco: 0 },
+      { id: 'alto', texto: 'Alto', pesoRisco: 0 },
+      { id: 'muito_alto', texto: 'Muito alto', pesoRisco: 0 },
+      { id: 'nao_estimado', texto: 'Não foi possível estimar', pesoRisco: 0 },
+    ],
+  };
+
+  const perguntaJustificativa = {
+    id: 'desl2_q2_justificativa_tecnica',
+    texto: 'Justificativa técnica',
+    tipo: 'texto',
+    auxiliarCalculo: true,
+  };
+
+  it('nao forca R4 apenas por marcar inclinacao negativa sem classificacao auxiliar', () => {
     const calculo = calcularRiscoFormulario({
       formularioId: 'vistoria_deslizamento_v3',
       formularioVersao: 3,
       tipoCalculo: 'soma_total',
       respostas: { desl2_q2: 'q2_f' },
-      perguntas: [
-        {
-          id: 'desl2_q2',
-          texto: 'Inclinação da encosta',
-          tipo: 'cards',
-          opcoes: [
-            { id: 'q2_a', texto: '≤ 10°', pesoRisco: 0 },
-            { id: 'q2_f', texto: 'Inclinação negativa / talude solapado', pesoRisco: 1 },
-          ],
-        },
-      ],
+      perguntas: [perguntaInclinacao],
     });
 
     expect(calculo.pontuacaoBase).toBe(1);
+    expect(calculo.pontuacaoTotal).toBe(1);
+    expect(calculo.nivelRisco).toBe('r1');
+    expect(calculo.regrasCondicionais).toHaveLength(0);
+  });
+
+  it('forca R4 quando agente classifica altura x distancia como muito alto', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      formularioVersao: 3,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        desl2_q2: 'q2_f',
+        desl2_q2_exposicao_altura_distancia: 'muito_alto',
+        desl2_q2_justificativa_tecnica: 'Talude de 10m com alvo a 5m e base solapada.',
+      },
+      perguntas: [perguntaInclinacao, perguntaExposicao, perguntaJustificativa],
+    });
+
+    expect(calculo.itens).toHaveLength(1);
+    expect(calculo.pontuacaoBase).toBe(1);
     expect(calculo.pontuacaoTotal).toBe(7);
     expect(calculo.nivelRisco).toBe('r4');
-    expect(calculo.agravantes).toHaveLength(1);
-    expect(calculo.agravantes?.[0].id).toBe('inclinacao_negativa_talude_solapado');
+    expect(calculo.regrasCondicionais?.[0].respostaId).toBe('muito_alto');
+    expect(calculo.regrasCondicionais?.[0].justificativa).toContain('Talude de 10m');
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.regrasCondicionais?.[0].nivelMinimo).toBe('r4');
+  });
+
+  it('aplica pisos por classificacao altura x distancia sem somar pergunta auxiliar', () => {
+    const base = [perguntaInclinacao, perguntaExposicao];
+
+    const baixo = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'baixo' },
+      perguntas: base,
+    });
+    const medio = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'medio' },
+      perguntas: base,
+    });
+    const alto = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'alto' },
+      perguntas: base,
+    });
+    const naoEstimado = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'nao_estimado' },
+      perguntas: base,
+    });
+
+    expect(baixo.pontuacaoTotal).toBe(1);
+    expect(baixo.nivelRisco).toBe('r1');
+    expect(medio.pontuacaoTotal).toBe(2.1);
+    expect(medio.nivelRisco).toBe('r2');
+    expect(alto.pontuacaoTotal).toBe(4);
+    expect(alto.nivelRisco).toBe('r3');
+    expect(naoEstimado.pontuacaoTotal).toBe(4);
+    expect(naoEstimado.nivelRisco).toBe('r3');
   });
 
   it('nao aplica agravante de inclinacao negativa em outros formularios', () => {
@@ -103,19 +179,13 @@ describe('calcularRiscoFormulario', () => {
       formularioVersao: 2,
       tipoCalculo: 'soma_total',
       respostas: { desl2_q2: 'q2_f' },
-      perguntas: [
-        {
-          id: 'desl2_q2',
-          texto: 'Inclinação da encosta',
-          tipo: 'cards',
-          opcoes: [{ id: 'q2_f', texto: 'Inclinação negativa / talude solapado', pesoRisco: 1 }],
-        },
-      ],
+      perguntas: [perguntaInclinacao, perguntaExposicao],
     });
 
     expect(calculo.pontuacaoTotal).toBe(1);
     expect(calculo.nivelRisco).toBe('r1');
     expect(calculo.agravantes).toHaveLength(0);
+    expect(calculo.regrasCondicionais).toHaveLength(0);
   });
 });
 

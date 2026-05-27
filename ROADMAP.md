@@ -100,6 +100,7 @@
 | 1.0.0 | 1 | — | — |
 | 1.2.0 | 2 | 2026-04-04 | TCS-Relatorio-de-Risco-1.2.0.apk |
 | 1.3.3 | 7 | 2026-05-26 | EAS Build Android APK |
+| 1.3.4 | 8 | 2026-05-26 | Pendente novo APK |
 
 ---
 
