@@ -100,51 +100,62 @@ function getRiscoLabel(nivel: string): string {
 }
 
 // Tamanhos do marcador — maiores no Android para garantir visibilidade
-const PIN_SIZE   = Platform.OS === 'android' ? 42 : 28;
+const PIN_SIZE   = Platform.OS === 'android' ? 54 : 34;
 const PIN_RADIUS = PIN_SIZE / 2;
-const PIN_INNER  = Platform.OS === 'android' ? 13 : 8;
-const TAIL_W     = Platform.OS === 'android' ? 7  : 5;
-const TAIL_H     = Platform.OS === 'android' ? 12 : 8;
-const ICON_SIZE  = Platform.OS === 'android' ? 18 : 12;
+const PIN_INNER  = Platform.OS === 'android' ? 20 : 12;
+const PIN_HALO   = Platform.OS === 'android' ? 66 : 42;
+const ICON_SIZE  = Platform.OS === 'android' ? 22 : 15;
+const MARKER_ANCHOR = { x: 0.5, y: 0.5 };
+const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
+const CLUSTER_RADIUS = Platform.OS === 'android' ? 70 : 55;
 
 // Marcador customizado — sem pinColor para evitar bug com clustering
 function MarkerPin({ color }: { color: string }) {
   return (
-    <View style={{ alignItems: 'center' }}>
-      <View style={[markerStyles.pin, { backgroundColor: color }]}>
-        <View style={markerStyles.pinInner} />
+    <View style={markerStyles.markerWrap}>
+      <View style={[markerStyles.halo, { borderColor: color }]}>
+        <View style={[markerStyles.pin, { backgroundColor: color }]}>
+          <View style={markerStyles.pinInner} />
+        </View>
       </View>
-      <View style={[markerStyles.pinTail, { borderTopColor: color }]} />
     </View>
   );
 }
 
 function AgendamentoPin() {
   return (
-    <View style={{ alignItems: 'center' }}>
-      <View style={[markerStyles.pin, { backgroundColor: '#3B82F6' }]}>
-        <Feather name="calendar" size={ICON_SIZE} color="#FFF" />
+    <View style={markerStyles.markerWrap}>
+      <View style={[markerStyles.halo, { borderColor: '#3B82F6' }]}>
+        <View style={[markerStyles.pin, { backgroundColor: '#3B82F6' }]}>
+          <Feather name="calendar" size={ICON_SIZE} color="#FFF" />
+        </View>
       </View>
-      <View style={[markerStyles.pinTail, { borderTopColor: '#3B82F6' }]} />
     </View>
   );
 }
 
 const markerStyles = StyleSheet.create({
+  markerWrap: {
+    width: PIN_HALO,
+    height: PIN_HALO,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  halo: {
+    width: PIN_HALO,
+    height: PIN_HALO,
+    borderRadius: PIN_HALO / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: Platform.OS === 'android' ? 4 : 3,
+    backgroundColor: 'rgba(255,255,255,0.38)',
+  },
   pin: {
     width: PIN_SIZE, height: PIN_SIZE, borderRadius: PIN_RADIUS,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: Platform.OS === 'android' ? 3 : 2.5, borderColor: '#FFF',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35, shadowRadius: 4, elevation: 6,
+    borderWidth: Platform.OS === 'android' ? 4 : 3, borderColor: '#FFF',
   },
   pinInner: { width: PIN_INNER, height: PIN_INNER, borderRadius: PIN_INNER / 2, backgroundColor: '#FFF' },
-  pinTail: {
-    width: 0, height: 0,
-    borderLeftWidth: TAIL_W, borderRightWidth: TAIL_W, borderTopWidth: TAIL_H,
-    borderLeftColor: 'transparent', borderRightColor: 'transparent',
-    marginTop: -1,
-  },
 });
 
 export default function MapasScreen() {
@@ -481,7 +492,7 @@ export default function MapasScreen() {
         clusterColor="#3B82F6"
         clusterTextColor="#FFFFFF"
         clusterFontFamily={undefined}
-        radius={55}
+        radius={CLUSTER_RADIUS}
         maxZoom={16}
         minPoints={2}
         extent={512}
@@ -496,6 +507,8 @@ export default function MapasScreen() {
             key={m.id}
             coordinate={{ latitude: m.lat, longitude: m.lng }}
             onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
+            anchor={MARKER_ANCHOR}
+            centerOffset={MARKER_CENTER_OFFSET}
             tracksViewChanges={false}
           >
             <MarkerPin color={getRiscoColor(m.nivelRisco)} />
@@ -507,6 +520,8 @@ export default function MapasScreen() {
             key={`agend-${a.id}`}
             coordinate={{ latitude: a.lat, longitude: a.lng }}
             onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
+            anchor={MARKER_ANCHOR}
+            centerOffset={MARKER_CENTER_OFFSET}
             tracksViewChanges={false}
           >
             <AgendamentoPin />
