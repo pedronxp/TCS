@@ -40,7 +40,7 @@ INSERT INTO app_update_config (
   '1.3.6',
   10,
   9,
-  NULL,
+  'https://github.com/pedronxp/TCS-apk-releases/releases/download/v1.3.6/TCS-Relatorio-de-Risco-1.3.6-vc10.apk',
   'Existe uma nova versao do aplicativo. Atualize para continuar usando o sistema.'
 )
 ON CONFLICT (platform) DO UPDATE SET
