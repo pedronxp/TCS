@@ -1,95 +1,254 @@
 /**
- * Testes unitários: cálculo de nível de risco
- * Replica a lógica de calcularNivelRisco() do wizard.tsx
+ * Testes unitarios: calculo de nivel de risco na escala oficial 0-10.
  */
 
-// Lógica pura extraída do wizard — sem deps de React Native
-function calcularNivelRisco(
-  pontuacao: number,
-  limites?: Array<{ max: number; nivel: string }>
-): string {
-  // Mapeia strings do JSON para códigos internos
-  const nivelMap: Record<string, string> = {
-    sem_risco: 'r1',
-    baixo: 'r1',
-    medio: 'r2',
-    medio_baixo: 'r2',
-    alto: 'r3',
-    medio_alto: 'r3',
-    iminente: 'r4',
-    critico: 'r4',
-  };
+import {
+  calcularNivelRiscoPorPontuacao,
+  calcularRiscoFormulario,
+  formatarPontuacaoRisco,
+  normalizarNivelRisco,
+  parseCalculoRiscoSnapshot,
+  riscoColor,
+  riscoLabel,
+} from '../riscoUtils';
 
-  if (limites && limites.length > 0) {
-    const sorted = [...limites].sort((a, b) => a.max - b.max);
-    for (const l of sorted) {
-      if (pontuacao <= l.max) {
-        return nivelMap[l.nivel] ?? l.nivel;
-      }
-    }
-    return nivelMap[sorted[sorted.length - 1].nivel] ?? 'r4';
-  }
+const calcularNivelRisco = calcularNivelRiscoPorPontuacao;
 
-  // Fallback hardcoded
-  if (pontuacao <= 24) return 'r1';
-  if (pontuacao <= 49) return 'r2';
-  if (pontuacao <= 74) return 'r3';
-  return 'r4';
-}
+describe('calcularNivelRisco - escala oficial 0-10', () => {
+  it('classifica limites de R1 a R4', () => {
+    expect(calcularNivelRisco(0)).toBe('r1');
+    expect(calcularNivelRisco(2.0)).toBe('r1');
+    expect(calcularNivelRisco(2.1)).toBe('r2');
+    expect(calcularNivelRisco(3.9)).toBe('r2');
+    expect(calcularNivelRisco(4.0)).toBe('r3');
+    expect(calcularNivelRisco(6.9)).toBe('r3');
+    expect(calcularNivelRisco(7.0)).toBe('r4');
+    expect(calcularNivelRisco(10.0)).toBe('r4');
+  });
 
-describe('calcularNivelRisco — fallback hardcoded', () => {
-  it('retorna r1 para pontuação 0', () => expect(calcularNivelRisco(0)).toBe('r1'));
-  it('retorna r1 para pontuação 24', () => expect(calcularNivelRisco(24)).toBe('r1'));
-  it('retorna r2 para pontuação 25', () => expect(calcularNivelRisco(25)).toBe('r2'));
-  it('retorna r2 para pontuação 49', () => expect(calcularNivelRisco(49)).toBe('r2'));
-  it('retorna r3 para pontuação 50', () => expect(calcularNivelRisco(50)).toBe('r3'));
-  it('retorna r3 para pontuação 74', () => expect(calcularNivelRisco(74)).toBe('r3'));
-  it('retorna r4 para pontuação 75', () => expect(calcularNivelRisco(75)).toBe('r4'));
-  it('retorna r4 para pontuação 999', () => expect(calcularNivelRisco(999)).toBe('r4'));
-});
-
-describe('calcularNivelRisco — com limites do JSON', () => {
-  const limites = [
-    { max: 30, nivel: 'sem_risco' },
-    { max: 60, nivel: 'medio' },
-    { max: 90, nivel: 'alto' },
-    { max: 999, nivel: 'iminente' },
-  ];
-
-  it('retorna r1 para pontuação 0 com limites customizados', () => {
-    expect(calcularNivelRisco(0, limites)).toBe('r1');
-  });
-  it('retorna r1 para pontuação 30 (no limite)', () => {
-    expect(calcularNivelRisco(30, limites)).toBe('r1');
-  });
-  it('retorna r2 para pontuação 31', () => {
-    expect(calcularNivelRisco(31, limites)).toBe('r2');
-  });
-  it('retorna r3 para pontuação 61', () => {
-    expect(calcularNivelRisco(61, limites)).toBe('r3');
-  });
-  it('retorna r4 para pontuação 91', () => {
-    expect(calcularNivelRisco(91, limites)).toBe('r4');
-  });
-});
-
-describe('calcularNivelRisco — strings alternativas do JSON', () => {
-  it('mapeia "baixo" para r1', () => {
-    expect(calcularNivelRisco(10, [{ max: 20, nivel: 'baixo' }])).toBe('r1');
-  });
-  it('mapeia "medio_alto" para r3', () => {
-    expect(calcularNivelRisco(10, [{ max: 20, nivel: 'medio_alto' }])).toBe('r3');
-  });
-  it('mapeia "critico" para r4', () => {
-    expect(calcularNivelRisco(10, [{ max: 20, nivel: 'critico' }])).toBe('r4');
-  });
-});
-
-describe('calcularNivelRisco — edge cases', () => {
-  it('retorna r4 com limites vazios e pontuação alta', () => {
+  it('mantem R4 acima de 10 para falha defensiva sem exibir escala maior', () => {
     expect(calcularNivelRisco(100, [])).toBe('r4');
   });
-  it('retorna r1 com pontuação negativa (edge)', () => {
-    expect(calcularNivelRisco(-5)).toBe('r1');
+});
+
+describe('calcularNivelRisco - limites customizados do formulario', () => {
+  const limites = [
+    { max: 1, nivel: 'baixo' },
+    { max: 3, nivel: 'medio' },
+    { max: 5, nivel: 'alto' },
+    { max: 10, nivel: 'critico' },
+  ];
+
+  it('normaliza aliases legados dos limites', () => {
+    expect(calcularNivelRisco(1, limites)).toBe('r1');
+    expect(calcularNivelRisco(2, limites)).toBe('r2');
+    expect(calcularNivelRisco(4, limites)).toBe('r3');
+    expect(calcularNivelRisco(8, limites)).toBe('r4');
+  });
+
+  it('aceita codigos internos r1-r4 diretamente', () => {
+    expect(calcularNivelRisco(4, [{ max: 8, nivel: 'r1' }])).toBe('r1');
+    expect(calcularNivelRisco(3, [{ max: 9, nivel: 'r3' }])).toBe('r3');
+  });
+});
+
+describe('calcularRiscoFormulario', () => {
+  it('soma pesos, limita em 10 e gera snapshot auditavel', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'form_teste',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: { p1: 'b', p2: 'c' },
+      perguntas: [
+        { id: 'p1', texto: 'Pergunta 1', tipo: 'cards', opcoes: [{ id: 'a', texto: 'Bom', pesoRisco: 0 }, { id: 'b', texto: 'Ruim', pesoRisco: 4.4 }] },
+        { id: 'p2', texto: 'Pergunta 2', tipo: 'cards', opcoes: [{ id: 'c', texto: 'Critico', pesoRisco: 7.2 }] },
+      ],
+    });
+
+    expect(calculo.pontuacaoTotal).toBe(10);
+    expect(calculo.nivelRisco).toBe('r4');
+    expect(calculo.itens).toHaveLength(2);
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.pontuacaoTotal).toBe(10);
+  });
+
+  const perguntaInclinacao = {
+    id: 'desl2_q2',
+    texto: 'Inclinação da encosta',
+    tipo: 'cards',
+    opcoes: [
+      { id: 'q2_e', texto: '≥90° (vertical)', pesoRisco: 1 },
+      { id: 'q2_f', texto: 'Inclinação negativa / talude solapado', pesoRisco: 1 },
+    ],
+  };
+
+  const perguntaExposicao = {
+    id: 'desl2_q2_exposicao_altura_distancia',
+    texto: 'Classificação do risco considerando altura do talude e distância até o alvo vulnerável',
+    tipo: 'multipla_escolha',
+    auxiliarCalculo: true,
+    opcoes: [
+      { id: 'baixo', texto: 'Baixo', pesoRisco: 0 },
+      { id: 'medio', texto: 'Médio', pesoRisco: 0 },
+      { id: 'alto', texto: 'Alto', pesoRisco: 0 },
+      { id: 'muito_alto', texto: 'Muito alto', pesoRisco: 0 },
+      { id: 'nao_estimado', texto: 'Não foi possível estimar', pesoRisco: 0 },
+    ],
+  };
+
+  const perguntaJustificativa = {
+    id: 'desl2_q2_justificativa_tecnica',
+    texto: 'Justificativa técnica',
+    tipo: 'texto',
+    auxiliarCalculo: true,
+  };
+
+  it('nao forca R4 apenas por marcar inclinacao negativa sem classificacao auxiliar', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      formularioVersao: 3,
+      tipoCalculo: 'soma_total',
+      respostas: { desl2_q2: 'q2_f' },
+      perguntas: [perguntaInclinacao],
+    });
+
+    expect(calculo.pontuacaoBase).toBe(1);
+    expect(calculo.pontuacaoTotal).toBe(1);
+    expect(calculo.nivelRisco).toBe('r1');
+    expect(calculo.regrasCondicionais).toHaveLength(0);
+  });
+
+  it('forca R4 quando agente classifica altura x distancia como muito alto', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      formularioVersao: 3,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        desl2_q2: 'q2_f',
+        desl2_q2_exposicao_altura_distancia: 'muito_alto',
+        desl2_q2_justificativa_tecnica: 'Talude de 10m com alvo a 5m e base solapada.',
+      },
+      perguntas: [perguntaInclinacao, perguntaExposicao, perguntaJustificativa],
+    });
+
+    expect(calculo.itens).toHaveLength(1);
+    expect(calculo.pontuacaoBase).toBe(1);
+    expect(calculo.pontuacaoTotal).toBe(7);
+    expect(calculo.nivelRisco).toBe('r4');
+    expect(calculo.regrasCondicionais?.[0].respostaId).toBe('muito_alto');
+    expect(calculo.regrasCondicionais?.[0].justificativa).toContain('Talude de 10m');
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.regrasCondicionais?.[0].nivelMinimo).toBe('r4');
+  });
+
+  it('aplica pisos por classificacao altura x distancia sem somar pergunta auxiliar', () => {
+    const base = [perguntaInclinacao, perguntaExposicao];
+
+    const baixo = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'baixo' },
+      perguntas: base,
+    });
+    const medio = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'medio' },
+      perguntas: base,
+    });
+    const alto = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'alto' },
+      perguntas: base,
+    });
+    const naoEstimado = calcularRiscoFormulario({
+      formularioId: 'vistoria_deslizamento_v3',
+      respostas: { desl2_q2: 'q2_e', desl2_q2_exposicao_altura_distancia: 'nao_estimado' },
+      perguntas: base,
+    });
+
+    expect(baixo.pontuacaoTotal).toBe(1);
+    expect(baixo.nivelRisco).toBe('r1');
+    expect(medio.pontuacaoTotal).toBe(2.1);
+    expect(medio.nivelRisco).toBe('r2');
+    expect(alto.pontuacaoTotal).toBe(4);
+    expect(alto.nivelRisco).toBe('r3');
+    expect(naoEstimado.pontuacaoTotal).toBe(4);
+    expect(naoEstimado.nivelRisco).toBe('r3');
+  });
+
+  it('nao aplica agravante de inclinacao negativa em outros formularios', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: { desl2_q2: 'q2_f' },
+      perguntas: [perguntaInclinacao, perguntaExposicao],
+    });
+
+    expect(calculo.pontuacaoTotal).toBe(1);
+    expect(calculo.nivelRisco).toBe('r1');
+    expect(calculo.agravantes).toHaveLength(0);
+    expect(calculo.regrasCondicionais).toHaveLength(0);
+  });
+
+  it('anexa observacao condicional estrutural sem alterar pontuacao', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        est_q1: 'q1_c',
+        est_q1__observacao_risco: 'Trinca diagonal na base, com recalque aparente.',
+      },
+      perguntas: [{
+        id: 'est_q1',
+        texto: 'Fundacao',
+        tipo: 'cards',
+        opcoes: [
+          { id: 'q1_a', texto: 'Bom', pesoRisco: 0 },
+          { id: 'q1_c', texto: 'Ruim', pesoRisco: 0.6 },
+        ],
+      }],
+    });
+
+    expect(calculo.pontuacaoBase).toBe(0.6);
+    expect(calculo.pontuacaoTotal).toBe(0.6);
+    expect(calculo.itens[0].observacao).toContain('Trinca diagonal');
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.itens[0].observacao).toContain('Trinca diagonal');
+  });
+
+  it('ignora observacao condicional estrutural quando a opcao nao aciona risco', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        est_q1: 'q1_a',
+        est_q1__observacao_risco: 'Texto antigo que nao deve aparecer.',
+      },
+      perguntas: [{
+        id: 'est_q1',
+        texto: 'Fundacao',
+        tipo: 'cards',
+        opcoes: [
+          { id: 'q1_a', texto: 'Bom', pesoRisco: 0 },
+          { id: 'q1_c', texto: 'Ruim', pesoRisco: 0.6 },
+        ],
+      }],
+    });
+
+    expect(calculo.pontuacaoTotal).toBe(0);
+    expect(calculo.itens[0].observacao).toBeUndefined();
+  });
+});
+
+describe('normalizacao e formatacao', () => {
+  it('normaliza aliases e acentos antes de exibir label/cor', () => {
+    expect(normalizarNivelRisco('Medio')).toBe('r2');
+    expect(normalizarNivelRisco('alto')).toBe('r3');
+    expect(riscoLabel('critico')).toBe('CRÍTICO');
+    expect(riscoColor('baixo')).toBe('#10B981');
+  });
+
+  it('formata pontuacao decimal em padrao pt-BR simples', () => {
+    expect(formatarPontuacaoRisco(4)).toBe('4');
+    expect(formatarPontuacaoRisco(4.25)).toBe('4,3');
   });
 });

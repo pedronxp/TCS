@@ -10,7 +10,7 @@
 [![Plataforma](https://img.shields.io/badge/Plataforma-Android%20%7C%20iOS-blue?style=flat-square)](https://reactnative.dev)
 [![Offline](https://img.shields.io/badge/Modo-Offline--First-green?style=flat-square)](#)
 [![PDF](https://img.shields.io/badge/Laudos-PDF%20automático-orange?style=flat-square)](#)
-[![Versão](https://img.shields.io/badge/Versão-1.2.0-informational?style=flat-square)](#)
+[![Versão](https://img.shields.io/badge/Versão-1.3.4-informational?style=flat-square)](#)
 
 </div>
 

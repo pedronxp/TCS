@@ -11,7 +11,7 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { getVistoriaById, deleteVistoriaOffline } from '../../../utils/database';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarPontuacaoRisco, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
 import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
@@ -45,6 +45,7 @@ export default function VistoriaDetalhesScreen() {
       formularioId: data.formularioId || 'Padrão',
       nivelRisco: data.nivelRisco || 'r1',
       pontuacaoTotal: data.pontuacaoTotal ?? 0,
+      calculoRisco: data.calculoRisco ?? null,
       respostas,
       condutaRecomendada: '',
       observacoesTecnicas: '',
@@ -87,7 +88,7 @@ export default function VistoriaDetalhesScreen() {
       // Construir query com filtros de segurança por role
       let query = supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status, latitude, longitude, fotosUrls')
+        .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status, latitude, longitude, fotosUrls')
         .eq('id', id as string);
 
       // Agentes só veem suas próprias vistorias
@@ -139,6 +140,7 @@ export default function VistoriaDetalhesScreen() {
           id: local.id,
           nivelRisco: local.nivel_risco,
           pontuacaoTotal: local.pontuacao_total,
+          calculoRisco: local.calculo_json,
           endereco: `${local.endereco_rua}, ${local.endereco_numero} — ${local.endereco_bairro}`,
           enderecoRua: local.endereco_rua,
           enderecoNumero: local.endereco_numero,
@@ -242,7 +244,7 @@ export default function VistoriaDetalhesScreen() {
             <Text style={[styles.nivelText, { color: cor }]}>{nivel}</Text>
           </View>
           {vistoria.pontuacaoTotal != null && (
-            <Text style={[styles.pontuacao, { color: cor }]}>{vistoria.pontuacaoTotal}<Text style={{ fontSize: 12 }}>pts</Text></Text>
+            <Text style={[styles.pontuacao, { color: cor }]}>{formatarPontuacaoRisco(vistoria.pontuacaoTotal)}<Text style={{ fontSize: 12 }}>pts</Text></Text>
           )}
         </View>
 

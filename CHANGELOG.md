@@ -5,6 +5,30 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [v1.3.4] - 2026-05-26 - Fluxo altura x distancia para talude
+
+### Alterado
+- Atualizada a versao do app para `1.3.4`.
+- Atualizado o Android `versionCode` para `8`.
+- Adicionada pergunta condicional quando o agente marca `>=90 graus (vertical)` ou `Inclinacao negativa / talude solapado`.
+- Incluida classificacao auxiliar de risco pela relacao altura do talude x distancia ate o alvo vulneravel.
+- Incluido campo obrigatorio de justificativa tecnica para registrar altura aproximada, distancia e sinais observados.
+- O calculo passa a usar a classificacao auxiliar como regra tecnica auditavel, sem quebrar o teto oficial de 10 pontos.
+- O laudo passa a exibir a regra aplicada, a resposta do agente, o efeito no calculo e a justificativa tecnica.
+
+---
+
+## [v1.3.3] - 2026-05-26 - Inclinacao negativa e novo APK
+
+### Alterado
+- Atualizada a versao do app para `1.3.3`.
+- Atualizado o Android `versionCode` para `7`.
+- Adicionada a opcao `Inclinacao negativa / talude solapado` na pergunta de inclinacao da vistoria de deslizamento.
+- Implementado agravante critico: quando essa opcao e marcada, o calculo registra R4 com pontuacao minima 7,0.
+- O laudo passa a exibir o agravante critico aplicado.
+
+---
+
 ## [v1.2.0] — 2026-04-03 · Correções Críticas + Funcionalidades Core
 
 ### ✅ Fase 18 — Segurança (2026-04-03)

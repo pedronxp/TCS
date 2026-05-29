@@ -13,22 +13,39 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarPontuacaoRisco, parseCalculoRiscoSnapshot, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { getSignedUrl } from '../../../services/StorageService';
+import {
+  ASSETS,
+  getObservacaoCondicionalRiscoKey,
+  getPerguntaIdFromObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+} from '../../../utils/formulariosAssets';
 
 // ─── Form JSONs ──────────────────────────────────────────────────────────────
 const FORM_JSONS: Record<string, any> = {
-  vistoria_deslizamento_v2: require('../../../assets/formularios/vistoria_deslizamento_v2.json'),
-  risco_estrutural_novo_v1: require('../../../assets/formularios/risco_estrutural_novo_v1.json'),
+  ...ASSETS,
 };
 
 function resolverItensVistoriados(
   formularioId: string,
   respostasJson: any,
-): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }[] {
+  calculoRisco?: unknown,
+): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }[] {
+  const calculo = parseCalculoRiscoSnapshot(calculoRisco);
+  if (calculo?.itens?.length) {
+    const grupos = new Map<string, { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }>();
+    for (const item of calculo.itens) {
+      const key = item.faseId || item.grupo || 'snapshot';
+      if (!grupos.has(key)) grupos.set(key, { grupo: item.grupo || 'Itens avaliados', itens: [] });
+      grupos.get(key)!.itens.push({ pergunta: item.pergunta, resposta: item.resposta, pesoRisco: item.pesoRisco, observacao: item.observacao });
+    }
+    return Array.from(grupos.values());
+  }
+
   let respostas: Record<string, string> = {};
   try {
     respostas = typeof respostasJson === 'string'
@@ -39,6 +56,7 @@ function resolverItensVistoriados(
   const form = FORM_JSONS[formularioId];
   if (!form) {
     const itens = Object.entries(respostas)
+      .filter(([k]) => !getPerguntaIdFromObservacaoCondicionalRiscoKey(k))
       .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
       .map(([k, v]) => ({ pergunta: k, resposta: String(v), pesoRisco: 0 }));
     return itens.length ? [{ grupo: 'Respostas', itens }] : [];
@@ -46,7 +64,7 @@ function resolverItensVistoriados(
 
   const grupos: { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number }[] }[] = [];
   for (const fase of form.fases || []) {
-    const itens: { pergunta: string; resposta: string; pesoRisco: number }[] = [];
+    const itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] = [];
     for (const p of fase.perguntas || []) {
       if (p.tipo === 'foto') continue;
       const raw = respostas[p.id];
@@ -57,7 +75,11 @@ function resolverItensVistoriados(
         const op = (p.opcoes || []).find((o: any) => o.id === raw);
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
       }
-      itens.push({ pergunta: p.texto, resposta: respostaTexto, pesoRisco });
+      const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
+      const observacao = opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
+        ? respostas[observacaoKey]?.trim()
+        : undefined;
+      itens.push({ pergunta: p.texto, resposta: respostaTexto, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, itens });
   }
@@ -164,6 +186,7 @@ export default function LaudoScreen() {
         respostasJson: typeof vistoria.respostasJson === 'string'
           ? vistoria.respostasJson
           : JSON.stringify(vistoria.respostasJson || {}),
+        calculoRisco: vistoria.calculoRisco ?? null,
         bairro: vistoria.enderecoBairro,
         responsavelNome: vistoria.responsavelNome,
         foto_url: vistoria.fotosUrls?.[0] || vistoria.fotoUrl || null,
@@ -225,7 +248,7 @@ export default function LaudoScreen() {
         dataVistoria: vistoria.dataVistoria || new Date().toISOString(),
         municipio: vistoria.municipio || '—',
         agenteNome: vistoria.agenteNome || profile?.name || '—',
-        nivelRisco: vistoria.nivelRisco || 'r3',
+        nivelRisco: vistoria.nivelRisco || 'r1',
         pontuacaoTotal: vistoria.pontuacaoTotal || 0,
         endereco: vistoria.endereco || '—',
       };
@@ -315,7 +338,7 @@ export default function LaudoScreen() {
             <Text style={[styles.nivelLabel, { color: theme.textSecondary }]}>NÍVEL DE RISCO</Text>
             <Text style={[styles.nivelText, { color: cor }]}>{nivel}</Text>
           </View>
-          <Text style={[styles.pontuacao, { color: cor }]}>{vistoria.pontuacaoTotal ?? '—'}<Text style={{ fontSize: 14 }}>pts</Text></Text>
+          <Text style={[styles.pontuacao, { color: cor }]}>{formatarPontuacaoRisco(vistoria.pontuacaoTotal ?? 0)}<Text style={{ fontSize: 14 }}>pts</Text></Text>
         </View>
 
         {/* Banner — laudo já gerado */}
@@ -353,7 +376,7 @@ export default function LaudoScreen() {
 
         {/* Itens Vistoriados */}
         {vistoria.respostasJson && (() => {
-          const grupos = resolverItensVistoriados(vistoria.formularioId || '', vistoria.respostasJson);
+          const grupos = resolverItensVistoriados(vistoria.formularioId || '', vistoria.respostasJson, vistoria.calculoRisco);
           if (grupos.length === 0) return null;
           const riscoColors: Record<string, string> = {
             r1: '#10B981', r2: '#F59E0B', r3: '#F97316', r4: '#EF4444',
@@ -388,6 +411,12 @@ export default function LaudoScreen() {
                             </View>
                           ) : (
                             <Text style={[styles.respostaValor, { color: theme.text }]}>{item.resposta}</Text>
+                          )}
+                          {item.observacao && (
+                            <View style={[styles.observacaoBox, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
+                              <Text style={[styles.observacaoLabel, { color: theme.textSecondary }]}>Observação do agente</Text>
+                              <Text style={[styles.observacaoText, { color: theme.text }]}>{item.observacao}</Text>
+                            </View>
                           )}
                         </View>
                       </View>
@@ -624,6 +653,9 @@ const styles = StyleSheet.create({
   respostaValor: { fontSize: 14, fontWeight: '700' },
   respostaBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   respostaBadgeText: { fontSize: 12, fontWeight: '800' },
+  observacaoBox: { marginTop: 10, borderRadius: 10, borderWidth: 1, padding: 10 },
+  observacaoLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
+  observacaoText: { fontSize: 13, lineHeight: 19 },
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 12, height: 60, borderRadius: 18, marginTop: 8,

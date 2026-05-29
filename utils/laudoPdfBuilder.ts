@@ -6,9 +6,24 @@
 
 import * as FileSystem from 'expo-file-system';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
-import { riscoLabel, riscoColor, riscoConduta } from './riscoUtils';
+import {
+  CalculoRiscoSnapshot,
+  formatarPontuacaoRisco,
+  normalizarNivelRisco,
+  parseCalculoRiscoSnapshot,
+  riscoLabel,
+  riscoColor,
+  riscoConduta,
+} from './riscoUtils';
 import { logoBase64 } from './logoBase64';
-import { ASSETS, flattenPerguntas, PerguntaModel } from './formulariosAssets';
+import {
+  ASSETS,
+  flattenPerguntas,
+  getObservacaoCondicionalRiscoKey,
+  getPerguntaIdFromObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+  PerguntaModel,
+} from './formulariosAssets';
 
 export interface LaudoData {
   id: string;
@@ -20,6 +35,7 @@ export interface LaudoData {
   agenteNome: string;
   formularioId?: string;
   respostasJson?: string;
+  calculoRisco?: CalculoRiscoSnapshot | string | null;
   foto_url?: string | null;
   fotosUrls?: string[] | null;
   // Campos opcionais do relatório técnico editável
@@ -68,7 +84,8 @@ export function buildTermoInterdicaoHtml(
   const dataExt = dataExtenso(laudo.dataVistoria);
   const ano = laudo.dataVistoria ? new Date(laudo.dataVistoria).getFullYear() : new Date().getFullYear();
   const cidade = notificado.cidade || laudo.municipio || '—';
-  const nivel = laudo.nivelRisco || 'r3';
+  const calculo = parseCalculoRiscoSnapshot(laudo.calculoRisco);
+  const nivel = normalizarNivelRisco(laudo.nivelRisco || calculo?.nivelRisco, 'r1');
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -290,12 +307,41 @@ export function buildTermoInterdicaoHtml(
  * data por extenso, itens de resposta numerados e seção de assinatura formal.
  */
 export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
-  const nivel = dados.nivelRisco || 'r1';
+  const calculo = parseCalculoRiscoSnapshot(dados.calculoRisco);
+  const nivel = normalizarNivelRisco(dados.nivelRisco || calculo?.nivelRisco, 'r1');
+  const pontuacaoTotal = calculo?.pontuacaoTotal ?? dados.pontuacaoTotal ?? 0;
   const cor = riscoColor(nivel);
   const label = riscoLabel(nivel);
   const data = formatarDataHora(dados.dataVistoria);
   const protocolo = (dados.id || '000000').slice(0, 8).toUpperCase();
   const conduta = dados.condutaRecomendada || riscoConduta(nivel);
+  const agravantes = calculo?.agravantes || [];
+  const regrasCondicionais = calculo?.regrasCondicionais || [];
+  const agravantesHtml = agravantes.length
+    ? `<div class="risk-aggravants">
+        <div class="risk-aggravants-title">Agravante crítico aplicado</div>
+        ${agravantes.map(agravante => `
+          <div class="risk-aggravant-item">
+            <strong>${escapeHtml(agravante.label)}</strong><br/>
+            ${escapeHtml(agravante.descricao)}
+          </div>
+        `).join('')}
+      </div>`
+    : '';
+  const regrasCondicionaisHtml = regrasCondicionais.length
+    ? `<div class="risk-rules">
+        <div class="risk-rules-title">Regra técnica aplicada</div>
+        ${regrasCondicionais.map(regra => `
+          <div class="risk-rule-item">
+            <strong>${escapeHtml(regra.label)}</strong><br/>
+            <span>${escapeHtml(regra.descricao)}</span><br/>
+            <span><strong>Resposta do agente:</strong> ${escapeHtml(regra.resposta)}</span><br/>
+            <span><strong>Efeito no cálculo:</strong> ${escapeHtml(regra.efeito)}</span>
+            ${regra.justificativa ? `<div class="risk-rule-justification"><strong>Justificativa técnica:</strong> ${escapeHtml(regra.justificativa)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>`
+    : '';
   const dataExt = dataExtenso(dados.dataVistoria);
   const ano = dados.dataVistoria ? new Date(dados.dataVistoria).getFullYear() : new Date().getFullYear();
 
@@ -310,7 +356,18 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   // Gerar tabela de respostas mapeadas
   let respostasHtml = '';
   let itemCount = 0;
-  if (dados.respostasJson) {
+  if (calculo?.itens?.length) {
+    itemCount = calculo.itens.length;
+    respostasHtml = calculo.itens.map((item, index) => {
+      const pontuacaoDesc = item.pesoRisco > 0
+        ? `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${formatarPontuacaoRisco(item.pesoRisco)} pts]</div>`
+        : '';
+      const observacaoDesc = item.observacao
+        ? `<div class="item-observation"><strong>Observação do agente:</strong> ${escapeHtml(item.observacao)}</div>`
+        : '';
+      return `<tr><td class="td-num">${String(index + 1).padStart(2, '0')}</td><td class="td-param">${escapeHtml(item.pergunta)}</td><td class="td-resp">${escapeHtml(item.resposta)}${pontuacaoDesc}${observacaoDesc}</td></tr>`;
+    }).join('');
+  } else if (dados.respostasJson) {
     try {
       const respostas = typeof dados.respostasJson === 'string'
         ? JSON.parse(dados.respostasJson)
@@ -320,11 +377,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
         .map(([k, val]) => {
           // Remover campo foto das perguntas normais caso seja o "id"
           if (k.includes('foto')) return '';
+          if (getPerguntaIdFromObservacaoCondicionalRiscoKey(k)) return '';
 
           itemCount++;
           let safeKey = escapeHtml(k);
           let safeVal = escapeHtml(Array.isArray(val) ? (val as string[]).join(', ') : String(val));
           let pontuacaoDesc = '';
+          let observacaoDesc = '';
 
           // De-Para usando o Formulário JSON
           if (schemaForm) {
@@ -338,13 +397,20 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
                   if (opDef.descricao) vExtenso += `<br/><span style="font-size: 10px; color: #64748B;">(${escapeHtml(opDef.descricao)})</span>`;
                   safeVal = vExtenso;
                   if (opDef.pesoRisco > 0) {
-                      pontuacaoDesc = `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${opDef.pesoRisco} pts]</div>`;
+                      pontuacaoDesc = `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${formatarPontuacaoRisco(opDef.pesoRisco)} pts]</div>`;
+                  }
+                  const observacaoKey = getObservacaoCondicionalRiscoKey(pDef.id);
+                  const observacao = opcaoAcionaObservacaoCondicionalRisco(dados.formularioId, pDef, String(val))
+                    ? String((respostas as Record<string, unknown>)[observacaoKey] ?? '').trim()
+                    : '';
+                  if (observacao) {
+                    observacaoDesc = `<div class="item-observation"><strong>Observação do agente:</strong> ${escapeHtml(observacao)}</div>`;
                   }
                 }
               }
             }
           }
-          return `<tr><td class="td-num">${String(itemCount).padStart(2, '0')}</td><td class="td-param">${safeKey}</td><td class="td-resp">${safeVal}${pontuacaoDesc}</td></tr>`;
+          return `<tr><td class="td-num">${String(itemCount).padStart(2, '0')}</td><td class="td-param">${safeKey}</td><td class="td-resp">${safeVal}${pontuacaoDesc}${observacaoDesc}</td></tr>`;
         }).join('');
     } catch { /* sem respostas */ }
   }
@@ -517,6 +583,46 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     line-height: 1.6;
     color: #2D3748;
   }
+  .conduct-note {
+    background: ${corBg};
+    border: 1px solid ${corBorder};
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: -10px 0 24px;
+    page-break-inside: avoid;
+  }
+  .risk-aggravants {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid ${corBorder};
+  }
+  .risk-rules {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid ${corBorder};
+  }
+  .risk-aggravants-title,
+  .risk-rules-title {
+    font-size: 9px;
+    font-weight: 800;
+    color: ${cor};
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .risk-aggravant-item,
+  .risk-rule-item {
+    font-size: 11px;
+    line-height: 1.5;
+    color: #2D3748;
+  }
+  .risk-rule-justification {
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid ${corBorder};
+    border-radius: 6px;
+  }
 
   /* ═══ SEÇÕES ═══ */
   .section { margin-bottom: 24px; }
@@ -596,6 +702,17 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   }
   .td-resp {
     color: #1E293B;
+  }
+  .item-observation {
+    margin-top: 7px;
+    padding: 7px 9px;
+    border: 1px solid #E2E8F0;
+    border-left: 3px solid #3B82F6;
+    border-radius: 6px;
+    background: #F8FAFC;
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: #334155;
   }
   .resp-table tr:nth-child(even) {
     background: #FAFBFC;
@@ -722,13 +839,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     <div class="risk-indicator">
       <div class="risk-level-label">Nível de Risco</div>
       <div class="risk-level-value">${escapeHtml(nivel.toUpperCase())}</div>
-      <div class="risk-pts">${escapeHtml(label)} · ${dados.pontuacaoTotal ?? 0} pts</div>
+      <div class="risk-pts">${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts</div>
     </div>
     <div class="risk-details">
-      <div class="risk-conduta-title">Conduta Recomendada</div>
-      <div class="risk-conduta-text">${escapeHtml(conduta)}</div>
-    </div>
-  </div>
+            ${agravantesHtml}
+            ${regrasCondicionaisHtml}
+          </div>
+        </div>
 
   <!-- DADOS DA VISTORIA -->
   <div class="section">
@@ -781,6 +898,12 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     <strong>Lei Federal Nº 12.608/2012</strong> (Política Nacional de Proteção e Defesa Civil)
     e a <strong>Lei Federal Nº 10.257/2001</strong> (Estatuto da Cidade), que estabelecem as
     diretrizes para prevenção de desastres e proteção à vida.
+  </div>
+
+  <!-- CONDUTA RECOMENDADA -->
+  <div class="conduct-note">
+    <div class="risk-conduta-title">Conduta Recomendada</div>
+    <div class="risk-conduta-text">${escapeHtml(conduta)}</div>
   </div>
 
   <!-- ASSINATURA -->

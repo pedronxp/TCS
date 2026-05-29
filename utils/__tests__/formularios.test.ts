@@ -1,27 +1,42 @@
 /**
- * Testes de auditoria dos JSONs de formularios built-in.
- * Garante que wizard.tsx pode calcular risco em todos eles.
+ * Auditoria dos JSONs built-in ativos.
+ * Garante que os formularios publicados no app usam a escala padronizada 0-10.
  */
 
-const riscoEstrutural = require('../../assets/formularios/risco_estrutural_novo_v1.json');
-const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v2.json');
+import {
+  filtrarPerguntasVisiveis,
+  filtrarRespostasPorPerguntas,
+  flattenPerguntas,
+  getObservacaoCondicionalRiscoConfig,
+  getObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+} from '../formulariosAssets';
 
-const FORMULARIOS = [riscoEstrutural, vistoriaDeslizamento];
+const riscoEstrutural = require('../../assets/formularios/risco_estrutural_novo_v2.json');
+const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v3.json');
 
-const NIVEL_VALIDOS_LIMITES = [
-  'sem_risco', 'baixo', 'muito_baixo',
-  'medio', 'medio_baixo',
-  'alto', 'medio_alto',
-  'iminente', 'critico', 'muito_alto',
-];
-
+const FORMULARIOS_ATIVOS = [riscoEstrutural, vistoriaDeslizamento];
 const TIPO_CALCULO_VALIDOS = ['soma_total', 'ponderada_max_elemento'];
+const NIVEL_VALIDOS_LIMITES = ['r1', 'r2', 'r3', 'r4'];
 
-describe('JSONs built-in - estrutura base', () => {
-  FORMULARIOS.forEach(f => {
+function perguntasPontuaveis(form: any) {
+  return form.fases.flatMap((fase: any) =>
+    (fase.perguntas || []).filter((p: any) => ['cards', 'multipla_escolha'].includes(p.tipo) && !p.auxiliarCalculo),
+  );
+}
+
+function maxTotal(form: any) {
+  return perguntasPontuaveis(form).reduce((acc: number, p: any) => {
+    const maxPergunta = Math.max(...(p.opcoes || []).map((o: any) => Number(o.pesoRisco || 0)));
+    return acc + maxPergunta;
+  }, 0);
+}
+
+describe('JSONs built-in ativos - estrutura base', () => {
+  FORMULARIOS_ATIVOS.forEach(f => {
     it(`${f.id} tem id, versao, fases e tipoCalculo`, () => {
       expect(f.id).toBeTruthy();
-      expect(f.versao).toBeGreaterThanOrEqual(1);
+      expect(f.versao).toBeGreaterThanOrEqual(2);
       expect(Array.isArray(f.fases)).toBe(true);
       expect(f.fases.length).toBeGreaterThan(0);
       expect(TIPO_CALCULO_VALIDOS).toContain(f.tipoCalculo);
@@ -29,85 +44,126 @@ describe('JSONs built-in - estrutura base', () => {
   });
 });
 
-describe('JSONs built-in - classificacao.limites[]', () => {
-  FORMULARIOS.forEach(f => {
-    it(`${f.id} tem classificacao.limites[] nao-vazio`, () => {
-      expect(Array.isArray(f.classificacao?.limites)).toBe(true);
-      expect(f.classificacao.limites.length).toBeGreaterThan(0);
+describe('JSONs built-in ativos - escala 0-10', () => {
+  FORMULARIOS_ATIVOS.forEach(f => {
+    it(`${f.id} tem 10 perguntas pontuaveis e maximo 10`, () => {
+      expect(perguntasPontuaveis(f)).toHaveLength(10);
+      expect(maxTotal(f)).toBeCloseTo(10, 5);
     });
 
-    it(`${f.id} limites usam nivel compativel com nivelMap`, () => {
-      f.classificacao.limites.forEach((l: any) => {
-        expect(NIVEL_VALIDOS_LIMITES).toContain(l.nivel);
-      });
+    it(`${f.id} usa limites R1/R2/R3/R4 padronizados`, () => {
+      const limites = f.classificacao.limites;
+      expect(limites.map((l: any) => l.nivel)).toEqual(NIVEL_VALIDOS_LIMITES);
+      expect(limites.map((l: any) => l.max)).toEqual([2.0, 3.9, 6.9, 10.0]);
     });
 
-    it(`${f.id} limites tem max numerico crescente`, () => {
-      const maxes = f.classificacao.limites.map((l: any) => l.max);
-      for (let i = 1; i < maxes.length; i++) {
-        expect(maxes[i]).toBeGreaterThan(maxes[i - 1]);
-      }
-    });
-  });
-});
-
-describe('JSONs built-in - perguntas com pesoRisco', () => {
-  FORMULARIOS.forEach(f => {
-    it(`${f.id} todas opcoes tem pesoRisco numerico`, () => {
-      for (const fase of f.fases) {
-        for (const pergunta of fase.perguntas || []) {
-          for (const opcao of pergunta.opcoes || []) {
-            expect(typeof opcao.pesoRisco).toBe('number');
-          }
+    it(`${f.id} todas opcoes tem pesoRisco numerico entre 0 e 1`, () => {
+      for (const p of perguntasPontuaveis(f)) {
+        for (const opcao of p.opcoes || []) {
+          expect(typeof opcao.pesoRisco).toBe('number');
+          expect(opcao.pesoRisco).toBeGreaterThanOrEqual(0);
+          expect(opcao.pesoRisco).toBeLessThanOrEqual(1);
         }
       }
     });
-  });
-});
 
-describe('JSONs built-in - opcao Inexistente', () => {
-  FORMULARIOS.forEach(f => {
-    it(`${f.id} tem Inexistente com peso 0 em todas perguntas de escolha`, () => {
-      for (const fase of f.fases) {
-        for (const pergunta of fase.perguntas || []) {
-          if (!['cards', 'multipla_escolha'].includes(pergunta.tipo)) continue;
-          const opcao = pergunta.opcoes.find((o: any) => o.texto === 'Inexistente');
-          expect(opcao).toBeDefined();
-          expect(opcao.pesoRisco).toBe(0);
-        }
+    it(`${f.id} tem opcao Inexistente/não aplicavel com peso 0`, () => {
+      for (const p of perguntasPontuaveis(f)) {
+        const opcao = p.opcoes.find((o: any) => o.id === 'inexistente' || o.texto === 'Inexistente');
+        expect(opcao).toBeDefined();
+        expect(opcao.pesoRisco).toBe(0);
       }
     });
   });
 });
 
-describe('risco_estrutural_novo_v1 - soma_total', () => {
-  it('tem uma fase com foto, 10 perguntas de avaliacao e observacoes', () => {
-    expect(riscoEstrutural.fases.length).toBe(1);
-    expect(riscoEstrutural.fases[0].perguntas.length).toBe(12);
-    expect(riscoEstrutural.fases[0].perguntas[0].tipo).toBe('foto');
+describe('vistoria_deslizamento_v3 - ajustes tecnicos', () => {
+  it('drenagem separa Inexistente de Sem drenagem', () => {
+    const drenagem = vistoriaDeslizamento.fases[0].perguntas.find((p: any) => p.id === 'desl2_q3');
+    expect(drenagem.opcoes.find((o: any) => o.id === 'inexistente').pesoRisco).toBe(0);
+    expect(drenagem.opcoes.find((o: any) => o.id === 'q3_c').texto).toBe('Sem drenagem');
+    expect(drenagem.opcoes.find((o: any) => o.id === 'q3_c').pesoRisco).toBe(1);
+  });
+
+  it('inclui inclinacao negativa apos a opcao vertical', () => {
+    const inclinacao = vistoriaDeslizamento.fases[0].perguntas.find((p: any) => p.id === 'desl2_q2');
+    const verticalIdx = inclinacao.opcoes.findIndex((o: any) => o.id === 'q2_e');
+    const negativaIdx = inclinacao.opcoes.findIndex((o: any) => o.id === 'q2_f');
+
+    expect(verticalIdx).toBeGreaterThan(-1);
+    expect(negativaIdx).toBe(verticalIdx + 1);
+    expect(inclinacao.opcoes[negativaIdx].texto).toBe('Inclinação negativa / talude solapado');
+    expect(inclinacao.opcoes[negativaIdx].pesoRisco).toBe(inclinacao.opcoes[verticalIdx].pesoRisco);
+  });
+
+  it('inclui perguntas auxiliares condicionais apos a inclinacao', () => {
+    const perguntas = vistoriaDeslizamento.fases[0].perguntas;
+    const inclinacaoIdx = perguntas.findIndex((p: any) => p.id === 'desl2_q2');
+    const classificacao = perguntas[inclinacaoIdx + 1];
+    const justificativa = perguntas[inclinacaoIdx + 2];
+
+    expect(classificacao.id).toBe('desl2_q2_exposicao_altura_distancia');
+    expect(classificacao.auxiliarCalculo).toBe(true);
+    expect(classificacao.mostrarQuando).toEqual({
+      perguntaId: 'desl2_q2',
+      respostaIds: ['q2_e', 'q2_f'],
+    });
+    expect(classificacao.opcoes.map((o: any) => o.id)).toEqual([
+      'baixo',
+      'medio',
+      'alto',
+      'muito_alto',
+      'nao_estimado',
+    ]);
+
+    expect(justificativa.id).toBe('desl2_q2_justificativa_tecnica');
+    expect(justificativa.tipo).toBe('texto');
+    expect(justificativa.obrigatoria).toBe(true);
+    expect(justificativa.auxiliarCalculo).toBe(true);
+    expect(justificativa.descricao).toContain('altura aproximada');
+    expect(justificativa.placeholder).toContain('talude');
+    expect(justificativa.mostrarQuando).toEqual(classificacao.mostrarQuando);
+  });
+
+  it('mostra perguntas auxiliares somente para inclinacao vertical ou negativa', () => {
+    const perguntas = flattenPerguntas(vistoriaDeslizamento);
+
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(false);
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_e' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(true);
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_f' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(true);
   });
 });
 
-describe('vistoria_deslizamento_v2 - soma_total', () => {
-  it('tem uma fase com foto, 10 perguntas de avaliacao e observacoes', () => {
-    expect(vistoriaDeslizamento.fases.length).toBe(1);
-    expect(vistoriaDeslizamento.fases[0].perguntas.length).toBe(12);
-    expect(vistoriaDeslizamento.fases[0].perguntas[0].tipo).toBe('foto');
+describe('risco_estrutural_novo_v2 - observacao condicional de risco', () => {
+  it('habilita observacao opcional para opcoes com peso a partir de 0.3', () => {
+    const config = getObservacaoCondicionalRiscoConfig('risco_estrutural_novo_v2');
+    const perguntas = flattenPerguntas(riscoEstrutural);
+    const fundacao = perguntas.find(p => p.id === 'est_q1')!;
+
+    expect(config?.ativo).toBe(true);
+    expect(config?.pesoMinimo).toBe(0.3);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_a')).toBe(false);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_b')).toBe(true);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_c')).toBe(true);
+    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_d')).toBe(true);
   });
 
-  it('inclinacao tem Inexistente + 5 opcoes tecnicas', () => {
-    const fase = vistoriaDeslizamento.fases[0];
-    const inclinacao = fase.perguntas.find((p: any) => p.id === 'desl2_q2');
-    expect(inclinacao).toBeDefined();
-    const scores = inclinacao.opcoes.map((o: any) => o.pesoRisco);
-    expect(scores).toEqual([0, 0, 1, 2, 3, 4]);
-  });
+  it('mantem observacao visivel somente quando a resposta atual aciona a regra', () => {
+    const perguntas = flattenPerguntas(riscoEstrutural);
+    const obsKey = getObservacaoCondicionalRiscoKey('est_q1');
 
-  it('thresholds: R1<=1, R2<=3, R3<=5, R4>5', () => {
-    const limites = vistoriaDeslizamento.classificacao.limites;
-    expect(limites[0].max).toBe(1);
-    expect(limites[1].max).toBe(3);
-    expect(limites[2].max).toBe(5);
-    expect(limites[3].max).toBe(9999);
+    const comRisco = filtrarRespostasPorPerguntas(
+      { est_q1: 'q1_c', [obsKey]: 'Recalque visivel na fundacao.' },
+      perguntas,
+      'risco_estrutural_novo_v2',
+    );
+    const semRisco = filtrarRespostasPorPerguntas(
+      { est_q1: 'q1_a', [obsKey]: 'Texto antigo.' },
+      perguntas,
+      'risco_estrutural_novo_v2',
+    );
+
+    expect(comRisco[obsKey]).toContain('Recalque');
+    expect(semRisco[obsKey]).toBeUndefined();
   });
 });

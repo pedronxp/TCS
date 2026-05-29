@@ -131,7 +131,7 @@ export default function OnboardingScreen() {
           </Text>
           {!isLast ? (
             <TouchableOpacity
-              onPress={() => router.replace('/(auth)')}
+              onPress={handleFinalizar}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Text style={[styles.skipText, { color: theme.textSecondary }]}>Pular</Text>

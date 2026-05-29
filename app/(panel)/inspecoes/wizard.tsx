@@ -21,8 +21,24 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { WizardParams } from '../../../types/vistoria';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
-import { ASSETS, flattenPerguntas, PerguntaModel } from '../../../utils/formulariosAssets';
+import {
+  calcularRiscoFormulario,
+  CalculoRiscoSnapshot,
+  LimiteRisco,
+  limitarPontuacaoRisco,
+  riscoLabel,
+  riscoColor,
+} from '../../../utils/riscoUtils';
+import {
+  ASSETS,
+  filtrarPerguntasVisiveis,
+  filtrarRespostasPorPerguntas,
+  flattenPerguntas,
+  getObservacaoCondicionalRiscoConfig,
+  getObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+  PerguntaModel,
+} from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
 import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -116,7 +132,7 @@ export default function WizardAvaliacaoScreen() {
   const [respostas, setRespostas] = useState<Respostas>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const [limites, setLimites] = useState<{max: number; nivel: string}[]>([]);
+  const [limites, setLimites] = useState<LimiteRisco[]>([]);
   const [tipoCalculo, setTipoCalculo] = useState<string>('soma_total');
   const [faseConfigs, setFaseConfigs] = useState<{id: string; peso: number}[]>([]);
   const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
@@ -241,42 +257,87 @@ export default function WizardAvaliacaoScreen() {
     }
   };
 
-  const perguntasVisiveis = useMemo(() =>
-    perguntas.filter(p => {
-      if (!p.skipSe) return true;
-      const resposta = respostas[p.skipSe.perguntaId];
-      return resposta !== p.skipSe.opcaoId;
-    }),
-    [perguntas, respostas]
+  const perguntasVisiveis = useMemo(
+    () => filtrarPerguntasVisiveis(perguntas, respostas),
+    [perguntas, respostas],
+  );
+  const respostasVisiveis = useMemo(
+    () => filtrarRespostasPorPerguntas(respostas, perguntasVisiveis, params.formularioId),
+    [respostas, perguntasVisiveis, params.formularioId],
   );
 
   const safeStep = Math.min(step, Math.max(0, perguntasVisiveis.length - 1));
   const perguntaAtual = perguntasVisiveis[safeStep];
   const totalPerguntas = perguntasVisiveis.length;
-  const progress = totalPerguntas > 0 ? ((step + 1) / totalPerguntas) : 0;
+  const progress = totalPerguntas > 0 ? ((safeStep + 1) / totalPerguntas) : 0;
 
-  const resposta = perguntaAtual ? respostas[perguntaAtual.id] : undefined;
+  const resposta = perguntaAtual ? respostasVisiveis[perguntaAtual.id] : undefined;
+  const observacaoConfig = getObservacaoCondicionalRiscoConfig(params.formularioId);
+  const opcaoSelecionada = perguntaAtual?.opcoes.find(op => op.id === resposta);
+  const observacaoCondicionalAtiva = opcaoAcionaObservacaoCondicionalRisco(
+    params.formularioId,
+    perguntaAtual,
+    resposta,
+  );
+  const observacaoCondicionalKey = perguntaAtual
+    ? getObservacaoCondicionalRiscoKey(perguntaAtual.id)
+    : '';
+  const observacaoCondicionalValor = observacaoCondicionalKey
+    ? (respostas[observacaoCondicionalKey] || '')
+    : '';
+
+  useEffect(() => {
+    if (step !== safeStep) setStep(safeStep);
+  }, [safeStep, step]);
+
+  const respostaObrigatoriaPreenchida = (pergunta: PerguntaModel | undefined, valor: string | undefined): boolean => {
+    if (!pergunta) return false;
+    if (pergunta.tipo === 'texto') return String(valor ?? '').trim().length > 0;
+    return !!valor;
+  };
 
   const podeAvancar = () => {
     if (!perguntaAtual?.obrigatoria) return true;
-    return !!resposta;
+    return respostaObrigatoriaPreenchida(perguntaAtual, resposta);
   };
 
-  const calcularNivelRisco = (visiveis: PerguntaModel[] = perguntasVisiveis): { nivel: string; pontuacao: number } => {
-    const nivelMap: Record<string, string> = {
-      sem_risco: 'r1', baixo: 'r1', muito_baixo: 'r1',
-      medio: 'r2', medio_baixo: 'r2',
-      alto: 'r3', medio_alto: 'r3',
-      iminente: 'r4', critico: 'r4', muito_alto: 'r4',
-    };
+  const placeholderObservacaoCondicional = () => {
+    const peso = Number(opcaoSelecionada?.pesoRisco ?? 0);
+    if (peso >= 1) {
+      return 'Descreva a evidência crítica, risco imediato, área/pessoas expostas e orientação dada em campo.';
+    }
+    if (peso >= 0.6) {
+      return 'Descreva o dano observado, local exato, evolução aparente, elementos expostos e providência recomendada.';
+    }
+    return 'Descreva o sinal observado, extensão aproximada e se requer monitoramento ou medida preventiva.';
+  };
 
+  const montarSnapshotPonderado = (
+    nivel: string,
+    pontuacao: number,
+  ): CalculoRiscoSnapshot => ({
+    versaoRegra: 'ponderada_max_elemento_legacy',
+    escala: { min: 0, max: 10 },
+    formularioId: params.formularioId,
+    formularioVersao: parseInt(params.formularioVersao || '1') || 1,
+    tipoCalculo,
+    pontuacaoTotal: pontuacao,
+    nivelRisco: nivel as CalculoRiscoSnapshot['nivelRisco'],
+    limites,
+    itens: [],
+  });
+
+  const calcularNivelRisco = (
+    visiveis: PerguntaModel[] = perguntasVisiveis,
+    respostasBase: Respostas = respostasVisiveis,
+  ): { nivel: string; pontuacao: number; calculo: CalculoRiscoSnapshot } => {
     // ── Cálculo ponderado por elemento (Risco Estrutural) ─────────────────────
     if (tipoCalculo === 'ponderada_max_elemento') {
       // Acumula score bruto por fase
       const faseRaw: Record<string, number> = {};
       visiveis.forEach(p => {
         if (!p.faseId) return;
-        const r = respostas[p.id];
+        const r = respostasBase[p.id];
         if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
           const opcao = p.opcoes.find(o => o.id === r);
           if (opcao && opcao.pesoRisco > 0) {
@@ -291,7 +352,10 @@ export default function WizardAvaliacaoScreen() {
         return raw * (cfg?.peso ?? 1);
       });
 
-      if (weighted.length === 0) return { nivel: 'r1', pontuacao: 0 };
+      if (weighted.length === 0) {
+        const calculo = montarSnapshotPonderado('r1', 0);
+        return { nivel: 'r1', pontuacao: 0, calculo };
+      }
 
       const maxScore = Math.max(...weighted);
       const mediaScore = weighted.reduce((a, b) => a + b, 0) / weighted.length;
@@ -304,51 +368,36 @@ export default function WizardAvaliacaoScreen() {
       else if (maxScore >= 6 || mediaScore >= 6) nivel = 'r2';
       else nivel = 'r1';
 
-      return { nivel, pontuacao: Math.round(maxScore * 10) / 10 };
+      const pontuacao = limitarPontuacaoRisco(maxScore);
+      const calculo = montarSnapshotPonderado(nivel, pontuacao);
+      return { nivel, pontuacao, calculo };
     }
 
-    // ── Cálculo soma total (padrão) ───────────────────────────────────────────
-    let pontuacao = 0;
-    visiveis.forEach(p => {
-      const r = respostas[p.id];
-      if (r && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
-        const opcao = p.opcoes.find(o => o.id === r);
-        if (opcao) pontuacao += opcao.pesoRisco;
-      }
+    const calculo = calcularRiscoFormulario({
+      perguntas: visiveis,
+      respostas: respostasBase,
+      limites,
+      formularioId: params.formularioId,
+      formularioVersao: parseInt(params.formularioVersao || '1') || 1,
+      tipoCalculo,
     });
-
-    if (limites.length > 0) {
-      const sorted = [...limites].sort((a, b) => a.max - b.max);
-      for (const l of sorted) {
-        if (pontuacao <= l.max) {
-          return { nivel: nivelMap[l.nivel] || 'r2', pontuacao };
-        }
-      }
-      return { nivel: 'r4', pontuacao };
-    }
-
-    // Fallback hardcoded
-    let nivel = 'r1';
-    if (pontuacao >= 75) nivel = 'r4';
-    else if (pontuacao >= 50) nivel = 'r3';
-    else if (pontuacao >= 25) nivel = 'r2';
-    return { nivel, pontuacao };
+    return { nivel: calculo.nivelRisco, pontuacao: calculo.pontuacaoTotal, calculo };
   };
 
   // Risco calculado em tempo real — recalcula a cada resposta
   const riscoAtual = useMemo(() => {
     if (Object.keys(respostas).length === 0) return null;
-    return calcularNivelRisco(perguntasVisiveis);
-  }, [respostas, perguntasVisiveis, limites, tipoCalculo, faseConfigs]);
+    return calcularNivelRisco(perguntasVisiveis, respostasVisiveis);
+  }, [respostasVisiveis, perguntasVisiveis, limites, tipoCalculo, faseConfigs]);
 
   // Calcula elemento atual (faseId) para exibição no header
   const elementoAtual = useMemo(() => {
-    const p = perguntasVisiveis[step];
+    const p = perguntasVisiveis[safeStep];
     if (!p?.faseId) return null;
     const fasesUnicas = [...new Set(perguntasVisiveis.map(x => x.faseId).filter(Boolean))];
     const idx = fasesUnicas.indexOf(p.faseId);
     return idx >= 0 ? { atual: idx + 1, total: fasesUnicas.length } : null;
-  }, [perguntasVisiveis, step]);
+  }, [perguntasVisiveis, safeStep]);
 
   // Anima entrada/saída do banner quando riscoAtual muda
   useEffect(() => {
@@ -387,7 +436,7 @@ export default function WizardAvaliacaoScreen() {
 
   const finalizar = async () => {
     // Verifica obrigatórias
-    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !respostas[p.id]);
+    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !respostaObrigatoriaPreenchida(p, respostasVisiveis[p.id]));
     if (pendente) {
       Alert.alert('Pergunta obrigatória', `Responda: "${pendente.texto}"`);
       const idx = perguntasVisiveis.indexOf(pendente);
@@ -407,7 +456,7 @@ export default function WizardAvaliacaoScreen() {
     try {
       if (!profile?.uid) throw new Error('Perfil não carregado — tente novamente.');
 
-      const { nivel, pontuacao } = calcularNivelRisco(perguntasVisiveis);
+      const { nivel, pontuacao, calculo } = calcularNivelRisco(perguntasVisiveis, respostasVisiveis);
       const agora = new Date().toISOString();
 
       // UUID via crypto (Hermes suporta desde RN 0.73+)
@@ -415,7 +464,7 @@ export default function WizardAvaliacaoScreen() {
 
       // Extrair URI da foto das respostas (pergunta do tipo 'foto')
       const perguntaFoto = perguntas.find(p => p.tipo === 'foto');
-      const fotoUri = perguntaFoto ? (respostas[perguntaFoto.id] || null) : null;
+      const fotoUri = perguntaFoto ? (respostasVisiveis[perguntaFoto.id] || null) : null;
 
       const municipioVistoria = params.municipio || profile?.municipio || '';
       const vistoriaLocal = {
@@ -434,7 +483,8 @@ export default function WizardAvaliacaoScreen() {
         data_vistoria: agora,
         formulario_id: params.formularioId,
         formulario_versao: parseInt(params.formularioVersao || '1') || 1,
-        respostas_json: JSON.stringify(respostas),
+        respostas_json: JSON.stringify(respostasVisiveis),
+        calculo_json: JSON.stringify(calculo),
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
         foto_url: fotoUri,
@@ -498,6 +548,7 @@ export default function WizardAvaliacaoScreen() {
           formularioId: vistoriaLocal.formulario_id,
           formularioVersao: vistoriaLocal.formulario_versao,
           respostasJson: vistoriaLocal.respostas_json,
+          calculoRisco: calculo,
           nivelRisco: nivel,
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
@@ -549,7 +600,7 @@ export default function WizardAvaliacaoScreen() {
       Alert.alert('Resposta obrigatória', 'Responda esta pergunta para continuar.');
       return;
     }
-    if (step < totalPerguntas - 1) setStep(s => s + 1);
+    if (safeStep < totalPerguntas - 1) setStep(safeStep + 1);
     else finalizar();
   };
 
@@ -566,15 +617,15 @@ export default function WizardAvaliacaoScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => step > 0 ? setStep(s => s - 1) : router.back()}>
-          <Feather name={step > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
+        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeStep > 0 ? setStep(safeStep - 1) : router.back()}>
+          <Feather name={safeStep > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>
             PASSO 3 DE 3 ·{' '}
             {elementoAtual
               ? `ELEMENTO ${elementoAtual.atual}/${elementoAtual.total}`
-              : `PERGUNTA ${step + 1}/${totalPerguntas}`}
+              : `PERGUNTA ${safeStep + 1}/${totalPerguntas}`}
           </Text>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{params.formularioTitulo}</Text>
         </View>
@@ -610,6 +661,9 @@ export default function WizardAvaliacaoScreen() {
               {perguntaAtual.texto}
               {perguntaAtual.obrigatoria && <Text style={{ color: '#EF4444' }}> *</Text>}
             </Text>
+            {perguntaAtual.descricao && (
+              <Text style={[styles.questionDesc, { color: theme.textSecondary }]}>{perguntaAtual.descricao}</Text>
+            )}
 
 
             {/* CARDS / MULTIPLA ESCOLHA */}
@@ -650,13 +704,37 @@ export default function WizardAvaliacaoScreen() {
               </View>
             )}
 
+            {observacaoCondicionalAtiva && (
+              <View style={[styles.conditionalNote, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+                <View style={styles.conditionalNoteHeader}>
+                  <Feather name="edit-3" size={15} color={theme.primary} />
+                  <Text style={[styles.conditionalNoteTitle, { color: theme.text }]}>
+                    {observacaoConfig?.titulo || 'Observação técnica da resposta'}
+                  </Text>
+                </View>
+                <Text style={[styles.conditionalNoteDesc, { color: theme.textSecondary }]}>
+                  {`Campo opcional para complementar: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`}
+                </Text>
+                <TextInput
+                  style={[styles.conditionalNoteInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  multiline
+                  numberOfLines={4}
+                  placeholder={placeholderObservacaoCondicional()}
+                  placeholderTextColor={theme.textSecondary}
+                  value={observacaoCondicionalValor}
+                  onChangeText={t => setResposta(observacaoCondicionalKey, t)}
+                  textAlignVertical="top"
+                />
+              </View>
+            )}
+
             {/* TEXTO LIVRE */}
             {perguntaAtual.tipo === 'texto' && (
               <TextInput
                 style={[styles.textArea, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }]}
                 multiline
                 numberOfLines={5}
-                placeholder="Digite sua resposta..."
+                placeholder={perguntaAtual.placeholder || 'Digite sua resposta...'}
                 placeholderTextColor={theme.textSecondary}
                 value={resposta || ''}
                 onChangeText={t => setResposta(perguntaAtual.id, t)}
@@ -725,7 +803,7 @@ export default function WizardAvaliacaoScreen() {
         )}
         <View style={{ flexDirection: 'row', gap: 12 }}>
           {step > 0 && (
-            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(s => s - 1)}>
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(Math.max(0, safeStep - 1))}>
               <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
             </TouchableOpacity>
           )}
@@ -737,8 +815,8 @@ export default function WizardAvaliacaoScreen() {
             {salvando
               ? <ActivityIndicator size="small" color="#FFF" />
               : <>
-                  <Text style={styles.nextBtnText}>{step < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
-                  <Feather name={step < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
+                  <Text style={styles.nextBtnText}>{safeStep < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
+                  <Feather name={safeStep < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
                 </>}
           </TouchableOpacity>
         </View>
@@ -761,6 +839,7 @@ const styles = StyleSheet.create({
   instrucao: { fontSize: 14, lineHeight: 22, marginBottom: 12 },
   exampleImage: { width: '100%', height: 180, borderRadius: 14, marginBottom: 20 },
   question: { fontSize: 20, fontWeight: '700', lineHeight: 28, marginBottom: 24 },
+  questionDesc: { fontSize: 13, lineHeight: 20, marginTop: -14, marginBottom: 20 },
   optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   optionCard: { width: '47%', borderRadius: 14, borderWidth: 1.5, padding: 16, alignItems: 'center', position: 'relative' },
   optionImage: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10 },
@@ -768,6 +847,11 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
   optionDesc: { fontSize: 12, textAlign: 'center', marginTop: 4 },
   selectedBadge: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  conditionalNote: { marginTop: 18, borderRadius: 14, borderWidth: 1, padding: 14 },
+  conditionalNoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  conditionalNoteTitle: { fontSize: 14, fontWeight: '800' },
+  conditionalNoteDesc: { fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  conditionalNoteInput: { minHeight: 96, borderRadius: 10, borderWidth: 1, padding: 12, fontSize: 14, lineHeight: 20 },
   textArea: { borderRadius: 14, borderWidth: 1, padding: 16, fontSize: 15, minHeight: 140 },
   fotoButton: { height: 160, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 12 },
   fotoButtonText: { fontSize: 15, fontWeight: '600' },

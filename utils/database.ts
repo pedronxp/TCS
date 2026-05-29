@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 12;
+const DB_VERSION = 13;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -50,8 +50,9 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
           formulario_id TEXT,
           formulario_versao INTEGER,
           respostas_json TEXT,
+          calculo_json TEXT,
           nivel_risco TEXT,
-          pontuacao_total INTEGER,
+          pontuacao_total REAL,
           foto_url TEXT,
           sincronizado INTEGER DEFAULT 0,
           erro_sync TEXT,
@@ -221,6 +222,12 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       try { database.runSync(`ALTER TABLE formularios_cache ADD COLUMN tipo_calculo TEXT`); } catch { /* já existe */ }
     }
 
+    if (currentVersion < 13) {
+      // Snapshot da regra de cálculo aplicada no momento da vistoria.
+      // Mantém PDF, app e auditoria consistentes mesmo que o formulário evolua depois.
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN calculo_json TEXT`); } catch { /* já existe */ }
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -246,6 +253,7 @@ export interface VistoriaLocal {
   formulario_id: string;
   formulario_versao: number;
   respostas_json: string;
+  calculo_json?: string | null;
   nivel_risco: string;
   pontuacao_total: number;
   foto_url: string | null;
@@ -264,7 +272,7 @@ export interface VistoriaLocal {
 // ─── CRUD ──────────────────────────────────────────────────────────────────
 
 export function insertVistoria(
-  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em'> & { municipio_agente?: string | null; laudo_url?: string | null; laudo_gerado_em?: string | null }
+  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em' | 'calculo_json'> & { municipio_agente?: string | null; laudo_url?: string | null; laudo_gerado_em?: string | null; calculo_json?: string | null }
 ): void {
   const database = getDb();
   database.runSync(
@@ -272,10 +280,10 @@ export function insertVistoria(
       id, agente_uid, agente_nome, municipio, municipio_agente,
       endereco_rua, endereco_numero, endereco_bairro, endereco_cep,
       responsavel_nome, latitude, longitude, data_vistoria,
-      formulario_id, formulario_versao, respostas_json,
+      formulario_id, formulario_versao, respostas_json, calculo_json,
       nivel_risco, pontuacao_total, foto_url, fotos_urls,
       laudo_url, laudo_gerado_em, feita_online, sincronizado, criado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
     [
       vistoria.id,
       vistoria.agente_uid,
@@ -293,6 +301,7 @@ export function insertVistoria(
       vistoria.formulario_id,
       vistoria.formulario_versao,
       vistoria.respostas_json,
+      vistoria.calculo_json ?? null,
       vistoria.nivel_risco,
       vistoria.pontuacao_total,
       vistoria.foto_url ?? null,

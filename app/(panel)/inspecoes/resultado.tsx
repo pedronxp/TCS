@@ -15,7 +15,7 @@ import { supabase } from '../../../utils/supabase';
 import { getVistoriaById, updateLaudoUrl } from '../../../utils/database';
 import { getSignedUrl } from '../../../services/StorageService';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarPontuacaoRisco, normalizarNivelRisco, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
 import { buildShareMessage } from '../../../utils/shareUtils';
 import { uploadLaudoPdf } from '../../../services/StorageService';
@@ -41,6 +41,7 @@ function normalizar(v: any): any {
     dataVistoria: v.dataVistoria ?? v.data_vistoria ?? v.created_at ?? null,
     agenteNome: v.agenteNome ?? v.agente_nome ?? '—',
     respostasJson: v.respostasJson ?? v.respostas_json ?? '{}',
+    calculoRisco: v.calculoRisco ?? v.calculo_risco ?? v.calculo_json ?? null,
     formularioId: v.formularioId ?? v.formulario_id ?? 'Padrão',
     responsavelNome: v.responsavelNome ?? v.responsavel_nome ?? '',
     foto_url: v.foto_url ?? v.fotoUrl ?? null,
@@ -106,6 +107,7 @@ export default function ResultadoScreen() {
       formularioId: v.formularioId || 'Padrão',
       nivelRisco: v.nivelRisco || 'r1',
       pontuacaoTotal: v.pontuacaoTotal ?? 0,
+      calculoRisco: v.calculoRisco ?? null,
       respostas,
       foto_url: v.foto_url ?? v.fotosUrls?.[0] ?? null,
       fotosUrls: v.fotosUrls ?? (v.foto_url ? [v.foto_url] : null),
@@ -120,7 +122,7 @@ export default function ResultadoScreen() {
       // 1. Tentar Supabase
       const { data, error } = await supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, municipio_agente, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, foto_url, fotosUrls, protocolo, laudo_url, laudo_gerado_em')
+        .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, municipio_agente, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, foto_url, fotosUrls, protocolo, laudo_url, laudo_gerado_em')
         .eq('id', id)
         .single();
 
@@ -163,7 +165,7 @@ export default function ResultadoScreen() {
         const norm = normalizar({
           id,
           nivelRisco: nivelParam,
-          pontuacaoTotal: parseInt(pontuacaoParam || '0'),
+          pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
           agenteNome: profile?.name,
           municipio: municipioParam || profile?.municipio,
         });
@@ -177,7 +179,7 @@ export default function ResultadoScreen() {
         const norm = normalizar({
           id,
           nivelRisco: nivelParam,
-          pontuacaoTotal: parseInt(pontuacaoParam || '0'),
+          pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
           agenteNome: profile?.name,
           municipio: municipioParam || profile?.municipio,
         });
@@ -213,6 +215,7 @@ export default function ResultadoScreen() {
     agenteNome: vistoria?.agenteNome || profile?.name || '—',
     formularioId: vistoria?.formularioId || 'Padrão',
     respostasJson: vistoria?.respostasJson || '{}',
+    calculoRisco: vistoria?.calculoRisco ?? null,
     foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
     fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
   });
@@ -376,7 +379,7 @@ export default function ResultadoScreen() {
     );
   }
 
-  const nivel = vistoria?.nivelRisco || nivelParam || 'r1';
+  const nivel = normalizarNivelRisco(vistoria?.nivelRisco || nivelParam, 'r1');
   const cor = riscoColor(nivel);
   const label = riscoLabel(nivel);
   const isAltoRisco = nivel === 'r3' || nivel === 'r4';
@@ -429,7 +432,7 @@ export default function ResultadoScreen() {
           <Text style={[styles.statusTitle, { color: theme.text }]}>Vistoria Concluída</Text>
           <Text style={[styles.statusDesc, { color: theme.textSecondary }]}>
             {vistoria?.endereco
-              ? `${vistoria.endereco}\n${vistoria.pontuacaoTotal} pontos · ${vistoria.agenteNome}`
+              ? `${vistoria.endereco}\n${formatarPontuacaoRisco(vistoria.pontuacaoTotal)} pontos · ${vistoria.agenteNome}`
               : 'Dados salvos localmente. PDF disponível após sincronização.'}
           </Text>
         </View>

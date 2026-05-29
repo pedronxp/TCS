@@ -10,7 +10,13 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
-import { riscoLabel, riscoColor, riscoConduta } from '../../../utils/riscoUtils';
+import {
+  formatarPontuacaoRisco,
+  parseCalculoRiscoSnapshot,
+  riscoLabel,
+  riscoColor,
+  riscoConduta,
+} from '../../../utils/riscoUtils';
 import { parseProtocolo } from '../../../utils/uuid';
 import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
 import { buildShareMessage } from '../../../utils/shareUtils';
@@ -18,11 +24,16 @@ import { useAuth } from '../../../context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../utils/supabase';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
+import {
+  ASSETS,
+  getObservacaoCondicionalRiscoKey,
+  getPerguntaIdFromObservacaoCondicionalRiscoKey,
+  opcaoAcionaObservacaoCondicionalRisco,
+} from '../../../utils/formulariosAssets';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
-  vistoria_deslizamento_v2: require('../../../assets/formularios/vistoria_deslizamento_v2.json'),
-  risco_estrutural_novo_v1: require('../../../assets/formularios/risco_estrutural_novo_v1.json'),
+  ...ASSETS,
 };
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -32,6 +43,7 @@ interface ItemResolvido {
   resposta: string;
   tipo: string;
   pesoRisco: number;
+  observacao?: string;
 }
 
 interface GrupoResolvido {
@@ -44,11 +56,31 @@ interface GrupoResolvido {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Resolve IDs de respostas em textos legíveis, agrupados por fase */
-function resolverRespostas(formularioId: string, respostas: Record<string, string>): GrupoResolvido[] {
+function resolverRespostas(formularioId: string, respostas: Record<string, string>, calculoRisco?: unknown): GrupoResolvido[] {
+  const calculo = parseCalculoRiscoSnapshot(calculoRisco);
+  if (calculo?.itens?.length) {
+    const grupos = new Map<string, GrupoResolvido>();
+    for (const item of calculo.itens) {
+      const faseId = item.faseId || item.grupo || 'snapshot';
+      const grupo = item.grupo || 'Itens avaliados';
+      if (!grupos.has(faseId)) grupos.set(faseId, { grupo, faseId, itens: [] });
+      grupos.get(faseId)!.itens.push({
+        perguntaId: item.perguntaId,
+        pergunta: item.pergunta,
+        resposta: item.resposta,
+        tipo: 'cards',
+        pesoRisco: item.pesoRisco,
+        observacao: item.observacao,
+      });
+    }
+    return Array.from(grupos.values());
+  }
+
   const form = FORM_JSONS[formularioId];
   if (!form) {
     // Fallback genérico: mostra chave → valor bruto
     const itens = Object.entries(respostas)
+      .filter(([k]) => !getPerguntaIdFromObservacaoCondicionalRiscoKey(k))
       .filter(([, v]) => v)
       .map(([k, v]) => ({ perguntaId: k, pergunta: k, resposta: v, tipo: 'texto', pesoRisco: 0 }));
     return itens.length ? [{ grupo: 'Respostas', faseId: 'raw', itens }] : [];
@@ -69,7 +101,11 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
       }
 
-      itens.push({ perguntaId: p.id, pergunta: p.texto, resposta: respostaTexto, tipo: p.tipo, pesoRisco });
+      const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
+      const observacao = opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
+        ? respostas[observacaoKey]?.trim()
+        : undefined;
+      itens.push({ perguntaId: p.id, pergunta: p.texto, resposta: respostaTexto, tipo: p.tipo, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, faseId: fase.id, peso: fase.peso, itens });
   }
@@ -79,8 +115,8 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
 /** Cor do indicador por pesoRisco */
 function pesoColor(p: number) {
   if (p === 0) return '#22C55E';
-  if (p <= 2)  return '#EAB308';
-  if (p <= 4)  return '#F97316';
+  if (p <= 0.3) return '#EAB308';
+  if (p <= 0.6) return '#F97316';
   return '#DC2626';
 }
 
@@ -188,8 +224,8 @@ export default function RelatorioScreen() {
   // Resolve respostas em textos legíveis agrupados por fase
   const grupos = useMemo<GrupoResolvido[]>(() => {
     if (!draft) return [];
-    return resolverRespostas(draft.formularioId, draft.respostas || {});
-  }, [draft?.formularioId, draft?.respostas]);
+    return resolverRespostas(draft.formularioId, draft.respostas || {}, draft.calculoRisco);
+  }, [draft?.formularioId, draft?.respostas, draft?.calculoRisco]);
 
   const totalRespondidas = useMemo(() => grupos.reduce((acc, g) => acc + g.itens.length, 0), [grupos]);
 
@@ -281,6 +317,7 @@ export default function RelatorioScreen() {
         agenteNome: draft.agenteNome,
         formularioId: draft.formularioId,
         respostasJson: JSON.stringify(draft.respostas || {}),
+        calculoRisco: draft.calculoRisco ?? null,
         condutaRecomendada: draft.condutaRecomendada,
         observacoesTecnicas: draft.observacoesTecnicas,
         cargo: draft.cargo,
@@ -338,7 +375,7 @@ export default function RelatorioScreen() {
         dataVistoria: draft.dataVistoria || new Date().toISOString(),
         municipio: draft.municipio || '—',
         agenteNome: draft.agenteNome || '—',
-        nivelRisco: draft.nivelRisco || 'r3',
+        nivelRisco: draft.nivelRisco || 'r1',
         pontuacaoTotal: draft.pontuacaoTotal || 0,
         endereco: draft.endereco || '—',
       };
@@ -396,6 +433,7 @@ export default function RelatorioScreen() {
         agenteNome: draft.agenteNome,
         formularioId: draft.formularioId,
         respostasJson: JSON.stringify(draft.respostas || {}),
+        calculoRisco: draft.calculoRisco ?? null,
         condutaRecomendada: draft.condutaRecomendada,
         observacoesTecnicas: draft.observacoesTecnicas,
         cargo: draft.cargo,
@@ -487,7 +525,7 @@ export default function RelatorioScreen() {
           <View style={[s.riscoBanner, { backgroundColor: cor }]}>
             <Text style={s.bannerLabel}>NÍVEL DE RISCO</Text>
             <Text style={s.bannerNivel}>RISCO {label}</Text>
-            <Text style={s.bannerPts}>{draft.pontuacaoTotal} pontos acumulados</Text>
+            <Text style={s.bannerPts}>{formatarPontuacaoRisco(draft.pontuacaoTotal)} pontos acumulados</Text>
           </View>
 
           {/* Dados da vistoria */}
@@ -542,10 +580,16 @@ export default function RelatorioScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[s.itemPergunta, { color: theme.textSecondary }]}>{item.pergunta}</Text>
                     <Text style={[s.itemResposta, { color: theme.text }]}>{item.resposta}</Text>
+                    {item.observacao && (
+                      <View style={[s.itemObsBox, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
+                        <Text style={[s.itemObsLabel, { color: theme.textSecondary }]}>Observação do agente</Text>
+                        <Text style={[s.itemObsText, { color: theme.text }]}>{item.observacao}</Text>
+                      </View>
+                    )}
                   </View>
                   {item.pesoRisco > 0 && (
                     <View style={[s.pesoBadge, { backgroundColor: pesoColor(item.pesoRisco) + '22' }]}>
-                      <Text style={[s.pesoBadgeText, { color: pesoColor(item.pesoRisco) }]}>+{item.pesoRisco}</Text>
+                      <Text style={[s.pesoBadgeText, { color: pesoColor(item.pesoRisco) }]}>+{formatarPontuacaoRisco(item.pesoRisco)}</Text>
                     </View>
                   )}
                 </View>
@@ -878,6 +922,9 @@ const s = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0, marginTop: 2 },
   itemPergunta: { fontSize: 11, fontWeight: '600', marginBottom: 3 },
   itemResposta: { fontSize: 14, fontWeight: '700' },
+  itemObsBox: { marginTop: 8, borderRadius: 10, borderWidth: 1, padding: 10 },
+  itemObsLabel: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 },
+  itemObsText: { fontSize: 12, lineHeight: 18 },
   pesoBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   pesoBadgeText: { fontSize: 11, fontWeight: '800' },
 

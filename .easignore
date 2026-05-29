@@ -9,3 +9,6 @@ Laudo.docx
 .git/
 android/
 ios/
+.agents/
+relatorios/
+builds/

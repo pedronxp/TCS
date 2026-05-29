@@ -47,7 +47,7 @@ Agentes da Defesa Civil precisam realizar vistorias em locais de difícil acesso
 - **Laudos em PDF** — gerados no dispositivo e enviados por WhatsApp/e-mail
 - **Rastreabilidade completa** — audit trail de todas as ações
 
-### Versão atual: v1.2.0
+### Versão atual: v1.3.4
 
 ---
 
