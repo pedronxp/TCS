@@ -99,13 +99,15 @@ function getRiscoLabel(nivel: string): string {
   return 'BAIXO';
 }
 
-// Tamanhos do marcador — maiores no Android para garantir visibilidade
-const PIN_SIZE   = Platform.OS === 'android' ? 54 : 34;
-const PIN_RADIUS = PIN_SIZE / 2;
-const PIN_INNER  = Platform.OS === 'android' ? 20 : 12;
-const PIN_HALO   = Platform.OS === 'android' ? 66 : 42;
-const ICON_SIZE  = Platform.OS === 'android' ? 22 : 15;
-const MARKER_ANCHOR = { x: 0.5, y: 0.5 };
+// Tamanhos do marcador — visual neutro para não sumir no mapa do Android.
+const PIN_WRAP_WIDTH  = Platform.OS === 'android' ? 52 : 44;
+const PIN_WRAP_HEIGHT = Platform.OS === 'android' ? 64 : 54;
+const PIN_HEAD        = Platform.OS === 'android' ? 42 : 34;
+const PIN_CENTER      = Platform.OS === 'android' ? 17 : 14;
+const PIN_TIP         = Platform.OS === 'android' ? 16 : 13;
+const PIN_ACCENT      = Platform.OS === 'android' ? 9 : 7;
+const ICON_SIZE       = Platform.OS === 'android' ? 18 : 15;
+const MARKER_ANCHOR = { x: 0.5, y: 1 };
 const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
 const CLUSTER_RADIUS = Platform.OS === 'android' ? 70 : 55;
 
@@ -113,10 +115,12 @@ const CLUSTER_RADIUS = Platform.OS === 'android' ? 70 : 55;
 function MarkerPin({ color }: { color: string }) {
   return (
     <View style={markerStyles.markerWrap}>
-      <View style={[markerStyles.halo, { borderColor: color }]}>
-        <View style={[markerStyles.pin, { backgroundColor: color }]}>
-          <View style={markerStyles.pinInner} />
+      <View style={markerStyles.pinShadow}>
+        <View style={markerStyles.pinHead}>
+          <View style={markerStyles.pinCenter} />
+          <View style={[markerStyles.riskAccent, { backgroundColor: color }]} />
         </View>
+        <View style={markerStyles.pinTip} />
       </View>
     </View>
   );
@@ -125,10 +129,12 @@ function MarkerPin({ color }: { color: string }) {
 function AgendamentoPin() {
   return (
     <View style={markerStyles.markerWrap}>
-      <View style={[markerStyles.halo, { borderColor: '#3B82F6' }]}>
-        <View style={[markerStyles.pin, { backgroundColor: '#3B82F6' }]}>
-          <Feather name="calendar" size={ICON_SIZE} color="#FFF" />
+      <View style={markerStyles.pinShadow}>
+        <View style={markerStyles.pinHead}>
+          <Feather name="calendar" size={ICON_SIZE} color="#475569" />
+          <View style={[markerStyles.riskAccent, { backgroundColor: '#3B82F6' }]} />
         </View>
+        <View style={markerStyles.pinTip} />
       </View>
     </View>
   );
@@ -136,26 +142,57 @@ function AgendamentoPin() {
 
 const markerStyles = StyleSheet.create({
   markerWrap: {
-    width: PIN_HALO,
-    height: PIN_HALO,
+    width: PIN_WRAP_WIDTH,
+    height: PIN_WRAP_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  pinShadow: {
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  pinHead: {
+    width: PIN_HEAD,
+    height: PIN_HEAD,
+    borderRadius: PIN_HEAD / 2,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F8FAFC',
   },
-  halo: {
-    width: PIN_HALO,
-    height: PIN_HALO,
-    borderRadius: PIN_HALO / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: Platform.OS === 'android' ? 4 : 3,
-    backgroundColor: 'rgba(255,255,255,0.38)',
+  pinCenter: {
+    width: PIN_CENTER,
+    height: PIN_CENTER,
+    borderRadius: PIN_CENTER / 2,
+    backgroundColor: '#475569',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
-  pin: {
-    width: PIN_SIZE, height: PIN_SIZE, borderRadius: PIN_RADIUS,
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: Platform.OS === 'android' ? 4 : 3, borderColor: '#FFF',
+  riskAccent: {
+    position: 'absolute',
+    right: 5,
+    bottom: 5,
+    width: PIN_ACCENT,
+    height: PIN_ACCENT,
+    borderRadius: PIN_ACCENT / 2,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
-  pinInner: { width: PIN_INNER, height: PIN_INNER, borderRadius: PIN_INNER / 2, backgroundColor: '#FFF' },
+  pinTip: {
+    width: PIN_TIP,
+    height: PIN_TIP,
+    marginTop: -5,
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F8FAFC',
+    transform: [{ rotate: '45deg' }],
+  },
 });
 
 export default function MapasScreen() {
