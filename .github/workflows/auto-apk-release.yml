@@ -1,0 +1,294 @@
+name: Auto APK Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile (preview | production)'
+        required: true
+        default: 'preview'
+        type: choice
+        options: [preview, production]
+      version:
+        description: 'Versao do app. Vazio = bump patch automatico'
+        required: false
+        type: string
+      version_code:
+        description: 'Android versionCode. Vazio = incrementa +1'
+        required: false
+        type: string
+      mandatory:
+        description: 'Bloquear versoes antigas apos publicar APK'
+        required: true
+        default: true
+        type: boolean
+      notify_users:
+        description: 'Enviar push avisando sobre a atualizacao'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-apk-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, publish and force update
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: "${{ github.event_name != 'push' || !contains(github.event.head_commit.message, 'chore(release): publish apk') }}"
+
+    env:
+      BUILD_PROFILE: ${{ github.event.inputs.profile || 'preview' }}
+      INPUT_VERSION: ${{ github.event.inputs.version || '' }}
+      INPUT_VERSION_CODE: ${{ github.event.inputs.version_code || '' }}
+      MANDATORY_UPDATE: ${{ github.event.inputs.mandatory || 'true' }}
+      NOTIFY_USERS: ${{ github.event.inputs.notify_users || 'true' }}
+      RELEASE_REPO: ${{ vars.APK_RELEASE_REPO || 'pedronxp/TCS-apk-releases' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_COMMIT_TOKEN || github.token }}
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump Android version
+        id: version
+        env:
+          APP_VERSION: ${{ env.INPUT_VERSION }}
+          ANDROID_VERSION_CODE: ${{ env.INPUT_VERSION_CODE }}
+        run: node scripts/bump-android-version.mjs
+
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --runInBand
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key' }}
+
+      - name: Validate Expo config
+        run: npx expo config --type public
+
+      - name: Commit generated version bump
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.json package.json package-lock.json
+          git commit -m "chore(release): publish apk v${{ steps.version.outputs.version }}" || echo "No version changes to commit"
+          git push
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build APK via EAS
+        id: eas_build
+        run: |
+          set -euo pipefail
+          BUILD_OUTPUT=$(eas build \
+            --platform android \
+            --profile "$BUILD_PROFILE" \
+            --non-interactive \
+            --json)
+          printf '%s' "$BUILD_OUTPUT" > eas-build-output.json
+          APK_URL=$(python3 - <<'PY'
+          import json
+          data=json.load(open('eas-build-output.json', encoding='utf-8'))
+          item=data[0] if isinstance(data, list) else data
+          print((item.get('artifacts') or {}).get('buildUrl') or '')
+          PY
+          )
+          BUILD_ID=$(python3 - <<'PY'
+          import json
+          data=json.load(open('eas-build-output.json', encoding='utf-8'))
+          item=data[0] if isinstance(data, list) else data
+          print(item.get('id') or '')
+          PY
+          )
+          if [ -z "$APK_URL" ] || [ -z "$BUILD_ID" ]; then
+            echo "EAS build finished without APK URL or build ID"
+            cat eas-build-output.json
+            exit 1
+          fi
+          echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
+          echo "eas_build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK artifact
+        id: apk
+        run: |
+          set -euo pipefail
+          APK_FILE="TCS-Relatorio-de-Risco-${{ steps.version.outputs.version }}-vc${{ steps.version.outputs.version_code }}.apk"
+          curl -L "${{ steps.eas_build.outputs.apk_url }}" -o "$APK_FILE"
+          test -s "$APK_FILE"
+          echo "file=$APK_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish APK release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.APK_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.version.outputs.version }}"
+          NOTES="APK Android publicado automaticamente.
+
+          Versao: ${{ steps.version.outputs.version }}
+          versionCode: ${{ steps.version.outputs.version_code }}
+          EAS build: ${{ steps.eas_build.outputs.eas_build_id }}
+          Commit: $GITHUB_SHA"
+
+          if gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${{ steps.apk.outputs.file }}" --repo "$RELEASE_REPO" --clobber
+          else
+            gh release create "$TAG" "${{ steps.apk.outputs.file }}" \
+              --repo "$RELEASE_REPO" \
+              --title "TCS Relatorio de Risco $TAG" \
+              --notes "$NOTES" \
+              --latest
+          fi
+
+          FIXED_APK_URL="https://github.com/$RELEASE_REPO/releases/download/$TAG/${{ steps.apk.outputs.file }}"
+          echo "apk_url=$FIXED_APK_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Update Supabase app update config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_KEY:-}" ]; then
+            echo "Missing SUPABASE_URL or SUPABASE_SERVICE_KEY"
+            exit 1
+          fi
+
+          python3 - <<'PY' > update-config.json
+          import json, os
+          mandatory = str(os.environ.get('MANDATORY_UPDATE', 'true')).lower() == 'true'
+          version = '${{ steps.version.outputs.version }}'
+          version_code = int('${{ steps.version.outputs.version_code }}')
+          apk_url = '${{ steps.release.outputs.apk_url }}'
+          print(json.dumps({
+            'platform': 'android',
+            'enabled': True,
+            'mandatory': mandatory,
+            'latest_version': version,
+            'latest_version_code': version_code,
+            'min_required_version_code': version_code if mandatory else int('${{ steps.version.outputs.previous_version_code }}'),
+            'apk_url': apk_url,
+            'message': 'Existe uma nova versao do aplicativo. Atualize para continuar usando o sistema.'
+          }))
+          PY
+
+          curl -fsS -X POST "$SUPABASE_URL/rest/v1/app_update_config" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            --data-binary @update-config.json
+
+      - name: Register build status in Supabase
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_KEY:-}" ]; then
+            echo "Supabase secrets not configured; skipping build log"
+            exit 0
+          fi
+          export COMPLETED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          python3 - <<'PY' > build-log.json
+          import json, os
+          print(json.dumps({
+            'github_run_id': '${{ github.run_id }}',
+            'provider': 'github_actions',
+            'version': '${{ steps.version.outputs.version }}',
+            'profile': '${{ env.BUILD_PROFILE }}',
+            'changelog': 'Release automatico via GitHub Actions',
+            'status': '${{ job.status }}' == 'success' and 'success' or 'failed',
+            'eas_build_id': '${{ steps.eas_build.outputs.eas_build_id }}',
+            'apk_url': '${{ steps.release.outputs.apk_url }}',
+            'completed_at': os.environ['COMPLETED_AT']
+          }))
+          PY
+
+          curl -sS -X POST "$SUPABASE_URL/rest/v1/builds" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            --data-binary @build-log.json || true
+
+      - name: Notify users by Expo Push
+        if: env.NOTIFY_USERS == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_KEY:-}" ]; then
+            echo "Supabase secrets not configured; skipping push notification"
+            exit 0
+          fi
+
+          curl -fsS "$SUPABASE_URL/rest/v1/users?select=fcmToken&isApproved=eq.true&fcmToken=not.is.null" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            > push-users.json
+
+          python3 - <<'PY'
+          import json, urllib.request
+          rows = json.load(open('push-users.json', encoding='utf-8'))
+          tokens = sorted({row.get('fcmToken') for row in rows if row.get('fcmToken')})
+          if not tokens:
+              print('No push tokens found')
+              raise SystemExit(0)
+
+          payloads = [{
+              'to': token,
+              'title': 'Atualizacao obrigatoria disponivel',
+              'body': 'Abra o app para baixar e instalar a nova versao.',
+              'data': {'tipo': 'app_update', 'version': '${{ steps.version.outputs.version }}'},
+              'sound': 'default',
+              'channelId': 'default',
+              'priority': 'high',
+              'ttl': 86400,
+          } for token in tokens]
+
+          for i in range(0, len(payloads), 100):
+              batch = payloads[i:i+100]
+              data = json.dumps(batch if len(batch) > 1 else batch[0]).encode('utf-8')
+              req = urllib.request.Request(
+                  'https://exp.host/--/api/v2/push/send',
+                  data=data,
+                  headers={
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                      'Accept-Encoding': 'gzip, deflate',
+                  },
+                  method='POST',
+              )
+              with urllib.request.urlopen(req, timeout=30) as res:
+                  print(res.status, res.read().decode('utf-8')[:500])
+          PY
