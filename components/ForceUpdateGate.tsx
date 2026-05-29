@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { AppStateStatus } from 'react-native';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { AppUpdateConfig, AppUpdateDecision } from '../utils/appUpdate';
 import {
@@ -22,9 +23,18 @@ type GateState =
 export function ForceUpdateGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GateState>({ status: 'checking' });
   const [opening, setOpening] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const checkingRef = useRef(false);
+  const stateRef = useRef<GateState>(state);
 
-  const runCheck = async () => {
-    setState({ status: 'checking' });
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const runCheck = async (showLoading: boolean) => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    if (showLoading) setState({ status: 'checking' });
     try {
       const decision = await withTimeout(checkAndroidAppUpdate(), UPDATE_CHECK_TIMEOUT_MS);
       if (decision.config) {
@@ -34,16 +44,22 @@ export function ForceUpdateGate({ children }: { children: ReactNode }) {
     } catch {
       const cached = await readCachedDecision();
       setState(cached ? { status: 'blocked', decision: cached, source: 'cache' } : { status: 'allowed' });
+    } finally {
+      checkingRef.current = false;
     }
   };
 
   useEffect(() => {
-    runCheck();
+    runCheck(true);
   }, []);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', status => {
-      if (status === 'active') runCheck();
+    const sub = AppState.addEventListener('change', nextState => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+      if ((previousState === 'background' || previousState === 'inactive') && nextState === 'active') {
+        runCheck(stateRef.current.status === 'blocked');
+      }
     });
     return () => sub.remove();
   }, []);
@@ -94,7 +110,7 @@ export function ForceUpdateGate({ children }: { children: ReactNode }) {
             </TouchableOpacity>
           ) : null}
 
-          <TouchableOpacity style={styles.secondaryButton} onPress={runCheck}>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => runCheck(true)}>
             <Feather name="refresh-cw" size={16} color="#CBD5E1" />
             <Text style={styles.secondaryText}>Verificar novamente</Text>
           </TouchableOpacity>
