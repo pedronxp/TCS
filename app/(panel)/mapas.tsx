@@ -105,7 +105,7 @@ const PIN_WRAP_HEIGHT = Platform.OS === 'android' ? 64 : 54;
 const PIN_HEAD        = Platform.OS === 'android' ? 42 : 34;
 const PIN_CENTER      = Platform.OS === 'android' ? 17 : 14;
 const PIN_TIP         = Platform.OS === 'android' ? 16 : 13;
-const PIN_ACCENT      = Platform.OS === 'android' ? 9 : 7;
+const PIN_ACCENT      = Platform.OS === 'android' ? 11 : 8;
 const ICON_SIZE       = Platform.OS === 'android' ? 18 : 15;
 const MARKER_ANCHOR = { x: 0.5, y: 1 };
 const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
@@ -116,11 +116,11 @@ function MarkerPin({ color }: { color: string }) {
   return (
     <View style={markerStyles.markerWrap}>
       <View style={markerStyles.pinShadow}>
-        <View style={markerStyles.pinHead}>
-          <View style={markerStyles.pinCenter} />
+        <View style={[markerStyles.pinHead, { borderColor: color }]}>
+          <View style={[markerStyles.pinCenter, { backgroundColor: color }]} />
           <View style={[markerStyles.riskAccent, { backgroundColor: color }]} />
         </View>
-        <View style={markerStyles.pinTip} />
+        <View style={[markerStyles.pinTip, { borderColor: color }]} />
       </View>
     </View>
   );
@@ -130,11 +130,11 @@ function AgendamentoPin() {
   return (
     <View style={markerStyles.markerWrap}>
       <View style={markerStyles.pinShadow}>
-        <View style={markerStyles.pinHead}>
+        <View style={[markerStyles.pinHead, { borderColor: '#3B82F6' }]}>
           <Feather name="calendar" size={ICON_SIZE} color="#475569" />
           <View style={[markerStyles.riskAccent, { backgroundColor: '#3B82F6' }]} />
         </View>
-        <View style={markerStyles.pinTip} />
+        <View style={[markerStyles.pinTip, { borderColor: '#3B82F6' }]} />
       </View>
     </View>
   );
