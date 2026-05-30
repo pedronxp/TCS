@@ -4,7 +4,6 @@ import {
   Modal, ScrollView, Platform,
 } from 'react-native';
 import MapView, { Marker, Heatmap, PROVIDER_GOOGLE, PROVIDER_DEFAULT, MapType } from 'react-native-maps';
-import ClusteredMapView from 'react-native-map-clustering';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -17,6 +16,7 @@ import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getAllA
 import { logger } from '../../utils/logger';
 import { tracarRota } from '../../utils/routingUtils';
 import { navSystemBottom } from '../../utils/useBottomTabPadding';
+import { safeBack } from '../../utils/navigationUtils';
 
 interface VistoriaMarker {
   id: string;
@@ -109,9 +109,8 @@ const PIN_ACCENT      = Platform.OS === 'android' ? 11 : 8;
 const ICON_SIZE       = Platform.OS === 'android' ? 18 : 15;
 const MARKER_ANCHOR = { x: 0.5, y: 1 };
 const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
-const CLUSTER_RADIUS = Platform.OS === 'android' ? 70 : 55;
 
-// Marcador customizado — sem pinColor para evitar bug com clustering
+// Marcador customizado sem pinColor para manter renderização consistente no mapa nativo.
 function MarkerPin({ color }: { color: string }) {
   return (
     <View style={markerStyles.markerWrap}>
@@ -272,7 +271,12 @@ export default function MapasScreen() {
   };
 
   const loadMarkers = async () => {
-    if (!profile) return;
+    if (!profile) {
+      setMarkers([]);
+      setAgendamentos([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const isAdmin = ['admin', 'master_admin', 'supervisor'].includes(profile.role);
@@ -362,7 +366,7 @@ export default function MapasScreen() {
                 }, 800);
               }, 1200);
             } else {
-              // Refresh manual: micro-jiggle para forçar recálculo do supercluster
+              // Refresh manual: micro-jiggle para forçar recálculo visual do mapa.
               timer1Ref.current = setTimeout(() => {
                 if (!mountedRef.current) return;
                 const r = currentRegionRef.current;
@@ -461,26 +465,6 @@ export default function MapasScreen() {
     return true;
   });
 
-  // Ao pressionar cluster: dar zoom nos markers contidos nele
-  const handleClusterPress = (cluster: any, clusterMarkers?: any[]) => {
-    if (!clusterMarkers?.length) return;
-    const coords = clusterMarkers.map((m: any) => ({
-      latitude:  m.geometry.coordinates[1],
-      longitude: m.geometry.coordinates[0],
-    }));
-    if (coords.length === 1) {
-      mapRef.current?.animateToRegion({
-        latitude: coords[0].latitude, longitude: coords[0].longitude,
-        latitudeDelta: 0.005, longitudeDelta: 0.005,
-      }, 700);
-      return;
-    }
-    (mapRef.current as any)?.fitToCoordinates(coords, {
-      edgePadding: { top: 160, right: 80, bottom: 220, left: 80 },
-      animated: true,
-    });
-  };
-
   const currentStyleConfig = MAP_STYLES.find(s => s.key === mapStyle)!;
   const initialRegion = userLocation
     ? { latitude: userLocation.lat, longitude: userLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
@@ -516,7 +500,7 @@ export default function MapasScreen() {
 
   return (
     <View style={styles.container}>
-      <ClusteredMapView
+      <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
@@ -525,18 +509,6 @@ export default function MapasScreen() {
         initialRegion={initialRegion}
         showsUserLocation
         showsMyLocationButton={false}
-        // Clustering
-        clusterColor="#3B82F6"
-        clusterTextColor="#FFFFFF"
-        clusterFontFamily={undefined}
-        radius={CLUSTER_RADIUS}
-        maxZoom={16}
-        minPoints={2}
-        extent={512}
-        nodeSize={32}
-        animationEnabled
-        spiralEnabled
-        onClusterPress={handleClusterPress}
         onRegionChangeComplete={(region: any) => { currentRegionRef.current = region; }}
       >
         {!showHeatmap && filteredMarkers.map(m => (
@@ -577,13 +549,13 @@ export default function MapasScreen() {
             }}
           />
         )}
-      </ClusteredMapView>
+      </MapView>
 
       {/* Header flutuante */}
       <View style={[styles.headerOverlay, { paddingTop: (insets.top || 44) + 10 }]}>
         <TouchableOpacity
           style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
-          onPress={() => router.back()}
+          onPress={() => safeBack('/(panel)/dashboard')}
         >
           <Feather name="arrow-left" color={theme.text} size={20} />
         </TouchableOpacity>
