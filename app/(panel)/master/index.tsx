@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { notificarVistoriaDeletada } from '../../../services/NotificationService';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import { isTrainingClassEnded, listTrainingClasses } from '../../../services/TrainingService';
 
 export default function MasterDashboardScreen() {
   const { theme } = useTheme();
@@ -46,6 +47,12 @@ export default function MasterDashboardScreen() {
   const [deleteTarget, setDeleteTarget] = useState<VistoriaNormalizada | null>(null);
   const [deleteMotivo, setDeleteMotivo] = useState('');
   const [deletando, setDeletando] = useState(false);
+  const [trainingSummary, setTrainingSummary] = useState({
+    classes: 0,
+    participants: 0,
+    limit: 0,
+    nextEnd: null as string | null,
+  });
 
   const carregar = async (showRefresh = false) => {
     setErro(false);
@@ -99,6 +106,19 @@ export default function MasterDashboardScreen() {
             .map(([nome, d]) => ({ nome, municipio: d.municipio, count: d.count }))
         );
       }
+
+      const trainings = await listTrainingClasses().catch((e) => {
+        logger.warn('system', 'Resumo de treinamentos indisponível', { erro: String(e) });
+        return [];
+      });
+      const abertas = trainings.filter(t => !isTrainingClassEnded(t));
+      const proxima = [...abertas].sort((a, b) => new Date(a.fim_em).getTime() - new Date(b.fim_em).getTime())[0];
+      setTrainingSummary({
+        classes: abertas.length,
+        participants: abertas.reduce((sum, t) => sum + (t.participant_count || 0), 0),
+        limit: abertas.reduce((sum, t) => sum + t.limite_participantes, 0),
+        nextEnd: proxima?.fim_em || null,
+      });
     } catch (e) {
       logger.error('system', 'Erro master dashboard', { erro: String(e) });
       setErro(true);
@@ -289,6 +309,32 @@ export default function MasterDashboardScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <TouchableOpacity
+          style={[styles.trainingCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+          onPress={() => router.push('/(panel)/master/treinamentos')}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.trainingIcon, { backgroundColor: 'rgba(16,185,129,0.14)' }]}>
+            <Feather name="users" size={20} color="#10B981" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.trainingTitle, { color: theme.text }]}>Treinamentos</Text>
+            <Text style={[styles.trainingDesc, { color: theme.textSecondary }]}>
+              {trainingSummary.classes > 0
+                ? `${trainingSummary.participants}/${trainingSummary.limit} alunos conectados`
+                : 'Nenhuma turma ativa ou agendada'}
+            </Text>
+            {trainingSummary.nextEnd && (
+              <Text style={[styles.trainingDeadline, { color: '#10B981' }]}>
+                Expira em {new Date(trainingSummary.nextEnd).toLocaleString('pt-BR', {
+                  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                })}
+              </Text>
+            )}
+          </View>
+          <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
 
         {/* Módulo de Equipe Unificado */}
         <View style={[styles.sectionRow, { marginTop: 8 }]}>
@@ -642,6 +688,17 @@ const styles = StyleSheet.create({
   },
   kpiValue: { fontSize: 26, fontWeight: '900' },
   kpiLabel: { fontSize: 13, fontWeight: '600', marginTop: 2 },
+  trainingCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 24,
+  },
+  trainingIcon: {
+    width: 44, height: 44, borderRadius: 13,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  trainingTitle: { fontSize: 15, fontWeight: '800' },
+  trainingDesc: { fontSize: 12, marginTop: 2, fontWeight: '600' },
+  trainingDeadline: { fontSize: 11, marginTop: 4, fontWeight: '800' },
   menuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
   menuCard: {
     width: '47%', flexGrow: 1, borderRadius: 18, borderWidth: 1,

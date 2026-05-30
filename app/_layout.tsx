@@ -10,6 +10,7 @@ import { supabase } from '../utils/supabase';
 import { ThemeProvider } from '../context/ThemeContext';
 import { ConnectivityProvider } from '../context/ConnectivityContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { TrainingProvider, useTraining } from '../context/TrainingContext';
 import { NotificationProvider, useNotifications } from '../context/NotificationContext';
 import { ReportProvider } from '../context/ReportContext';
 import { ConnectivityBanner } from '../components/ConnectivityBanner';
@@ -40,6 +41,7 @@ async function requestPermissions() {
 
 function RootNavigator() {
   const { session, profile, loading } = useAuth();
+  const { session: trainingSession, loading: trainingLoading, isTrainingActive, isExpired, exit } = useTraining();
   const { lastResponse } = useNotifications();
   const segments = useSegments();
   const router = useRouter();
@@ -47,6 +49,7 @@ function RootNavigator() {
   // Ref para segments — leitura sempre fresca dentro de efeitos async (sem loop)
   const segmentsRef = useRef(segments);
   segmentsRef.current = segments;
+  const segmentsKey = segments.join('/');
 
   // Navegação ao tocar em notificação
   useEffect(() => {
@@ -93,7 +96,7 @@ function RootNavigator() {
   // Roteamento automático — lê AsyncStorage fresco a cada disparo para evitar
   // estado stale do onboardingDone quando o usuário acabou de concluir o onboarding
   useEffect(() => {
-    if (loading || !appReady) return;
+    if (loading || trainingLoading || !appReady) return;
 
     AsyncStorage.getItem('@onboarding_done').then(val => {
       const done = val === '1';
@@ -102,6 +105,20 @@ function RootNavigator() {
       const inAuth = segs[0] === '(auth)';
       const inOnboarding = segs[0] === 'onboarding';
       const isAuthenticated = !!session && !!profile;
+      const section = (segs as string[])[1];
+      const inspectionRoute = (segs as string[])[2];
+      const trainingAllowedInspectionRoutes = new Set([
+        'dados-iniciais',
+        'selecao-formulario',
+        'wizard',
+        'resultado',
+        'relatorio',
+      ]);
+      const inTrainingAllowedPanel = inPanel && (
+        section === 'treinamento'
+        || (section === 'inspecoes' && trainingAllowedInspectionRoutes.has(inspectionRoute || ''))
+      );
+      const hasTrainingSession = !!trainingSession && isTrainingActive && !isExpired();
 
       // Fluxo de recuperação de senha: não redirecionar para dashboard mesmo com sessão temporária
       const inResetFlow = inAuth && ((segs as string[])[1] === 'verify-otp' || (segs as string[])[1] === 'reset-password');
@@ -112,15 +129,23 @@ function RootNavigator() {
         return;
       }
 
+      if (trainingSession && isExpired()) {
+        exit().catch(() => null);
+        if (!inAuth) router.replace('/(auth)/treinamento');
+        return;
+      }
+
       if (isAuthenticated && !inPanel) {
         router.replace('/(panel)/dashboard');
+      } else if (!isAuthenticated && hasTrainingSession && !inTrainingAllowedPanel) {
+        router.replace('/(panel)/treinamento');
       } else if (!isAuthenticated && !inAuth && !inOnboarding) {
         router.replace('/(auth)');
       }
     });
-  }, [session, profile, loading, appReady]);
+  }, [session, profile, loading, trainingLoading, trainingSession, isTrainingActive, appReady, segmentsKey]);
 
-  if (loading || !appReady) {
+  if (loading || trainingLoading || !appReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
         <ActivityIndicator size="large" color="#3B82F6" />
@@ -146,13 +171,15 @@ export default function RootLayout() {
     <ConnectivityProvider>
       <ThemeProvider>
         <AuthProvider>
-          <ReportProvider>
-            <NotificationProvider>
-              <ForceUpdateGate>
-                <RootNavigator />
-              </ForceUpdateGate>
-            </NotificationProvider>
-          </ReportProvider>
+          <TrainingProvider>
+            <ReportProvider>
+              <NotificationProvider>
+                <ForceUpdateGate>
+                  <RootNavigator />
+                </ForceUpdateGate>
+              </NotificationProvider>
+            </ReportProvider>
+          </TrainingProvider>
         </AuthProvider>
       </ThemeProvider>
     </ConnectivityProvider>

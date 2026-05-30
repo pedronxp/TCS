@@ -3,15 +3,17 @@ import { Alert, View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react
 import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { Card, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
-import { deleteVistoriaOffline, getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, VistoriaLocal } from '../../../utils/database';
+import { deleteVistoriaOffline, getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getTrainingVistoriasByAgente, VistoriaLocal } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
 import { syncPendentes, forceSyncAll } from '../../../services/SyncService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { safeBack } from '../../../utils/navigationUtils';
 
 const RISCO_COLORS: Record<string, string> = {
   r1: '#10B981',
@@ -25,9 +27,10 @@ interface InspecaoCardProps {
   item: VistoriaLocal;
   theme: any;
   onDeleteLocal: (item: VistoriaLocal) => void;
+  trainingMode?: boolean;
 }
 
-const InspecaoCard = React.memo(({ item, theme, onDeleteLocal }: InspecaoCardProps) => {
+const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = false }: InspecaoCardProps) => {
   const cor = RISCO_COLORS[item.nivel_risco] || '#94A3B8';
   const isPendente = item.sincronizado === 0;
   const hasErro = isPendente && !!item.erro_sync;
@@ -36,7 +39,18 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal }: InspecaoCardPro
   return (
     <Card
       style={{ marginBottom: 12 }}
-      onPress={() => router.push(`/(panel)/inspecoes/${item.id}`)}
+      onPress={() => trainingMode
+        ? router.push({
+            pathname: '/(panel)/inspecoes/resultado',
+            params: {
+              id: item.id,
+              nivelRisco: item.nivel_risco,
+              pontuacao: String(item.pontuacao_total ?? 0),
+              municipio: item.municipio,
+              treinamento: '1',
+            },
+          })
+        : router.push(`/(panel)/inspecoes/${item.id}`)}
     >
       <View style={[styles.cardInner, { borderColor: hasErro ? 'rgba(239,68,68,0.3)' : theme.cardBorder }]}>
         <View style={styles.cardHeader}>
@@ -103,6 +117,9 @@ export default function InspecoesListScreen() {
   const bottomPad = useBottomTabPadding();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
+  const { trainingProfile, isTrainingActive } = useTraining();
+  const activeProfile = profile || trainingProfile;
+  const trainingMode = !profile && isTrainingActive && !!trainingProfile;
   const [loading, setLoading] = useState(true);
   const [vistorias, setVistorias] = useState<VistoriaLocal[]>([]);
   const [pendentesCount, setPendentesCount] = useState(0);
@@ -112,18 +129,20 @@ export default function InspecoesListScreen() {
   // Recarregar ao voltar para esta tela (ex: após criar nova vistoria)
   useFocusEffect(
     useCallback(() => {
-      if (profile) fetchVistorias(profile);
-    }, [profile, isConnected])
+      if (activeProfile) fetchVistorias(activeProfile);
+    }, [activeProfile?.uid, isConnected])
   );
 
-  const fetchVistorias = async (perfil: NonNullable<typeof profile>) => {
+  const fetchVistorias = async (perfil: NonNullable<typeof activeProfile>) => {
     setFetchError(null);
     setLoading(true);
     try {
       const isAdmin = perfil.role === 'admin' || perfil.role === 'master_admin';
 
       // 1. Carregar do SQLite local imediatamente (offline-first)
-      const locais = perfil.role === 'master_admin'
+      const locais = trainingMode
+        ? getTrainingVistoriasByAgente(perfil.uid)
+        : perfil.role === 'master_admin'
         ? getAllVistorias()
         : isAdmin
           ? getVistoriasByMunicipio(perfil.municipio)
@@ -135,7 +154,7 @@ export default function InspecoesListScreen() {
       setPendentesCount(pendentes);
 
       // 2. Se online, buscar do Supabase e mesclar
-      if (isConnected) {
+      if (isConnected && !trainingMode) {
         let query = supabase
           .from('vistorias')
           .select('*')
@@ -211,7 +230,7 @@ export default function InspecoesListScreen() {
     setSyncing(true);
     try {
       await forceSyncAll();
-      if (profile) await fetchVistorias(profile);
+      if (activeProfile) await fetchVistorias(activeProfile);
     } finally {
       setSyncing(false);
     }
@@ -228,30 +247,32 @@ export default function InspecoesListScreen() {
           style: 'destructive',
           onPress: async () => {
             deleteVistoriaOffline(item.id);
-            if (profile) await fetchVistorias(profile);
+            if (activeProfile) await fetchVistorias(activeProfile);
           },
         },
       ]
     );
-  }, [profile]);
+  }, [activeProfile?.uid]);
 
   const renderItem = useCallback(({ item }: { item: VistoriaLocal }) => (
-    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} />
-  ), [theme, handleDeleteLocal]);
+    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={trainingMode} />
+  ), [theme, handleDeleteLocal, trainingMode]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
+          onPress={() => safeBack('/(panel)')}
         >
           <Feather name="arrow-left" color={theme.textSecondary} size={24} />
         </TouchableOpacity>
         <View style={styles.titleSection}>
           <Text style={[styles.title, { color: theme.text }]}>Inspeções</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {pendentesCount > 0
+            {trainingMode
+              ? 'Histórico local do treinamento'
+              : pendentesCount > 0
               ? `${pendentesCount} pendente${pendentesCount > 1 ? 's' : ''} de sync`
               : 'Todos os laudos sincronizados'}
           </Text>
@@ -262,7 +283,7 @@ export default function InspecoesListScreen() {
         >
           <Feather name="plus" color="#FFF" size={24} />
         </TouchableOpacity>
-        {pendentesCount > 0 && isConnected && (
+        {pendentesCount > 0 && isConnected && !trainingMode && (
           <TouchableOpacity
             style={[styles.syncButton, { backgroundColor: syncing ? theme.border : '#F59E0B' }]}
             onPress={handleSync}
@@ -278,7 +299,7 @@ export default function InspecoesListScreen() {
       {fetchError !== null && !loading && (
         <ErrorState
           message={fetchError}
-          onRetry={() => fetchVistorias(profile!)}
+          onRetry={() => activeProfile && fetchVistorias(activeProfile)}
         />
       )}
 

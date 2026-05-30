@@ -8,8 +8,10 @@ import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sanitizarTexto, validarNome, validarMunicipio } from '../../../utils/validationUtils';
+import { safeBack } from '../../../utils/navigationUtils';
 
 /** Estado interno do formulário de endereço */
 interface AddressForm {
@@ -28,7 +30,10 @@ export default function DadosIniciaisScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
-  const isMasterAdmin = profile?.role === 'master_admin';
+  const { trainingProfile } = useTraining();
+  const activeProfile = profile || trainingProfile;
+  const backFallback = trainingProfile ? '/(panel)/treinamento' : '/(panel)/inspecoes';
+  const isMasterAdmin = activeProfile?.role === 'master_admin';
   const params = useLocalSearchParams<{
     agendamentoId?: string;
     ruaPreenchida?: string;
@@ -42,7 +47,7 @@ export default function DadosIniciaisScreen() {
 
   const [form, setForm] = useState<AddressForm>({
     cep: '', rua: params.ruaPreenchida ?? '', numero: '', bairro: '',
-    municipio: params.municipioPreenchido || profile?.municipio || '',
+    municipio: params.municipioPreenchido || activeProfile?.municipio || '',
     responsavelNome: '',
     lat: latPre && !isNaN(latPre) ? latPre : null,
     lng: lngPre && !isNaN(lngPre) ? lngPre : null,
@@ -60,10 +65,10 @@ export default function DadosIniciaisScreen() {
 
   // Sincroniza municipio do profile quando carrega (caso profile chegue depois do mount)
   useEffect(() => {
-    if (profile?.municipio) {
-      setForm(f => f.municipio ? f : { ...f, municipio: profile.municipio });
+    if (activeProfile?.municipio) {
+      setForm(f => f.municipio ? f : { ...f, municipio: activeProfile.municipio });
     }
-  }, [profile?.municipio]);
+  }, [activeProfile?.municipio]);
 
   /** Reverse geocode via Nominatim (OpenStreetMap).
    * Tenta vários campos de bairro em ordem de prioridade para endereços BR.
@@ -223,7 +228,7 @@ export default function DadosIniciaisScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeBack(backFallback)}>
           <Feather name="x" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -355,7 +360,7 @@ export default function DadosIniciaisScreen() {
 
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => safeBack(backFallback)}>
           <Text style={[styles.cancelText, { color: theme.textSecondary }]}>CANCELAR</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.primary }]} onPress={avancar} disabled={detectandoGps || buscandoCep}>

@@ -1,0 +1,247 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { generateUUID } from '../utils/uuid';
+import { enterTrainingClass, leaveTrainingClass, TrainingEntryResult, TRAINING_ALLOWED_FORMS } from '../services/TrainingService';
+
+const TRAINING_SESSION_KEY = '@training_session_v1';
+const TRAINING_DEVICE_KEY = '@training_device_id_v1';
+
+export interface TrainingSession {
+  mode: 'training';
+  classId: string;
+  className: string;
+  token: string;
+  participantId: string;
+  participantName: string;
+  participantCount: number;
+  participantLimit: number;
+  startsAt: string;
+  endsAt: string;
+  allowedForms: string[];
+  deviceId: string;
+  createdAt: string;
+}
+
+interface TrainingContextData {
+  session: TrainingSession | null;
+  loading: boolean;
+  deviceId: string | null;
+  isTrainingActive: boolean;
+  trainingProfile: {
+    uid: string;
+    name: string;
+    email: string;
+    role: 'agent';
+    municipio: string;
+    isApproved: boolean;
+  } | null;
+  enter: (input: { nome: string; token: string }) => Promise<TrainingEntryResult>;
+  exit: () => Promise<void>;
+  revalidate: () => Promise<boolean>;
+  refreshFromStorage: () => Promise<void>;
+  isExpired: () => boolean;
+}
+
+const TrainingContext = createContext<TrainingContextData>({
+  session: null,
+  loading: true,
+  deviceId: null,
+  isTrainingActive: false,
+  trainingProfile: null,
+  enter: async () => ({ ok: false, status: 'error' }),
+  exit: async () => {},
+  revalidate: async () => false,
+  refreshFromStorage: async () => {},
+  isExpired: () => true,
+});
+
+export function isTrainingSessionExpired(session: Pick<TrainingSession, 'endsAt'> | null | undefined): boolean {
+  if (!session?.endsAt) return true;
+  return Date.now() > new Date(session.endsAt).getTime();
+}
+
+async function getOrCreateTrainingDeviceId(): Promise<string> {
+  const existing = await AsyncStorage.getItem(TRAINING_DEVICE_KEY);
+  if (existing) return existing;
+  const id = generateUUID();
+  await AsyncStorage.setItem(TRAINING_DEVICE_KEY, id);
+  return id;
+}
+
+function resultToSession(result: TrainingEntryResult, deviceId: string): TrainingSession {
+  if (!result.ok || !result.classId || !result.className || !result.participantId || !result.participantName || !result.endsAt || !result.startsAt) {
+    throw new Error('Resposta de treinamento incompleta.');
+  }
+  return {
+    mode: 'training',
+    classId: result.classId,
+    className: result.className,
+    token: result.token || '',
+    participantId: result.participantId,
+    participantName: result.participantName,
+    participantCount: result.participantCount || 0,
+    participantLimit: result.participantLimit || 0,
+    startsAt: result.startsAt,
+    endsAt: result.endsAt,
+    allowedForms: result.allowedForms?.length ? result.allowedForms : [...TRAINING_ALLOWED_FORMS],
+    deviceId,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export function TrainingProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<TrainingSession | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const isExpired = useCallback(() => {
+    return isTrainingSessionExpired(session);
+  }, [session]);
+
+  const clearSession = useCallback(async () => {
+    await AsyncStorage.removeItem(TRAINING_SESSION_KEY);
+    setSession(null);
+  }, []);
+
+  const refreshFromStorage = useCallback(async () => {
+    const id = await getOrCreateTrainingDeviceId();
+    setDeviceId(id);
+    const raw = await AsyncStorage.getItem(TRAINING_SESSION_KEY);
+    if (!raw) {
+      setSession(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as TrainingSession;
+      if (isTrainingSessionExpired(parsed)) {
+        await clearSession();
+      } else {
+        setSession(parsed);
+      }
+    } catch {
+      await clearSession();
+    }
+  }, [clearSession]);
+
+  useEffect(() => {
+    refreshFromStorage().finally(() => setLoading(false));
+  }, [refreshFromStorage]);
+
+  const enter = useCallback(async (input: { nome: string; token: string }) => {
+    const id = deviceId || await getOrCreateTrainingDeviceId();
+    setDeviceId(id);
+    const result = await enterTrainingClass({ nome: input.nome, token: input.token, deviceId: id });
+    if (result.ok) {
+      const next = resultToSession({ ...result, token: result.token || input.token.trim().toUpperCase() }, id);
+      await AsyncStorage.setItem(TRAINING_SESSION_KEY, JSON.stringify(next));
+      setSession(next);
+    }
+    return result;
+  }, [deviceId]);
+
+  const exit = useCallback(async () => {
+    const activeSession = session;
+    if (activeSession?.classId && activeSession.deviceId) {
+      try {
+        await leaveTrainingClass({ classId: activeSession.classId, deviceId: activeSession.deviceId });
+      } catch {
+        // A saida local nao pode ficar presa se a rede falhar.
+      }
+    }
+    await clearSession();
+  }, [clearSession, session]);
+
+  const revalidate = useCallback(async () => {
+    if (!session) return false;
+    if (isTrainingSessionExpired(session)) {
+      await clearSession();
+      return false;
+    }
+
+    try {
+      const currentDeviceId = session.deviceId || deviceId || await getOrCreateTrainingDeviceId();
+      const result = await enterTrainingClass({
+        nome: session.participantName,
+        token: session.token,
+        deviceId: currentDeviceId,
+      });
+
+      if (result.ok) {
+        const next = {
+          ...resultToSession({ ...result, token: result.token || session.token }, currentDeviceId),
+          createdAt: session.createdAt,
+        };
+        const currentRaw = JSON.stringify(session);
+        const nextRaw = JSON.stringify(next);
+        if (nextRaw !== currentRaw) {
+          await AsyncStorage.setItem(TRAINING_SESSION_KEY, nextRaw);
+          setSession(next);
+        }
+        return true;
+      }
+
+      if (['invalid_token', 'not_started', 'expired', 'ended'].includes(result.status || '')) {
+        await clearSession();
+        return false;
+      }
+
+      return true;
+    } catch {
+      return true;
+    }
+  }, [clearSession, deviceId, session]);
+
+  useEffect(() => {
+    if (!session?.endsAt) return;
+    const msUntilExpiration = new Date(session.endsAt).getTime() - Date.now();
+    if (msUntilExpiration <= 0) {
+      void clearSession();
+      return;
+    }
+    const timer = setTimeout(() => {
+      void clearSession();
+    }, Math.min(msUntilExpiration, 2147483647));
+    return () => clearTimeout(timer);
+  }, [clearSession, session?.endsAt]);
+
+  useEffect(() => {
+    if (!session?.participantId || isTrainingSessionExpired(session)) return;
+    const timer = setInterval(() => {
+      revalidate().catch(() => null);
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [revalidate, session]);
+
+  const trainingProfile = useMemo(() => {
+    if (!session || isTrainingSessionExpired(session)) return null;
+    return {
+      uid: `training:${session.participantId}`,
+      name: session.participantName,
+      email: '',
+      role: 'agent' as const,
+      municipio: 'Treinamento',
+      isApproved: true,
+    };
+  }, [session]);
+
+  return (
+    <TrainingContext.Provider value={{
+      session,
+      loading,
+      deviceId,
+      isTrainingActive: !!trainingProfile,
+      trainingProfile,
+      enter,
+      exit,
+      revalidate,
+      refreshFromStorage,
+      isExpired,
+    }}>
+      {children}
+    </TrainingContext.Provider>
+  );
+}
+
+export function useTraining() {
+  return useContext(TrainingContext);
+}

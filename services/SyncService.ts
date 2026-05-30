@@ -169,10 +169,16 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
         const { error } = await supabase.from('vistorias').upsert(payloads);
         if (error) throw error;
 
-        // Marcar todos do lote como sincronizados
+        // Marcar como concluido apenas quando os dados e a midia remota estiverem completos.
         loteProntoParaSync.forEach(v => {
-          markSincronizado(v.id);
-          sucesso++;
+          if (hasMidiaLocalPendente(v)) {
+            markErroSync(v.id, 'Dados enviados; mídia local pendente de upload.');
+            falha++;
+            logger.warn('sync', 'Dados sincronizados, mas a vistoria permanece pendente por midia local', { id: v.id });
+          } else {
+            markSincronizado(v.id);
+            sucesso++;
+          }
         });
         logger.info('sync', `Lote sincronizado: ${loteProntoParaSync.length} vistoria(s)`, {
           indices: `${i}–${i + loteProntoParaSync.length - 1}`,
@@ -183,8 +189,14 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
           try {
             const { error: errSingle } = await supabase.from('vistorias').upsert(buildSupabasePayload(vistoria));
             if (errSingle) throw errSingle;
-            markSincronizado(vistoria.id);
-            sucesso++;
+            if (hasMidiaLocalPendente(vistoria)) {
+              markErroSync(vistoria.id, 'Dados enviados; mídia local pendente de upload.');
+              falha++;
+              logger.warn('sync', 'Dados sincronizados, mas a vistoria permanece pendente por midia local', { id: vistoria.id });
+            } else {
+              markSincronizado(vistoria.id);
+              sucesso++;
+            }
           } catch (e2: any) {
             const tentativaAtual = (vistoria.tentativas_sync ?? 0) + 1;
             incrementTentativasSync(vistoria.id);
@@ -285,7 +297,11 @@ export async function forceSyncAll(): Promise<{ sucesso: number; falha: number }
   try {
     const { getDb } = await import('../utils/database');
     getDb().runSync(
-      `UPDATE vistorias_offline SET tentativas_sync = 0, erro_sync = NULL WHERE sincronizado = 0`
+      `UPDATE vistorias_offline
+       SET tentativas_sync = 0, erro_sync = NULL
+       WHERE sincronizado = 0
+         AND COALESCE(modo_treinamento, 0) = 0
+         AND agente_uid NOT LIKE 'training:%'`
     );
   } catch { /* não crítico */ }
   return syncPendentes();
@@ -306,7 +322,12 @@ export async function forceSyncAll(): Promise<{ sucesso: number; falha: number }
  */
 function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
   const fotosUrls = (() => {
-    try { return v.fotos_urls ? JSON.parse(v.fotos_urls) : []; }
+    try {
+      const parsed = v.fotos_urls ? JSON.parse(v.fotos_urls) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((url): url is string => typeof url === 'string' && !url.startsWith('file://'))
+        : [];
+    }
     catch { return []; }
   })();
   const calculoRisco = (() => {
@@ -341,6 +362,21 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     endereco: `${v.endereco_rua}, ${v.endereco_numero} - ${v.endereco_bairro}`,
     status: 'concluida',
   };
+}
+
+function isLocalFileUri(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('file://');
+}
+
+function hasMidiaLocalPendente(v: VistoriaLocal): boolean {
+  if (isLocalFileUri(v.foto_url)) return true;
+  if (!v.fotos_urls) return false;
+  try {
+    const parsed = JSON.parse(v.fotos_urls);
+    return Array.isArray(parsed) && parsed.some(isLocalFileUri);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -475,8 +511,15 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
   // Processa foto principal (thumb)
   if (v.foto_url && v.foto_url.startsWith('file://')) {
     const remotePath = `${folderPath}/thumb_${Date.now()}.jpg`;
-    v.foto_url = await uploadImageFromLocalUri(v.foto_url, remotePath);
-    sofreuAlteracao = true;
+    try {
+      v.foto_url = await uploadImageFromLocalUri(v.foto_url, remotePath);
+      sofreuAlteracao = true;
+    } catch (e: any) {
+      logger.warn('sync', 'Falha ao subir foto principal; sync seguira sem fotoUrl remota', {
+        id: v.id,
+        erro: e?.message ?? String(e),
+      });
+    }
   }
 
   // Processa fotos de evidência
@@ -490,9 +533,18 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
         const fotoLocal = arrayFotos[i];
         if (fotoLocal.startsWith('file://')) {
           const remotePath = `${folderPath}/evidencia_${i}_${Date.now()}.jpg`;
-          const publicUrl = await uploadImageFromLocalUri(fotoLocal, remotePath);
-          novasFotos.push(publicUrl);
-          mudeiFotos = true;
+          try {
+            const publicUrl = await uploadImageFromLocalUri(fotoLocal, remotePath);
+            novasFotos.push(publicUrl);
+            mudeiFotos = true;
+          } catch (e: any) {
+            novasFotos.push(fotoLocal);
+            logger.warn('sync', 'Falha ao subir evidencia; sync seguira sem esta foto remota', {
+              id: v.id,
+              indice: i,
+              erro: e?.message ?? String(e),
+            });
+          }
         } else {
           novasFotos.push(fotoLocal);
         }

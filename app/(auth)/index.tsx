@@ -187,6 +187,16 @@ export default function WelcomeScreen() {
               <Text style={[styles.btnSecondaryText, { color: textMuted }]}>Validar Token</Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            style={[styles.btnTraining, { borderColor: '#10B98155', backgroundColor: isDark ? 'rgba(16,185,129,0.10)' : 'rgba(16,185,129,0.08)' }]}
+            onPress={() => router.push('/(auth)/treinamento')}
+            activeOpacity={0.8}
+          >
+            <Feather name="book-open" size={15} color="#10B981" />
+            <Text style={styles.btnTrainingText}>Treinamento</Text>
+            <Feather name="chevron-right" size={15} color="#10B981" />
+          </TouchableOpacity>
         </Animated.View>
 
         {/* ── Footer ──────────────────────────────────────────────────────── */}
@@ -323,6 +333,22 @@ const styles = StyleSheet.create({
   btnSecondaryText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  btnTraining: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  btnTrainingText: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
 
   /* ── Footer ── */

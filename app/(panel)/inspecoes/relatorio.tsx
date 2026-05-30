@@ -21,6 +21,7 @@ import { parseProtocolo } from '../../../utils/uuid';
 import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
 import { buildShareMessage } from '../../../utils/shareUtils';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../utils/supabase';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
@@ -30,6 +31,7 @@ import {
   getPerguntaIdFromObservacaoCondicionalRiscoKey,
   opcaoAcionaObservacaoCondicionalRisco,
 } from '../../../utils/formulariosAssets';
+import { safeBack } from '../../../utils/navigationUtils';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -205,21 +207,28 @@ export default function RelatorioScreen() {
   const insets = useSafeAreaInsets();
   const { draft, updateField } = useReport();
   const { profile } = useAuth();
+  const { isExpired, exit, revalidate } = useTraining();
   const [gerando, setGerando] = useState(false);
   const [docTracking, setDocTracking] = useState<{
     relatorio_gerado_em?: string | null;
     termo_gerado_em?: string | null;
   }>({});
+  const isTrainingReport = !!draft?.modoTreinamento;
 
   useEffect(() => {
-    if (!draft?.vistoriaId) return;
+    let alive = true;
+    setDocTracking({});
+    if (!draft?.vistoriaId || draft.modoTreinamento) {
+      return () => { alive = false; };
+    }
     supabase
       .from('vistorias')
       .select('relatorio_gerado_em, termo_gerado_em')
       .eq('id', draft.vistoriaId)
       .single()
-      .then(({ data }) => { if (data) setDocTracking(data); });
-  }, [draft?.vistoriaId]);
+      .then(({ data }) => { if (alive && data) setDocTracking(data); });
+    return () => { alive = false; };
+  }, [draft?.vistoriaId, draft?.modoTreinamento]);
 
   // Resolve respostas em textos legíveis agrupados por fase
   const grupos = useMemo<GrupoResolvido[]>(() => {
@@ -241,7 +250,18 @@ export default function RelatorioScreen() {
     telefone: '',
   });
 
-  const abrirModalTermo = () => {
+  const ensureTrainingActionsAllowed = async () => {
+    if (!isTrainingReport) return true;
+    if (!isExpired() && await revalidate()) return true;
+    await exit();
+    Alert.alert('Treinamento encerrado', 'O prazo desta turma terminou. O acesso ao modo treinamento foi bloqueado.');
+    router.replace('/(auth)/treinamento');
+    return false;
+  };
+
+  const abrirModalTermo = async () => {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
     const abrir = () => {
       const r = draft?.respostas || {};
       setTermoForm({
@@ -257,7 +277,7 @@ export default function RelatorioScreen() {
       setShowTermoModal(true);
     };
 
-    if (docTracking.termo_gerado_em) {
+    if (!isTrainingReport && docTracking.termo_gerado_em) {
       Alert.alert(
         'Termo já gerado',
         `O Termo de Interdição foi gerado em ${fmtData(docTracking.termo_gerado_em)}.\nDeseja gerar um novo documento?`,
@@ -278,7 +298,7 @@ export default function RelatorioScreen() {
         <Text style={[s.emptyText, { color: theme.textSecondary }]}>
           Nenhum relatório ativo.{'\n'}Conclua uma vistoria primeiro.
         </Text>
-        <TouchableOpacity style={[s.emptyBtn, { borderColor: theme.border }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[s.emptyBtn, { borderColor: theme.border }]} onPress={() => safeBack('/(panel)/inspecoes')}>
           <Text style={[{ fontSize: 14, fontWeight: '700' }, { color: theme.textSecondary }]}>Voltar</Text>
         </TouchableOpacity>
       </View>
@@ -290,7 +310,9 @@ export default function RelatorioScreen() {
   const proto = parseProtocolo(draft.protocolo);
 
   const exportarPDF = async () => {
-    if (docTracking.relatorio_gerado_em) {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
+    if (!isTrainingReport && docTracking.relatorio_gerado_em) {
       Alert.alert(
         'Relatório já gerado',
         `Este relatório foi gerado em ${fmtData(docTracking.relatorio_gerado_em)}.\nGerar novamente criará um novo arquivo no seu dispositivo.`,
@@ -305,6 +327,8 @@ export default function RelatorioScreen() {
   };
 
   const executarExportarPDF = async () => {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
     setGerando(true);
     try {
       const dados: LaudoData = {
@@ -325,6 +349,7 @@ export default function RelatorioScreen() {
         fotosUrls: draft.fotosUrls ?? (draft.foto_url ? [draft.foto_url] : null),
         responsavelNome: (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
         bairro: (draft.respostas || {})['Bairro'],
+        modoTreinamento: isTrainingReport,
       };
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -349,7 +374,7 @@ export default function RelatorioScreen() {
         await Share.share({ message: mensagem, title: 'TCS — Relatório de Risco' });
       }
       // Registrar geração
-      if (draft.vistoriaId) {
+      if (!isTrainingReport && draft.vistoriaId) {
         const agora = new Date().toISOString();
         supabase.from('vistorias').update({ relatorio_gerado_em: agora }).eq('id', draft.vistoriaId).then(() => {});
         setDocTracking(t => ({ ...t, relatorio_gerado_em: agora }));
@@ -363,6 +388,8 @@ export default function RelatorioScreen() {
   };
 
   const gerarTermoInterdicao = async () => {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
     if (!termoForm.nomeNotificado.trim()) {
       Alert.alert('Campo obrigatório', 'Preencha o nome do notificado.');
       return;
@@ -370,7 +397,7 @@ export default function RelatorioScreen() {
     setGerando(true);
     setShowTermoModal(false);
     try {
-      const laudoData = {
+      const laudoData: LaudoData = {
         id: draft.protocolo || draft.vistoriaId || '',
         dataVistoria: draft.dataVistoria || new Date().toISOString(),
         municipio: draft.municipio || '—',
@@ -378,6 +405,7 @@ export default function RelatorioScreen() {
         nivelRisco: draft.nivelRisco || 'r1',
         pontuacaoTotal: draft.pontuacaoTotal || 0,
         endereco: draft.endereco || '—',
+        modoTreinamento: isTrainingReport,
       };
 
       const html = buildTermoInterdicaoHtml(laudoData, termoForm);
@@ -390,7 +418,7 @@ export default function RelatorioScreen() {
         Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
       }
       // Registrar geração
-      if (draft?.vistoriaId) {
+      if (!isTrainingReport && draft?.vistoriaId) {
         const agora = new Date().toISOString();
         supabase.from('vistorias').update({ termo_gerado_em: agora }).eq('id', draft.vistoriaId).then(() => {});
         setDocTracking(t => ({ ...t, termo_gerado_em: agora }));
@@ -421,6 +449,8 @@ export default function RelatorioScreen() {
   };
 
   const imprimir = async () => {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
     setGerando(true);
     try {
       const dados: LaudoData = {
@@ -439,6 +469,7 @@ export default function RelatorioScreen() {
         cargo: draft.cargo,
         foto_url: draft.foto_url ?? null,
         fotosUrls: draft.fotosUrls ?? (draft.foto_url ? [draft.foto_url] : null),
+        modoTreinamento: isTrainingReport,
       };
 
       const html = await buildLaudoHtml(dados);
@@ -459,7 +490,7 @@ export default function RelatorioScreen() {
       <View style={[s.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[s.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
+          onPress={() => safeBack(isTrainingReport ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
         >
           <Feather name="arrow-left" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
@@ -653,7 +684,7 @@ export default function RelatorioScreen() {
         </View>
 
         {/* Banners de rastreamento de documentos */}
-        {docTracking.relatorio_gerado_em && (
+        {!isTrainingReport && docTracking.relatorio_gerado_em && (
           <View style={[s.docBanner, { backgroundColor: '#10B98112', borderColor: '#10B98130' }]}>
             <Feather name="check-circle" size={15} color="#10B981" />
             <View style={{ flex: 1 }}>
@@ -664,7 +695,7 @@ export default function RelatorioScreen() {
             </View>
           </View>
         )}
-        {docTracking.termo_gerado_em && (
+        {!isTrainingReport && docTracking.termo_gerado_em && (
           <View style={[s.docBanner, { backgroundColor: '#F9731612', borderColor: '#F9731630' }]}>
             <Feather name="check-circle" size={15} color="#F97316" />
             <View style={{ flex: 1 }}>

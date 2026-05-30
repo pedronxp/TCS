@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 13;
+const DB_VERSION = 14;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -54,6 +54,9 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
           nivel_risco TEXT,
           pontuacao_total REAL,
           foto_url TEXT,
+          modo_treinamento INTEGER DEFAULT 0,
+          training_class_id TEXT,
+          training_participant_id TEXT,
           sincronizado INTEGER DEFAULT 0,
           erro_sync TEXT,
           criado_em TEXT NOT NULL
@@ -228,6 +231,15 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN calculo_json TEXT`); } catch { /* já existe */ }
     }
 
+    if (currentVersion < 14) {
+      // Isolamento persistente para vistorias criadas no modo treinamento.
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN modo_treinamento INTEGER DEFAULT 0`); } catch { /* ja existe */ }
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN training_class_id TEXT`); } catch { /* ja existe */ }
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN training_participant_id TEXT`); } catch { /* ja existe */ }
+      try { database.runSync(`UPDATE vistorias_offline SET modo_treinamento = 1 WHERE agente_uid LIKE 'training:%'`); } catch { /* ja existe */ }
+      try { database.runSync(`CREATE INDEX IF NOT EXISTS idx_vistorias_modo_treinamento ON vistorias_offline (modo_treinamento)`); } catch { /* ja existe */ }
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -257,6 +269,9 @@ export interface VistoriaLocal {
   nivel_risco: string;
   pontuacao_total: number;
   foto_url: string | null;
+  modo_treinamento?: number;
+  training_class_id?: string | null;
+  training_participant_id?: string | null;
   fotos_urls: string | null;    // JSON array de URLs (["url1","url2"])
   municipio_agente: string | null; // município de origem do agente
   laudo_url: string | null;     // URL signed do PDF no Storage
@@ -271,9 +286,21 @@ export interface VistoriaLocal {
 
 // ─── CRUD ──────────────────────────────────────────────────────────────────
 
-export function insertVistoria(
-  vistoria: Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em' | 'calculo_json'> & { municipio_agente?: string | null; laudo_url?: string | null; laudo_gerado_em?: string | null; calculo_json?: string | null }
-): void {
+type VistoriaInsertInput = Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em' | 'calculo_json' | 'modo_treinamento' | 'training_class_id' | 'training_participant_id'> & {
+  municipio_agente?: string | null;
+  laudo_url?: string | null;
+  laudo_gerado_em?: string | null;
+  calculo_json?: string | null;
+  modo_treinamento?: number;
+  training_class_id?: string | null;
+  training_participant_id?: string | null;
+};
+
+export function isTrainingVistoria(vistoria: Pick<VistoriaLocal, 'modo_treinamento' | 'agente_uid'> | null | undefined): boolean {
+  return Number(vistoria?.modo_treinamento ?? 0) === 1 || String(vistoria?.agente_uid || '').startsWith('training:');
+}
+
+export function insertVistoria(vistoria: VistoriaInsertInput): void {
   const database = getDb();
   database.runSync(
     `INSERT OR REPLACE INTO vistorias_offline (
@@ -282,8 +309,9 @@ export function insertVistoria(
       responsavel_nome, latitude, longitude, data_vistoria,
       formulario_id, formulario_versao, respostas_json, calculo_json,
       nivel_risco, pontuacao_total, foto_url, fotos_urls,
-      laudo_url, laudo_gerado_em, feita_online, sincronizado, criado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
+      laudo_url, laudo_gerado_em, feita_online, modo_treinamento,
+      training_class_id, training_participant_id, sincronizado, criado_em
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       vistoria.id,
       vistoria.agente_uid,
@@ -309,6 +337,56 @@ export function insertVistoria(
       vistoria.laudo_url ?? null,
       vistoria.laudo_gerado_em ?? null,
       vistoria.feita_online ?? null,
+      Number(vistoria.modo_treinamento ?? 0),
+      vistoria.training_class_id ?? null,
+      vistoria.training_participant_id ?? null,
+      0,
+      vistoria.criado_em,
+    ]
+  );
+}
+
+export function insertTrainingVistoria(vistoria: VistoriaInsertInput): void {
+  const database = getDb();
+  database.runSync(
+    `INSERT OR REPLACE INTO vistorias_offline (
+      id, agente_uid, agente_nome, municipio, municipio_agente,
+      endereco_rua, endereco_numero, endereco_bairro, endereco_cep,
+      responsavel_nome, latitude, longitude, data_vistoria,
+      formulario_id, formulario_versao, respostas_json, calculo_json,
+      nivel_risco, pontuacao_total, foto_url, fotos_urls,
+      laudo_url, laudo_gerado_em, feita_online, modo_treinamento,
+      training_class_id, training_participant_id, sincronizado, criado_em
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      vistoria.id,
+      vistoria.agente_uid,
+      vistoria.agente_nome,
+      vistoria.municipio,
+      vistoria.municipio_agente ?? null,
+      vistoria.endereco_rua,
+      vistoria.endereco_numero,
+      vistoria.endereco_bairro,
+      vistoria.endereco_cep ?? null,
+      vistoria.responsavel_nome ?? null,
+      vistoria.latitude,
+      vistoria.longitude,
+      vistoria.data_vistoria,
+      vistoria.formulario_id,
+      vistoria.formulario_versao,
+      vistoria.respostas_json,
+      vistoria.calculo_json ?? null,
+      vistoria.nivel_risco,
+      vistoria.pontuacao_total,
+      vistoria.foto_url ?? null,
+      null,
+      vistoria.laudo_url ?? null,
+      vistoria.laudo_gerado_em ?? null,
+      vistoria.feita_online ?? null,
+      1,
+      vistoria.training_class_id ?? null,
+      vistoria.training_participant_id ?? null,
+      1,
       vistoria.criado_em,
     ]
   );
@@ -341,14 +419,33 @@ export function markErroSync(id: string, erro: string): void {
 export function getVistoriasNaoSincronizadas(): VistoriaLocal[] {
   const database = getDb();
   return database.getAllSync<VistoriaLocal>(
-    `SELECT * FROM vistorias_offline WHERE sincronizado = 0 ORDER BY criado_em ASC`
+    `SELECT * FROM vistorias_offline
+      WHERE sincronizado = 0
+        AND COALESCE(modo_treinamento, 0) = 0
+        AND agente_uid NOT LIKE 'training:%'
+      ORDER BY criado_em ASC`
   );
 }
 
 export function getVistoriasByAgente(agenteUid: string): VistoriaLocal[] {
   const database = getDb();
   return database.getAllSync<VistoriaLocal>(
-    `SELECT * FROM vistorias_offline WHERE agente_uid = ? ORDER BY criado_em DESC LIMIT 50`,
+    `SELECT * FROM vistorias_offline
+      WHERE agente_uid = ?
+        AND COALESCE(modo_treinamento, 0) = 0
+        AND agente_uid NOT LIKE 'training:%'
+      ORDER BY criado_em DESC LIMIT 50`,
+    [agenteUid]
+  );
+}
+
+export function getTrainingVistoriasByAgente(agenteUid: string): VistoriaLocal[] {
+  const database = getDb();
+  return database.getAllSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline
+      WHERE agente_uid = ?
+        AND (COALESCE(modo_treinamento, 0) = 1 OR agente_uid LIKE 'training:%')
+      ORDER BY criado_em DESC LIMIT 50`,
     [agenteUid]
   );
 }
@@ -356,7 +453,11 @@ export function getVistoriasByAgente(agenteUid: string): VistoriaLocal[] {
 export function getVistoriasByMunicipio(municipio: string): VistoriaLocal[] {
   const database = getDb();
   return database.getAllSync<VistoriaLocal>(
-    `SELECT * FROM vistorias_offline WHERE municipio = ? ORDER BY criado_em DESC LIMIT 50`,
+    `SELECT * FROM vistorias_offline
+      WHERE municipio = ?
+        AND COALESCE(modo_treinamento, 0) = 0
+        AND agente_uid NOT LIKE 'training:%'
+      ORDER BY criado_em DESC LIMIT 50`,
     [municipio]
   );
 }
@@ -364,7 +465,10 @@ export function getVistoriasByMunicipio(municipio: string): VistoriaLocal[] {
 export function getAllVistorias(): VistoriaLocal[] {
   const database = getDb();
   return database.getAllSync<VistoriaLocal>(
-    `SELECT * FROM vistorias_offline ORDER BY criado_em DESC LIMIT 200`
+    `SELECT * FROM vistorias_offline
+      WHERE COALESCE(modo_treinamento, 0) = 0
+        AND agente_uid NOT LIKE 'training:%'
+      ORDER BY criado_em DESC LIMIT 200`
   );
 }
 
@@ -392,6 +496,28 @@ export function getVistoriaById(id: string): VistoriaLocal | null {
   ) ?? null;
 }
 
+export function getOfficialVistoriaById(id: string): VistoriaLocal | null {
+  const database = getDb();
+  return database.getFirstSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline
+      WHERE id = ?
+        AND COALESCE(modo_treinamento, 0) = 0
+        AND agente_uid NOT LIKE 'training:%'`,
+    [id]
+  ) ?? null;
+}
+
+export function getTrainingVistoriaById(id: string, agenteUid: string): VistoriaLocal | null {
+  const database = getDb();
+  return database.getFirstSync<VistoriaLocal>(
+    `SELECT * FROM vistorias_offline
+      WHERE id = ?
+        AND agente_uid = ?
+        AND (COALESCE(modo_treinamento, 0) = 1 OR agente_uid LIKE 'training:%')`,
+    [id, agenteUid]
+  ) ?? null;
+}
+
 export function deleteVistoriaOffline(id: string): void {
   const database = getDb();
   database.runSync(`DELETE FROM vistorias_offline WHERE id = ?`, [id]);
@@ -416,7 +542,10 @@ export function resetTentativasSync(id: string): void {
 export function countPendentes(): number {
   const database = getDb();
   const row = database.getFirstSync<{ total: number }>(
-    `SELECT COUNT(*) as total FROM vistorias_offline WHERE sincronizado = 0`
+    `SELECT COUNT(*) as total FROM vistorias_offline
+      WHERE sincronizado = 0
+        AND COALESCE(modo_treinamento, 0) = 0
+        AND agente_uid NOT LIKE 'training:%'`
   );
   return row?.total ?? 0;
 }

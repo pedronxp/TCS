@@ -14,6 +14,7 @@ import { SessionGuardProvider, useSessionGuard } from '../../context/SessionGuar
 import { SessionLockScreen } from '../../components/SessionLockScreen';
 import { pingSupabaseKeepAlive } from '../../services/KeepAliveService';
 import { useAuth } from '../../context/AuthContext';
+import { useTraining } from '../../context/TrainingContext';
 
 // Rotas que exigem papel mínimo para acesso.
 // Qualquer rota não listada aqui é acessível a qualquer usuário autenticado.
@@ -48,19 +49,22 @@ function useRouteGuard() {
 function PanelContent() {
   const { isLocked } = useSessionGuard();
   const { isOnlineReal } = useConnectivity();
+  const { isTrainingActive } = useTraining();
   const prevConnected = useRef(false);
 
   // Guarda de rota por papel — executado a cada mudança de segmento
   useRouteGuard();
 
   useEffect(() => {
+    if (isTrainingActive) return;
     registerBackgroundSync();
     startAppStateSyncListener();
     pingSupabaseKeepAlive().catch(() => null); // keep-alive Supabase free tier
     return () => stopAppStateSyncListener();
-  }, []);
+  }, [isTrainingActive]);
 
   useEffect(() => {
+    if (isTrainingActive) return;
     if (isOnlineReal && !prevConnected.current) {
       logger.info('network', 'Conectividade restaurada — iniciando sync automático');
       syncPendentes().catch(() => null);
@@ -68,7 +72,7 @@ function PanelContent() {
       logger.warn('network', 'Sem conexão com a internet — modo offline ativo');
     }
     prevConnected.current = isOnlineReal;
-  }, [isOnlineReal]);
+  }, [isOnlineReal, isTrainingActive]);
 
   if (isLocked) {
     return <SessionLockScreen />;
@@ -102,8 +106,10 @@ function PanelContent() {
         <Stack.Screen name="admin/protocolo-doc" />
         <Stack.Screen name="admin/editor-perguntas" />
         <Stack.Screen name="inspecoes/laudo" />
+        <Stack.Screen name="treinamento/index" />
         <Stack.Screen name="master/index" />
         <Stack.Screen name="master/municipios" />
+        <Stack.Screen name="master/treinamentos" />
         <Stack.Screen name="master/logs" />
         <Stack.Screen name="modulos" />
       </Stack>

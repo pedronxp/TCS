@@ -10,9 +10,10 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
-import { getVistoriaById, updateLaudoUrl } from '../../../utils/database';
+import { getOfficialVistoriaById, getTrainingVistoriaById, updateLaudoUrl } from '../../../utils/database';
 import { getSignedUrl } from '../../../services/StorageService';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { formatarPontuacaoRisco, normalizarNivelRisco, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
@@ -24,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import { safeBack } from '../../../utils/navigationUtils';
 
 /** Normaliza dados de qualquer fonte (Supabase camelCase ou SQLite snake_case) */
 function normalizar(v: any): any {
@@ -59,13 +61,17 @@ function normalizar(v: any): any {
 
 
 export default function ResultadoScreen() {
-  const { id, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam } = useLocalSearchParams<{
-    id: string; nivelRisco?: string; pontuacao?: string; municipio?: string;
+  const { id, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam, treinamento } = useLocalSearchParams<{
+    id: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string;
   }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
+  const { trainingProfile, isTrainingActive, isExpired, exit, revalidate, loading: trainingLoading } = useTraining();
+  const activeProfile = profile || trainingProfile;
+  const requestedTrainingMode = treinamento === '1' || (!profile && isTrainingActive && !!trainingProfile);
+  const trainingMode = requestedTrainingMode && isTrainingActive && !!trainingProfile;
   const { isOnlineReal: isConnected } = useConnectivity();
   const { initReport } = useReport();
   const mountedRef = useRef(true);
@@ -88,10 +94,11 @@ export default function ResultadoScreen() {
   });
 
   useEffect(() => {
+    if (requestedTrainingMode && trainingLoading) return;
     mountedRef.current = true;
     loadDados();
     return () => { mountedRef.current = false; };
-  }, [id]);
+  }, [id, requestedTrainingMode, trainingLoading]);
 
   const populateReport = (v: ReturnType<typeof normalizar>, nome: string) => {
     if (!v) return;
@@ -111,6 +118,7 @@ export default function ResultadoScreen() {
       respostas,
       foto_url: v.foto_url ?? v.fotosUrls?.[0] ?? null,
       fotosUrls: v.fotosUrls ?? (v.foto_url ? [v.foto_url] : null),
+      modoTreinamento: trainingMode,
       condutaRecomendada: '',
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
@@ -119,6 +127,28 @@ export default function ResultadoScreen() {
 
   const loadDados = async () => {
     try {
+      if (requestedTrainingMode) {
+        if (!trainingProfile || !isTrainingActive || isExpired() || !(await revalidate())) {
+          await exit();
+          router.replace('/(auth)/treinamento');
+          return;
+        }
+
+        const local = getTrainingVistoriaById(id as string, trainingProfile.uid);
+        if (!local) {
+          Alert.alert('Vistoria nao encontrada', 'Esta vistoria nao pertence ao treinamento ativo neste aparelho.');
+          router.replace('/(panel)/treinamento');
+          return;
+        }
+        if (local) {
+          const norm = normalizar(local);
+          setVistoria(norm);
+          populateReport(norm, norm.agenteNome || activeProfile?.name || '—');
+          prefillTermoForm(norm);
+          return;
+        }
+      }
+
       // 1. Tentar Supabase
       const { data, error } = await supabase
         .from('vistorias')
@@ -135,9 +165,9 @@ export default function ResultadoScreen() {
           norm.fotosUrls = (await Promise.all(norm.fotosUrls.map((u: string) => getSignedUrl(u)))).filter(Boolean) as string[];
         }
         setVistoria(norm);
-        populateReport(norm, norm.agenteNome || profile?.name || '—');
+        populateReport(norm, norm.agenteNome || activeProfile?.name || '—');
         prefillTermoForm(norm);
-        if (profile?.uid) {
+        if (profile?.uid && !trainingMode) {
           registrarAuditoria({
             acao: 'vistoria_acessada',
             adminUid: profile.uid,
@@ -151,11 +181,11 @@ export default function ResultadoScreen() {
       }
 
       // 2. Fallback: SQLite local
-      const local = getVistoriaById(id as string);
+      const local = getOfficialVistoriaById(id as string);
       if (local) {
         const norm = normalizar(local);
         setVistoria(norm);
-        populateReport(norm, norm.agenteNome || profile?.name || '—');
+        populateReport(norm, norm.agenteNome || activeProfile?.name || '—');
         prefillTermoForm(norm);
         return;
       }
@@ -166,25 +196,30 @@ export default function ResultadoScreen() {
           id,
           nivelRisco: nivelParam,
           pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
-          agenteNome: profile?.name,
-          municipio: municipioParam || profile?.municipio,
+          agenteNome: activeProfile?.name,
+          municipio: municipioParam || activeProfile?.municipio,
         });
         setVistoria(norm);
-        populateReport(norm, profile?.name || '—');
+        populateReport(norm, activeProfile?.name || '—');
         prefillTermoForm(norm);
       }
     } catch {
+      if (requestedTrainingMode) {
+        Alert.alert('Falha ao abrir vistoria', 'Nao foi possivel abrir esta vistoria de treinamento.');
+        router.replace('/(panel)/treinamento');
+        return;
+      }
       // Usar params da navegação como fallback silencioso
       if (nivelParam) {
         const norm = normalizar({
           id,
           nivelRisco: nivelParam,
           pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
-          agenteNome: profile?.name,
-          municipio: municipioParam || profile?.municipio,
+          agenteNome: activeProfile?.name,
+          municipio: municipioParam || activeProfile?.municipio,
         });
         setVistoria(norm);
-        populateReport(norm, profile?.name || '—');
+        populateReport(norm, activeProfile?.name || '—');
         prefillTermoForm(norm);
       }
     } finally {
@@ -212,17 +247,27 @@ export default function ResultadoScreen() {
     endereco: vistoria?.endereco || '—',
     municipio: vistoria?.municipio || '—',
     dataVistoria: vistoria?.dataVistoria || null,
-    agenteNome: vistoria?.agenteNome || profile?.name || '—',
+    agenteNome: vistoria?.agenteNome || activeProfile?.name || '—',
     formularioId: vistoria?.formularioId || 'Padrão',
     respostasJson: vistoria?.respostasJson || '{}',
     calculoRisco: vistoria?.calculoRisco ?? null,
     foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
     fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
+    modoTreinamento: trainingMode,
   });
 
+  const ensureTrainingActionsAllowed = async () => {
+    if (!trainingMode) return true;
+    if (!isExpired() && await revalidate()) return true;
+    await exit();
+    Alert.alert('Treinamento encerrado', 'O prazo desta turma terminou. O acesso ao modo treinamento foi bloqueado.');
+    router.replace('/(auth)/treinamento');
+    return false;
+  };
+
   const salvarLaudoNoStorage = async (uri: string) => {
-    if (!isConnected || !vistoria?.id) return;
-    const municipio = vistoria.municipio || municipioParam || profile?.municipio || 'geral';
+    if (trainingMode || !isConnected || !vistoria?.id) return;
+    const municipio = vistoria.municipio || municipioParam || activeProfile?.municipio || 'geral';
     const laudoUrl = await uploadLaudoPdf(uri, vistoria.id, municipio);
     if (laudoUrl) {
       const agora = new Date().toISOString();
@@ -242,7 +287,9 @@ export default function ResultadoScreen() {
   };
 
   const gerarPdf = async () => {
-    if (profile?.uid) {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
+    if (profile?.uid && !trainingMode) {
       const { allowed, message } = await checkRateLimit(profile.uid, 'gerar_pdf');
       if (!allowed) {
         Alert.alert('Limite atingido', message || 'Muitas gerações de PDF. Aguarde alguns minutos.');
@@ -258,13 +305,13 @@ export default function ResultadoScreen() {
       // Upload para Storage em background (não bloqueia share)
       salvarLaudoNoStorage(uri).catch(() => null);
 
-      if (profile?.uid) {
+      if (profile?.uid && !trainingMode) {
         registrarAuditoria({
           acao: 'laudo_gerado',
           adminUid: profile.uid,
           adminNome: profile.name || '—',
           adminRole: profile.role,
-          municipio: vistoria?.municipio || profile.municipio || '',
+            municipio: vistoria?.municipio || profile.municipio || '',
           alvoId: vistoria?.id,
           detalhes: { protocolo: vistoria?.protocolo, nivel_risco: vistoria?.nivelRisco },
         });
@@ -288,6 +335,8 @@ export default function ResultadoScreen() {
   };
 
   const imprimir = async () => {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
     setGerando(true);
     try {
       const html = await buildLaudoHtml(buildDados());
@@ -300,6 +349,8 @@ export default function ResultadoScreen() {
   };
 
   const compartilhar = async () => {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
     setGerando(true);
     try {
       const html = await buildLaudoHtml(buildDados());
@@ -312,7 +363,7 @@ export default function ResultadoScreen() {
         municipio: vistoria?.municipio || municipioParam || '',
         municipio_agente: vistoria?.municipio_agente ?? null,
         nivelRisco: vistoria?.nivelRisco || 'r1',
-        agenteNome: vistoria?.agenteNome || profile?.name || 'Agente',
+        agenteNome: vistoria?.agenteNome || activeProfile?.name || 'Agente',
         dataVistoria: vistoria?.dataVistoria || new Date().toISOString(),
       });
 
@@ -341,6 +392,8 @@ export default function ResultadoScreen() {
 
   /** Gera o Termo de Interdição */
   const gerarTermoInterdicao = async () => {
+    if (!(await ensureTrainingActionsAllowed())) return;
+
     if (!termoForm.nomeNotificado.trim()) {
       // Não usar Alert dentro de Modal no Android — usar estado inline
       setTermoNomeErro(true);
@@ -408,7 +461,7 @@ export default function ResultadoScreen() {
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
+          onPress={() => safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
         >
           <Feather name="arrow-left" color={theme.textSecondary} size={24} />
         </TouchableOpacity>
@@ -471,17 +524,19 @@ export default function ResultadoScreen() {
           <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.reportBtn, { backgroundColor: theme.surfaceHighlight, borderWidth: 1, borderColor: theme.border }]}
-          onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
-        >
-          <Feather name="camera" size={20} color={theme.primary} />
-          <View style={styles.reportBtnText}>
-            <Text style={[styles.reportBtnTitle, { color: theme.text }]}>Registrar Evidências</Text>
-            <Text style={[styles.reportBtnDesc, { color: theme.textSecondary }]}>Adicionar fotos da vistoria</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
+        {!trainingMode && (
+          <TouchableOpacity
+            style={[styles.reportBtn, { backgroundColor: theme.surfaceHighlight, borderWidth: 1, borderColor: theme.border }]}
+            onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+          >
+            <Feather name="camera" size={20} color={theme.primary} />
+            <View style={styles.reportBtnText}>
+              <Text style={[styles.reportBtnTitle, { color: theme.text }]}>Registrar Evidências</Text>
+              <Text style={[styles.reportBtnDesc, { color: theme.textSecondary }]}>Adicionar fotos da vistoria</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
 
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Exportar Laudo</Text>
 
@@ -581,7 +636,7 @@ export default function ResultadoScreen() {
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
         <TouchableOpacity
           style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
-          onPress={() => router.replace('/(panel)/dashboard')}
+          onPress={() => router.replace(trainingMode ? '/(panel)/treinamento' : '/(panel)/dashboard')}
         >
           <Text style={styles.primaryBtnText}>Voltar ao Início</Text>
         </TouchableOpacity>

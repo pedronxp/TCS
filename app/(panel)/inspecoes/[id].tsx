@@ -5,18 +5,20 @@ import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { forceSyncAll } from '../../../services/SyncService';
 import { getSignedUrl } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
-import { getVistoriaById, deleteVistoriaOffline } from '../../../utils/database';
+import { getOfficialVistoriaById, deleteVistoriaOffline } from '../../../utils/database';
 import { formatarPontuacaoRisco, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
 import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracarRota } from '../../../utils/routingUtils';
+import { safeBack } from '../../../utils/navigationUtils';
 
 export default function VistoriaDetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,13 +26,20 @@ export default function VistoriaDetalhesScreen() {
   const insets = useSafeAreaInsets();
   const { initReport } = useReport();
   const { profile } = useAuth();
+  const { isTrainingActive } = useTraining();
   const { isOnlineReal: isConnected } = useConnectivity();
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [vistoria, setVistoria] = useState<VistoriaNormalizada | null>(null);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
-  useEffect(() => { if (id) fetchDetalhes(); }, [id]);
+  useEffect(() => {
+    if (!profile && isTrainingActive) {
+      router.replace('/(panel)/treinamento');
+      return;
+    }
+    if (id) fetchDetalhes();
+  }, [id, profile?.uid, isTrainingActive]);
 
   const populateReport = (data: any) => {
     let respostas: Record<string, string> = {};
@@ -100,7 +109,28 @@ export default function VistoriaDetalhesScreen() {
         query = query.eq('municipio', profile.municipio);
       }
 
-      const { data, error } = await query.single();
+      let { data, error } = await query.single();
+      if (error && (error as any)?.code !== 'PGRST116') {
+        logger.warn('vistoria', 'Busca remota detalhada falhou; tentando fallback amplo', {
+          id,
+          erro: error.message,
+        });
+        let fallbackQuery: any = supabase
+          .from('vistorias')
+          .select('*')
+          .eq('id', id as string);
+
+        if (profile?.role === 'agent') {
+          fallbackQuery = fallbackQuery.eq('agenteUid', profile.uid);
+        }
+        if (profile?.role !== 'master_admin' && profile?.municipio) {
+          fallbackQuery = fallbackQuery.eq('municipio', profile.municipio);
+        }
+
+        const fallbackRemote = await fallbackQuery.single();
+        data = fallbackRemote.data;
+        error = fallbackRemote.error;
+      }
 
       if (!error && data) {
         // Resolver paths de storage para URLs assinadas antes de exibir
@@ -114,14 +144,8 @@ export default function VistoriaDetalhesScreen() {
       }
 
       // Fallback: SQLite local (vistorias não sincronizadas)
-      const local = getVistoriaById(id as string);
+      const local = getOfficialVistoriaById(id as string);
       if (local) {
-        // Se já estava sincronizada e sumiu do Supabase → foi deletada externamente
-        if (local.sincronizado === 1) {
-          deleteVistoriaOffline(id as string);
-          logger.warn('vistoria', 'Vistoria removida localmente — deletada no servidor');
-          return;
-        }
         // Verificar se pertence ao agente atual (segurança offline)
         if (profile?.role === 'agent' && local.agente_uid !== profile.uid) {
           logger.warn('vistoria', 'Acesso negado — vistoria de outro agente (SQLite)');
@@ -152,7 +176,7 @@ export default function VistoriaDetalhesScreen() {
           responsavelNome: local.responsavel_nome,
           respostasJson: local.respostas_json,
           formularioId: local.formulario_id,
-          status: 'Pendente Sync',
+          status: local.sincronizado === 1 ? 'concluida' : 'Pendente Sync',
           latitude: local.latitude,
           longitude: local.longitude,
           fotosUrls: fotosUrlsParsed,
@@ -180,7 +204,7 @@ export default function VistoriaDetalhesScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={{ color: theme.textSecondary }}>Vistoria não encontrada.</Text>
-        <TouchableOpacity style={{ marginTop: 20 }} onPress={() => router.back()}>
+        <TouchableOpacity style={{ marginTop: 20 }} onPress={() => safeBack('/(panel)/inspecoes')}>
           <Text style={{ color: theme.primary }}>Voltar</Text>
         </TouchableOpacity>
       </View>
@@ -195,7 +219,7 @@ export default function VistoriaDetalhesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeBack('/(panel)/inspecoes')}>
           <Feather name="arrow-left" color={theme.textSecondary} size={24} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>

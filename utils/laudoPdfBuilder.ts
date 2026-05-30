@@ -44,6 +44,7 @@ export interface LaudoData {
   cargo?: string;
   bairro?: string;
   responsavelNome?: string;
+  modoTreinamento?: boolean;
 }
 
 /** Dados extras para o Termo de Interdição (R3/R4) */
@@ -86,6 +87,9 @@ export function buildTermoInterdicaoHtml(
   const cidade = notificado.cidade || laudo.municipio || '—';
   const calculo = parseCalculoRiscoSnapshot(laudo.calculoRisco);
   const nivel = normalizarNivelRisco(laudo.nivelRisco || calculo?.nivelRisco, 'r1');
+  const trainingNotice = laudo.modoTreinamento
+    ? `<div class="training-notice">MODO TREINAMENTO - documento sem validade operacional</div>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -116,6 +120,19 @@ export function buildTermoInterdicaoHtml(
     border-bottom: 2px solid #000;
     padding-bottom: 20px;
     margin-bottom: 30px;
+  }
+  .training-notice {
+    border: 2px solid #10B981;
+    background: #ECFDF5;
+    color: #047857;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
   }
   .doc-header-logo img {
     height: 70px;
@@ -215,6 +232,7 @@ export function buildTermoInterdicaoHtml(
 </style>
 </head>
 <body>
+  ${trainingNotice}
 
   <div class="doc-header">
     <div class="doc-header-logo">
@@ -344,6 +362,9 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     : '';
   const dataExt = dataExtenso(dados.dataVistoria);
   const ano = dados.dataVistoria ? new Date(dados.dataVistoria).getFullYear() : new Date().getFullYear();
+  const trainingNotice = dados.modoTreinamento
+    ? `<div class="training-notice">MODO TREINAMENTO - documento sem validade operacional</div>`
+    : '';
 
   // O schema form mapeia os IDs para textos ricos
   let schemaForm = null;
@@ -474,6 +495,19 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   // Cor de fundo suave para o painel de risco
   const corBg = nivel === 'r1' ? '#ECFDF5' : nivel === 'r2' ? '#FFFBEB' : nivel === 'r3' ? '#FEF2F2' : '#FEF2F2';
   const corBorder = nivel === 'r1' ? '#A7F3D0' : nivel === 'r2' ? '#FDE68A' : nivel === 'r3' ? '#FECACA' : '#FECACA';
+  const riskPanelHtml = `
+  <!-- PAINEL DE RISCO -->
+  <div class="risk-panel">
+    <div class="risk-indicator">
+      <div class="risk-level-label">Nível de Risco</div>
+      <div class="risk-level-value">${escapeHtml(nivel.toUpperCase())}</div>
+      <div class="risk-pts">${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts</div>
+    </div>
+    <div class="risk-details">
+      ${agravantesHtml}
+      ${regrasCondicionaisHtml}
+    </div>
+  </div>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -506,6 +540,19 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     border-bottom: 3px solid #1A365D;
     padding-bottom: 20px;
     margin-bottom: 28px;
+  }
+  .training-notice {
+    border: 2px solid #10B981;
+    background: #ECFDF5;
+    color: #047857;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
   }
   .doc-header-logo img {
     height: 80px;
@@ -822,6 +869,8 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 </head>
 <body>
 
+  ${trainingNotice}
+
   <!-- CABEÇALHO -->
   <div class="doc-header">
     <div class="doc-header-logo">
@@ -833,20 +882,6 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
       <div class="doc-date">Vistoria realizada em ${escapeHtml(dataExt)}</div>
     </div>
   </div>
-
-  <!-- PAINEL DE RISCO -->
-  <div class="risk-panel">
-    <div class="risk-indicator">
-      <div class="risk-level-label">Nível de Risco</div>
-      <div class="risk-level-value">${escapeHtml(nivel.toUpperCase())}</div>
-      <div class="risk-pts">${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts</div>
-    </div>
-    <div class="risk-details">
-            ${agravantesHtml}
-            ${regrasCondicionaisHtml}
-          </div>
-        </div>
-
   <!-- DADOS DA VISTORIA -->
   <div class="section">
     <div class="section-title"><span class="section-icon">📍</span> Dados da Vistoria</div>
@@ -899,6 +934,8 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     e a <strong>Lei Federal Nº 10.257/2001</strong> (Estatuto da Cidade), que estabelecem as
     diretrizes para prevenção de desastres e proteção à vida.
   </div>
+
+  ${riskPanelHtml}
 
   <!-- CONDUTA RECOMENDADA -->
   <div class="conduct-note">
