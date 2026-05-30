@@ -6,7 +6,7 @@ on:
       profile:
         description: 'Build profile (preview | production)'
         required: true
-        default: 'preview'
+        default: 'production'
         type: choice
         options: [preview, production]
       version:
