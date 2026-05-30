@@ -538,6 +538,8 @@ export default function MapasScreen() {
     };
   });
   const shouldRenderPins = !showHeatmap || Platform.OS !== 'android';
+  const topInset = insets.top || (Platform.OS === 'android' ? 28 : 44);
+  const filtersTop = topInset + (Platform.OS === 'android' ? 88 : 78);
 
   if (loading) {
     return (
@@ -613,7 +615,7 @@ export default function MapasScreen() {
       </MapView>
 
       {/* Header flutuante */}
-      <View style={[styles.headerOverlay, { paddingTop: (insets.top || 44) + 10 }]}>
+      <View style={[styles.headerOverlay, { paddingTop: topInset + 8 }]}>
         <TouchableOpacity
           style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
           onPress={() => safeBack('/(panel)/dashboard')}
@@ -646,52 +648,54 @@ export default function MapasScreen() {
       </View>
 
       {/* Filtros */}
-      <View style={[styles.filtersOverlay, { top: insets.top + 62 }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[
-                styles.chip,
-                filter === f.key
-                  ? { backgroundColor: f.color }
-                  : { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, borderWidth: 1 },
-              ]}
-              onPress={() => setFilter(f.key)}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                {f.key !== 'todos' && (
-                  <View style={{
-                    width: 7, height: 7, borderRadius: 4,
-                    backgroundColor: filter === f.key ? '#FFF' : f.color,
-                  }} />
-                )}
-                <Text style={[styles.chipText, { color: filter === f.key ? '#FFF' : theme.text }]}>
-                  {f.label}
+      <View style={[styles.filtersOverlay, { top: filtersTop }]}>
+        <View style={[styles.filterRail, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
+            {FILTERS.map(f => (
+              <TouchableOpacity
+                key={f.key}
+                style={[
+                  styles.chip,
+                  filter === f.key
+                    ? { backgroundColor: f.color }
+                    : { backgroundColor: 'transparent' },
+                ]}
+                onPress={() => setFilter(f.key)}
+              >
+                <View style={styles.chipInner}>
+                  {f.key !== 'todos' && (
+                    <View style={{
+                      width: 6, height: 6, borderRadius: 3,
+                      backgroundColor: filter === f.key ? '#FFF' : f.color,
+                    }} />
+                  )}
+                  <Text style={[styles.chipText, { color: filter === f.key ? '#FFF' : theme.text }]}>
+                    {f.label}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            <View style={[styles.filterDivider, { backgroundColor: theme.border }]} />
+
+            {PERIODOS.map(p => (
+              <TouchableOpacity
+                key={p.key}
+                style={[
+                  styles.chip,
+                  filtroPeriodo === p.key
+                    ? { backgroundColor: theme.primary }
+                    : { backgroundColor: 'transparent' },
+                ]}
+                onPress={() => setFiltroPeriodo(p.key)}
+              >
+                <Text style={[styles.chipText, { color: filtroPeriodo === p.key ? '#FFF' : theme.text }]}>
+                  {p.label}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-
-          <View style={{ width: 1, height: 28, backgroundColor: theme.border, alignSelf: 'center', marginHorizontal: 2 }} />
-
-          {PERIODOS.map(p => (
-            <TouchableOpacity
-              key={p.key}
-              style={[
-                styles.chip,
-                filtroPeriodo === p.key
-                  ? { backgroundColor: theme.primary }
-                  : { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, borderWidth: 1 },
-              ]}
-              onPress={() => setFiltroPeriodo(p.key)}
-            >
-              <Text style={[styles.chipText, { color: filtroPeriodo === p.key ? '#FFF' : theme.text }]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
       </View>
 
       {/* FABs direita */}
@@ -840,27 +844,49 @@ const styles = StyleSheet.create({
 
   headerOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0,
-    paddingBottom: 10, paddingHorizontal: 16,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingBottom: 8, paddingHorizontal: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
   },
   floatBtn: {
-    width: 42, height: 42, borderRadius: 12,
+    width: 40, height: 40, borderRadius: 10,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6, elevation: 5,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 5, elevation: 4,
   },
   headerInfo: {
-    flex: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6, elevation: 5,
+    flex: 1, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 5, elevation: 4,
   },
-  headerTitle: { fontSize: 16, fontWeight: '700' },
+  headerTitle: { fontSize: 15, fontWeight: '800' },
   headerSub:   { fontSize: 11, fontWeight: '500', marginTop: 1 },
 
-  filtersOverlay: { position: 'absolute', top: 118, left: 0, right: 0, paddingHorizontal: 16 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 3,
+  filtersOverlay: { position: 'absolute', top: 118, left: 0, right: 0, paddingHorizontal: 12 },
+  filterRail: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 4,
   },
-  chipText: { fontSize: 12, fontWeight: '700' },
+  filtersContent: {
+    alignItems: 'center',
+    gap: 4,
+    paddingRight: 10,
+  },
+  chip: {
+    minHeight: 32,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipInner: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  chipText: { fontSize: 12, fontWeight: '800' },
+  filterDivider: { width: 1, height: 22, alignSelf: 'center', marginHorizontal: 4 },
 
   fabGroup: { position: 'absolute', right: 16, bottom: 80 },
   fab: {
