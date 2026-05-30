@@ -159,7 +159,7 @@ export default function WelcomeScreen() {
           {/* Botão principal */}
           <TouchableOpacity
             style={[styles.btnPrimary, { backgroundColor: primary }]}
-            onPress={() => router.push('/showcase')}
+            onPress={() => router.push('/(auth)/login')}
             activeOpacity={0.82}
           >
             <Feather name="log-in" size={18} color="#FFF" />
