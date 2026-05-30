@@ -19,18 +19,24 @@ export default function TreinamentoLoadingScreen() {
   useEffect(() => {
     let alive = true;
     const run = async () => {
-      const res = await enter({ nome: nome || '', token: token || '' });
-      if (!alive) return;
-      setResult(res);
-      setLoading(false);
-      if (res.ok) {
-        setRedirecting(true);
-        setTimeout(() => {
-          if (alive) router.replace('/(panel)/treinamento');
-        }, SUCCESS_VISIBLE_MS);
+      try {
+        const res = await enter({ nome: nome || '', token: token || '' });
+        if (!alive) return;
+        setResult(res);
+        setLoading(false);
+        if (res.ok) {
+          setRedirecting(true);
+          setTimeout(() => {
+            if (alive) router.replace('/(panel)/treinamento');
+          }, SUCCESS_VISIBLE_MS);
+        }
+      } catch (e: any) {
+        if (!alive) return;
+        setResult({ ok: false, status: 'error', message: e?.message || 'Falha ao acessar treinamento.' });
+        setLoading(false);
       }
     };
-    run();
+    void run();
     return () => { alive = false; };
   }, [nome, token]);
 

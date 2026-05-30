@@ -22,21 +22,29 @@ export function SessionGuardProvider({ children }: { children: React.ReactNode }
   const appStateRef = useRef(AppState.currentState);
 
   const recordActivity = async () => {
-    await AsyncStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+    try {
+      await AsyncStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+    } catch {
+      // Falha de cache local nao deve derrubar nem poluir o app com LogBox.
+    }
   };
 
   const checkTimeout = async () => {
-    const raw = await AsyncStorage.getItem(LAST_ACTIVE_KEY);
-    if (!raw) return;
-    const lastActive = parseInt(raw, 10);
-    if (Date.now() - lastActive > TIMEOUT_MS) {
-      setIsLocked(true);
+    try {
+      const raw = await AsyncStorage.getItem(LAST_ACTIVE_KEY);
+      if (!raw) return;
+      const lastActive = parseInt(raw, 10);
+      if (Date.now() - lastActive > TIMEOUT_MS) {
+        setIsLocked(true);
+      }
+    } catch {
+      // Sem leitura de cache, mantem a sessao atual.
     }
   };
 
   useEffect(() => {
     // Registrar atividade inicial
-    recordActivity();
+    recordActivity().catch(() => null);
 
     const sub = AppState.addEventListener('change', async (next: AppStateStatus) => {
       const prev = appStateRef.current;
@@ -56,7 +64,7 @@ export function SessionGuardProvider({ children }: { children: React.ReactNode }
 
   const unlock = () => {
     setIsLocked(false);
-    recordActivity();
+    recordActivity().catch(() => null);
   };
 
   return (
