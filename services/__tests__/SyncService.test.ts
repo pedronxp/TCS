@@ -168,6 +168,9 @@ beforeEach(() => {
 
   // Obter referência ao mock de checkRealInternet
   mockCheckRealInternet = jest.requireMock('../../context/ConnectivityContext').checkRealInternet as jest.Mock;
+  const storageMock = jest.requireMock('../../services/StorageService');
+  storageMock.uploadImageFromLocalUri.mockReset();
+  storageMock.uploadImageFromLocalUri.mockResolvedValue('https://storage.example.com/foto.jpg');
 
   // Limpar contadores de chamadas dos mocks de database
   mockMarkSincronizado.mockClear();
@@ -235,15 +238,42 @@ describe('syncPendentes', () => {
       makeVistoria({ foto_url: 'file:///local/foto.jpg' }),
     ]);
 
-    await syncPendentes();
+    const resultado = await syncPendentes();
 
     // Se upsert foi chamado (em algum fallback), não deve conter file://
+    expect(resultado).toEqual({ sucesso: 0, falha: 1 });
+    expect(mockUpsertFn).toHaveBeenCalledTimes(1);
+    expect(mockMarkSincronizado).not.toHaveBeenCalledWith('v-1');
+    expect(mockMarkErroSync).toHaveBeenCalledWith('v-1', 'Dados enviados; mídia local pendente de upload.');
+
     for (const call of mockUpsertFn.mock.calls) {
       const payload = Array.isArray(call[0]) ? call[0][0] : call[0];
-      if (payload?.fotoUrl) {
-        expect(payload.fotoUrl).not.toMatch(/^file:\/\//);
-      }
+      expect(payload.fotoUrl).toBeNull();
     }
+  });
+
+  it('remove fotosUrls file:// do payload quando upload de evidencia falha', async () => {
+    const { uploadImageFromLocalUri } = require('../../services/StorageService');
+    uploadImageFromLocalUri.mockRejectedValueOnce(new Error('network error'));
+
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([
+      makeVistoria({
+        fotos_urls: JSON.stringify([
+          'file:///local/evidencia.jpg',
+          'https://cdn.example.com/evidencia-ok.jpg',
+        ]),
+      }),
+    ]);
+
+    const resultado = await syncPendentes();
+
+    expect(resultado).toEqual({ sucesso: 0, falha: 1 });
+    expect(mockUpsertFn).toHaveBeenCalledTimes(1);
+    const payload = mockUpsertFn.mock.calls[0][0];
+    const fotosUrls = Array.isArray(payload) ? payload[0].fotosUrls : payload.fotosUrls;
+    expect(fotosUrls).toEqual(['https://cdn.example.com/evidencia-ok.jpg']);
+    expect(mockMarkSincronizado).not.toHaveBeenCalledWith('v-1');
+    expect(mockMarkErroSync).toHaveBeenCalledWith('v-1', 'Dados enviados; mídia local pendente de upload.');
   });
 
   it('buildSupabasePayload passa fotoUrl https:// corretamente', async () => {

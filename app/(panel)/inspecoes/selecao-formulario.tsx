@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
@@ -56,6 +57,7 @@ export default function SelecaoFormularioScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
+  const { isTrainingActive, session: trainingSession } = useTraining();
   const { isOnlineReal } = useConnectivity();
   const params = useLocalSearchParams<any>();
   const [dynamicForms, setDynamicForms] = useState<FormularioItem[]>([]);
@@ -63,6 +65,16 @@ export default function SelecaoFormularioScreen() {
   const [loading, setLoading] = useState(true);
   const [fromCache, setFromCache] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const builtinForms = FORMULARIOS_BUILTIN.filter(f => !isTrainingActive || trainingSession?.allowedForms.includes(f.id));
+  const hasAvailableForms = builtinForms.length + dynamicForms.length > 0;
+
+  const voltar = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace(isTrainingActive ? '/(panel)/treinamento' : '/(panel)/inspecoes/dados-iniciais');
+  };
 
   useEffect(() => {
     fetchDynamicForms();
@@ -71,6 +83,12 @@ export default function SelecaoFormularioScreen() {
   /** Busca formulários personalizados — online: Supabase + atualiza cache; offline: SQLite cache */
   const fetchDynamicForms = async () => {
     setFormError(null);
+    if (isTrainingActive) {
+      setDynamicForms([]);
+      setFromCache(false);
+      setLoading(false);
+      return;
+    }
     try {
       if (isOnlineReal) {
         const { data } = await supabase
@@ -175,7 +193,7 @@ export default function SelecaoFormularioScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={voltar}>
           <Feather name="arrow-left" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -192,10 +210,10 @@ export default function SelecaoFormularioScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Built-in forms */}
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-          <Feather name="folder" size={12} /> MODELOS PADRÃO (OFFLINE)
+          <Feather name="folder" size={12} /> {isTrainingActive ? 'FORMULÁRIOS DA AULA' : 'MODELOS PADRÃO (OFFLINE)'}
         </Text>
 
-        {FORMULARIOS_BUILTIN.map(f => {
+        {builtinForms.map(f => {
           const sel = selected === f.id;
           return (
             <TouchableOpacity key={f.id} onPress={() => setSelected(f.id)}>
@@ -209,7 +227,7 @@ export default function SelecaoFormularioScreen() {
                     <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                        <Badge label="Built-in" variant="success" />
+                        <Badge label={isTrainingActive ? 'Aula' : 'Local'} variant="success" />
                         {f.isNew && <Badge label="Novo" variant="info" />}
                       </View>
                       {sel
@@ -225,15 +243,15 @@ export default function SelecaoFormularioScreen() {
         })}
 
         {/* Async states for custom forms */}
-        {loading && <LoadingState />}
+        {loading && !isTrainingActive && <LoadingState />}
         {formError !== null && !loading && (
           <ErrorState message={formError} onRetry={fetchDynamicForms} />
         )}
-        {!loading && !formError && dynamicForms.length === 0 && (
+        {!loading && !formError && !hasAvailableForms && (
           <EmptyState
             icon="file-text"
-            title="Nenhum formulário disponível"
-            description="Aguarde a liberação de formulários pelo administrador."
+            title={isTrainingActive ? 'Nenhum formulário liberado' : 'Nenhum formulário disponível'}
+            description={isTrainingActive ? 'Esta turma ainda não possui modelos de aula ativos.' : 'Aguarde a liberação de formulários pelo administrador.'}
           />
         )}
 
@@ -274,7 +292,7 @@ export default function SelecaoFormularioScreen() {
 
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
-        <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={voltar}>
           <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
         </TouchableOpacity>
         <TouchableOpacity

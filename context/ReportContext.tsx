@@ -17,6 +17,7 @@ export interface ReportDraft {
   calculoRisco?: CalculoRiscoSnapshot | string | null;
   foto_url?: string | null;
   fotosUrls?: string[] | null;
+  modoTreinamento?: boolean;
   // Campos editáveis pelo técnico
   condutaRecomendada: string;
   observacoesTecnicas: string;

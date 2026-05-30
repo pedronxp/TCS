@@ -5,14 +5,14 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
-import { insertVistoria, markSincronizado, updateAgendamentoVistoriaId, getFormularioCacheById } from '../../../utils/database';
+import { insertTrainingVistoria, insertVistoria, markErroSync, markSincronizado, updateAgendamentoVistoriaId, getFormularioCacheById } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { uploadFotoVistoria } from '../../../services/StorageService';
 import { updateFotoUrl } from '../../../utils/database';
@@ -20,6 +20,8 @@ import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
+import { safeBack } from '../../../utils/navigationUtils';
+import { compressAndPersistImage } from '../../../utils/imageCompression';
 import { WizardParams } from '../../../types/vistoria';
 import {
   calcularRiscoFormulario,
@@ -126,6 +128,9 @@ export default function WizardAvaliacaoScreen() {
   const insets = useSafeAreaInsets();
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile } = useAuth();
+  const { session: trainingSession, trainingProfile, isTrainingActive, isExpired, exit, revalidate } = useTraining();
+  const activeProfile = profile || trainingProfile;
+  const trainingMode = !profile && isTrainingActive && !!trainingProfile;
 
   const [perguntas, setPerguntas] = useState<PerguntaModel[]>([]);
   const [step, setStep] = useState(0); // índice da pergunta atual
@@ -420,17 +425,11 @@ export default function WizardAvaliacaoScreen() {
       allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
-      // Copiar para documentDirectory para garantir URI persistente entre ciclos de atividade
-      try {
-        const fotoDir = (FileSystem.documentDirectory ?? '') + 'fotos/';
-        await FileSystem.makeDirectoryAsync(fotoDir, { intermediates: true });
-        const destino = fotoDir + `foto_${Date.now()}.jpg`;
-        await FileSystem.copyAsync({ from: result.assets[0].uri, to: destino });
-        setResposta(perguntaId, destino);
-      } catch {
-        // Fallback: usar URI temporária original
-        setResposta(perguntaId, result.assets[0].uri);
-      }
+      const fotoPersistente = await compressAndPersistImage(result.assets[0].uri, {
+        directoryName: 'fotos',
+        filePrefix: 'vistoria',
+      });
+      setResposta(perguntaId, fotoPersistente);
     }
   };
 
@@ -444,8 +443,14 @@ export default function WizardAvaliacaoScreen() {
       return;
     }
 
-    if (profile?.uid) {
-      const { allowed, message } = await checkRateLimit(profile.uid, 'criar_vistoria');
+    if (trainingMode && (isExpired() || !(await revalidate()))) {
+      await exit();
+      router.replace('/(auth)/treinamento');
+      return;
+    }
+
+    if (!trainingMode && activeProfile?.uid) {
+      const { allowed, message } = await checkRateLimit(activeProfile.uid, 'criar_vistoria');
       if (!allowed) {
         Alert.alert('Limite atingido', message || 'Muitas vistorias criadas hoje. Aguarde para continuar.');
         return;
@@ -454,7 +459,7 @@ export default function WizardAvaliacaoScreen() {
 
     setSalvando(true);
     try {
-      if (!profile?.uid) throw new Error('Perfil não carregado — tente novamente.');
+      if (!activeProfile?.uid) throw new Error('Perfil não carregado — tente novamente.');
 
       const { nivel, pontuacao, calculo } = calcularNivelRisco(perguntasVisiveis, respostasVisiveis);
       const agora = new Date().toISOString();
@@ -466,13 +471,13 @@ export default function WizardAvaliacaoScreen() {
       const perguntaFoto = perguntas.find(p => p.tipo === 'foto');
       const fotoUri = perguntaFoto ? (respostasVisiveis[perguntaFoto.id] || null) : null;
 
-      const municipioVistoria = params.municipio || profile?.municipio || '';
+      const municipioVistoria = params.municipio || activeProfile?.municipio || '';
       const vistoriaLocal = {
         id,
-        agente_uid: profile.uid,
-        agente_nome: profile.name || 'Agente',
+        agente_uid: activeProfile.uid,
+        agente_nome: activeProfile.name || 'Agente',
         municipio: municipioVistoria,
-        municipio_agente: profile?.municipio || null,
+        municipio_agente: activeProfile?.municipio || null,
         endereco_rua: params.rua || '',
         endereco_numero: params.numero || '',
         endereco_bairro: params.bairro || '',
@@ -491,33 +496,39 @@ export default function WizardAvaliacaoScreen() {
         laudo_url: null,
         laudo_gerado_em: null,
         feita_online: isConnected ? 1 : 0,
+        modo_treinamento: trainingMode ? 1 : 0,
+        training_class_id: trainingMode ? trainingSession?.classId ?? null : null,
+        training_participant_id: trainingMode ? trainingSession?.participantId ?? null : null,
         criado_em: agora,
       };
 
       // 1. Salvar localmente primeiro (garante zero perda de dados)
-      insertVistoria(vistoriaLocal);
-      logger.info('vistoria', `Vistoria salva localmente — nível ${nivel}`, {
+      if (trainingMode) insertTrainingVistoria(vistoriaLocal);
+      else insertVistoria(vistoriaLocal);
+      logger.info('vistoria', trainingMode ? `Vistoria de treinamento salva localmente — nível ${nivel}` : `Vistoria salva localmente — nível ${nivel}`, {
         id,
         endereco: `${params.rua}, ${params.numero}`,
         pontuacao,
         formulario: params.formularioId,
       });
-      registrarAuditoria({
-        acao: 'vistoria_criada',
-        adminUid: profile.uid,
-        adminNome: profile.name || '—',
-        adminRole: profile.role,
-        municipio: municipioVistoria,
-        alvoId: id,
-        detalhes: { nivel_risco: nivel, formulario_id: params.formularioId },
-      });
-      notificarVistoriaSalva(
-        `${params.rua}, ${params.numero}`,
-        nivel
-      ).catch(() => null);
+      if (!trainingMode) {
+        registrarAuditoria({
+          acao: 'vistoria_criada',
+          adminUid: activeProfile.uid,
+          adminNome: activeProfile.name || '—',
+          adminRole: activeProfile.role,
+          municipio: municipioVistoria,
+          alvoId: id,
+          detalhes: { nivel_risco: nivel, formulario_id: params.formularioId },
+        });
+        notificarVistoriaSalva(
+          `${params.rua}, ${params.numero}`,
+          nivel
+        ).catch(() => null);
+      }
 
       // 2. Tentar sync imediato se online
-      if (isConnected) {
+      if (isConnected && !trainingMode) {
         // Upload da foto para Storage (não bloqueia o fluxo principal)
         let fotoStorageUrl: string | null = null;
         if (fotoUri && fotoUri.startsWith('file://')) {
@@ -530,6 +541,7 @@ export default function WizardAvaliacaoScreen() {
         // Nunca enviar file:// ao Supabase — se upload falhou, omitir fotoUrl.
         // O SyncService fará o upload e atualizará o campo quando o app reconectar.
         const fotoUrlRemota = fotoStorageUrl ?? null;
+        const midiaLocalPendente = !!fotoUri?.startsWith('file://') && !fotoStorageUrl;
 
         const { error } = await supabase.from('vistorias').upsert({
           id,
@@ -556,17 +568,22 @@ export default function WizardAvaliacaoScreen() {
           status: 'concluida',
         });
         if (!error) {
-          markSincronizado(id);
-          logger.info('sync', `Vistoria sincronizada imediatamente após salvar`, { id });
+          if (midiaLocalPendente) {
+            markErroSync(id, 'Dados enviados; mídia local pendente de upload.');
+            logger.warn('sync', `Dados sincronizados, mas foto local ficou pendente`, { id });
+          } else {
+            markSincronizado(id);
+            logger.info('sync', `Vistoria sincronizada imediatamente apos salvar`, { id });
+          }
         } else {
           logger.warn('sync', `Falha no sync imediato — ficará pendente`, { id, erro: error.message });
         }
       } else {
-        logger.info('vistoria', `Offline — vistoria ficará pendente de sync`, { id });
+        logger.info('vistoria', trainingMode ? `Modo treinamento — vistoria mantida somente local` : `Offline — vistoria ficará pendente de sync`, { id });
       }
 
       // Vincular agendamento à vistoria criada e marcar como concluído
-      if (params.agendamentoId) {
+      if (params.agendamentoId && !trainingMode) {
         try {
           updateAgendamentoVistoriaId(params.agendamentoId, id);
           if (isConnected) {
@@ -585,7 +602,7 @@ export default function WizardAvaliacaoScreen() {
 
       router.replace({
         pathname: '/(panel)/inspecoes/resultado',
-        params: { id, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isConnected ? '0' : '1', municipio: vistoriaLocal.municipio }
+        params: { id, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isConnected ? '0' : '1', municipio: vistoriaLocal.municipio, treinamento: trainingMode ? '1' : '0' }
       });
     } catch (e: any) {
       logger.error('vistoria', 'Erro crítico ao salvar vistoria', { erro: e.message });
@@ -617,7 +634,7 @@ export default function WizardAvaliacaoScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeStep > 0 ? setStep(safeStep - 1) : router.back()}>
+        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeStep > 0 ? setStep(safeStep - 1) : safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes/selecao-formulario')}>
           <Feather name={safeStep > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>

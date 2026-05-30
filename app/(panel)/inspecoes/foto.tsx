@@ -3,20 +3,19 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Image,
   ScrollView, ActivityIndicator, Alert
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
-import { updateFotosUrls, getVistoriaById } from '../../../utils/database';
+import { updateFotosUrls, getVistoriaById, isTrainingVistoria } from '../../../utils/database';
+import { compressAndPersistImage, EVIDENCE_IMAGE_MAX_WIDTH } from '../../../utils/imageCompression';
 import { EmptyState, Button } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { safeBack } from '../../../utils/navigationUtils';
 
 const MAX_FOTOS = 3;
-const QUALIDADE = 0.72;   // 72% JPEG — spec AGENTS.md
-const LARGURA_MAX = 854;  // 480p landscape — spec AGENTS.md
 
 interface FotoItem {
   localId: string;       // identificador único para rastrear updates sem depender de índice
@@ -35,12 +34,15 @@ export default function FotoScreen() {
   const { isOnlineReal } = useConnectivity();
   const [fotos, setFotos] = useState<FotoItem[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [trainingMode, setTrainingMode] = useState(false);
 
   useEffect(() => {
     if (!id) return;
 
     // Tentar SQLite primeiro
     const local = getVistoriaById(id as string);
+    const localIsTraining = isTrainingVistoria(local);
+    setTrainingMode(localIsTraining);
     if (local?.fotos_urls) {
       try {
         const urls: string[] = JSON.parse(local.fotos_urls);
@@ -56,6 +58,8 @@ export default function FotoScreen() {
     }
 
     // Fallback: buscar fotosUrls do Supabase (vistorias já sincronizadas)
+    if (localIsTraining) return;
+
     (async () => {
       try {
         const { data } = await supabase
@@ -88,15 +92,6 @@ export default function FotoScreen() {
     return true;
   };
 
-  const comprimirImagem = async (uri: string): Promise<string> => {
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: LARGURA_MAX } }],
-      { compress: QUALIDADE, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    return result.uri;
-  };
-
   const processarFoto = async (uri: string) => {
     if (fotos.length >= MAX_FOTOS) return;
 
@@ -105,10 +100,14 @@ export default function FotoScreen() {
     setFotos(prev => [...prev, { localId, uri, uploading: true }]);
 
     try {
-      const uriComprimida = await comprimirImagem(uri);
+      const uriComprimida = await compressAndPersistImage(uri, {
+        directoryName: 'fotos/evidencias',
+        filePrefix: 'evidencia',
+        maxWidth: EVIDENCE_IMAGE_MAX_WIDTH,
+      });
 
       // Só tenta upload se tiver internet real
-      if (isOnlineReal) {
+      if (isOnlineReal && !trainingMode) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
@@ -198,7 +197,7 @@ export default function FotoScreen() {
     ));
 
     try {
-      if (isOnlineReal) {
+      if (isOnlineReal && !trainingMode) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           const fileName = `vistorias/${id || 'sem-id'}/${Date.now()}.jpg`;
@@ -249,7 +248,7 @@ export default function FotoScreen() {
     try {
       // Se online, tentar re-upload de fotos locais que ainda não foram sincronizadas
       let fotosAtualizadas = [...fotos];
-      if (isOnlineReal) {
+      if (isOnlineReal && !trainingMode) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           const pendentes = fotosAtualizadas.filter(f => !f.url && !f.erro);
@@ -287,16 +286,16 @@ export default function FotoScreen() {
 
       // Salvar URLs no Supabase (incluindo quando todas são removidas — limpar o campo)
       const remoteUrls = fotosAtualizadas.filter(f => f.url).map(f => f.url!);
-      if (id && isOnlineReal) {
+      if (id && isOnlineReal && !trainingMode) {
         await supabase
           .from('vistorias')
           .update({ fotosUrls: remoteUrls.length > 0 ? remoteUrls : null })
           .eq('id', id);
       }
 
-      router.back();
+      safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes');
     } catch {
-      router.back();
+      safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes');
     } finally {
       setSalvando(false);
     }
@@ -316,7 +315,7 @@ export default function FotoScreen() {
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
+          onPress={() => safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
         >
           <Feather name="arrow-left" color={theme.textSecondary} size={24} />
         </TouchableOpacity>

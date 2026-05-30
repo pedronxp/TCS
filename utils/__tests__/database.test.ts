@@ -161,6 +161,62 @@ describe('insertVistoria — persistência offline', () => {
     expect(() => JSON.parse(json)).not.toThrow();
     expect(JSON.parse(json)).toEqual(respostas);
   });
+
+  it('insertTrainingVistoria grava como sincronizado para impedir sync de produção', () => {
+    const mockDb = {
+      runSync: jest.fn(),
+      getFirstSync: jest.fn(() => null),
+      getAllSync: jest.fn(() => []),
+      withTransactionSync: jest.fn((cb: () => void) => cb()),
+    };
+    require('expo-sqlite').openDatabaseSync.mockReturnValue(mockDb);
+
+    const { insertTrainingVistoria } = require('../database');
+
+    const vistoria = {
+      id: 'training-001',
+      agente_uid: 'training:participant-1',
+      agente_nome: 'Aluno Teste',
+      municipio: 'Treinamento',
+      endereco_rua: 'Rua Aula',
+      endereco_numero: '10',
+      endereco_bairro: 'Centro',
+      endereco_cep: null,
+      responsavel_nome: null,
+      latitude: null,
+      longitude: null,
+      data_vistoria: new Date().toISOString(),
+      formulario_id: 'vistoria_deslizamento_v3',
+      formulario_versao: 3,
+      respostas_json: '{}',
+      calculo_json: null,
+      nivel_risco: 'r1',
+      pontuacao_total: 0,
+      foto_url: null,
+      feita_online: 1,
+      modo_treinamento: 1,
+      training_class_id: 'class-1',
+      training_participant_id: 'participant-1',
+      criado_em: new Date().toISOString(),
+    };
+
+    expect(() => insertTrainingVistoria(vistoria)).not.toThrow();
+
+    const calls = mockDb.runSync.mock.calls as any[][];
+    const insertCall = calls.find((c: any[]) =>
+      typeof c[0] === 'string' && c[0].includes('INSERT OR REPLACE INTO vistorias_offline')
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![0]).toContain('modo_treinamento');
+    expect(insertCall![0]).toContain('training_class_id');
+    expect(insertCall![0]).toContain('training_participant_id');
+
+    const params = insertCall![1] as any[];
+    expect(params[params.length - 5]).toBe(1); // modo_treinamento
+    expect(params).toContain('class-1');
+    expect(params).toContain('participant-1');
+    expect(params[params.length - 2]).toBe(1); // sincronizado
+  });
 });
 
 describe('getVistoriasByAgente — filtragem por agente', () => {
@@ -188,6 +244,46 @@ describe('getVistoriasByAgente — filtragem por agente', () => {
     );
     expect(selectCall).toBeDefined();
     expect(selectCall![1]).toContain(uid);
+    expect(selectCall![0]).toContain('COALESCE(modo_treinamento, 0) = 0');
+    expect(selectCall![0]).toContain("agente_uid NOT LIKE 'training:%'");
+  });
+
+  it('separa consultas oficiais e consultas de treinamento', () => {
+    const mockDb = {
+      runSync: jest.fn(),
+      getFirstSync: jest.fn(() => ({ total: 0 })),
+      getAllSync: jest.fn(() => []),
+      withTransactionSync: jest.fn((cb: () => void) => cb()),
+    };
+    require('expo-sqlite').openDatabaseSync.mockReturnValue(mockDb);
+
+    const {
+      getVistoriasNaoSincronizadas,
+      getVistoriasByMunicipio,
+      getAllVistorias,
+      getTrainingVistoriasByAgente,
+      getOfficialVistoriaById,
+      getTrainingVistoriaById,
+      countPendentes,
+    } = require('../database');
+
+    getVistoriasNaoSincronizadas();
+    getVistoriasByMunicipio('Santos');
+    getAllVistorias();
+    getTrainingVistoriasByAgente('training:participant-1');
+    getOfficialVistoriaById('vistoria-1');
+    getTrainingVistoriaById('vistoria-1', 'training:participant-1');
+    countPendentes();
+
+    const allSql = [
+      ...mockDb.getAllSync.mock.calls.map((c: any[]) => c[0]),
+      ...mockDb.getFirstSync.mock.calls.map((c: any[]) => c[0]),
+    ].join('\n');
+
+    expect(allSql).toContain('COALESCE(modo_treinamento, 0) = 0');
+    expect(allSql).toContain("agente_uid NOT LIKE 'training:%'");
+    expect(allSql).toContain('COALESCE(modo_treinamento, 0) = 1');
+    expect(allSql).toContain("agente_uid LIKE 'training:%'");
   });
 });
 
