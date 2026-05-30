@@ -99,9 +99,24 @@ function getRiscoLabel(nivel: string): string {
   return 'BAIXO';
 }
 
+function getRiscoShortLabel(nivel: string): string {
+  const n = normalizeNivel(nivel);
+  if (n === 'r4') return 'R4';
+  if (n === 'r3') return 'R3';
+  if (n === 'r2') return 'R2';
+  return 'R1';
+}
+
+function hasValidCoords(lat: unknown, lng: unknown): boolean {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+  return !(latitude === 0 && longitude === 0);
+}
+
 // Tamanhos do marcador — visual neutro para não sumir no mapa do Android.
 const PIN_WRAP_WIDTH  = Platform.OS === 'android' ? 52 : 44;
-const PIN_WRAP_HEIGHT = Platform.OS === 'android' ? 64 : 54;
+const PIN_WRAP_HEIGHT = Platform.OS === 'android' ? 78 : 68;
 const PIN_HEAD        = Platform.OS === 'android' ? 42 : 34;
 const PIN_CENTER      = Platform.OS === 'android' ? 17 : 14;
 const PIN_TIP         = Platform.OS === 'android' ? 16 : 13;
@@ -111,7 +126,7 @@ const MARKER_ANCHOR = { x: 0.5, y: 1 };
 const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
 
 // Marcador customizado sem pinColor para manter renderização consistente no mapa nativo.
-function MarkerPin({ color }: { color: string }) {
+function MarkerPin({ color, label }: { color: string; label: string }) {
   return (
     <View style={markerStyles.markerWrap}>
       <View style={markerStyles.pinShadow}>
@@ -120,6 +135,9 @@ function MarkerPin({ color }: { color: string }) {
           <View style={[markerStyles.riskAccent, { backgroundColor: color }]} />
         </View>
         <View style={[markerStyles.pinTip, { borderColor: color }]} />
+      </View>
+      <View style={markerStyles.labelBadge}>
+        <Text style={[markerStyles.labelBadgeText, { color }]}>{label}</Text>
       </View>
     </View>
   );
@@ -134,6 +152,9 @@ function AgendamentoPin() {
           <View style={[markerStyles.riskAccent, { backgroundColor: '#3B82F6' }]} />
         </View>
         <View style={[markerStyles.pinTip, { borderColor: '#3B82F6' }]} />
+      </View>
+      <View style={markerStyles.labelBadge}>
+        <Text style={[markerStyles.labelBadgeText, { color: '#3B82F6' }]}>AG</Text>
       </View>
     </View>
   );
@@ -192,6 +213,28 @@ const markerStyles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     transform: [{ rotate: '45deg' }],
   },
+  labelBadge: {
+    minWidth: 32,
+    height: 20,
+    marginTop: -1,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  labelBadgeText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
 });
 
 export default function MapasScreen() {
@@ -207,6 +250,7 @@ export default function MapasScreen() {
   const mountedRef = useRef(true);
   const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markerRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [loading, setLoading]           = useState(true);
   const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
@@ -219,6 +263,7 @@ export default function MapasScreen() {
   const [selectedMarker, setSelectedMarker] = useState<VistoriaMarker | null>(null);
   const [selectedAgendamento, setSelectedAgendamento] = useState<AgendamentoMarker | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [tracksMarkerChanges, setTracksMarkerChanges] = useState(true);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -228,6 +273,7 @@ export default function MapasScreen() {
       mountedRef.current = false;
       if (timer1Ref.current) clearTimeout(timer1Ref.current);
       if (timer2Ref.current) clearTimeout(timer2Ref.current);
+      if (markerRenderTimerRef.current) clearTimeout(markerRenderTimerRef.current);
     };
   }, [profile, isOnlineReal]);
 
@@ -270,6 +316,14 @@ export default function MapasScreen() {
     });
   };
 
+  const refreshMarkerRendering = () => {
+    setTracksMarkerChanges(true);
+    if (markerRenderTimerRef.current) clearTimeout(markerRenderTimerRef.current);
+    markerRenderTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) setTracksMarkerChanges(false);
+    }, 1400);
+  };
+
   const loadMarkers = async () => {
     if (!profile) {
       setMarkers([]);
@@ -278,6 +332,7 @@ export default function MapasScreen() {
       return;
     }
     setLoading(true);
+    refreshMarkerRendering();
     try {
       const isAdmin = ['admin', 'master_admin', 'supervisor'].includes(profile.role);
 
@@ -298,7 +353,7 @@ export default function MapasScreen() {
         if (!error && data) {
           if (!mountedRef.current) return;
           const loaded: VistoriaMarker[] = data
-            .filter((v: any) => v.latitude && v.longitude)
+            .filter((v: any) => hasValidCoords(v.latitude, v.longitude))
             .map((v: any) => ({
               id: v.id,
               lat: Number(v.latitude),
@@ -330,7 +385,7 @@ export default function MapasScreen() {
             }
             const { data: agendData } = await agendQuery.limit(200);
             if (agendData) {
-              loadedAgend = agendData.filter((a: any) => a.lat && a.lng).map((a: any) => ({
+              loadedAgend = agendData.filter((a: any) => hasValidCoords(a.lat, a.lng)).map((a: any) => ({
                 id: a.id,
                 lat: Number(a.lat),
                 lng: Number(a.lng),
@@ -394,7 +449,7 @@ export default function MapasScreen() {
           : getVistoriasByAgente(profile.uid);
 
       const offlineMarkers: VistoriaMarker[] = locais
-        .filter((v: any) => v.latitude && v.longitude)
+        .filter((v: any) => hasValidCoords(v.latitude, v.longitude))
         .map((v: any) => ({
           id: v.id,
           lat: Number(v.latitude),
@@ -414,7 +469,7 @@ export default function MapasScreen() {
           ? getAgendamentosByMunicipio(profile.municipio ?? '')
           : getAgendamentosByAgente(profile.uid, profile.municipio);
       const offlineAgend: AgendamentoMarker[] = agendLocais
-        .filter((a: any) => a.lat && a.lng && a.status === 'pendente')
+        .filter((a: any) => hasValidCoords(a.lat, a.lng) && a.status === 'pendente')
         .map((a: any) => ({
           id: a.id,
           lat: Number(a.lat),
@@ -465,6 +520,11 @@ export default function MapasScreen() {
     return true;
   });
 
+  useEffect(() => {
+    if (filteredMarkers.length === 0 && agendamentos.length === 0) return;
+    refreshMarkerRendering();
+  }, [filteredMarkers.length, agendamentos.length, filter, filtroPeriodo, showHeatmap]);
+
   const currentStyleConfig = MAP_STYLES.find(s => s.key === mapStyle)!;
   const initialRegion = userLocation
     ? { latitude: userLocation.lat, longitude: userLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
@@ -477,6 +537,7 @@ export default function MapasScreen() {
       weight: n === 'r4' ? 1 : n === 'r3' ? 0.8 : n === 'r2' ? 0.5 : 0.3,
     };
   });
+  const shouldRenderPins = !showHeatmap || Platform.OS !== 'android';
 
   if (loading) {
     return (
@@ -511,16 +572,16 @@ export default function MapasScreen() {
         showsMyLocationButton={false}
         onRegionChangeComplete={(region: any) => { currentRegionRef.current = region; }}
       >
-        {!showHeatmap && filteredMarkers.map(m => (
+        {shouldRenderPins && filteredMarkers.map(m => (
           <Marker
             key={m.id}
             coordinate={{ latitude: m.lat, longitude: m.lng }}
             onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
             anchor={MARKER_ANCHOR}
             centerOffset={MARKER_CENTER_OFFSET}
-            tracksViewChanges={false}
+            tracksViewChanges={tracksMarkerChanges}
           >
-            <MarkerPin color={getRiscoColor(m.nivelRisco)} />
+            <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getRiscoShortLabel(m.nivelRisco)} />
           </Marker>
         ))}
 
@@ -531,7 +592,7 @@ export default function MapasScreen() {
             onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
             anchor={MARKER_ANCHOR}
             centerOffset={MARKER_CENTER_OFFSET}
-            tracksViewChanges={false}
+            tracksViewChanges={tracksMarkerChanges}
           >
             <AgendamentoPin />
           </Marker>
