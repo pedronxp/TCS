@@ -21,6 +21,7 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { safeBack } from '../../../utils/navigationUtils';
+import { normalizeCoordinatePair } from '../../../utils/coordinateUtils';
 import { compressAndPersistImage } from '../../../utils/imageCompression';
 import { WizardParams } from '../../../types/vistoria';
 import {
@@ -39,6 +40,7 @@ import {
   getObservacaoCondicionalRiscoConfig,
   getObservacaoCondicionalRiscoKey,
   opcaoAcionaObservacaoCondicionalRisco,
+  opcaoRequerJustificativaTecnica,
   PerguntaModel,
 } from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
@@ -284,6 +286,10 @@ export default function WizardAvaliacaoScreen() {
     perguntaAtual,
     resposta,
   );
+  const justificativaTecnicaObrigatoriaAtiva = opcaoRequerJustificativaTecnica(
+    perguntaAtual,
+    resposta,
+  );
   const observacaoCondicionalKey = perguntaAtual
     ? getObservacaoCondicionalRiscoKey(perguntaAtual.id)
     : '';
@@ -302,8 +308,10 @@ export default function WizardAvaliacaoScreen() {
   };
 
   const podeAvancar = () => {
-    if (!perguntaAtual?.obrigatoria) return true;
-    return respostaObrigatoriaPreenchida(perguntaAtual, resposta);
+    if (!perguntaAtual) return false;
+    if (perguntaAtual.obrigatoria && !respostaObrigatoriaPreenchida(perguntaAtual, resposta)) return false;
+    if (justificativaTecnicaObrigatoriaAtiva && !observacaoCondicionalValor.trim()) return false;
+    return true;
   };
 
   const placeholderObservacaoCondicional = () => {
@@ -442,6 +450,17 @@ export default function WizardAvaliacaoScreen() {
       setStep(idx);
       return;
     }
+    const justificativaPendente = perguntasVisiveis.find(p => {
+      const respostaId = respostasVisiveis[p.id];
+      if (!opcaoRequerJustificativaTecnica(p, respostaId)) return false;
+      return !String(respostas[getObservacaoCondicionalRiscoKey(p.id)] ?? '').trim();
+    });
+    if (justificativaPendente) {
+      Alert.alert('Justificativa obrigatória', `Justifique a resposta "Inexistente" em: "${justificativaPendente.texto}"`);
+      const idx = perguntasVisiveis.indexOf(justificativaPendente);
+      setStep(idx);
+      return;
+    }
 
     if (trainingMode && (isExpired() || !(await revalidate()))) {
       await exit();
@@ -472,6 +491,7 @@ export default function WizardAvaliacaoScreen() {
       const fotoUri = perguntaFoto ? (respostasVisiveis[perguntaFoto.id] || null) : null;
 
       const municipioVistoria = params.municipio || activeProfile?.municipio || '';
+      const coordenadasVistoria = normalizeCoordinatePair(params.lat, params.lng);
       const vistoriaLocal = {
         id,
         agente_uid: activeProfile.uid,
@@ -483,8 +503,8 @@ export default function WizardAvaliacaoScreen() {
         endereco_bairro: params.bairro || '',
         endereco_cep: params.cep || null,
         responsavel_nome: params.responsavelNome || null,
-        latitude: parseFloat(params.lat || '') || null,
-        longitude: parseFloat(params.lng || '') || null,
+        latitude: coordenadasVistoria?.latitude ?? null,
+        longitude: coordenadasVistoria?.longitude ?? null,
         data_vistoria: agora,
         formulario_id: params.formularioId,
         formulario_versao: parseInt(params.formularioVersao || '1') || 1,
@@ -614,6 +634,10 @@ export default function WizardAvaliacaoScreen() {
 
   const avancar = () => {
     if (!podeAvancar()) {
+      if (justificativaTecnicaObrigatoriaAtiva && !observacaoCondicionalValor.trim()) {
+        Alert.alert('Justificativa obrigatória', 'Justifique a condição observada em campo para continuar.');
+        return;
+      }
       Alert.alert('Resposta obrigatória', 'Responda esta pergunta para continuar.');
       return;
     }
@@ -726,17 +750,23 @@ export default function WizardAvaliacaoScreen() {
                 <View style={styles.conditionalNoteHeader}>
                   <Feather name="edit-3" size={15} color={theme.primary} />
                   <Text style={[styles.conditionalNoteTitle, { color: theme.text }]}>
-                    {observacaoConfig?.titulo || 'Observação técnica da resposta'}
+                    {justificativaTecnicaObrigatoriaAtiva
+                      ? (opcaoSelecionada?.justificativaTitulo || 'Justificativa técnica obrigatória')
+                      : (observacaoConfig?.titulo || 'Observação técnica da resposta')}
                   </Text>
                 </View>
                 <Text style={[styles.conditionalNoteDesc, { color: theme.textSecondary }]}>
-                  {`Campo opcional para complementar: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`}
+                  {justificativaTecnicaObrigatoriaAtiva
+                    ? (opcaoSelecionada?.justificativaDescricao || `Explique tecnicamente a condição observada em campo: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`)
+                    : `Campo opcional para complementar: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`}
                 </Text>
                 <TextInput
                   style={[styles.conditionalNoteInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
                   multiline
                   numberOfLines={4}
-                  placeholder={placeholderObservacaoCondicional()}
+                  placeholder={justificativaTecnicaObrigatoriaAtiva
+                    ? (opcaoSelecionada?.justificativaPlaceholder || 'Descreva a evidência observada, o impacto no risco e a orientação dada em campo.')
+                    : placeholderObservacaoCondicional()}
                   placeholderTextColor={theme.textSecondary}
                   value={observacaoCondicionalValor}
                   onChangeText={t => setResposta(observacaoCondicionalKey, t)}

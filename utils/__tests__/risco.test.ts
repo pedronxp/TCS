@@ -237,6 +237,60 @@ describe('calcularRiscoFormulario', () => {
     expect(calculo.pontuacaoTotal).toBe(0);
     expect(calculo.itens[0].observacao).toBeUndefined();
   });
+
+  it('aplica regra conservadora para Fundacao = Inexistente com justificativa', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        est_q1: 'inexistente',
+        est_q1__observacao_risco: 'Fundacao nao observada; base apoiada diretamente no solo.',
+      },
+      perguntas: [{
+        id: 'est_q1',
+        texto: 'Fundacao',
+        tipo: 'cards',
+        opcoes: [
+          { id: 'inexistente', texto: 'Inexistente', pesoRisco: 1 },
+          { id: 'q1_a', texto: 'Bom', pesoRisco: 0 },
+        ],
+      }],
+    });
+
+    expect(calculo.pontuacaoBase).toBe(1);
+    expect(calculo.pontuacaoTotal).toBe(4);
+    expect(calculo.nivelRisco).toBe('r3');
+    expect(calculo.regrasCondicionais?.[0].respostaId).toBe('inexistente');
+    expect(calculo.regrasCondicionais?.[0].justificativa).toContain('Fundacao');
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.regrasCondicionais?.[0].nivelMinimo).toBe('r3');
+  });
+
+  it('aplica regra conservadora para Estrutura (pilares e vigas) = Inexistente', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        est_q2: 'inexistente',
+        est_q2__observacao_risco: 'Nao foram identificados pilares ou vigas no setor avaliado.',
+      },
+      perguntas: [{
+        id: 'est_q2',
+        texto: 'Estrutura (pilares e vigas)',
+        tipo: 'cards',
+        opcoes: [
+          { id: 'inexistente', texto: 'Inexistente', pesoRisco: 1 },
+          { id: 'q2_d', texto: 'Pessimo', pesoRisco: 1 },
+        ],
+      }],
+    });
+
+    expect(calculo.pontuacaoTotal).toBe(4);
+    expect(calculo.nivelRisco).toBe('r3');
+    expect(calculo.regrasCondicionais?.[0].label).toBe('Estrutura principal inexistente');
+    expect(calculo.regrasCondicionais?.[0].justificativa).toContain('pilares');
+  });
 });
 
 describe('normalizacao e formatacao', () => {

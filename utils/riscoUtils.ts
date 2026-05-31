@@ -97,6 +97,8 @@ const PERGUNTA_INCLINACAO_ENCOSTA = 'desl2_q2';
 const RESPOSTAS_INCLINACAO_VERTICAL_OU_NEGATIVA = ['q2_e', 'q2_f'];
 const PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA = 'desl2_q2_exposicao_altura_distancia';
 const PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA = 'desl2_q2_justificativa_tecnica';
+const FORMULARIO_RISCO_ESTRUTURAL_V2 = 'risco_estrutural_novo_v2';
+const RESPOSTA_INEXISTENTE = 'inexistente';
 const PONTUACAO_MINIMA_NIVEL: Record<NivelRisco, number> = {
   r1: 0,
   r2: 2.1,
@@ -284,6 +286,49 @@ function identificarRegrasCondicionais(params: {
   }];
 }
 
+function identificarRegrasCondicionaisEstruturais(params: {
+  formularioId?: string;
+  respostas: Record<string, string>;
+}): CalculoRiscoRegraCondicional[] {
+  if (params.formularioId !== FORMULARIO_RISCO_ESTRUTURAL_V2) return [];
+
+  const camposCriticos = [
+    {
+      perguntaId: 'est_q1',
+      id: 'fundacao_inexistente',
+      label: 'Fundação inexistente',
+      descricao: 'A ausência de fundação observável é uma condição estrutural crítica e não deve ser tratada como não aplicável.',
+      efeito: 'Classifica o risco em no mínimo R3 e exige justificativa técnica do agente.',
+    },
+    {
+      perguntaId: 'est_q2',
+      id: 'estrutura_pilares_vigas_inexistente',
+      label: 'Estrutura principal inexistente',
+      descricao: 'A ausência de pilares e vigas observáveis é uma condição estrutural crítica e não deve ser tratada como não aplicável.',
+      efeito: 'Classifica o risco em no mínimo R3 e exige justificativa técnica do agente.',
+    },
+  ];
+
+  return camposCriticos
+    .filter(campo => params.respostas[campo.perguntaId] === RESPOSTA_INEXISTENTE)
+    .map(campo => {
+      const justificativaKey = getObservacaoCondicionalRiscoKey(campo.perguntaId);
+      return {
+        id: campo.id,
+        label: campo.label,
+        descricao: campo.descricao,
+        perguntaId: campo.perguntaId,
+        respostaId: RESPOSTA_INEXISTENTE,
+        resposta: 'Inexistente',
+        efeito: campo.efeito,
+        nivelMinimo: 'r3' as NivelRisco,
+        pontuacaoMinima: PONTUACAO_MINIMA_NIVEL.r3,
+        justificativaPerguntaId: justificativaKey,
+        justificativa: params.respostas[justificativaKey]?.trim() || undefined,
+      };
+    });
+}
+
 function elevarNivelRisco(nivelAtual: NivelRisco, nivelMinimo?: NivelRisco): NivelRisco {
   if (!nivelMinimo) return nivelAtual;
   return ORDEM_NIVEL_RISCO[nivelAtual] >= ORDEM_NIVEL_RISCO[nivelMinimo]
@@ -341,10 +386,16 @@ export function calcularRiscoFormulario(params: {
 
   const limites = params.limites && params.limites.length > 0 ? params.limites : RISCO_0_10_LIMITES;
   const agravantes = identificarAgravantesCriticos();
-  const regrasCondicionais = identificarRegrasCondicionais({
-    formularioId: params.formularioId,
-    respostas: params.respostas,
-  });
+  const regrasCondicionais = [
+    ...identificarRegrasCondicionais({
+      formularioId: params.formularioId,
+      respostas: params.respostas,
+    }),
+    ...identificarRegrasCondicionaisEstruturais({
+      formularioId: params.formularioId,
+      respostas: params.respostas,
+    }),
+  ];
   const pontuacaoBase = limitarPontuacaoRisco(total);
   const pontuacaoMinimaAgravante = maxPontuacaoMinima([...agravantes, ...regrasCondicionais]);
   const pontuacaoTotal = limitarPontuacaoRisco(Math.max(pontuacaoBase, pontuacaoMinimaAgravante));

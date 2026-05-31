@@ -18,6 +18,7 @@ import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracarRota } from '../../../utils/routingUtils';
+import { hasValidCoordinates } from '../../../utils/coordinateUtils';
 import { safeBack } from '../../../utils/navigationUtils';
 
 export default function VistoriaDetalhesScreen() {
@@ -214,7 +215,7 @@ export default function VistoriaDetalhesScreen() {
   const cor = riscoColor(vistoria.nivelRisco);
   const nivel = riscoLabel(vistoria.nivelRisco);
   const endereco = vistoria.endereco || `${vistoria.enderecoRua || ''}, ${vistoria.enderecoNumero || ''} — ${vistoria.enderecoBairro || ''}`;
-  const hasCoords = vistoria.latitude && vistoria.latitude !== 0 && vistoria.longitude && vistoria.longitude !== 0;
+  const hasCoords = hasValidCoordinates(vistoria.latitude, vistoria.longitude);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

@@ -12,6 +12,10 @@ export interface OpcaoModel {
   imagemLocal?: string | null;
   svgKey?: string | null;
   pesoRisco: number;
+  requerJustificativaTecnica?: boolean;
+  justificativaTitulo?: string;
+  justificativaDescricao?: string;
+  justificativaPlaceholder?: string;
 }
 
 export interface SkipSe {
@@ -77,12 +81,24 @@ export function opcaoAcionaObservacaoCondicionalRisco(
   pergunta: Pick<PerguntaModel, 'tipo' | 'auxiliarCalculo' | 'opcoes'> | undefined,
   respostaId: string | undefined,
 ): boolean {
-  const config = getObservacaoCondicionalRiscoConfig(formularioId);
-  if (!config || !pergunta || !respostaId) return false;
+  if (!pergunta || !respostaId) return false;
   if (pergunta.auxiliarCalculo) return false;
   if (pergunta.tipo !== 'cards' && pergunta.tipo !== 'multipla_escolha') return false;
   const opcao = (pergunta.opcoes || []).find(o => o.id === respostaId);
+  if (opcao?.requerJustificativaTecnica) return true;
+  const config = getObservacaoCondicionalRiscoConfig(formularioId);
+  if (!config) return false;
   return Number(opcao?.pesoRisco ?? 0) >= config.pesoMinimo;
+}
+
+export function opcaoRequerJustificativaTecnica(
+  pergunta: Pick<PerguntaModel, 'tipo' | 'auxiliarCalculo' | 'opcoes'> | undefined,
+  respostaId: string | undefined,
+): boolean {
+  if (!pergunta || !respostaId) return false;
+  if (pergunta.auxiliarCalculo) return false;
+  if (pergunta.tipo !== 'cards' && pergunta.tipo !== 'multipla_escolha') return false;
+  return Boolean((pergunta.opcoes || []).find(o => o.id === respostaId)?.requerJustificativaTecnica);
 }
 
 export function flattenPerguntas(json: any): PerguntaModel[] {
@@ -109,7 +125,11 @@ export function flattenPerguntas(json: any): PerguntaModel[] {
           descricao: o.descricao,
           imagemLocal: o.imagemKey || o.imagemLocal || null,
           svgKey: o.svgKey || null,
-          pesoRisco: o.pesoRisco || 0,
+          pesoRisco: Number(o.pesoRisco ?? 0),
+          requerJustificativaTecnica: Boolean(o.requerJustificativaTecnica),
+          justificativaTitulo: o.justificativaTitulo,
+          justificativaDescricao: o.justificativaDescricao,
+          justificativaPlaceholder: o.justificativaPlaceholder,
         })),
         skipSe: p.skipSe || null,
         mostrarQuando: p.mostrarQuando || null,

@@ -12,6 +12,7 @@ import { useTraining } from '../../../context/TrainingContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sanitizarTexto, validarNome, validarMunicipio } from '../../../utils/validationUtils';
 import { safeBack } from '../../../utils/navigationUtils';
+import { normalizeCoordinatePair } from '../../../utils/coordinateUtils';
 
 /** Estado interno do formulário de endereço */
 interface AddressForm {
@@ -44,22 +45,25 @@ export default function DadosIniciaisScreen() {
 
   const latPre = params.latPreenchida ? parseFloat(params.latPreenchida) : null;
   const lngPre = params.lngPreenchida ? parseFloat(params.lngPreenchida) : null;
+  const coordsPreenchidas = normalizeCoordinatePair(latPre, lngPre);
 
   const [form, setForm] = useState<AddressForm>({
     cep: '', rua: params.ruaPreenchida ?? '', numero: '', bairro: '',
     municipio: params.municipioPreenchido || activeProfile?.municipio || '',
     responsavelNome: '',
-    lat: latPre && !isNaN(latPre) ? latPre : null,
-    lng: lngPre && !isNaN(lngPre) ? lngPre : null,
+    lat: coordsPreenchidas?.latitude ?? null,
+    lng: coordsPreenchidas?.longitude ?? null,
     gpsAcuracia: null,
   });
   const [municipioOrigem, setMunicipioOrigem] = useState<'perfil' | 'gps' | 'cep' | 'manual'>('perfil');
   const [detectandoGps, setDetectandoGps] = useState(false);
+  const [gpsMessage, setGpsMessage] = useState<string | null>(null);
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [erroCep, setErroCep] = useState<string | null>(null);
   const cepRef = useRef<TextInput>(null);
 
   useEffect(() => {
+    if (coordsPreenchidas) return;
     detectarGps();
   }, []);
 
@@ -112,33 +116,46 @@ export default function DadosIniciaisScreen() {
         municipio: cidade || f.municipio,
       }));
       if (cidade) setMunicipioOrigem('gps');
-    } catch (_) { /* Silently ignore */ }
+    } catch (_) {
+      setGpsMessage('Não foi possível preencher o endereço automaticamente. Você pode informar os dados manualmente.');
+    }
   };
 
   /** Obtém a coordenada GPS e autocompleta o endereço */
   const detectarGps = async () => {
     setDetectandoGps(true);
+    setGpsMessage(null);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('GPS negado', 'Permissão de localização é necessária para preencher o endereço automaticamente.');
+        setGpsMessage('Permissão de localização negada. Preencha o endereço manualmente para continuar.');
         return;
       }
       const loc = await Promise.race([
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 15000)),
       ]);
-      setForm(f => ({ ...f, lat: loc.coords.latitude, lng: loc.coords.longitude, gpsAcuracia: loc.coords.accuracy }));
-      await reverseGeocode(loc.coords.latitude, loc.coords.longitude);
+      const valid = normalizeCoordinatePair(loc.coords.latitude, loc.coords.longitude);
+      if (!valid) {
+        setGpsMessage('O GPS retornou coordenadas inválidas. Preencha o endereço manualmente para continuar.');
+        return;
+      }
+      setForm(f => ({ ...f, lat: valid.latitude, lng: valid.longitude, gpsAcuracia: loc.coords.accuracy }));
+      await reverseGeocode(valid.latitude, valid.longitude);
     } catch (e) {
       // Try last known position
       try {
         const last = await Location.getLastKnownPositionAsync();
-        if (last) {
-          setForm(f => ({ ...f, lat: last.coords.latitude, lng: last.coords.longitude }));
-          await reverseGeocode(last.coords.latitude, last.coords.longitude);
+        const valid = last ? normalizeCoordinatePair(last.coords.latitude, last.coords.longitude) : null;
+        if (last && valid) {
+          setForm(f => ({ ...f, lat: valid.latitude, lng: valid.longitude }));
+          await reverseGeocode(valid.latitude, valid.longitude);
+        } else {
+          setGpsMessage('Não foi possível obter o GPS agora. Preencha o endereço manualmente para continuar.');
         }
-      } catch (_) {}
+      } catch (_) {
+        setGpsMessage('Não foi possível obter o GPS agora. Preencha o endereço manualmente para continuar.');
+      }
     } finally {
       setDetectandoGps(false);
     }
@@ -277,6 +294,11 @@ export default function DadosIniciaisScreen() {
               Precisão: ±{Math.round(form.gpsAcuracia)}m
             </Text>
           )}
+          {gpsMessage && (
+            <Text style={[styles.gpsMessage, { color: theme.textSecondary }]}>
+              {gpsMessage}
+            </Text>
+          )}
         </View>
 
         {/* ADDRESS SECTION */}
@@ -363,7 +385,7 @@ export default function DadosIniciaisScreen() {
         <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => safeBack(backFallback)}>
           <Text style={[styles.cancelText, { color: theme.textSecondary }]}>CANCELAR</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.primary }]} onPress={avancar} disabled={detectandoGps || buscandoCep}>
+        <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.primary, opacity: buscandoCep ? 0.72 : 1 }]} onPress={avancar} disabled={buscandoCep}>
           <Text style={styles.nextBtnText}>AVANÇAR</Text>
           <Feather name="arrow-right" size={18} color="#FFF" />
         </TouchableOpacity>
@@ -390,6 +412,7 @@ const styles = StyleSheet.create({
   coordLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
   coordValue: { fontSize: 15, fontWeight: '700', marginTop: 2 },
   accuracy: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  gpsMessage: { fontSize: 12, lineHeight: 17, textAlign: 'center' },
   row: { flexDirection: 'row', gap: 12, alignItems: 'flex-end' },
   input: { height: 60, borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, fontSize: 15, fontWeight: '500' },
   readonlyField: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },

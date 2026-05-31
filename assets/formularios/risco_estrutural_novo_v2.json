@@ -14,7 +14,7 @@
   "classificacao": {
     "limites": [
       {
-        "max": 2.0,
+        "max": 2,
         "nivel": "r1",
         "label": "R1 — BAIXO — Condição controlada",
         "cor": "verde"
@@ -32,7 +32,7 @@
         "cor": "laranja"
       },
       {
-        "max": 10.0,
+        "max": 10,
         "nivel": "r4",
         "label": "R4 — CRÍTICO — Risco máximo, interdição/evacuação quando aplicável",
         "cor": "vermelho"
@@ -61,15 +61,19 @@
             {
               "id": "inexistente",
               "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
+              "descricao": "Fundação inexistente no local vistoriado; exige justificativa técnica.",
+              "pesoRisco": 1,
+              "requerJustificativaTecnica": true,
+              "justificativaTitulo": "Justificativa técnica obrigatória",
+              "justificativaDescricao": "Explique por que a fundação foi marcada como inexistente e quais evidências sustentam essa conclusão.",
+              "justificativaPlaceholder": "Descreva a evidência observada, o impacto no risco e a orientação dada em campo."
             },
             {
               "id": "q1_a",
               "texto": "Bom",
               "descricao": "Fundação em bom estado, sem sinais de deterioração",
               "svgKey": "est_q1_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q1_b",
@@ -90,28 +94,32 @@
               "texto": "Péssimo",
               "descricao": "Fundação em estado crítico",
               "svgKey": "est_q1_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 1
             }
           ]
         },
         {
           "id": "est_q2",
-          "texto": "Estrutura (pilares, vigas, lajes)",
+          "texto": "Estrutura (pilares e vigas)",
           "tipo": "cards",
           "obrigatoria": true,
           "opcoes": [
             {
               "id": "inexistente",
               "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
+              "descricao": "Estrutura (pilares e vigas) inexistente no local vistoriado; exige justificativa técnica.",
+              "pesoRisco": 1,
+              "requerJustificativaTecnica": true,
+              "justificativaTitulo": "Justificativa técnica obrigatória",
+              "justificativaDescricao": "Explique por que a estrutura de pilares e vigas foi marcada como inexistente e quais evidências sustentam essa conclusão.",
+              "justificativaPlaceholder": "Descreva a evidência observada, o impacto no risco e a orientação dada em campo."
             },
             {
               "id": "q2_a",
               "texto": "Bom",
               "descricao": "Estrutura íntegra sem danos visíveis",
               "svgKey": "est_q2_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q2_b",
@@ -132,7 +140,36 @@
               "texto": "Péssimo",
               "descricao": "Estrutura comprometida, risco iminente",
               "svgKey": "est_q2_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 1
+            }
+          ]
+        },
+        {
+          "id": "est_q2_laje",
+          "texto": "Laje",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "q2_laje_a",
+              "texto": "Bom",
+              "descricao": "Laje íntegra, sem fissuras, deformações ou infiltrações relevantes",
+              "svgKey": "est_q2_bom",
+              "pesoRisco": 0
+            },
+            {
+              "id": "q2_laje_c",
+              "texto": "Ruim",
+              "descricao": "Laje com fissuras, infiltrações ou deformações que exigem avaliação técnica",
+              "svgKey": "est_q2_ruim",
+              "pesoRisco": 0.48
+            },
+            {
+              "id": "q2_laje_d",
+              "texto": "Péssimo",
+              "descricao": "Laje comprometida, com risco de colapso ou perda de desempenho estrutural",
+              "svgKey": "est_q2_pessimo",
+              "pesoRisco": 0.8
             }
           ]
         },
@@ -143,38 +180,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q3_a",
               "texto": "Bom",
               "descricao": "Alvenaria íntegra e bem conservada",
               "svgKey": "est_q3_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q3_b",
               "texto": "Regular",
               "descricao": "Alvenaria com pequenas fissuras",
               "svgKey": "est_q3_regular",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q3_c",
               "texto": "Ruim",
               "descricao": "Alvenaria com fissuras ou desaprumo",
               "svgKey": "est_q3_ruim",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q3_d",
               "texto": "Péssimo",
               "descricao": "Alvenaria com risco de colapso",
               "svgKey": "est_q3_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },
@@ -185,38 +216,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q4_a",
               "texto": "Bom",
               "descricao": "Cobertura íntegra sem vazamentos",
               "svgKey": "est_q4_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q4_b",
               "texto": "Regular",
               "descricao": "Cobertura com pequenas infiltrações",
               "svgKey": "est_q4_regular",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q4_c",
               "texto": "Ruim",
               "descricao": "Cobertura com vazamentos significativos",
               "svgKey": "est_q4_ruim",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q4_d",
               "texto": "Péssimo",
               "descricao": "Cobertura com risco de desabamento",
               "svgKey": "est_q4_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },
@@ -227,38 +252,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q5_a",
               "texto": "Bom",
               "descricao": "Piso íntegro e bem conservado",
               "svgKey": "est_q5_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q5_b",
               "texto": "Regular",
               "descricao": "Piso com pequenos danos",
               "svgKey": "est_q5_regular",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q5_c",
               "texto": "Ruim",
               "descricao": "Piso com danos significativos",
               "svgKey": "est_q5_ruim",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q5_d",
               "texto": "Péssimo",
               "descricao": "Piso com risco de colapso",
               "svgKey": "est_q5_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },
@@ -269,38 +288,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q6_a",
               "texto": "Bom",
               "descricao": "Escadas e circulação seguras",
               "svgKey": "est_q6_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q6_b",
               "texto": "Regular",
               "descricao": "Escadas com pequenos danos",
               "svgKey": "est_q6_regular",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q6_c",
               "texto": "Ruim",
               "descricao": "Escadas com danos que afetam segurança",
               "svgKey": "est_q6_ruim",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q6_d",
               "texto": "Péssimo",
               "descricao": "Escadas com risco iminente",
               "svgKey": "est_q6_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },
@@ -311,38 +324,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q7_a",
               "texto": "Bom",
               "descricao": "Muro íntegro e bem conservado",
               "svgKey": "est_q7_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q7_b",
               "texto": "Regular",
               "descricao": "Muro com pequenas fissuras",
               "svgKey": "est_q7_regular",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q7_c",
               "texto": "Ruim",
               "descricao": "Muro com fissuras ou desaprumo",
               "svgKey": "est_q7_ruim",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q7_d",
               "texto": "Péssimo",
               "descricao": "Muro com risco de colapso",
               "svgKey": "est_q7_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },
@@ -353,38 +360,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q8_a",
               "texto": "Bom",
               "descricao": "Fachada íntegra e bem conservada",
               "svgKey": "est_q8_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q8_b",
               "texto": "Regular",
               "descricao": "Fachada com pequenos danos",
               "svgKey": "est_q8_regular",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q8_c",
               "texto": "Ruim",
               "descricao": "Fachada com danos significativos",
               "svgKey": "est_q8_ruim",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q8_d",
               "texto": "Péssimo",
               "descricao": "Fachada com risco de queda de material",
               "svgKey": "est_q8_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },
@@ -395,38 +396,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q9_a",
               "texto": "Bom",
               "descricao": "Drenagem funcional e bem mantida",
               "svgKey": "est_q9_bom",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q9_b",
               "texto": "Regular",
               "descricao": "Drenagem com pequenos problemas",
               "svgKey": "est_q9_regular",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q9_c",
               "texto": "Ruim",
               "descricao": "Drenagem com problemas significativos",
               "svgKey": "est_q9_ruim",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q9_d",
               "texto": "Péssimo",
               "descricao": "Drenagem ineficiente ou ausente",
               "svgKey": "est_q9_pessimo",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },
@@ -437,38 +432,32 @@
           "obrigatoria": true,
           "opcoes": [
             {
-              "id": "inexistente",
-              "texto": "Inexistente",
-              "descricao": "Item inexistente ou nao aplicavel ao local vistoriado",
-              "pesoRisco": 0.0
-            },
-            {
               "id": "q10_a",
               "texto": "Estável",
               "descricao": "Talude estável sem sinais de movimento",
               "svgKey": "est_q10_estavel",
-              "pesoRisco": 0.0
+              "pesoRisco": 0
             },
             {
               "id": "q10_b",
               "texto": "Sinais Leves",
               "descricao": "Talude com pequenos sinais de instabilidade",
               "svgKey": "est_q10_leve",
-              "pesoRisco": 0.3
+              "pesoRisco": 0.27
             },
             {
               "id": "q10_c",
               "texto": "Sinais Moderados",
               "descricao": "Talude com sinais moderados de movimento",
               "svgKey": "est_q10_moderado",
-              "pesoRisco": 0.6
+              "pesoRisco": 0.54
             },
             {
               "id": "q10_d",
               "texto": "Crítico",
               "descricao": "Talude com risco iminente de deslizamento",
               "svgKey": "est_q10_critico",
-              "pesoRisco": 1.0
+              "pesoRisco": 0.9
             }
           ]
         },

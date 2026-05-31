@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -20,6 +20,12 @@ export default function TrainingDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { session, trainingProfile, exit, isExpired, revalidate } = useTraining();
   const [history, setHistory] = useState<VistoriaLocal[]>([]);
+  const [startingInspection, setStartingInspection] = useState(false);
+  const startingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (startingTimerRef.current) clearTimeout(startingTimerRef.current);
+  }, []);
 
   const loadHistory = useCallback(() => {
     if (!trainingProfile) return;
@@ -60,13 +66,25 @@ export default function TrainingDashboardScreen() {
     );
   };
 
-  const iniciarVistoria = async () => {
-    if (isExpired() || !(await revalidate())) {
-      await exit();
-      router.replace('/(auth)/treinamento');
+  const iniciarVistoria = () => {
+    if (startingInspection) return;
+    if (!session || !trainingProfile || isExpired()) {
+      void exit().finally(() => router.replace('/(auth)/treinamento'));
       return;
     }
-    router.push('/(panel)/inspecoes/dados-iniciais');
+    setStartingInspection(true);
+    router.push({
+      pathname: '/(panel)/inspecoes/dados-iniciais',
+      params: { treinamento: '1' },
+    });
+    if (startingTimerRef.current) clearTimeout(startingTimerRef.current);
+    startingTimerRef.current = setTimeout(() => setStartingInspection(false), 1000);
+    void revalidate().then(ok => {
+      if (!ok) {
+        return exit().finally(() => router.replace('/(auth)/treinamento'));
+      }
+      return undefined;
+    });
   };
 
   const expira = session?.endsAt
@@ -145,8 +163,9 @@ export default function TrainingDashboardScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.primaryAction, { backgroundColor: theme.primary }]}
+          style={[styles.primaryAction, { backgroundColor: theme.primary, opacity: startingInspection ? 0.72 : 1 }]}
           onPress={iniciarVistoria}
+          disabled={startingInspection}
           activeOpacity={0.88}
         >
           <View style={styles.primaryIcon}>
