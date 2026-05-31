@@ -22,6 +22,7 @@ export default function TrainingDashboardScreen() {
   const [history, setHistory] = useState<VistoriaLocal[]>([]);
   const [startingInspection, setStartingInspection] = useState(false);
   const startingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkingSessionRef = useRef(false);
 
   useEffect(() => () => {
     if (startingTimerRef.current) clearTimeout(startingTimerRef.current);
@@ -36,19 +37,26 @@ export default function TrainingDashboardScreen() {
     let alive = true;
 
     const checkSession = async () => {
+      if (checkingSessionRef.current) return;
       if (!session || !trainingProfile || isExpired()) {
         await exit();
         if (alive) router.replace('/(auth)/treinamento');
         return;
       }
 
-      const ok = await revalidate();
-      if (!ok) {
-        if (alive) router.replace('/(auth)/treinamento');
-        return;
-      }
+      checkingSessionRef.current = true;
+      try {
+        loadHistory();
+        const ok = await revalidate();
+        if (!ok) {
+          if (alive) router.replace('/(auth)/treinamento');
+          return;
+        }
 
-      if (alive) loadHistory();
+        if (alive) loadHistory();
+      } finally {
+        checkingSessionRef.current = false;
+      }
     };
 
     void checkSession();

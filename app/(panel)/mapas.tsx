@@ -119,6 +119,7 @@ const PIN_ACCENT      = Platform.OS === 'android' ? 11 : 8;
 const ICON_SIZE       = Platform.OS === 'android' ? 18 : 15;
 const MARKER_ANCHOR = { x: 0.5, y: 1 };
 const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
+const USE_NATIVE_ANDROID_MARKERS = Platform.OS === 'android';
 
 // Marcador customizado sem pinColor para manter renderização consistente no mapa nativo.
 function MarkerPin({ color, label }: { color: string; label: string }) {
@@ -603,29 +604,51 @@ export default function MapasScreen() {
           }}
         >
           {shouldRenderPins && filteredMarkers.map(m => (
-            <Marker
-              key={m.id}
-              coordinate={{ latitude: m.lat, longitude: m.lng }}
-              onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
-              anchor={MARKER_ANCHOR}
-              centerOffset={MARKER_CENTER_OFFSET}
-              tracksViewChanges={tracksMarkerChanges}
-            >
-              <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getRiscoShortLabel(m.nivelRisco)} />
-            </Marker>
+            USE_NATIVE_ANDROID_MARKERS ? (
+              <Marker
+                key={m.id}
+                coordinate={{ latitude: m.lat, longitude: m.lng }}
+                onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
+                pinColor={getRiscoColor(m.nivelRisco)}
+                title={getRiscoLabel(m.nivelRisco)}
+                description={m.endereco}
+              />
+            ) : (
+              <Marker
+                key={m.id}
+                coordinate={{ latitude: m.lat, longitude: m.lng }}
+                onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
+                anchor={MARKER_ANCHOR}
+                centerOffset={MARKER_CENTER_OFFSET}
+                tracksViewChanges={tracksMarkerChanges}
+              >
+                <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getRiscoShortLabel(m.nivelRisco)} />
+              </Marker>
+            )
           ))}
 
           {agendamentos.map(a => (
-            <Marker
-              key={`agend-${a.id}`}
-              coordinate={{ latitude: a.lat, longitude: a.lng }}
-              onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
-              anchor={MARKER_ANCHOR}
-              centerOffset={MARKER_CENTER_OFFSET}
-              tracksViewChanges={tracksMarkerChanges}
-            >
-              <AgendamentoPin />
-            </Marker>
+            USE_NATIVE_ANDROID_MARKERS ? (
+              <Marker
+                key={`agend-${a.id}`}
+                coordinate={{ latitude: a.lat, longitude: a.lng }}
+                onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
+                pinColor="#3B82F6"
+                title="Agendamento"
+                description={a.titulo}
+              />
+            ) : (
+              <Marker
+                key={`agend-${a.id}`}
+                coordinate={{ latitude: a.lat, longitude: a.lng }}
+                onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
+                anchor={MARKER_ANCHOR}
+                centerOffset={MARKER_CENTER_OFFSET}
+                tracksViewChanges={tracksMarkerChanges}
+              >
+                <AgendamentoPin />
+              </Marker>
+            )
           ))}
 
           {showHeatmap && Platform.OS === 'android' && (

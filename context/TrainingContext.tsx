@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateUUID } from '../utils/uuid';
 import { enterTrainingClass, leaveTrainingClass, TrainingEntryResult, TRAINING_ALLOWED_FORMS } from '../services/TrainingService';
@@ -117,21 +117,34 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<TrainingSession | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionRef = useRef<TrainingSession | null>(null);
+  const deviceIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    deviceIdRef.current = deviceId;
+  }, [deviceId]);
 
   const isExpired = useCallback(() => {
-    return isTrainingSessionExpired(session);
-  }, [session]);
+    return isTrainingSessionExpired(sessionRef.current);
+  }, []);
 
   const clearSession = useCallback(async () => {
     await safeRemoveStorageItem(TRAINING_SESSION_KEY);
+    sessionRef.current = null;
     setSession(null);
   }, []);
 
   const refreshFromStorage = useCallback(async () => {
     const id = await getOrCreateTrainingDeviceId();
+    deviceIdRef.current = id;
     setDeviceId(id);
     const raw = await safeGetStorageItem(TRAINING_SESSION_KEY);
     if (!raw) {
+      sessionRef.current = null;
       setSession(null);
       return;
     }
@@ -140,6 +153,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
       if (isTrainingSessionExpired(parsed)) {
         await clearSession();
       } else {
+        sessionRef.current = parsed;
         setSession(parsed);
       }
     } catch {
@@ -152,19 +166,21 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
   }, [refreshFromStorage]);
 
   const enter = useCallback(async (input: { nome: string; token: string }) => {
-    const id = deviceId || await getOrCreateTrainingDeviceId();
+    const id = deviceIdRef.current || await getOrCreateTrainingDeviceId();
+    deviceIdRef.current = id;
     setDeviceId(id);
     const result = await enterTrainingClass({ nome: input.nome, token: input.token, deviceId: id });
     if (result.ok) {
       const next = resultToSession({ ...result, token: result.token || input.token.trim().toUpperCase() }, id);
       await safeSetStorageItem(TRAINING_SESSION_KEY, JSON.stringify(next));
+      sessionRef.current = next;
       setSession(next);
     }
     return result;
-  }, [deviceId]);
+  }, []);
 
   const exit = useCallback(async () => {
-    const activeSession = session;
+    const activeSession = sessionRef.current;
     if (activeSession?.classId && activeSession.deviceId) {
       try {
         await leaveTrainingClass({ classId: activeSession.classId, deviceId: activeSession.deviceId });
@@ -173,32 +189,35 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
       }
     }
     await clearSession();
-  }, [clearSession, session]);
+  }, [clearSession]);
 
   const revalidate = useCallback(async () => {
-    if (!session) return false;
-    if (isTrainingSessionExpired(session)) {
+    const activeSession = sessionRef.current;
+    if (!activeSession) return false;
+    if (isTrainingSessionExpired(activeSession)) {
       await clearSession();
       return false;
     }
 
     try {
-      const currentDeviceId = session.deviceId || deviceId || await getOrCreateTrainingDeviceId();
+      const currentDeviceId = activeSession.deviceId || deviceIdRef.current || await getOrCreateTrainingDeviceId();
+      deviceIdRef.current = currentDeviceId;
       const result = await enterTrainingClass({
-        nome: session.participantName,
-        token: session.token,
+        nome: activeSession.participantName,
+        token: activeSession.token,
         deviceId: currentDeviceId,
       });
 
       if (result.ok) {
         const next = {
-          ...resultToSession({ ...result, token: result.token || session.token }, currentDeviceId),
-          createdAt: session.createdAt,
+          ...resultToSession({ ...result, token: result.token || activeSession.token }, currentDeviceId),
+          createdAt: activeSession.createdAt,
         };
-        const currentRaw = JSON.stringify(session);
+        const currentRaw = JSON.stringify(activeSession);
         const nextRaw = JSON.stringify(next);
         if (nextRaw !== currentRaw) {
           await safeSetStorageItem(TRAINING_SESSION_KEY, nextRaw);
+          sessionRef.current = next;
           setSession(next);
         }
         return true;
@@ -213,7 +232,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return true;
     }
-  }, [clearSession, deviceId, session]);
+  }, [clearSession]);
 
   useEffect(() => {
     if (!session?.endsAt) return;
@@ -234,7 +253,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
       revalidate().catch(() => null);
     }, 60_000);
     return () => clearInterval(timer);
-  }, [revalidate, session]);
+  }, [revalidate, session?.participantId, session?.endsAt]);
 
   const trainingProfile = useMemo(() => {
     if (!session || isTrainingSessionExpired(session)) return null;
