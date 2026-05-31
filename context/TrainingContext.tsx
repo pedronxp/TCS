@@ -6,6 +6,30 @@ import { enterTrainingClass, leaveTrainingClass, TrainingEntryResult, TRAINING_A
 const TRAINING_SESSION_KEY = '@training_session_v1';
 const TRAINING_DEVICE_KEY = '@training_device_id_v1';
 
+async function safeGetStorageItem(key: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+async function safeSetStorageItem(key: string, value: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, value);
+  } catch {
+    // Treinamento continua em memoria se o AsyncStorage do iOS falhar.
+  }
+}
+
+async function safeRemoveStorageItem(key: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch {
+    // A saida local nao pode gerar LogBox por falha de cache.
+  }
+}
+
 export interface TrainingSession {
   mode: 'training';
   classId: string;
@@ -61,10 +85,10 @@ export function isTrainingSessionExpired(session: Pick<TrainingSession, 'endsAt'
 }
 
 async function getOrCreateTrainingDeviceId(): Promise<string> {
-  const existing = await AsyncStorage.getItem(TRAINING_DEVICE_KEY);
+  const existing = await safeGetStorageItem(TRAINING_DEVICE_KEY);
   if (existing) return existing;
   const id = generateUUID();
-  await AsyncStorage.setItem(TRAINING_DEVICE_KEY, id);
+  await safeSetStorageItem(TRAINING_DEVICE_KEY, id);
   return id;
 }
 
@@ -99,14 +123,14 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   const clearSession = useCallback(async () => {
-    await AsyncStorage.removeItem(TRAINING_SESSION_KEY);
+    await safeRemoveStorageItem(TRAINING_SESSION_KEY);
     setSession(null);
   }, []);
 
   const refreshFromStorage = useCallback(async () => {
     const id = await getOrCreateTrainingDeviceId();
     setDeviceId(id);
-    const raw = await AsyncStorage.getItem(TRAINING_SESSION_KEY);
+    const raw = await safeGetStorageItem(TRAINING_SESSION_KEY);
     if (!raw) {
       setSession(null);
       return;
@@ -124,7 +148,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
   }, [clearSession]);
 
   useEffect(() => {
-    refreshFromStorage().finally(() => setLoading(false));
+    refreshFromStorage().catch(() => null).finally(() => setLoading(false));
   }, [refreshFromStorage]);
 
   const enter = useCallback(async (input: { nome: string; token: string }) => {
@@ -133,7 +157,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
     const result = await enterTrainingClass({ nome: input.nome, token: input.token, deviceId: id });
     if (result.ok) {
       const next = resultToSession({ ...result, token: result.token || input.token.trim().toUpperCase() }, id);
-      await AsyncStorage.setItem(TRAINING_SESSION_KEY, JSON.stringify(next));
+      await safeSetStorageItem(TRAINING_SESSION_KEY, JSON.stringify(next));
       setSession(next);
     }
     return result;
@@ -174,7 +198,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
         const currentRaw = JSON.stringify(session);
         const nextRaw = JSON.stringify(next);
         if (nextRaw !== currentRaw) {
-          await AsyncStorage.setItem(TRAINING_SESSION_KEY, nextRaw);
+          await safeSetStorageItem(TRAINING_SESSION_KEY, nextRaw);
           setSession(next);
         }
         return true;
