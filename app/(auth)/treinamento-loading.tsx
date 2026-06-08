@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useTraining } from '../../context/TrainingContext';
 import { trainingEntryMessage, TrainingEntryResult } from '../../services/TrainingService';
+import { supabase } from '../../utils/supabase';
 
 const SUCCESS_VISIBLE_MS = 5000;
 
@@ -21,6 +22,9 @@ export default function TreinamentoLoadingScreen() {
     const run = async () => {
       try {
         const res = await enter({ nome: nome || '', token: token || '' });
+        if (res.ok) {
+          await supabase.auth.signOut().catch(() => null);
+        }
         if (!alive) return;
         setResult(res);
         setLoading(false);
@@ -38,7 +42,7 @@ export default function TreinamentoLoadingScreen() {
     };
     void run();
     return () => { alive = false; };
-  }, [nome, token]);
+  }, [enter, nome, token]);
 
   const ok = result?.ok === true;
   const pendingAccess = loading || (ok && redirecting);

@@ -16,6 +16,7 @@ import { ReportProvider } from '../context/ReportContext';
 import { ConnectivityBanner } from '../components/ConnectivityBanner';
 import { ForceUpdateGate } from '../components/ForceUpdateGate';
 import { LogBox } from 'react-native';
+import { resolveRootRedirect } from '../utils/rootRouting';
 
 // Silencia erros internos do Expo Go no Android
 LogBox.ignoreLogs(['Unable to activate keep awake']);
@@ -101,49 +102,25 @@ function RootNavigator() {
     AsyncStorage.getItem('@onboarding_done').then(val => {
       const done = val === '1';
       const segs = segmentsRef.current;          // sempre atualizado via ref
-      const inPanel = segs[0] === '(panel)';
-      const inAuth = segs[0] === '(auth)';
-      const inOnboarding = segs[0] === 'onboarding';
       const isAuthenticated = !!session && !!profile;
-      const section = (segs as string[])[1];
-      const inspectionRoute = (segs as string[])[2];
-      const trainingAllowedInspectionRoutes = new Set([
-        'dados-iniciais',
-        'selecao-formulario',
-        'wizard',
-        'resultado',
-        'relatorio',
-      ]);
-      const inTrainingAllowedPanel = inPanel && (
-        section === 'treinamento'
-        || (section === 'inspecoes' && trainingAllowedInspectionRoutes.has(inspectionRoute || ''))
-      );
-      const hasTrainingSession = !!trainingSession && isTrainingActive && !isExpired();
+      const hasExpiredTrainingSession = !!trainingSession && isExpired();
+      const hasTrainingSession = !!trainingSession && isTrainingActive && !hasExpiredTrainingSession;
+      const redirect = resolveRootRedirect({
+        segments: segs as string[],
+        onboardingDone: done,
+        isAuthenticated,
+        hasTrainingSession,
+        hasExpiredTrainingSession,
+      });
 
-      // Fluxo de recuperação de senha: não redirecionar para dashboard mesmo com sessão temporária
-      const inResetFlow = inAuth && ((segs as string[])[1] === 'verify-otp' || (segs as string[])[1] === 'reset-password');
-      if (inResetFlow) return;
-
-      if (!done && !inOnboarding) {
-        router.replace('/onboarding');
-        return;
-      }
-
-      if (trainingSession && isExpired()) {
+      // Encerra cache local se a sessao de treinamento expirou.
+      if (hasExpiredTrainingSession) {
         exit().catch(() => null);
-        if (!inAuth) router.replace('/(auth)/treinamento');
-        return;
       }
 
-      if (isAuthenticated && !inPanel) {
-        router.replace('/(panel)/dashboard');
-      } else if (!isAuthenticated && hasTrainingSession && !inTrainingAllowedPanel) {
-        router.replace('/(panel)/treinamento');
-      } else if (!isAuthenticated && !inAuth && !inOnboarding) {
-        router.replace('/(auth)');
-      }
+      if (redirect) router.replace(redirect);
     });
-  }, [session, profile, loading, trainingLoading, trainingSession, isTrainingActive, appReady, segmentsKey]);
+  }, [session, profile, loading, trainingLoading, trainingSession, isTrainingActive, appReady, segmentsKey, isExpired, exit]);
 
   if (loading || trainingLoading || !appReady) {
     return (

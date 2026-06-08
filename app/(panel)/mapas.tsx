@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   Modal, ScrollView, Platform,
@@ -6,7 +6,7 @@ import {
 import MapView, { Marker, Heatmap, PROVIDER_GOOGLE, PROVIDER_DEFAULT, MapType } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
@@ -15,6 +15,8 @@ import { supabase } from '../../utils/supabase';
 import { getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getAllAgendamentos, getAgendamentosByMunicipio, getAgendamentosByAgente } from '../../utils/database';
 import { logger } from '../../utils/logger';
 import { tracarRota } from '../../utils/routingUtils';
+import { hasValidCoordinates, normalizeCoordinatePair } from '../../utils/coordinateUtils';
+import type { ValidCoordinates } from '../../utils/coordinateUtils';
 import { navSystemBottom } from '../../utils/useBottomTabPadding';
 import { safeBack } from '../../utils/navigationUtils';
 
@@ -107,13 +109,6 @@ function getRiscoShortLabel(nivel: string): string {
   return 'R1';
 }
 
-function hasValidCoords(lat: unknown, lng: unknown): boolean {
-  const latitude = Number(lat);
-  const longitude = Number(lng);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
-  return !(latitude === 0 && longitude === 0);
-}
-
 // Tamanhos do marcador — visual neutro para não sumir no mapa do Android.
 const PIN_WRAP_WIDTH  = Platform.OS === 'android' ? 52 : 44;
 const PIN_WRAP_HEIGHT = Platform.OS === 'android' ? 78 : 68;
@@ -124,6 +119,7 @@ const PIN_ACCENT      = Platform.OS === 'android' ? 11 : 8;
 const ICON_SIZE       = Platform.OS === 'android' ? 18 : 15;
 const MARKER_ANCHOR = { x: 0.5, y: 1 };
 const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
+const USE_NATIVE_ANDROID_MARKERS = Platform.OS === 'android';
 
 // Marcador customizado sem pinColor para manter renderização consistente no mapa nativo.
 function MarkerPin({ color, label }: { color: string; label: string }) {
@@ -264,6 +260,16 @@ export default function MapasScreen() {
   const [selectedAgendamento, setSelectedAgendamento] = useState<AgendamentoMarker | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [tracksMarkerChanges, setTracksMarkerChanges] = useState(true);
+  const [mapVisible, setMapVisible] = useState(true);
+
+  const clearMapTimers = useCallback(() => {
+    if (timer1Ref.current) clearTimeout(timer1Ref.current);
+    if (timer2Ref.current) clearTimeout(timer2Ref.current);
+    if (markerRenderTimerRef.current) clearTimeout(markerRenderTimerRef.current);
+    timer1Ref.current = null;
+    timer2Ref.current = null;
+    markerRenderTimerRef.current = null;
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -271,18 +277,18 @@ export default function MapasScreen() {
     loadMarkers();
     return () => {
       mountedRef.current = false;
-      if (timer1Ref.current) clearTimeout(timer1Ref.current);
-      if (timer2Ref.current) clearTimeout(timer2Ref.current);
-      if (markerRenderTimerRef.current) clearTimeout(markerRenderTimerRef.current);
+      clearMapTimers();
     };
-  }, [profile, isOnlineReal]);
+  }, [profile, isOnlineReal, clearMapTimers]);
 
   const getUserLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      const valid = normalizeCoordinatePair(loc.coords.latitude, loc.coords.longitude);
+      if (!valid || !mountedRef.current) return;
+      const coords = { lat: valid.latitude, lng: valid.longitude };
       setUserLocation(coords);
       mapRef.current?.animateToRegion({
         latitude: coords.lat, longitude: coords.lng,
@@ -300,8 +306,12 @@ export default function MapasScreen() {
   };
 
   const fitToMarkers = (list?: VistoriaMarker[]) => {
-    const vCoords = (list ?? filteredMarkers).map(m => ({ latitude: m.lat, longitude: m.lng }));
-    const aCoords = agendamentos.map(a => ({ latitude: a.lat, longitude: a.lng }));
+    const vCoords = (list ?? filteredMarkers)
+      .map(m => normalizeCoordinatePair(m.lat, m.lng))
+      .filter((coord): coord is ValidCoordinates => !!coord);
+    const aCoords = agendamentos
+      .map(a => normalizeCoordinatePair(a.lat, a.lng))
+      .filter((coord): coord is ValidCoordinates => !!coord);
     const all = [...vCoords, ...aCoords];
     if (all.length === 0) return;
     if (all.length === 1) {
@@ -323,6 +333,20 @@ export default function MapasScreen() {
       if (mountedRef.current) setTracksMarkerChanges(false);
     }, 1400);
   };
+
+  useFocusEffect(useCallback(() => {
+    mountedRef.current = true;
+    setMapVisible(true);
+    refreshMarkerRendering();
+    return () => {
+      clearMapTimers();
+      setSelectedMarker(null);
+      setSelectedAgendamento(null);
+      setTracksMarkerChanges(false);
+      setMapVisible(false);
+      currentRegionRef.current = null;
+    };
+  }, [clearMapTimers]));
 
   const loadMarkers = async () => {
     if (!profile) {
@@ -353,7 +377,7 @@ export default function MapasScreen() {
         if (!error && data) {
           if (!mountedRef.current) return;
           const loaded: VistoriaMarker[] = data
-            .filter((v: any) => hasValidCoords(v.latitude, v.longitude))
+            .filter((v: any) => hasValidCoordinates(v.latitude, v.longitude))
             .map((v: any) => ({
               id: v.id,
               lat: Number(v.latitude),
@@ -385,7 +409,7 @@ export default function MapasScreen() {
             }
             const { data: agendData } = await agendQuery.limit(200);
             if (agendData) {
-              loadedAgend = agendData.filter((a: any) => hasValidCoords(a.lat, a.lng)).map((a: any) => ({
+              loadedAgend = agendData.filter((a: any) => hasValidCoordinates(a.lat, a.lng)).map((a: any) => ({
                 id: a.id,
                 lat: Number(a.lat),
                 lng: Number(a.lng),
@@ -425,7 +449,7 @@ export default function MapasScreen() {
               timer1Ref.current = setTimeout(() => {
                 if (!mountedRef.current) return;
                 const r = currentRegionRef.current;
-                if (r) {
+                if (r && normalizeCoordinatePair(r.latitude, r.longitude)) {
                   mapRef.current?.animateToRegion(
                     { ...r, latitude: r.latitude + 0.0002 }, 80
                   );
@@ -449,7 +473,7 @@ export default function MapasScreen() {
           : getVistoriasByAgente(profile.uid);
 
       const offlineMarkers: VistoriaMarker[] = locais
-        .filter((v: any) => hasValidCoords(v.latitude, v.longitude))
+        .filter((v: any) => hasValidCoordinates(v.latitude, v.longitude))
         .map((v: any) => ({
           id: v.id,
           lat: Number(v.latitude),
@@ -469,7 +493,7 @@ export default function MapasScreen() {
           ? getAgendamentosByMunicipio(profile.municipio ?? '')
           : getAgendamentosByAgente(profile.uid, profile.municipio);
       const offlineAgend: AgendamentoMarker[] = agendLocais
-        .filter((a: any) => hasValidCoords(a.lat, a.lng) && a.status === 'pendente')
+        .filter((a: any) => hasValidCoordinates(a.lat, a.lng) && a.status === 'pendente')
         .map((a: any) => ({
           id: a.id,
           lat: Number(a.lat),
@@ -504,7 +528,7 @@ export default function MapasScreen() {
     } catch (e) {
       logger.error('vistoria', 'Erro ao carregar marcadores do mapa', { erro: String(e) });
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 
@@ -563,56 +587,84 @@ export default function MapasScreen() {
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
-        mapType={currentStyleConfig.mapType}
-        customMapStyle={mapStyle === 'escuro' ? DARK_MAP_STYLE : undefined}
-        initialRegion={initialRegion}
-        showsUserLocation
-        showsMyLocationButton={false}
-        onRegionChangeComplete={(region: any) => { currentRegionRef.current = region; }}
-      >
-        {shouldRenderPins && filteredMarkers.map(m => (
-          <Marker
-            key={m.id}
-            coordinate={{ latitude: m.lat, longitude: m.lng }}
-            onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
-            anchor={MARKER_ANCHOR}
-            centerOffset={MARKER_CENTER_OFFSET}
-            tracksViewChanges={tracksMarkerChanges}
-          >
-            <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getRiscoShortLabel(m.nivelRisco)} />
-          </Marker>
-        ))}
+      {mapVisible && (
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFillObject}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+          mapType={currentStyleConfig.mapType}
+          customMapStyle={mapStyle === 'escuro' ? DARK_MAP_STYLE : undefined}
+          initialRegion={initialRegion}
+          showsUserLocation
+          showsMyLocationButton={false}
+          onRegionChangeComplete={(region: any) => {
+            if (!mountedRef.current) return;
+            if (!normalizeCoordinatePair(region?.latitude, region?.longitude)) return;
+            currentRegionRef.current = region;
+          }}
+        >
+          {shouldRenderPins && filteredMarkers.map(m => (
+            USE_NATIVE_ANDROID_MARKERS ? (
+              <Marker
+                key={m.id}
+                coordinate={{ latitude: m.lat, longitude: m.lng }}
+                onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
+                pinColor={getRiscoColor(m.nivelRisco)}
+                title={getRiscoLabel(m.nivelRisco)}
+                description={m.endereco}
+              />
+            ) : (
+              <Marker
+                key={m.id}
+                coordinate={{ latitude: m.lat, longitude: m.lng }}
+                onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
+                anchor={MARKER_ANCHOR}
+                centerOffset={MARKER_CENTER_OFFSET}
+                tracksViewChanges={tracksMarkerChanges}
+              >
+                <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getRiscoShortLabel(m.nivelRisco)} />
+              </Marker>
+            )
+          ))}
 
-        {agendamentos.map(a => (
-          <Marker
-            key={`agend-${a.id}`}
-            coordinate={{ latitude: a.lat, longitude: a.lng }}
-            onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
-            anchor={MARKER_ANCHOR}
-            centerOffset={MARKER_CENTER_OFFSET}
-            tracksViewChanges={tracksMarkerChanges}
-          >
-            <AgendamentoPin />
-          </Marker>
-        ))}
+          {agendamentos.map(a => (
+            USE_NATIVE_ANDROID_MARKERS ? (
+              <Marker
+                key={`agend-${a.id}`}
+                coordinate={{ latitude: a.lat, longitude: a.lng }}
+                onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
+                pinColor="#3B82F6"
+                title="Agendamento"
+                description={a.titulo}
+              />
+            ) : (
+              <Marker
+                key={`agend-${a.id}`}
+                coordinate={{ latitude: a.lat, longitude: a.lng }}
+                onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
+                anchor={MARKER_ANCHOR}
+                centerOffset={MARKER_CENTER_OFFSET}
+                tracksViewChanges={tracksMarkerChanges}
+              >
+                <AgendamentoPin />
+              </Marker>
+            )
+          ))}
 
-        {showHeatmap && Platform.OS === 'android' && (
-          <Heatmap
-            points={heatmapPoints}
-            radius={40}
-            opacity={0.7}
-            gradient={{
-              colors: ['#10B981', '#F59E0B', '#EF4444'],
-              startPoints: [0.2, 0.5, 1.0],
-              colorMapSize: 256,
-            }}
-          />
-        )}
-      </MapView>
+          {showHeatmap && Platform.OS === 'android' && (
+            <Heatmap
+              points={heatmapPoints}
+              radius={40}
+              opacity={0.7}
+              gradient={{
+                colors: ['#10B981', '#F59E0B', '#EF4444'],
+                startPoints: [0.2, 0.5, 1.0],
+                colorMapSize: 256,
+              }}
+            />
+          )}
+        </MapView>
+      )}
 
       {/* Header flutuante */}
       <View style={[styles.headerOverlay, { paddingTop: topInset + 8 }]}>

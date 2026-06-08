@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
+import { useTraining } from '../../context/TrainingContext';
 import { logger } from '../../utils/logger';
 import { ErrorState } from '../../components/ui';
 import { DashboardGuide } from '../../components/DashboardGuide';
@@ -25,6 +26,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
   const { profile, loading: authLoading } = useAuth();
+  const { isTrainingActive } = useTraining();
   const { isConnected, isOnlineReal } = useConnectivity();
 
   const [metrics, setMetrics] = useState({ atividadesHoje: 0, requerAtencao: 0, minhasTotal: 0 });
@@ -44,6 +46,10 @@ export default function DashboardScreen() {
   }, []);
 
   useEffect(() => {
+    if (isTrainingActive) {
+      router.replace('/(panel)/treinamento');
+      return;
+    }
     if (!profile) return;
     if (profile.role === 'master_admin') { router.replace('/(panel)/master'); return; }
     if (profile.role === 'admin') { router.replace('/(panel)/admin'); return; }
@@ -53,7 +59,7 @@ export default function DashboardScreen() {
     const now = Date.now();
     if (now - cacheTs.current < CACHE_TTL) return;
     if (isOnlineReal) fetchMetrics(profile.uid, profile.municipio);
-  }, [profile, isOnlineReal]);
+  }, [profile, isOnlineReal, isTrainingActive]);
 
   const fetchMetrics = async (uid: string, municipio: string) => {
     setMetricsLoading(true);
@@ -88,7 +94,7 @@ export default function DashboardScreen() {
     fetchMetrics(profile.uid, profile.municipio);
   }, [profile]);
 
-  if (authLoading) {
+  if (authLoading || isTrainingActive) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />

@@ -74,7 +74,7 @@ function PanelContent() {
     prevConnected.current = isOnlineReal;
   }, [isOnlineReal, isTrainingActive]);
 
-  if (isLocked) {
+  if (isLocked && !isTrainingActive) {
     return <SessionLockScreen />;
   }
 

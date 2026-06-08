@@ -4,6 +4,11 @@ const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 
 const escapePath = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const pathToBlockListPattern = (dir) => {
+  const absolutePath = path.resolve(__dirname, dir);
+  const parts = absolutePath.split(/[\\/]+/).map(escapePath);
+  return new RegExp(`^${parts.join('[/\\\\]')}[/\\\\].*`);
+};
 const ignoredDirs = [
   '.agents',
   '.claude',
@@ -23,8 +28,6 @@ const ignoredDirs = [
   'supabase',
 ];
 
-config.resolver.blockList = ignoredDirs.map(
-  (dir) => new RegExp(`^${escapePath(path.join(__dirname, dir))}[/\\\\].*`),
-);
+config.resolver.blockList = ignoredDirs.map(pathToBlockListPattern);
 
 module.exports = config;
