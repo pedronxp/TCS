@@ -99,6 +99,37 @@ const PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA = 'desl2_q2_exposicao_altura_distancia
 const PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA = 'desl2_q2_justificativa_tecnica';
 const FORMULARIO_RISCO_ESTRUTURAL_V2 = 'risco_estrutural_novo_v2';
 const RESPOSTA_INEXISTENTE = 'inexistente';
+const RESPOSTAS_CLASSIFICACAO_RISCO_ESTRUTURAL: Record<string, {
+  resposta: string;
+  nivelMinimo: NivelRisco;
+  pontuacaoMinima: number;
+  efeito: string;
+}> = {
+  baixo: {
+    resposta: 'Risco baixo',
+    nivelMinimo: 'r1',
+    pontuacaoMinima: 0,
+    efeito: 'Mantém o risco em no mínimo R1.',
+  },
+  medio: {
+    resposta: 'Risco médio',
+    nivelMinimo: 'r2',
+    pontuacaoMinima: 2.1,
+    efeito: 'Classifica o risco em no mínimo R2.',
+  },
+  alto: {
+    resposta: 'Risco alto',
+    nivelMinimo: 'r3',
+    pontuacaoMinima: 4.0,
+    efeito: 'Classifica o risco em no mínimo R3.',
+  },
+  critico: {
+    resposta: 'Risco crítico',
+    nivelMinimo: 'r4',
+    pontuacaoMinima: 7.0,
+    efeito: 'Classifica o risco em no mínimo R4.',
+  },
+};
 const PONTUACAO_MINIMA_NIVEL: Record<NivelRisco, number> = {
   r1: 0,
   r2: 2.1,
@@ -297,34 +328,40 @@ function identificarRegrasCondicionaisEstruturais(params: {
       perguntaId: 'est_q1',
       id: 'fundacao_inexistente',
       label: 'Fundação inexistente',
-      descricao: 'A ausência de fundação observável é uma condição estrutural crítica e não deve ser tratada como não aplicável.',
-      efeito: 'Classifica o risco em no mínimo R3 e exige justificativa técnica do agente.',
+      descricao: 'A ausência de fundação observável deve ser classificada pelo agente como risco baixo, médio, alto ou crítico.',
+      classificacaoPerguntaId: 'est_q1_inexistente_classificacao_risco',
+      explicacaoPerguntaId: 'est_q1_inexistente_explicacao',
     },
     {
       perguntaId: 'est_q2',
       id: 'estrutura_pilares_vigas_inexistente',
       label: 'Estrutura principal inexistente',
-      descricao: 'A ausência de pilares e vigas observáveis é uma condição estrutural crítica e não deve ser tratada como não aplicável.',
-      efeito: 'Classifica o risco em no mínimo R3 e exige justificativa técnica do agente.',
+      descricao: 'A ausência de pilares e vigas observáveis deve ser classificada pelo agente como risco baixo, médio, alto ou crítico.',
+      classificacaoPerguntaId: 'est_q2_inexistente_classificacao_risco',
+      explicacaoPerguntaId: 'est_q2_inexistente_explicacao',
     },
   ];
 
   return camposCriticos
     .filter(campo => params.respostas[campo.perguntaId] === RESPOSTA_INEXISTENTE)
-    .map(campo => {
-      const justificativaKey = getObservacaoCondicionalRiscoKey(campo.perguntaId);
+    .flatMap(campo => {
+      const classificacaoId = params.respostas[campo.classificacaoPerguntaId];
+      const classificacao = RESPOSTAS_CLASSIFICACAO_RISCO_ESTRUTURAL[classificacaoId];
+      if (!classificacao) return [];
+
+      const justificativa = params.respostas[campo.explicacaoPerguntaId]?.trim();
       return {
         id: campo.id,
         label: campo.label,
         descricao: campo.descricao,
-        perguntaId: campo.perguntaId,
-        respostaId: RESPOSTA_INEXISTENTE,
-        resposta: 'Inexistente',
-        efeito: campo.efeito,
-        nivelMinimo: 'r3' as NivelRisco,
-        pontuacaoMinima: PONTUACAO_MINIMA_NIVEL.r3,
-        justificativaPerguntaId: justificativaKey,
-        justificativa: params.respostas[justificativaKey]?.trim() || undefined,
+        perguntaId: campo.classificacaoPerguntaId,
+        respostaId: classificacaoId,
+        resposta: classificacao.resposta,
+        efeito: classificacao.efeito,
+        nivelMinimo: classificacao.nivelMinimo,
+        pontuacaoMinima: classificacao.pontuacaoMinima,
+        justificativaPerguntaId: campo.explicacaoPerguntaId,
+        justificativa: justificativa || undefined,
       };
     });
 }

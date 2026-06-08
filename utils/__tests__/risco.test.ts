@@ -102,6 +102,67 @@ describe('calcularRiscoFormulario', () => {
     auxiliarCalculo: true,
   };
 
+  const perguntaFundacao = {
+    id: 'est_q1',
+    texto: 'Fundacao',
+    tipo: 'cards',
+    opcoes: [
+      { id: 'inexistente', texto: 'Inexistente', pesoRisco: 0 },
+      { id: 'q1_a', texto: 'Bom', pesoRisco: 0 },
+    ],
+  };
+
+  const perguntaEstrutura = {
+    id: 'est_q2',
+    texto: 'Estrutura (pilares e vigas)',
+    tipo: 'cards',
+    opcoes: [
+      { id: 'inexistente', texto: 'Inexistente', pesoRisco: 0 },
+      { id: 'q2_d', texto: 'Pessimo', pesoRisco: 1 },
+    ],
+  };
+
+  const perguntasEstruturaisInexistente = [
+    perguntaFundacao,
+    perguntaEstrutura,
+    {
+      id: 'est_q1_inexistente_classificacao_risco',
+      texto: 'Classificacao de risco para fundacao inexistente',
+      tipo: 'multipla_escolha',
+      auxiliarCalculo: true,
+      opcoes: [
+        { id: 'baixo', texto: 'Risco baixo', pesoRisco: 0 },
+        { id: 'medio', texto: 'Risco medio', pesoRisco: 0 },
+        { id: 'alto', texto: 'Risco alto', pesoRisco: 0 },
+        { id: 'critico', texto: 'Risco critico', pesoRisco: 0 },
+      ],
+    },
+    {
+      id: 'est_q1_inexistente_explicacao',
+      texto: 'Explicacao tecnica da fundacao inexistente',
+      tipo: 'texto',
+      auxiliarCalculo: true,
+    },
+    {
+      id: 'est_q2_inexistente_classificacao_risco',
+      texto: 'Classificacao de risco para estrutura principal inexistente',
+      tipo: 'multipla_escolha',
+      auxiliarCalculo: true,
+      opcoes: [
+        { id: 'baixo', texto: 'Risco baixo', pesoRisco: 0 },
+        { id: 'medio', texto: 'Risco medio', pesoRisco: 0 },
+        { id: 'alto', texto: 'Risco alto', pesoRisco: 0 },
+        { id: 'critico', texto: 'Risco critico', pesoRisco: 0 },
+      ],
+    },
+    {
+      id: 'est_q2_inexistente_explicacao',
+      texto: 'Explicacao tecnica da estrutura principal inexistente',
+      tipo: 'texto',
+      auxiliarCalculo: true,
+    },
+  ];
+
   it('nao forca R4 apenas por marcar inclinacao negativa sem classificacao auxiliar', () => {
     const calculo = calcularRiscoFormulario({
       formularioId: 'vistoria_deslizamento_v3',
@@ -238,58 +299,70 @@ describe('calcularRiscoFormulario', () => {
     expect(calculo.itens[0].observacao).toBeUndefined();
   });
 
-  it('aplica regra conservadora para Fundacao = Inexistente com justificativa', () => {
+  it('nao aplica regra conservadora para Inexistente estrutural sem classificacao auxiliar', () => {
     const calculo = calcularRiscoFormulario({
       formularioId: 'risco_estrutural_novo_v2',
       formularioVersao: 2,
       tipoCalculo: 'soma_total',
       respostas: {
         est_q1: 'inexistente',
-        est_q1__observacao_risco: 'Fundacao nao observada; base apoiada diretamente no solo.',
       },
-      perguntas: [{
-        id: 'est_q1',
-        texto: 'Fundacao',
-        tipo: 'cards',
-        opcoes: [
-          { id: 'inexistente', texto: 'Inexistente', pesoRisco: 1 },
-          { id: 'q1_a', texto: 'Bom', pesoRisco: 0 },
-        ],
-      }],
+      perguntas: perguntasEstruturaisInexistente,
     });
 
-    expect(calculo.pontuacaoBase).toBe(1);
-    expect(calculo.pontuacaoTotal).toBe(4);
-    expect(calculo.nivelRisco).toBe('r3');
-    expect(calculo.regrasCondicionais?.[0].respostaId).toBe('inexistente');
-    expect(calculo.regrasCondicionais?.[0].justificativa).toContain('Fundacao');
-    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.regrasCondicionais?.[0].nivelMinimo).toBe('r3');
+    expect(calculo.pontuacaoBase).toBe(0);
+    expect(calculo.pontuacaoTotal).toBe(0);
+    expect(calculo.nivelRisco).toBe('r1');
+    expect(calculo.regrasCondicionais).toHaveLength(0);
   });
 
-  it('aplica regra conservadora para Estrutura (pilares e vigas) = Inexistente', () => {
+  it.each([
+    ['est_q1', 'est_q1_inexistente_classificacao_risco', 'est_q1_inexistente_explicacao', 'baixo', 0, 'r1'],
+    ['est_q1', 'est_q1_inexistente_classificacao_risco', 'est_q1_inexistente_explicacao', 'medio', 2.1, 'r2'],
+    ['est_q1', 'est_q1_inexistente_classificacao_risco', 'est_q1_inexistente_explicacao', 'alto', 4, 'r3'],
+    ['est_q1', 'est_q1_inexistente_classificacao_risco', 'est_q1_inexistente_explicacao', 'critico', 7, 'r4'],
+    ['est_q2', 'est_q2_inexistente_classificacao_risco', 'est_q2_inexistente_explicacao', 'baixo', 0, 'r1'],
+    ['est_q2', 'est_q2_inexistente_classificacao_risco', 'est_q2_inexistente_explicacao', 'medio', 2.1, 'r2'],
+    ['est_q2', 'est_q2_inexistente_classificacao_risco', 'est_q2_inexistente_explicacao', 'alto', 4, 'r3'],
+    ['est_q2', 'est_q2_inexistente_classificacao_risco', 'est_q2_inexistente_explicacao', 'critico', 7, 'r4'],
+  ])('aplica classificacao de %s inexistente como %s', (perguntaId, classificacaoId, explicacaoId, classificacao, pontuacao, nivel) => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: 'risco_estrutural_novo_v2',
+      formularioVersao: 2,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        [perguntaId]: 'inexistente',
+        [classificacaoId]: classificacao,
+        [explicacaoId]: 'Evidencia opcional registrada em campo.',
+      },
+      perguntas: perguntasEstruturaisInexistente,
+    });
+
+    expect(calculo.pontuacaoBase).toBe(0);
+    expect(calculo.pontuacaoTotal).toBe(pontuacao);
+    expect(calculo.nivelRisco).toBe(nivel);
+    expect(calculo.regrasCondicionais?.[0].perguntaId).toBe(classificacaoId);
+    expect(calculo.regrasCondicionais?.[0].respostaId).toBe(classificacao);
+    expect(calculo.regrasCondicionais?.[0].justificativa).toContain('Evidencia opcional');
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.regrasCondicionais?.[0].nivelMinimo).toBe(nivel);
+  });
+
+  it('mantem explicacao estrutural opcional quando nao preenchida', () => {
     const calculo = calcularRiscoFormulario({
       formularioId: 'risco_estrutural_novo_v2',
       formularioVersao: 2,
       tipoCalculo: 'soma_total',
       respostas: {
         est_q2: 'inexistente',
-        est_q2__observacao_risco: 'Nao foram identificados pilares ou vigas no setor avaliado.',
+        est_q2_inexistente_classificacao_risco: 'alto',
       },
-      perguntas: [{
-        id: 'est_q2',
-        texto: 'Estrutura (pilares e vigas)',
-        tipo: 'cards',
-        opcoes: [
-          { id: 'inexistente', texto: 'Inexistente', pesoRisco: 1 },
-          { id: 'q2_d', texto: 'Pessimo', pesoRisco: 1 },
-        ],
-      }],
+      perguntas: perguntasEstruturaisInexistente,
     });
 
     expect(calculo.pontuacaoTotal).toBe(4);
     expect(calculo.nivelRisco).toBe('r3');
     expect(calculo.regrasCondicionais?.[0].label).toBe('Estrutura principal inexistente');
-    expect(calculo.regrasCondicionais?.[0].justificativa).toContain('pilares');
+    expect(calculo.regrasCondicionais?.[0].justificativa).toBeUndefined();
   });
 });
 

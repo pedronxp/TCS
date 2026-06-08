@@ -61,12 +61,8 @@
             {
               "id": "inexistente",
               "texto": "Inexistente",
-              "descricao": "Fundação inexistente no local vistoriado; exige justificativa técnica.",
-              "pesoRisco": 1,
-              "requerJustificativaTecnica": true,
-              "justificativaTitulo": "Justificativa técnica obrigatória",
-              "justificativaDescricao": "Explique por que a fundação foi marcada como inexistente e quais evidências sustentam essa conclusão.",
-              "justificativaPlaceholder": "Descreva a evidência observada, o impacto no risco e a orientação dada em campo."
+              "descricao": "Fundação inexistente no local vistoriado; classifique o risco na etapa seguinte.",
+              "pesoRisco": 0
             },
             {
               "id": "q1_a",
@@ -99,6 +95,58 @@
           ]
         },
         {
+          "id": "est_q1_inexistente_classificacao_risco",
+          "texto": "Classificação de risco para fundação inexistente",
+          "descricao": "Classifique o risco observado quando a fundação for inexistente.",
+          "tipo": "multipla_escolha",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": {
+            "perguntaId": "est_q1",
+            "respostaIds": ["inexistente"]
+          },
+          "opcoes": [
+            {
+              "id": "baixo",
+              "texto": "Risco baixo",
+              "descricao": "Condição controlada, sem sinais relevantes de instabilidade associados à ausência de fundação.",
+              "pesoRisco": 0
+            },
+            {
+              "id": "medio",
+              "texto": "Risco médio",
+              "descricao": "Há sinais que exigem monitoramento e medidas preventivas.",
+              "pesoRisco": 0
+            },
+            {
+              "id": "alto",
+              "texto": "Risco alto",
+              "descricao": "Há sinais relevantes de instabilidade ou dano que exigem intervenção técnica urgente.",
+              "pesoRisco": 0
+            },
+            {
+              "id": "critico",
+              "texto": "Risco crítico",
+              "descricao": "Há condição crítica com risco à vida, colapso ou necessidade de interdição/evacuação quando aplicável.",
+              "pesoRisco": 0
+            }
+          ]
+        },
+        {
+          "id": "est_q1_inexistente_explicacao",
+          "texto": "Explicação técnica da fundação inexistente",
+          "descricao": "Campo opcional para registrar evidências, contexto observado e orientação dada em campo.",
+          "placeholder": "Descreva a evidência observada e a orientação dada em campo.",
+          "tipo": "texto",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "mostrarQuando": {
+            "perguntaId": "est_q1",
+            "respostaIds": ["inexistente"]
+          },
+          "opcoes": []
+        },
+        {
           "id": "est_q2",
           "texto": "Estrutura (pilares e vigas)",
           "tipo": "cards",
@@ -107,12 +155,8 @@
             {
               "id": "inexistente",
               "texto": "Inexistente",
-              "descricao": "Estrutura (pilares e vigas) inexistente no local vistoriado; exige justificativa técnica.",
-              "pesoRisco": 1,
-              "requerJustificativaTecnica": true,
-              "justificativaTitulo": "Justificativa técnica obrigatória",
-              "justificativaDescricao": "Explique por que a estrutura de pilares e vigas foi marcada como inexistente e quais evidências sustentam essa conclusão.",
-              "justificativaPlaceholder": "Descreva a evidência observada, o impacto no risco e a orientação dada em campo."
+              "descricao": "Estrutura (pilares e vigas) inexistente no local vistoriado; classifique o risco na etapa seguinte.",
+              "pesoRisco": 0
             },
             {
               "id": "q2_a",
@@ -143,6 +187,58 @@
               "pesoRisco": 1
             }
           ]
+        },
+        {
+          "id": "est_q2_inexistente_classificacao_risco",
+          "texto": "Classificação de risco para estrutura principal inexistente",
+          "descricao": "Classifique o risco observado quando pilares e vigas forem inexistentes.",
+          "tipo": "multipla_escolha",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": {
+            "perguntaId": "est_q2",
+            "respostaIds": ["inexistente"]
+          },
+          "opcoes": [
+            {
+              "id": "baixo",
+              "texto": "Risco baixo",
+              "descricao": "Condição controlada, sem sinais relevantes de instabilidade associados à ausência de pilares e vigas.",
+              "pesoRisco": 0
+            },
+            {
+              "id": "medio",
+              "texto": "Risco médio",
+              "descricao": "Há sinais que exigem monitoramento e medidas preventivas.",
+              "pesoRisco": 0
+            },
+            {
+              "id": "alto",
+              "texto": "Risco alto",
+              "descricao": "Há sinais relevantes de instabilidade ou dano que exigem intervenção técnica urgente.",
+              "pesoRisco": 0
+            },
+            {
+              "id": "critico",
+              "texto": "Risco crítico",
+              "descricao": "Há condição crítica com risco à vida, colapso ou necessidade de interdição/evacuação quando aplicável.",
+              "pesoRisco": 0
+            }
+          ]
+        },
+        {
+          "id": "est_q2_inexistente_explicacao",
+          "texto": "Explicação técnica da estrutura principal inexistente",
+          "descricao": "Campo opcional para registrar evidências, contexto observado e orientação dada em campo.",
+          "placeholder": "Descreva a evidência observada e a orientação dada em campo.",
+          "tipo": "texto",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "mostrarQuando": {
+            "perguntaId": "est_q2",
+            "respostaIds": ["inexistente"]
+          },
+          "opcoes": []
         },
         {
           "id": "est_q2_laje",

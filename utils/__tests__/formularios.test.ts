@@ -77,7 +77,7 @@ describe('JSONs built-in ativos - escala 0-10', () => {
   });
 });
 
-describe('risco_estrutural_novo_v2 - laje e Inexistente critico', () => {
+describe('risco_estrutural_novo_v2 - laje e Inexistente classificado', () => {
   it('separa laje da estrutura e insere a pergunta logo apos pilares e vigas', () => {
     const perguntas = perguntasPontuaveis(riscoEstrutural);
     const estruturaIdx = perguntas.findIndex((p: any) => p.id === 'est_q2');
@@ -90,7 +90,7 @@ describe('risco_estrutural_novo_v2 - laje e Inexistente critico', () => {
     expect(laje.opcoes.map((o: any) => o.texto)).toEqual(['Bom', 'Ruim', 'Péssimo']);
   });
 
-  it('mantem Inexistente somente em fundacao e pilares/vigas com justificativa obrigatoria', () => {
+  it('mantem Inexistente somente em fundacao e pilares/vigas sem justificativa obrigatoria direta', () => {
     const perguntas = flattenPerguntas(riscoEstrutural);
     const comInexistente = perguntas
       .filter(p => p.opcoes.some(o => o.id === 'inexistente' || o.texto === 'Inexistente'))
@@ -100,23 +100,66 @@ describe('risco_estrutural_novo_v2 - laje e Inexistente critico', () => {
     const laje = perguntas.find(p => p.id === 'est_q2_laje')!;
 
     expect(comInexistente).toEqual(['est_q1', 'est_q2']);
-    expect(opcaoRequerJustificativaTecnica(fundacao, 'inexistente')).toBe(true);
-    expect(opcaoRequerJustificativaTecnica(estrutura, 'inexistente')).toBe(true);
+    expect(fundacao.opcoes.find(o => o.id === 'inexistente')?.pesoRisco).toBe(0);
+    expect(estrutura.opcoes.find(o => o.id === 'inexistente')?.pesoRisco).toBe(0);
+    expect(opcaoRequerJustificativaTecnica(fundacao, 'inexistente')).toBe(false);
+    expect(opcaoRequerJustificativaTecnica(estrutura, 'inexistente')).toBe(false);
     expect(laje.opcoes.some(o => o.id === 'inexistente')).toBe(false);
   });
 
-  it('preserva justificativa obrigatoria vinculada a resposta Inexistente', () => {
+  it('exibe classificacao de risco e explicacao opcional para Inexistente', () => {
     const perguntas = flattenPerguntas(riscoEstrutural);
-    const fundacao = perguntas.find(p => p.id === 'est_q1')!;
-    const obsKey = getObservacaoCondicionalRiscoKey('est_q1');
-    const respostas = filtrarRespostasPorPerguntas(
-      { est_q1: 'inexistente', [obsKey]: 'Fundacao nao observada no trecho vistoriado.' },
-      perguntas,
+    const fundacaoClassificacao = perguntas.find(p => p.id === 'est_q1_inexistente_classificacao_risco')!;
+    const fundacaoExplicacao = perguntas.find(p => p.id === 'est_q1_inexistente_explicacao')!;
+    const estruturaClassificacao = perguntas.find(p => p.id === 'est_q2_inexistente_classificacao_risco')!;
+    const estruturaExplicacao = perguntas.find(p => p.id === 'est_q2_inexistente_explicacao')!;
+
+    for (const classificacao of [fundacaoClassificacao, estruturaClassificacao]) {
+      expect(classificacao.tipo).toBe('multipla_escolha');
+      expect(classificacao.obrigatoria).toBe(true);
+      expect(classificacao.auxiliarCalculo).toBe(true);
+      expect(classificacao.opcoes.map(o => o.id)).toEqual(['baixo', 'medio', 'alto', 'critico']);
+    }
+
+    expect(fundacaoClassificacao.mostrarQuando).toEqual({
+      perguntaId: 'est_q1',
+      respostaIds: ['inexistente'],
+    });
+    expect(estruturaClassificacao.mostrarQuando).toEqual({
+      perguntaId: 'est_q2',
+      respostaIds: ['inexistente'],
+    });
+
+    for (const explicacao of [fundacaoExplicacao, estruturaExplicacao]) {
+      expect(explicacao.tipo).toBe('texto');
+      expect(explicacao.obrigatoria).toBe(false);
+      expect(explicacao.auxiliarCalculo).toBe(true);
+    }
+  });
+
+  it('mostra e preserva respostas auxiliares somente quando Inexistente esta selecionado', () => {
+    const perguntas = flattenPerguntas(riscoEstrutural);
+
+    const visiveisComFundacaoInexistente = filtrarPerguntasVisiveis(perguntas, { est_q1: 'inexistente' });
+    expect(visiveisComFundacaoInexistente.some(p => p.id === 'est_q1_inexistente_classificacao_risco')).toBe(true);
+    expect(visiveisComFundacaoInexistente.some(p => p.id === 'est_q1_inexistente_explicacao')).toBe(true);
+
+    const visiveisComFundacaoBoa = filtrarPerguntasVisiveis(perguntas, { est_q1: 'q1_a' });
+    expect(visiveisComFundacaoBoa.some(p => p.id === 'est_q1_inexistente_classificacao_risco')).toBe(false);
+    expect(visiveisComFundacaoBoa.some(p => p.id === 'est_q1_inexistente_explicacao')).toBe(false);
+
+    const respostasFiltradas = filtrarRespostasPorPerguntas(
+      {
+        est_q1: 'inexistente',
+        est_q1_inexistente_classificacao_risco: 'alto',
+        est_q1_inexistente_explicacao: 'Fundacao nao observada no trecho vistoriado.',
+      },
+      visiveisComFundacaoInexistente,
       'risco_estrutural_novo_v2',
     );
 
-    expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'inexistente')).toBe(true);
-    expect(respostas[obsKey]).toContain('Fundacao');
+    expect(respostasFiltradas.est_q1_inexistente_classificacao_risco).toBe('alto');
+    expect(respostasFiltradas.est_q1_inexistente_explicacao).toContain('Fundacao');
   });
 });
 
