@@ -3,7 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
 const migrationUrl = new URL(
-  '../supabase/migrations/20260716014733_subscription_platform.sql',
+  '../supabase/migrations/20260716141609_subscription_platform.sql',
+  import.meta.url,
+);
+const validationFixUrl = new URL(
+  '../supabase/migrations/20260716142121_fix_subscription_platform_remote_validation.sql',
   import.meta.url,
 );
 
@@ -11,6 +15,7 @@ const migration = (await readFile(migrationUrl, 'utf8')).replace(
   'CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;',
   '-- pgcrypto is represented by deterministic test doubles in this ephemeral database.',
 );
+const validationFix = await readFile(validationFixUrl, 'utf8');
 
 const db = new PGlite();
 
@@ -96,6 +101,7 @@ await db.exec(`
 
 try {
   await db.exec(migration);
+  await db.exec(validationFix);
 
   const planResult = await db.query(`
     SELECT count(*)::integer AS total,

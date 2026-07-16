@@ -1,4 +1,5 @@
 -- Subscription, municipal organization and support platform.
+-- Hosted migration version: 20260716141609.
 -- Commercial enforcement is deliberately disabled until product approval and pilot rollout.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
@@ -980,25 +981,25 @@ ALTER TABLE public.vistorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agendamentos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY vistorias_organization_select ON public.vistorias FOR SELECT TO authenticated USING (
   (SELECT private.is_owner_admin()) OR organization_id = (SELECT private.current_organization_id())
-  OR (organization_id IS NULL AND "agenteUid" = (SELECT auth.uid()))
+  OR (organization_id IS NULL AND "agenteUid"::text = (SELECT auth.uid()::text))
   OR (organization_id IS NULL AND (SELECT private.can_access_legacy_municipality(municipio)))
 );
 CREATE POLICY vistorias_organization_insert ON public.vistorias FOR INSERT TO authenticated WITH CHECK (
   (SELECT private.is_owner_admin()) OR organization_id = (SELECT private.current_organization_id())
-  OR (organization_id IS NULL AND "agenteUid" = (SELECT auth.uid()))
+  OR (organization_id IS NULL AND "agenteUid"::text = (SELECT auth.uid()::text))
 );
 CREATE POLICY vistorias_organization_update ON public.vistorias FOR UPDATE TO authenticated USING (
   (SELECT private.is_owner_admin()) OR organization_id = (SELECT private.current_organization_id())
-  OR (organization_id IS NULL AND "agenteUid" = (SELECT auth.uid()))
+  OR (organization_id IS NULL AND "agenteUid"::text = (SELECT auth.uid()::text))
   OR (organization_id IS NULL AND (SELECT private.can_access_legacy_municipality(municipio)))
 ) WITH CHECK (
   (SELECT private.is_owner_admin()) OR organization_id = (SELECT private.current_organization_id())
-  OR (organization_id IS NULL AND "agenteUid" = (SELECT auth.uid()))
+  OR (organization_id IS NULL AND "agenteUid"::text = (SELECT auth.uid()::text))
   OR (organization_id IS NULL AND (SELECT private.can_access_legacy_municipality(municipio)))
 );
 CREATE POLICY vistorias_organization_delete ON public.vistorias FOR DELETE TO authenticated USING (
   (SELECT private.is_owner_admin()) OR organization_id = (SELECT private.current_organization_id())
-  OR (organization_id IS NULL AND "agenteUid" = (SELECT auth.uid()))
+  OR (organization_id IS NULL AND "agenteUid"::text = (SELECT auth.uid()::text))
   OR (organization_id IS NULL AND (SELECT private.can_access_legacy_municipality(municipio)))
 );
 CREATE POLICY agendamentos_organization_select ON public.agendamentos FOR SELECT TO authenticated USING (
