@@ -504,13 +504,42 @@ const DEMO_FEATURES: FeatureRow[] = [
   { code: 'municipal_coordination', name: 'Coordenação municipal', category: 'module', description: 'Agentes, convites e sessões da organização', active: true },
 ];
 
+const DEMO_COMMERCIAL: Record<string, CommercialConfig> = {
+  individual_basic: { monthly_price_cents: 7990, annual_price_cents: 79900, currency: 'BRL', trial_days: 14, grace_days: 7, overage_policy: 'block', support_tier: 'standard', support_channels: ['E-mail'], support_hours: 'Dias úteis, 9h às 18h (BRT)' },
+  individual_professional: { monthly_price_cents: 14990, annual_price_cents: 149900, currency: 'BRL', trial_days: 14, grace_days: 7, overage_policy: 'block', support_tier: 'priority', support_channels: ['E-mail', 'Portal'], support_hours: 'Dias úteis, 8h às 18h (BRT)' },
+  municipal_basic: { monthly_price_cents: 149000, annual_price_cents: 1490000, currency: 'BRL', trial_days: 30, grace_days: 15, overage_policy: 'manual_review', support_tier: 'standard', support_channels: ['E-mail', 'Portal'], support_hours: 'Dias úteis, 8h às 18h (BRT)' },
+  municipal_professional: { monthly_price_cents: 399000, annual_price_cents: 3990000, currency: 'BRL', trial_days: 30, grace_days: 15, overage_policy: 'manual_review', support_tier: 'priority', support_channels: ['E-mail', 'Portal', 'WhatsApp'], support_hours: 'Dias úteis, 8h às 18h (BRT), com prioridade' },
+  municipal_complete: { monthly_price_cents: 699000, annual_price_cents: 6990000, currency: 'BRL', trial_days: 30, grace_days: 30, overage_policy: 'custom', support_tier: 'specialized', support_channels: ['E-mail', 'Portal', 'WhatsApp', 'Telefone'], support_hours: 'Atendimento estendido e plantão crítico conforme contrato' },
+};
+
+const DEMO_DESCRIPTIONS: Record<string, string> = {
+  individual_basic: 'Para o profissional autônomo que está iniciando a operação digital.',
+  individual_professional: 'Para profissionais com maior volume de vistorias e relatórios avançados.',
+  municipal_basic: 'Para prefeituras com equipes de até 10 agentes e operação municipal essencial.',
+  municipal_professional: 'Para prefeituras com equipes de até 30 agentes, indicadores completos e suporte prioritário.',
+  municipal_complete: 'Plano municipal completo a partir do valor-base, com ARV, treinamento e condições ajustáveis por contrato.',
+};
+
+const DEMO_SLA: Record<string, PlanRow['support_sla_policies']> = {
+  individual_basic: createSla([[4320, 10080, 2880], [2880, 7200, 1440], [1440, 4320, 720], [720, 2880, 360]]),
+  individual_professional: createSla([[2880, 7200, 1440], [1440, 4320, 720], [480, 2880, 240], [240, 1440, 120]]),
+  municipal_basic: createSla([[2880, 7200, 1440], [1440, 4320, 720], [480, 2880, 240], [240, 1440, 120]]),
+  municipal_professional: createSla([[1440, 4320, 720], [480, 2880, 240], [240, 1440, 120], [120, 720, 60]]),
+  municipal_complete: createSla([[480, 2880, 240], [240, 1440, 120], [120, 720, 60], [60, 480, 30]]),
+};
+
+function createSla(values: [number, number, number][]): PlanRow['support_sla_policies'] {
+  const priorities: Priority[] = ['low', 'normal', 'high', 'critical'];
+  return values.map(([response_minutes, resolution_minutes, escalation_minutes], index) => ({ priority: priorities[index], response_minutes, resolution_minutes, escalation_minutes }));
+}
+
 function createDemoPlans(): PlanRow[] {
   const data = [
-    ['individual-basic', 'individual_basic', 'Individual Básico', 'individual', 30, 1, 10, 'standard'],
-    ['individual-pro', 'individual_professional', 'Individual Profissional', 'individual', 150, 1, 50, 'priority'],
-    ['municipal-basic', 'municipal_basic', 'Municipal Básico', 'organization', 300, 10, 50, 'standard'],
-    ['municipal-pro', 'municipal_professional', 'Municipal Profissional', 'organization', 1000, 30, 200, 'priority'],
-    ['municipal-complete', 'municipal_complete', 'Municipal Completo', 'organization', null, null, null, 'specialized'],
+    ['individual-basic', 'individual_basic', 'Individual Básico', 'individual', 30, 1, 10, 1073741824],
+    ['individual-pro', 'individual_professional', 'Individual Profissional', 'individual', 150, 1, 50, 5368709120],
+    ['municipal-basic', 'municipal_basic', 'Municipal Básico', 'organization', 300, 10, 50, 21474836480],
+    ['municipal-pro', 'municipal_professional', 'Municipal Profissional', 'organization', 1000, 30, 200, 107374182400],
+    ['municipal-complete', 'municipal_complete', 'Municipal Completo', 'organization', 5000, 100, 1000, 536870912000],
   ] as const;
   const enabled: Record<string, string[]> = {
     individual_basic: ['inspection_standard', 'reports_basic'],
@@ -519,14 +548,15 @@ function createDemoPlans(): PlanRow[] {
     municipal_professional: ['inspection_standard', 'reports_advanced', 'indicators_complete', 'municipal_coordination'],
     municipal_complete: DEMO_FEATURES.map(feature => feature.code),
   };
-  const plans = data.map(([id, code, name, audience, inspections, users, invitations, supportTier]): PlanRow => {
-    const commercial = { ...DEFAULT_COMMERCIAL, support_tier: supportTier as CommercialConfig['support_tier'] };
-    return { id, code, name, description: 'Proposta comercial editável pelo proprietário.', audience, status: 'draft', current_version: 1, plan_features: DEMO_FEATURES.map(feature => ({ feature_code: feature.code, enabled: enabled[code].includes(feature.code) })), plan_limits: [
+  const plans = data.map(([id, code, name, audience, inspections, users, invitations, storageBytes]): PlanRow => {
+    const commercial = DEMO_COMMERCIAL[code];
+    return { id, code, name, description: DEMO_DESCRIPTIONS[code], audience, status: 'draft', current_version: 2, plan_features: DEMO_FEATURES.map(feature => ({ feature_code: feature.code, enabled: enabled[code].includes(feature.code) })), plan_limits: [
       { resource_code: 'users', hard_limit: users, warning_percent: 80 },
       { resource_code: 'inspections', hard_limit: inspections, warning_percent: 80 },
       { resource_code: 'invitations', hard_limit: invitations, warning_percent: 80 },
+      { resource_code: 'storage_bytes', hard_limit: storageBytes, warning_percent: 80 },
       { resource_code: 'sessions', hard_limit: 1, warning_percent: 100 },
-    ], plan_versions: [{ version: 1, configuration: { commercial }, published_at: null }], support_sla_policies: supportTier === 'specialized' ? [] : [{ priority: 'normal', response_minutes: supportTier === 'priority' ? 1440 : 2880, resolution_minutes: null, escalation_minutes: null }] };
+    ], plan_versions: [{ version: 2, configuration: { commercial }, published_at: null }], support_sla_policies: DEMO_SLA[code] };
   });
   plans.push({ id: 'compatibility', code: 'compatibility', name: 'Compatibilidade', description: 'Fluxo legado durante a migração.', audience: 'compatibility', status: 'active', current_version: 1, plan_features: [], plan_limits: [], plan_versions: [], support_sla_policies: [] });
   return plans;

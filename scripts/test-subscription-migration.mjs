@@ -10,12 +10,17 @@ const validationFixUrl = new URL(
   '../supabase/migrations/20260716142121_fix_subscription_platform_remote_validation.sql',
   import.meta.url,
 );
+const commercialDefaultsUrl = new URL(
+  '../supabase/migrations/20260716154744_approve_commercial_plan_defaults.sql',
+  import.meta.url,
+);
 
 const migration = (await readFile(migrationUrl, 'utf8')).replace(
   'CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;',
   '-- pgcrypto is represented by deterministic test doubles in this ephemeral database.',
 );
 const validationFix = await readFile(validationFixUrl, 'utf8');
+const commercialDefaults = await readFile(commercialDefaultsUrl, 'utf8');
 
 const db = new PGlite();
 
@@ -102,6 +107,7 @@ await db.exec(`
 try {
   await db.exec(migration);
   await db.exec(validationFix);
+  await db.exec(commercialDefaults);
 
   const planResult = await db.query(`
     SELECT count(*)::integer AS total,
@@ -123,7 +129,23 @@ try {
       (SELECT count(*)::integer FROM public.plan_versions) AS versions,
       (SELECT count(*)::integer FROM public.support_sla_policies) AS sla_policies;
   `);
-  assert.deepEqual(commercialSeedResult.rows[0], { versions: 5, sla_policies: 4 });
+  assert.deepEqual(commercialSeedResult.rows[0], { versions: 10, sla_policies: 20 });
+
+  const pricingResult = await db.query(`
+    SELECT p.code,
+           (pv.configuration->'commercial'->>'monthly_price_cents')::integer AS monthly_price_cents,
+           (pv.configuration->'commercial'->>'annual_price_cents')::integer AS annual_price_cents,
+           (pv.configuration->'commercial'->>'trial_days')::integer AS trial_days
+    FROM public.plans p
+    JOIN public.plan_versions pv ON pv.plan_id = p.id AND pv.version = p.current_version
+    WHERE p.code IN ('individual_basic', 'municipal_basic', 'municipal_complete')
+    ORDER BY p.code;
+  `);
+  assert.deepEqual(pricingResult.rows, [
+    { code: 'individual_basic', monthly_price_cents: 7990, annual_price_cents: 79900, trial_days: 14 },
+    { code: 'municipal_basic', monthly_price_cents: 149000, annual_price_cents: 1490000, trial_days: 30 },
+    { code: 'municipal_complete', monthly_price_cents: 699000, annual_price_cents: 6990000, trial_days: 30 },
+  ]);
 
   const limitsResult = await db.query(`
     SELECT p.code, pl.resource_code, pl.hard_limit::text AS hard_limit
@@ -198,7 +220,7 @@ try {
     JSON.stringify({ normal: { response_minutes: 2880, resolution_minutes: null, escalation_minutes: null } }),
   ]);
   assert.equal(saveResult.rows[0].result.saved, true);
-  assert.equal(saveResult.rows[0].result.version, 2);
+  assert.equal(saveResult.rows[0].result.version, 3);
 
   const savedPlan = await db.query(`
     SELECT p.name, p.current_version,
@@ -209,7 +231,7 @@ try {
   `, [planId]);
   assert.deepEqual(savedPlan.rows[0], {
     name: 'Individual Básico Atualizado',
-    current_version: 2,
+    current_version: 3,
     monthly_price_cents: 4990,
   });
 

@@ -1,10 +1,12 @@
 ## 1. Aprovação do produto
 
-- [ ] 1.1 Confirmar preços, período de teste, status de assinatura, carência e política de excedentes com os proprietários
-- [ ] 1.2 Confirmar catálogo inicial de modelos, incluindo ARV e modo treinamento
-- [ ] 1.3 Confirmar limites iniciais por plano e quais valores serão personalizados por prefeitura
-- [ ] 1.4 Confirmar canais, horário e metas contratuais de suporte
+- [x] 1.1 Confirmar preços, período de teste, status de assinatura, carência e política de excedentes com os proprietários
+- [x] 1.2 Confirmar catálogo inicial de modelos, incluindo ARV e modo treinamento
+- [x] 1.3 Confirmar limites iniciais por plano e quais valores serão personalizados por prefeitura
+- [x] 1.4 Confirmar canais, horário e metas contratuais de suporte
 - [ ] 1.5 Definir a primeira prefeitura piloto e o coordenador responsável
+
+> Decisão aprovada pelo proprietário em 16/07/2026 e registrada na migration `approve_commercial_plan_defaults`. As regras de enforcement permanecem desligadas até a conclusão do piloto.
 
 ## 2. Modelo de dados e migração
 
