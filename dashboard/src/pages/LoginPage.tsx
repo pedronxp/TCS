@@ -96,7 +96,7 @@ export function LoginPage() {
           <h1 className="text-4xl font-extrabold text-white tracking-tight mt-3">
             TCS — Painel
           </h1>
-          <p className="text-slate-400 mt-1 text-sm">Acesso restrito a administradores</p>
+          <p className="text-slate-400 mt-1 text-sm">Console interno para donos e programadores</p>
         </div>
 
         {/* Card */}
@@ -114,8 +114,9 @@ export function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 tracking-widest uppercase">E-mail</label>
+              <label htmlFor="internal-email" className="text-xs font-semibold text-slate-400 tracking-widest uppercase">E-mail</label>
               <input
+                id="internal-email"
                 type="email" autoComplete="email" required
                 value={email} onChange={e => setEmail(e.target.value)}
                 disabled={submitting} placeholder="seu@email.com"
@@ -127,9 +128,10 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 tracking-widest uppercase">Senha</label>
+              <label htmlFor="internal-password" className="text-xs font-semibold text-slate-400 tracking-widest uppercase">Senha</label>
               <div className="relative">
                 <input
+                  id="internal-password"
                   type={showPw ? 'text' : 'password'} autoComplete="current-password" required
                   value={password} onChange={e => setPassword(e.target.value)}
                   disabled={submitting}
@@ -138,7 +140,7 @@ export function LoginPage() {
                   onFocus={e => e.currentTarget.style.borderColor = 'rgba(59,130,246,.65)'}
                   onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'}
                 />
-                <button type="button" onClick={() => setShowPw(v => !v)} tabIndex={-1}
+                <button type="button" onClick={() => setShowPw(v => !v)} aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -146,7 +148,7 @@ export function LoginPage() {
             </div>
 
             {erro && (
-              <div className="rounded-xl px-4 py-3 text-sm text-red-300"
+              <div role="alert" className="rounded-xl px-4 py-3 text-sm text-red-300"
                 style={{ background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.25)', animation: 'shake .4s cubic-bezier(.36,.07,.19,.97) both' }}>
                 {erro}
               </div>
@@ -161,8 +163,7 @@ export function LoginPage() {
           </form>
 
           <p className="text-[11px] text-slate-600 text-center pt-1 border-t border-white/5">
-            Apenas contas <span className="text-slate-500 font-medium">admin</span> e{' '}
-            <span className="text-slate-500 font-medium">master_admin</span> aprovadas têm acesso.
+            É necessário um vínculo interno explícito e ativo para acessar.
           </p>
         </div>
       </div>

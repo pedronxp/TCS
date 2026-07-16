@@ -142,6 +142,57 @@ dashboard/
 
 ---
 
+## Console interno v2
+
+O acesso ao console depende de um registro ativo em `public.internal_staff`.
+Papéis municipais (`admin` e `master_admin`) e `user_metadata` não concedem
+acesso. Os papéis iniciais são:
+
+- `owner`: gestão comercial, clientes, staff, suporte, sessões e aprovação de produção;
+- `developer`: diagnóstico técnico, suporte, builds não produtivos e solicitações de produção, sem mutation comercial.
+
+O console interno agora é o único shell. O gate temporário e as rotas globais
+legadas foram removidos após os testes de papéis. Para rollback, restaure o
+artefato web anterior sem remover `internal_staff`, auditoria, eventos técnicos
+ou as políticas de RLS.
+
+Ações de alto risco exigem sessão `aal2` no banco e na Edge Function. Se a API
+retornar `aal2_required`, o usuário deve concluir o desafio MFA e repetir a
+operação com o mesmo identificador idempotente.
+
+### Provisionamento de cliente individual
+
+Na página **Clientes**, o `owner` pode enviar um convite por e-mail ou definir
+uma senha inicial. Os dois caminhos usam a Edge Function
+`provision-individual-client`; a chave administrativa permanece apenas no
+Supabase e nunca entra no bundle do dashboard.
+
+- convite por e-mail: o link temporário e de uso único pertence ao Supabase
+  Auth e não reutiliza `invite_tokens` nem `organization_invites`;
+- senha inicial: a senha trafega somente na requisição HTTPS para a função, não
+  é persistida nem incluída em logs ou metadados de auditoria;
+- ambos exigem `customer.write`, MFA `aal2`, justificativa e registram o usuário
+  criado em `individual_client_provisioning`.
+
+O redirecionamento padrão do convite é `tcs://reset-password`. Para alterá-lo,
+configure o secret `INDIVIDUAL_INVITE_REDIRECT_URL` na Edge Function e inclua a
+mesma URL na lista de Redirect URLs permitidas pelo Supabase Auth.
+
+Validação local:
+
+```bash
+npm run lint
+npm test
+npm run build
+npm audit --omit=dev
+```
+
+Para regenerar `src/types/supabase.ts`, autentique o Supabase CLI e execute
+`npm run types:supabase`. Nunca coloque o access token do CLI em arquivos do
+dashboard.
+
+---
+
 ## Decisões técnicas
 
 - **Vite + SPA** em vez de Next.js — painel interno não precisa de SSR; deploy estático é mais simples e barato.

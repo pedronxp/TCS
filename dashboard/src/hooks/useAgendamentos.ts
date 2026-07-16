@@ -38,8 +38,9 @@ export function useAgendamentos(
         .select('id, titulo, endereco, municipio, data_agendada, criado_por_nome, agente_nome, observacoes, status, criado_em')
         .order('data_agendada', { ascending: true });
 
-      if (profile?.role !== 'master_admin') {
-        query = query.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        query = query.eq('municipio', municipio);
       } else if (municipioFiltro) {
         query = query.eq('municipio', municipioFiltro);
       }

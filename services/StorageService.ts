@@ -1,6 +1,7 @@
 import { supabase } from '../utils/supabase';
 import * as FileSystem from 'expo-file-system';
 import { logger } from '../utils/logger';
+import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
 
 const BUCKET_NAME = 'vistorias';
 const BUCKET_FOTOS = 'fotos';
@@ -109,6 +110,7 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
     return encodePath('vistorias', remotePath);
 
   } catch (error: any) {
+    reportClientTechnicalEventSafely({ category: 'storage', severity: 'error', summary: 'Falha no upload de imagem', metadata: { operation: 'upload_image', bucket: BUCKET_NAME } });
     logger.error('sync', `Erro em uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
     throw error;
   }
@@ -148,6 +150,7 @@ export async function uploadFotoVistoria(
 
     return encodePath('fotos', remotePath);
   } catch (e: any) {
+    reportClientTechnicalEventSafely({ category: 'storage', severity: 'warning', summary: 'Falha no upload de foto da vistoria', metadata: { operation: 'upload_inspection_photo', bucket: BUCKET_FOTOS } });
     logger.warn('sync', `Erro upload foto vistoria: ${e?.message}`, { vistoriaId });
     return null;
   }
@@ -187,6 +190,7 @@ export async function uploadLaudoPdf(
 
     return data?.signedUrl ?? null;
   } catch (e: any) {
+    reportClientTechnicalEventSafely({ category: 'storage', severity: 'warning', summary: 'Falha no upload do laudo', metadata: { operation: 'upload_report', bucket: BUCKET_LAUDOS } });
     logger.warn('sync', `Erro upload laudo PDF: ${e?.message}`, { vistoriaId });
     return null;
   }
