@@ -14,6 +14,12 @@ const ROUTE_TITLES: Record<string, string> = {
   '/arquivamento': 'Arquivamento',
   '/builds': 'Builds APK',
   '/configuracoes': 'Configurações',
+  '/planos': 'Planos e recursos',
+  '/organizacoes': 'Organizações',
+  '/assinaturas': 'Assinaturas',
+  '/sessoes': 'Sessões ativas',
+  '/suporte': 'Suporte',
+  '/indicadores-comerciais': 'Indicadores comerciais',
 };
 
 export function AppLayout() {

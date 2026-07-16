@@ -10,6 +10,7 @@ import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
 import { Card, Badge, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSubscription } from '../../../context/SubscriptionContext';
 
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
@@ -59,6 +60,7 @@ export default function SelecaoFormularioScreen() {
   const { profile } = useAuth();
   const { isTrainingActive, session: trainingSession } = useTraining();
   const { isOnlineReal } = useConnectivity();
+  const { hasFeature } = useSubscription();
   const params = useLocalSearchParams<any>();
   const [dynamicForms, setDynamicForms] = useState<FormularioItem[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -176,6 +178,17 @@ export default function SelecaoFormularioScreen() {
     const builtin = FORMULARIOS_BUILTIN.find(f => f.id === selected);
     const isBuiltin = !!builtin;
     const form = builtin || dynamicForms.find(f => f.id === selected)!;
+    const normalizedTitle = form.titulo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const featureCode = normalizedTitle.includes('arv') || normalizedTitle.includes('arvore')
+      ? 'inspection_arv'
+      : 'inspection_standard';
+    if (!isTrainingActive && !hasFeature(featureCode)) {
+      Alert.alert('Recurso não incluído', 'Este modelo não está disponível no plano atual.', [
+        { text: 'Agora não', style: 'cancel' },
+        { text: 'Ver assinatura', onPress: () => router.push('/(panel)/assinatura') },
+      ]);
+      return;
+    }
 
     router.push({
       pathname: '/(panel)/inspecoes/wizard',

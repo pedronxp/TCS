@@ -9,7 +9,9 @@
     "web": "expo start --web",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:subscription-concurrency": "node scripts/test-subscription-concurrency.mjs",
+    "test:subscription-migration": "node scripts/test-subscription-migration.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -56,6 +58,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@electric-sql/pglite": "^0.5.4",
     "@testing-library/react-native": "^12.4.3",
     "@types/jest": "29.5.14",
     "@types/react": "~19.1.0",

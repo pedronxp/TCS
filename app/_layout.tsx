@@ -17,6 +17,8 @@ import { ConnectivityBanner } from '../components/ConnectivityBanner';
 import { ForceUpdateGate } from '../components/ForceUpdateGate';
 import { LogBox } from 'react-native';
 import { resolveRootRedirect } from '../utils/rootRouting';
+import { SubscriptionProvider } from '../context/SubscriptionContext';
+import { SessionLifecycle } from '../services/SessionService';
 
 // Silencia erros internos do Expo Go no Android
 LogBox.ignoreLogs(['Unable to activate keep awake']);
@@ -148,15 +150,18 @@ export default function RootLayout() {
     <ConnectivityProvider>
       <ThemeProvider>
         <AuthProvider>
-          <TrainingProvider>
-            <ReportProvider>
-              <NotificationProvider>
-                <ForceUpdateGate>
-                  <RootNavigator />
-                </ForceUpdateGate>
-              </NotificationProvider>
-            </ReportProvider>
-          </TrainingProvider>
+          <SubscriptionProvider>
+            <SessionLifecycle />
+            <TrainingProvider>
+              <ReportProvider>
+                <NotificationProvider>
+                  <ForceUpdateGate>
+                    <RootNavigator />
+                  </ForceUpdateGate>
+                </NotificationProvider>
+              </ReportProvider>
+            </TrainingProvider>
+          </SubscriptionProvider>
         </AuthProvider>
       </ThemeProvider>
     </ConnectivityProvider>

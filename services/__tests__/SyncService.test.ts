@@ -409,6 +409,28 @@ describe('syncPendentes', () => {
     expect(mockMarkErroSync).toHaveBeenCalledWith('v-1', 'network error');
   });
 
+  it('preserva vistoria offline bloqueada por limite sem gastar tentativas nem agendar retry', async () => {
+    jest.useFakeTimers();
+    try {
+      const limitError = { message: 'inspection_creation_blocked', details: '{"reason":"limit_reached"}' };
+      mockUpsertFn.mockResolvedValue({ error: limitError });
+      mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
+
+      const resultado = await syncPendentes();
+
+      expect(resultado).toEqual({ sucesso: 0, falha: 1 });
+      expect(mockIncrementTentativas).not.toHaveBeenCalled();
+      expect(mockMarkSincronizado).not.toHaveBeenCalled();
+      expect(mockMarkErroSync).toHaveBeenCalledWith('v-1', expect.stringContaining('permanece salva'));
+
+      const chamadas = mockUpsertFn.mock.calls.length;
+      await jest.advanceTimersByTimeAsync(31_000);
+      expect(mockUpsertFn).toHaveBeenCalledTimes(chamadas);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('backoff: retry agendado em 30s após falha', async () => {
     jest.useFakeTimers();
     try {

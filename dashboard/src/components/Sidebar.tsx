@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, AlertTriangle, Users, Calendar,
   Map, FileText, BarChart3, Archive, Smartphone,
-  Settings, LogOut, X,
+  Settings, LogOut, X, CreditCard, Building2, BadgeDollarSign,
+  MonitorSmartphone, LifeBuoy, TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,12 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/',             label: 'Visão Geral',  icon: LayoutDashboard },
+  { to: '/indicadores-comerciais', label: 'Indicadores', icon: TrendingUp, masterOnly: true },
+  { to: '/planos', label: 'Planos e recursos', icon: CreditCard, masterOnly: true },
+  { to: '/organizacoes', label: 'Organizações', icon: Building2, masterOnly: true },
+  { to: '/assinaturas', label: 'Assinaturas', icon: BadgeDollarSign, masterOnly: true },
+  { to: '/sessoes', label: 'Sessões', icon: MonitorSmartphone, masterOnly: true },
+  { to: '/suporte', label: 'Suporte', icon: LifeBuoy, masterOnly: true },
   { to: '/ocorrencias',  label: 'Ocorrências',  icon: AlertTriangle },
   { to: '/usuarios',     label: 'Usuários',     icon: Users, roles: ['master_admin', 'admin'] },
   { to: '/agendamentos', label: 'Agendamentos', icon: Calendar },

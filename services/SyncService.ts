@@ -18,6 +18,7 @@ import {
 import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri } from './StorageService';
 import { checkRealInternet } from '../context/ConnectivityContext';
+import { isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
 
 // ─── Configuração ──────────────────────────────────────────────────────────
 
@@ -116,6 +117,7 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
 
   let sucesso = 0;
   let falha = 0;
+  let bloqueiosLimite = 0;
 
   try {
     const pendentes = getVistoriasNaoSincronizadas();
@@ -198,11 +200,13 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
               sucesso++;
             }
           } catch (e2: any) {
-            const tentativaAtual = (vistoria.tentativas_sync ?? 0) + 1;
-            incrementTentativasSync(vistoria.id);
-            markErroSync(vistoria.id, e2.message ?? 'Erro desconhecido');
+            const bloqueadoPorLimite = isSubscriptionLimitError(e2);
+            const tentativaAtual = (vistoria.tentativas_sync ?? 0) + (bloqueadoPorLimite ? 0 : 1);
+            if (bloqueadoPorLimite) bloqueiosLimite++;
+            else incrementTentativasSync(vistoria.id);
+            markErroSync(vistoria.id, subscriptionLimitSyncMessage(e2));
             falha++;
-            logger.error('sync', `Falha individual (tentativa ${tentativaAtual}/${MAX_TENTATIVAS_SYNC})`, {
+            logger.error('sync', bloqueadoPorLimite ? 'Sincronização aguardando liberação de limite' : `Falha individual (tentativa ${tentativaAtual}/${MAX_TENTATIVAS_SYNC})`, {
               id: vistoria.id, endereco: vistoria.endereco_rua, erro: e2.message,
             });
           }
@@ -230,15 +234,20 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
     }
 
     if (falha > 0) {
+      const falhasComRetry = falha - bloqueiosLimite;
+      if (falhasComRetry === 0) {
+        logger.info('sync', 'Vistorias preservadas localmente aguardando liberação de limite; auto-retry suspenso.');
+        return { sucesso, falha };
+      }
       logger.warn('sync', `Sync com falhas — sucesso: ${sucesso}, falha: ${falha}`);
 
       if (!isRetry) {
         // Primeira falha: iniciar cadeia de auto-retry
         _currentRetryAttempt = 0;
-        scheduleAutoRetry(falha);
+        scheduleAutoRetry(falhasComRetry);
       } else if (_currentRetryAttempt < MAX_AUTO_RETRIES) {
         // Retry ainda tem tentativas restantes
-        scheduleAutoRetry(falha);
+        scheduleAutoRetry(falhasComRetry);
       } else {
         // Esgotou auto-retries: notificar que desistiu
         _currentRetryAttempt = 0;

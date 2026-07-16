@@ -58,6 +58,16 @@ npm install
 npm run dev            # abre em http://localhost:5173
 ```
 
+Para testar somente o editor comercial com dados locais, não é necessário criar `.env`:
+
+```bash
+cd dashboard
+npm run dev
+# abra http://localhost:5173/planos?demo=1
+```
+
+O modo de demonstração cria versões apenas na memória do navegador e nunca grava no Supabase.
+
 ### Variáveis de ambiente
 
 ```env
