@@ -10,6 +10,7 @@ export interface AdminProfile {
   role: UserRole;
   municipio: string | null;
   isApproved: boolean;
+  isOwner: boolean;
 }
 
 interface AuthContextValue {
@@ -24,22 +25,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const ALLOWED_ROLES: UserRole[] = ['master_admin', 'admin', 'supervisor'];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(userId: string): Promise<AdminProfile | null> {
-    const { data, error } = await supabase
-      .from('users')
-      .select('uid, name, role, municipio, isApproved')
-      .eq('uid', userId)
-      .maybeSingle();
+    const [{ data, error }, { data: owner }] = await Promise.all([
+      supabase.from('users').select('uid, name, role, municipio, isApproved').eq('uid', userId).maybeSingle(),
+      supabase.from('owner_admins').select('user_id, active').eq('user_id', userId).eq('active', true).maybeSingle(),
+    ]);
 
     if (error || !data) return null;
-    return data as AdminProfile;
+    return { ...data, isOwner: !!owner } as AdminProfile;
   }
 
   useEffect(() => {
@@ -81,9 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       return { error: 'Perfil não encontrado para este usuário.' };
     }
-    if (!ALLOWED_ROLES.includes(p.role)) {
+    if (p.role !== 'master_admin' || !p.isOwner) {
+      try { await supabase.rpc('record_denied_owner_access'); } catch { /* registro best-effort */ }
       await supabase.auth.signOut();
-      return { error: 'Acesso restrito a administradores e supervisores. Use o app móvel.' };
+      return { error: 'Acesso restrito aos proprietários autorizados. Use o app móvel.' };
     }
     if (!p.isApproved) {
       await supabase.auth.signOut();
@@ -98,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const isAuthorized =
-    !!session && !!profile && ALLOWED_ROLES.includes(profile.role) && profile.isApproved;
+    !!session && !!profile && profile.role === 'master_admin' && profile.isOwner && profile.isApproved;
 
   return (
     <AuthContext.Provider

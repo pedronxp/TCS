@@ -112,6 +112,9 @@ function PanelContent() {
         <Stack.Screen name="master/treinamentos" />
         <Stack.Screen name="master/logs" />
         <Stack.Screen name="modulos" />
+        <Stack.Screen name="assinatura" />
+        <Stack.Screen name="coordenacao" />
+        <Stack.Screen name="suporte" />
       </Stack>
       <BottomNavBar />
     </View>

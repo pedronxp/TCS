@@ -14,8 +14,12 @@ export default function ModulosScreen() {
   const bottomPad = useBottomTabPadding();
 
   const getMenu = () => {
+    const subscriptionItems = [
+      { label: 'Minha Assinatura', icon: 'credit-card', route: '/(panel)/assinatura', color: '#0EA5E9', desc: 'Plano, consumo e suporte' },
+    ];
     if (profile?.role === 'master_admin') {
       return [
+        ...subscriptionItems,
         { label: 'Municípios', icon: 'map', route: '/(panel)/master/municipios', color: '#3B82F6', desc: 'Gerenciar municípios' },
         { label: 'Equipe', icon: 'user-check', route: '/(panel)/equipe', color: '#10B981', desc: 'Agentes de todos os municípios' },
         { label: 'Inspeções', icon: 'clipboard', route: '/(panel)/inspecoes', color: '#F59E0B', desc: 'Vistorias e formulários' },
@@ -29,6 +33,7 @@ export default function ModulosScreen() {
     }
     if (profile?.role === 'admin') {
       return [
+        ...subscriptionItems,
         { label: 'Usuários', icon: 'users', route: '/(panel)/admin/usuarios', color: '#3B82F6', desc: 'Gestão da equipe' },
         { label: 'Equipe', icon: 'user-check', route: '/(panel)/equipe', color: '#10B981', desc: 'Desempenho dos agentes' },
         { label: 'Grupos', icon: 'grid', route: '/(panel)/grupos', color: '#0EA5E9', desc: 'Grupos de agentes' },
@@ -42,6 +47,7 @@ export default function ModulosScreen() {
     }
     if (profile?.role === 'supervisor') {
       return [
+        ...subscriptionItems,
         { label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', color: '#F59E0B', desc: 'Histórico de laudos' },
         { label: 'Grupos', icon: 'grid', route: '/(panel)/grupos', color: '#0EA5E9', desc: 'Grupos de agentes' },
         { label: 'Mapa Tático', icon: 'map', route: '/(panel)/mapas', color: '#6366F1', desc: 'Georreferenciado' },
@@ -50,6 +56,7 @@ export default function ModulosScreen() {
     }
     // agente
     return [
+        ...subscriptionItems,
         { label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', color: '#F59E0B', desc: 'Histórico de laudos' },
         { label: 'Mapa Tático', icon: 'map', route: '/(panel)/mapas', color: '#6366F1', desc: 'Georreferenciado' },
         { label: 'Meu Perfil', icon: 'user', route: '/(panel)/perfil', color: '#8B5CF6', desc: 'Dados e configurações' },

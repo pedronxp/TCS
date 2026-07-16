@@ -14,6 +14,12 @@ import { RelatoriosPage } from '@/pages/RelatoriosPage';
 import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
 import { BuildsPage } from '@/pages/BuildsPage';
 import { ConfiguracoesPage } from '@/pages/ConfiguracoesPage';
+import { PlansPage } from '@/pages/PlansPage';
+import { OrganizationsPage } from '@/pages/OrganizationsPage';
+import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
+import { SessionsPage } from '@/pages/SessionsPage';
+import { SupportPage } from '@/pages/SupportPage';
+import { CommercialMetricsPage } from '@/pages/CommercialMetricsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,6 +32,14 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  const commercialDemo = import.meta.env.DEV
+    && window.location.pathname === '/planos'
+    && new URLSearchParams(window.location.search).get('demo') === '1';
+
+  if (commercialDemo) {
+    return <div className="min-h-screen bg-slate-50 px-4 py-6 lg:px-8"><PlansPage demo /></div>;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -53,6 +67,12 @@ export default function App() {
               <Route path="mapa" element={<MapaPage />} />
               <Route path="laudos" element={<LaudosPage />} />
               <Route path="relatorios" element={<RelatoriosPage />} />
+              <Route path="planos" element={<PlansPage />} />
+              <Route path="organizacoes" element={<OrganizationsPage />} />
+              <Route path="assinaturas" element={<SubscriptionsPage />} />
+              <Route path="sessoes" element={<SessionsPage />} />
+              <Route path="suporte" element={<SupportPage />} />
+              <Route path="indicadores-comerciais" element={<CommercialMetricsPage />} />
               <Route
                 path="arquivamento"
                 element={
