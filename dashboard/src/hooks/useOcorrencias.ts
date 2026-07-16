@@ -80,8 +80,9 @@ export function useOcorrencias(
         .order('dataVistoria', { ascending: false })
         .limit(PAGE);
 
-      if (profile?.role !== 'master_admin') {
-        query = query.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        query = query.eq('municipio', municipio);
       } else if (municipioFiltro) {
         query = query.eq('municipio', municipioFiltro);
       }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeDollarSign,
   Boxes,
@@ -12,13 +12,19 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { jsonArray, jsonNumber, jsonObject, jsonString } from '@/lib/json';
 import { OwnerPage } from '@/components/OwnerPage';
+import { useAuth } from '@/contexts/AuthContext';
+import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
+import { usePlanMutation } from '@/hooks/usePlanMutation';
+import type { Json } from '@/types/supabase';
 
 type PlanStatus = 'draft' | 'active' | 'retired';
 type ResourceCode = 'users' | 'inspections' | 'invitations' | 'storage_bytes' | 'sessions';
 type Priority = 'low' | 'normal' | 'high' | 'critical';
 
 interface CommercialConfig {
+  [key: string]: import('@/types/supabase').Json | undefined;
   monthly_price_cents: number | null;
   annual_price_cents: number | null;
   currency: 'BRL';
@@ -48,7 +54,7 @@ interface PlanRow {
   current_version: number;
   plan_features: { feature_code: string; enabled: boolean }[];
   plan_limits: { resource_code: ResourceCode; hard_limit: number | null; warning_percent: number }[];
-  plan_versions: { version: number; configuration: { commercial?: Partial<CommercialConfig> }; published_at: string | null }[];
+  plan_versions: { version: number; configuration: Json; published_at: string | null }[];
   support_sla_policies: { priority: Priority; response_minutes: number; resolution_minutes: number | null; escalation_minutes: number | null }[];
 }
 
@@ -124,6 +130,8 @@ const DEFAULT_COMMERCIAL: CommercialConfig = {
 };
 
 export function PlansPage({ demo = false }: { demo?: boolean }) {
+  const { can } = useAuth();
+  const canWrite = can('commercial.write');
   const [plans, setPlans] = useState<PlanRow[]>(demo ? createDemoPlans() : []);
   const [features, setFeatures] = useState<FeatureRow[]>(demo ? DEMO_FEATURES : []);
   const [loading, setLoading] = useState(!demo);
@@ -131,8 +139,10 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
   const [editing, setEditing] = useState<PlanRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pendingSave, setPendingSave] = useState<{ plan: PlanRow; draft: PlanDraft } | null>(null);
+  const planMutation = usePlanMutation();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (demo) return;
     setLoading(true);
     setError(null);
@@ -146,20 +156,32 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
     const firstError = plansResult.error || featuresResult.error;
     if (firstError) setError(firstError.message);
     else {
-      setPlans((plansResult.data || []) as unknown as PlanRow[]);
-      setFeatures((featuresResult.data || []) as FeatureRow[]);
+      setPlans((plansResult.data || []).map((plan): PlanRow => ({
+        id: plan.id,
+        code: plan.code,
+        name: plan.name,
+        description: plan.description,
+        audience: parseAudience(plan.audience),
+        status: parsePlanStatus(plan.status),
+        current_version: plan.current_version,
+        plan_features: plan.plan_features,
+        plan_limits: plan.plan_limits.map((limit) => ({ ...limit, resource_code: parseResourceCode(limit.resource_code) })),
+        plan_versions: plan.plan_versions,
+        support_sla_policies: plan.support_sla_policies.map((policy) => ({ ...policy, priority: parsePriority(policy.priority) })),
+      })));
+      setFeatures(featuresResult.data || []);
     }
     setLoading(false);
-  };
+  }, [demo]);
 
   useEffect(() => {
     load();
-  }, [demo]);
+  }, [load]);
 
   const commercialPlans = useMemo(() => plans.filter(plan => plan.audience !== 'compatibility'), [plans]);
   const compatibility = plans.find(plan => plan.audience === 'compatibility');
 
-  const savePlan = async (plan: PlanRow, draft: PlanDraft) => {
+  const savePlan = async (plan: PlanRow, draft: PlanDraft, reason: string) => {
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -175,15 +197,8 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
           : item));
         setNotice('Proposta atualizada na demonstração local. Nenhum dado real foi alterado.');
       } else {
-        const { error: saveError } = await supabase.rpc('update_plan_commercial_configuration', {
-          p_plan_id: plan.id,
-          p_plan: { name: draft.name.trim(), description: draft.description.trim() || null, status: draft.status },
-          p_commercial: commercial,
-          p_features: draft.features,
-          p_limits: limits,
-          p_sla: sla,
-        });
-        if (saveError) throw saveError;
+        const saved = await planMutation.mutateAsync({ planId: plan.id, plan: { name: draft.name.trim(), description: draft.description.trim() || null, status: draft.status }, commercial, features: draft.features, limits, sla, reason });
+        if (!saved.ok) throw new Error(saved.error);
         await load();
         setNotice('Proposta salva e uma nova versão comercial foi criada.');
       }
@@ -212,7 +227,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
 
         <div className="grid gap-4 xl:grid-cols-2">
           {commercialPlans.map(plan => (
-            <PlanCard key={plan.id} plan={plan} features={features} onEdit={() => { setError(null); setEditing(plan); }} />
+            <PlanCard key={plan.id} plan={plan} features={features} onEdit={canWrite ? () => { setError(null); setEditing(plan); } : undefined} />
           ))}
         </div>
 
@@ -231,14 +246,15 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
           saving={saving}
           error={error}
           onClose={() => { if (!saving) { setEditing(null); setError(null); } }}
-          onSave={draft => savePlan(editing, draft)}
+          onSave={draft => setPendingSave({ plan: editing, draft })}
         />
       )}
+      {pendingSave && <HighRiskDialog open title="Confirmar nova versão do plano" description="Preço, trial, carência, recursos, limites e SLA serão preservados na auditoria." confirmLabel="Salvar nova versão" onClose={() => setPendingSave(null)} onConfirm={async reason => { await savePlan(pendingSave.plan, pendingSave.draft, reason); setPendingSave(null); }} />}
     </OwnerPage>
   );
 }
 
-function PlanCard({ plan, features, onEdit }: { plan: PlanRow; features: FeatureRow[]; onEdit: () => void }) {
+function PlanCard({ plan, features, onEdit }: { plan: PlanRow; features: FeatureRow[]; onEdit?: () => void }) {
   const commercial = getCommercial(plan);
   const enabledFeatures = plan.plan_features.filter(item => item.enabled);
   const normalSla = plan.support_sla_policies.find(item => item.priority === 'normal');
@@ -253,9 +269,9 @@ function PlanCard({ plan, features, onEdit }: { plan: PlanRow; features: Feature
           <h2 className="text-lg font-bold text-slate-900">{plan.name}</h2>
           <p className="mt-1 text-sm text-slate-500">{plan.description || 'Sem descrição comercial.'}</p>
         </div>
-        <button onClick={onEdit} className="flex shrink-0 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
+        {onEdit && <button onClick={onEdit} className="flex shrink-0 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
           <Edit3 className="h-4 w-4" /> Editar
-        </button>
+        </button>}
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -384,8 +400,42 @@ const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2
 
 function getCommercial(plan: PlanRow): CommercialConfig {
   const version = plan.plan_versions.find(item => item.version === plan.current_version) || [...plan.plan_versions].sort((a, b) => b.version - a.version)[0];
-  const value = version?.configuration?.commercial || {};
-  return { ...DEFAULT_COMMERCIAL, ...value, support_channels: value.support_channels || DEFAULT_COMMERCIAL.support_channels };
+  const configuration = jsonObject(version?.configuration);
+  const value = jsonObject(configuration?.commercial);
+  if (!value) return DEFAULT_COMMERCIAL;
+  const overage = jsonString(value.overage_policy);
+  const support = jsonString(value.support_tier);
+  return {
+    monthly_price_cents: jsonNumber(value.monthly_price_cents),
+    annual_price_cents: jsonNumber(value.annual_price_cents),
+    currency: 'BRL',
+    trial_days: jsonNumber(value.trial_days) ?? DEFAULT_COMMERCIAL.trial_days,
+    grace_days: jsonNumber(value.grace_days) ?? DEFAULT_COMMERCIAL.grace_days,
+    overage_policy: overage === 'manual_review' || overage === 'allow_and_bill' || overage === 'custom' ? overage : 'block',
+    support_tier: support === 'priority' || support === 'specialized' ? support : 'standard',
+    support_channels: jsonArray(value.support_channels).filter((item): item is string => typeof item === 'string'),
+    support_hours: jsonString(value.support_hours) || DEFAULT_COMMERCIAL.support_hours,
+  };
+}
+
+function parsePlanStatus(value: string): PlanStatus {
+  if (value === 'active' || value === 'retired') return value;
+  return 'draft';
+}
+
+function parseAudience(value: string): PlanRow['audience'] {
+  if (value === 'individual' || value === 'organization') return value;
+  return 'compatibility';
+}
+
+function parseResourceCode(value: string): ResourceCode {
+  if (value === 'inspections' || value === 'invitations' || value === 'storage_bytes' || value === 'sessions') return value;
+  return 'users';
+}
+
+function parsePriority(value: string): Priority {
+  if (value === 'low' || value === 'high' || value === 'critical') return value;
+  return 'normal';
 }
 
 function createDraft(plan: PlanRow, featureCatalog: FeatureRow[]): PlanDraft {

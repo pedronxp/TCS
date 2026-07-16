@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Search,
   X,
@@ -71,7 +71,10 @@ function PainelDetalhe({ vistoria, onClose }: { vistoria: Vistoria; onClose: () 
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [fotoAberta, setFotoAberta] = useState<string | null>(null);
 
-  const urls = vistoria.fotosUrls ?? (vistoria.fotoUrl ? [vistoria.fotoUrl] : []);
+  const urls = useMemo(
+    () => vistoria.fotosUrls ?? (vistoria.fotoUrl ? [vistoria.fotoUrl] : []),
+    [vistoria.fotoUrl, vistoria.fotosUrls],
+  );
 
   useEffect(() => {
     if (!urls.length) return;
@@ -79,7 +82,7 @@ function PainelDetalhe({ vistoria, onClose }: { vistoria: Vistoria; onClose: () 
     Promise.all(urls.map((u) => getSignedUrl(u, 3600)))
       .then((resolved) => setSignedUrls(resolved.filter(Boolean) as string[]))
       .finally(() => setLoadingFotos(false));
-  }, [vistoria.id]);
+  }, [urls]);
 
   const rc = vistoria.nivelRisco ? RISCO_CONFIG[vistoria.nivelRisco] : null;
 

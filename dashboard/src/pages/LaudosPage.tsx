@@ -51,8 +51,9 @@ function useLaudos(periodo: FiltroPeriodo, municipioFiltro: string) {
         .not('laudo_gerado_em', 'is', null)
         .order('laudo_gerado_em', { ascending: false });
 
-      if (profile?.role !== 'master_admin') {
-        q = q.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        q = q.eq('municipio', municipio);
       } else if (municipioFiltro) {
         q = q.eq('municipio', municipioFiltro);
       }

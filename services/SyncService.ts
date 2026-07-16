@@ -19,6 +19,7 @@ import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri } from './StorageService';
 import { checkRealInternet } from '../context/ConnectivityContext';
 import { isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
+import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
 
 // ─── Configuração ──────────────────────────────────────────────────────────
 
@@ -235,6 +236,18 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
 
     if (falha > 0) {
       const falhasComRetry = falha - bloqueiosLimite;
+      reportClientTechnicalEventSafely({
+        category: 'sync',
+        severity: falhasComRetry > 0 ? 'error' : 'warning',
+        summary: falhasComRetry > 0 ? 'Sincronização concluída com falhas' : 'Sincronização aguardando liberação de limite',
+        metadata: {
+          operation: 'inspection_sync',
+          failed_count: falha,
+          success_count: sucesso,
+          attempt: _currentRetryAttempt,
+          subscription_limited: falhasComRetry === 0,
+        },
+      });
       if (falhasComRetry === 0) {
         logger.info('sync', 'Vistorias preservadas localmente aguardando liberação de limite; auto-retry suspenso.');
         return { sucesso, falha };
@@ -250,6 +263,10 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
         scheduleAutoRetry(falhasComRetry);
       } else {
         // Esgotou auto-retries: notificar que desistiu
+        reportClientTechnicalEventSafely({
+          category: 'sync', severity: 'critical', summary: 'Tentativas automáticas de sincronização esgotadas',
+          metadata: { operation: 'inspection_sync', failed_count: falha, attempt: MAX_AUTO_RETRIES, retry_exhausted: true },
+        });
         _currentRetryAttempt = 0;
         notificarDesistiu(falha).catch(() => null);
         logger.error('sync', `Auto-retry esgotado após ${MAX_AUTO_RETRIES} tentativas. ${falha} vistorias não sincronizadas.`);

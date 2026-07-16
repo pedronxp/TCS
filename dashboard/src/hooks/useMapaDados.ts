@@ -38,8 +38,9 @@ export function useMapaDados() {
         .not('latitude', 'is', null)
         .not('longitude', 'is', null);
 
-      if (profile?.role !== 'master_admin') {
-        q = q.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        q = q.eq('municipio', municipio);
       }
 
       const { data, error } = await q;
@@ -70,8 +71,9 @@ export function useMapaDados() {
         .not('lng', 'is', null)
         .eq('status', 'pendente');
 
-      if (profile?.role !== 'master_admin') {
-        q = q.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        q = q.eq('municipio', municipio);
       }
 
       const { data, error } = await q;

@@ -26,12 +26,13 @@ export function useUsuarios(filtro: FiltroUsuario, busca: string) {
         .neq('role', 'master_admin')
         .order('name');
 
-      if (profile?.role !== 'master_admin') {
-        query = query.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        query = query.eq('municipio', municipio);
       }
 
-      if (filtro === 'ativos') query = query.eq('"isApproved"', true);
-      if (filtro === 'pendentes') query = query.eq('"isApproved"', false);
+      if (filtro === 'ativos') query = query.eq('isApproved', true);
+      if (filtro === 'pendentes') query = query.eq('isApproved', false);
 
       const { data, error } = await query;
       if (error) throw error;

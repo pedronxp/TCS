@@ -24,13 +24,23 @@ export function useTokens() {
         .select('*')
         .order('criadoEm', { ascending: false });
 
-      if (profile?.role !== 'master_admin') {
-        query = query.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        query = query.eq('municipio', municipio);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as TokenRecord[];
+      return (data ?? []).map((token): TokenRecord => ({
+        codigo: token.codigo,
+        role: token.role ?? 'agente',
+        municipio: token.municipio,
+        criadoPor: token.criadoPor,
+        usado: Boolean(token.usado),
+        criadoEm: token.criadoEm,
+        expiresAt: token.expiraEm,
+        notificadoExpirando: token.notificadoExpirando,
+      }));
     },
     enabled: !!profile,
   });
@@ -64,10 +74,10 @@ export function useCriarToken() {
         codigo,
         role,
         municipio,
-        criadoPor: profile?.uid,
+        criadoPor: profile?.uid ?? null,
         usado: false,
         criadoEm: new Date().toISOString(),
-        expiresAt,
+        expiraEm: expiresAt,
       });
       if (error) throw error;
       return codigo;
@@ -95,12 +105,13 @@ export function useLimparTokens() {
     mutationFn: async (tipo: 'expirados' | 'usados') => {
       let query = supabase.from('invite_tokens').delete();
 
-      if (profile?.role !== 'master_admin') {
-        query = query.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        query = query.eq('municipio', municipio);
       }
 
       if (tipo === 'expirados') {
-        query = query.lt('expiresAt', new Date().toISOString()).eq('usado', false);
+        query = query.lt('expiraEm', new Date().toISOString()).eq('usado', false);
       } else {
         query = query.eq('usado', true);
       }

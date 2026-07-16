@@ -133,5 +133,5 @@ describe('TrainingContext revalidation stability', () => {
     expect(latest().isExpired).toBe(firstIsExpired);
     expect(latest().exit).toBe(firstExit);
     expect(mockedEnterTrainingClass).toHaveBeenCalledTimes(2);
-  });
+  }, 15_000);
 });

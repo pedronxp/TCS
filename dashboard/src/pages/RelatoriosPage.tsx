@@ -51,8 +51,9 @@ function useRelatorios(periodo: FiltroPeriodo, municipioFiltro: string) {
         .select('id, "nivelRisco", "dataVistoria", "agenteUid", "agenteNome", municipio')
         .order('dataVistoria', { ascending: false });
 
-      if (profile?.role !== 'master_admin') {
-        q = q.eq('municipio', profile?.municipio);
+      const municipio = profile?.municipio;
+      if (profile?.role !== 'master_admin' && municipio) {
+        q = q.eq('municipio', municipio);
       } else if (municipioFiltro) {
         q = q.eq('municipio', municipioFiltro);
       }

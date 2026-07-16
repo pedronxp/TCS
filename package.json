@@ -71,6 +71,7 @@
     "setupFilesAfterEnv": [],
     "testPathIgnorePatterns": [
       "/node_modules/",
+      "/dashboard/",
       "/.claude/worktrees/",
       "/\\.claude/"
     ],

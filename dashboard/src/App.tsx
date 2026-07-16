@@ -5,21 +5,21 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardHome } from '@/pages/DashboardHome';
-import { UsuariosPage } from '@/pages/UsuariosPage';
-import { OcorrenciasPage } from '@/pages/OcorrenciasPage';
-import { AgendamentosPage } from '@/pages/AgendamentosPage';
-import { MapaPage } from '@/pages/MapaPage';
-import { LaudosPage } from '@/pages/LaudosPage';
-import { RelatoriosPage } from '@/pages/RelatoriosPage';
 import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
 import { BuildsPage } from '@/pages/BuildsPage';
 import { ConfiguracoesPage } from '@/pages/ConfiguracoesPage';
 import { PlansPage } from '@/pages/PlansPage';
-import { OrganizationsPage } from '@/pages/OrganizationsPage';
 import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
 import { SessionsPage } from '@/pages/SessionsPage';
 import { SupportPage } from '@/pages/SupportPage';
-import { CommercialMetricsPage } from '@/pages/CommercialMetricsPage';
+import { CustomersPage } from '@/pages/CustomersPage';
+import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
+import { TechnicalEventsPage } from '@/pages/TechnicalEventsPage';
+import { AuditPage } from '@/pages/AuditPage';
+import { VersionsPage } from '@/pages/VersionsPage';
+import { FormsPage } from '@/pages/FormsPage';
+import { RiskRulesPage } from '@/pages/RiskRulesPage';
+import { StaffPage } from '@/pages/StaffPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,49 +54,23 @@ export default function App() {
               }
             >
               <Route index element={<DashboardHome />} />
-              <Route path="ocorrencias" element={<OcorrenciasPage />} />
-              <Route
-                path="usuarios"
-                element={
-                  <ProtectedRoute requireRole={['master_admin', 'admin']}>
-                    <UsuariosPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="agendamentos" element={<AgendamentosPage />} />
-              <Route path="mapa" element={<MapaPage />} />
-              <Route path="laudos" element={<LaudosPage />} />
-              <Route path="relatorios" element={<RelatoriosPage />} />
-              <Route path="planos" element={<PlansPage />} />
-              <Route path="organizacoes" element={<OrganizationsPage />} />
-              <Route path="assinaturas" element={<SubscriptionsPage />} />
+              <Route path="clientes" element={<CustomersPage />} />
+              <Route path="clientes/:customerId/:section?" element={<CustomerDetailPage />} />
+              <Route path="planos" element={<ProtectedRoute requirePermission="commercial.read"><PlansPage /></ProtectedRoute>} />
+              <Route path="assinaturas" element={<ProtectedRoute requirePermission="commercial.read"><SubscriptionsPage /></ProtectedRoute>} />
               <Route path="sessoes" element={<SessionsPage />} />
               <Route path="suporte" element={<SupportPage />} />
-              <Route path="indicadores-comerciais" element={<CommercialMetricsPage />} />
-              <Route
-                path="arquivamento"
-                element={
-                  <ProtectedRoute requireRole={['master_admin']}>
-                    <ArquivamentoPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="builds"
-                element={
-                  <ProtectedRoute requireRole={['master_admin']}>
-                    <BuildsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="configuracoes"
-                element={
-                  <ProtectedRoute requireRole={['master_admin']}>
-                    <ConfiguracoesPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="staff" element={<ProtectedRoute requirePermission="staff.read"><StaffPage /></ProtectedRoute>} />
+              <Route path="auditoria" element={<ProtectedRoute requirePermission="audit.read"><AuditPage /></ProtectedRoute>} />
+              <Route path="desenvolvimento/versoes" element={<ProtectedRoute requirePermission="technical.read"><VersionsPage /></ProtectedRoute>} />
+              <Route path="desenvolvimento/builds" element={<ProtectedRoute requirePermission="build.request"><BuildsPage /></ProtectedRoute>} />
+              <Route path="desenvolvimento/formularios" element={<ProtectedRoute requirePermission="technical.read"><FormsPage /></ProtectedRoute>} />
+              <Route path="desenvolvimento/regras-risco" element={<ProtectedRoute requirePermission="technical.read"><RiskRulesPage /></ProtectedRoute>} />
+              <Route path="desenvolvimento/sincronizacao" element={<TechnicalEventsPage category="sync" title="Sincronização" />} />
+              <Route path="desenvolvimento/armazenamento" element={<TechnicalEventsPage category="storage" title="Armazenamento" />} />
+              <Route path="desenvolvimento/logs" element={<TechnicalEventsPage title="Logs e erros" />} />
+              <Route path="governanca/configuracoes" element={<ProtectedRoute requirePermission="configuration.publish"><ConfiguracoesPage /></ProtectedRoute>} />
+              <Route path="governanca/arquivamento" element={<ProtectedRoute requirePermission="configuration.publish"><ArquivamentoPage /></ProtectedRoute>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
