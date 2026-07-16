@@ -16,7 +16,7 @@ import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { tempoRelativo } from '../../../utils/htmlUtils';
-import { riscoColor } from '../../../utils/riscoUtils';
+import { resolverApresentacaoRisco, riscoColor } from '../../../utils/riscoUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
@@ -63,7 +63,7 @@ export default function MasterDashboardScreen() {
         supabase.rpc('get_dashboard_kpis_master'),
         supabase.rpc('get_top_municipios', { p_limit: 10 }),
         supabase.from('vistorias')
-          .select('id, nivelRisco, pontuacaoTotal, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
+          .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
           .order('dataVistoria', { ascending: false })
           .limit(6),
       ]);
@@ -352,7 +352,8 @@ export default function MasterDashboardScreen() {
           </View>
         ) : (
           recentLogs.map(v => {
-            const cor = riscoColor(v.nivelRisco);
+            const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
+            const cor = apresentacao.cor;
             return (
               <View
                 key={v.id}
@@ -379,7 +380,7 @@ export default function MasterDashboardScreen() {
                   </View>
                   <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
                     <Text style={[styles.nivelText, { color: cor }]}>
-                      {v.nivelRisco?.toUpperCase() || '—'}
+                      {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
                     </Text>
                   </View>
                 </TouchableOpacity>

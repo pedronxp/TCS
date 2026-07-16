@@ -1,0 +1,306 @@
+{
+  "id": "avaliacao_arvore_cbmmg_v1",
+  "titulo": "Avaliação de Árvore de Risco - CBMMG",
+  "versao": 1,
+  "ativo": true,
+  "featureCode": "inspection_arv",
+  "tipoCalculo": "soma_total",
+  "descricao": "Avaliação de árvore de risco conforme ITO nº 06 do CBMMG, Apêndice B, Quadro 2.",
+  "metodologia": {
+    "id": "cbmmg_ito06_quadro2",
+    "versao": "1.0",
+    "titulo": "Quadro de Avaliação de Árvore de Risco",
+    "fonte": "Corpo de Bombeiros Militar de Minas Gerais - ITO nº 06 - Vistoria, Poda e Corte de Árvores - Apêndice B - Quadro 2; adaptado de Pokorny (2003).",
+    "escala": { "min": 0, "max": 10, "teto": 10 },
+    "faixasResultado": [
+      {
+        "max": 8,
+        "codigo": "nao_iminente",
+        "label": "NÃO IMINENTE",
+        "nivelCompatibilidade": "r1",
+        "cor": "#10B981",
+        "conduta": "Registrar medidas preventivas, orientar o responsável e programar acompanhamento conforme avaliação técnica."
+      },
+      {
+        "max": 10,
+        "codigo": "risco_iminente",
+        "label": "RISCO IMINENTE",
+        "nivelCompatibilidade": "r4",
+        "cor": "#DC2626",
+        "conduta": "Intervenção para eliminação do risco por meio do corte da parte perigosa. A decisão de não intervir deve ser justificada no REDS."
+      }
+    ]
+  },
+  "classificacao": {
+    "limites": [
+      { "max": 8, "nivel": "r1", "label": "NÃO IMINENTE", "cor": "verde" },
+      { "max": 10, "nivel": "r4", "label": "RISCO IMINENTE", "cor": "vermelho" }
+    ]
+  },
+  "fases": [
+    {
+      "id": "arv_identificacao",
+      "titulo": "Identificação e referência de campo",
+      "instrucao": "Registre a árvore avaliada. A altura estimada define o raio de referência dos alvos: 1,5 vezes a altura da árvore.",
+      "perguntas": [
+        {
+          "id": "arv_foto_geral",
+          "texto": "Foto geral da árvore e da área de projeção",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "opcoes": []
+        },
+        {
+          "id": "arv_altura_m",
+          "texto": "Altura estimada da árvore",
+          "descricao": "Informe a altura aproximada em metros. O app calculará o raio de referência dos alvos.",
+          "tipo": "texto",
+          "tipoEntrada": "numero_decimal",
+          "unidade": "m",
+          "valorMinimo": 0.1,
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: 12,5",
+          "calculoDerivado": "raio_alvo_1_5x",
+          "opcoes": []
+        },
+        {
+          "id": "arv_especie_aparente",
+          "texto": "Espécie aparente (opcional)",
+          "descricao": "Preencha apenas quando houver identificação visual segura.",
+          "tipo": "texto",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: Sibipiruna",
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "arv_item_1",
+      "titulo": "Item 1 - Avaliação dos alvos",
+      "instrucao": "Considere todos os alvos dentro do perímetro cujo raio é 1,5 vezes a altura da árvore, a partir do tronco. Tome a maior pontuação entre as situações apresentadas.",
+      "perguntas": [
+        {
+          "id": "arv_item1_alvo",
+          "texto": "Qual é o alvo de maior exposição dentro da zona de risco?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "pessoas_frequente", "texto": "Pessoas - ocupação frequente", "descricao": "Há risco a pessoas em residência, escola, comércio ou circulação contínua.", "pesoRisco": 3 },
+            { "id": "pessoas_ocasional", "texto": "Pessoas - ocupação ocasional", "descricao": "Há risco eventual a pessoas, com ocupação ocasional.", "pesoRisco": 2 },
+            { "id": "bens_propriedades", "texto": "Bens ou propriedades", "descricao": "Não há risco a pessoas; há risco a bens ou propriedades.", "pesoRisco": 1 },
+            { "id": "nenhum_alvo", "texto": "Nenhum alvo exposto", "descricao": "Não há risco a pessoas, bens ou propriedades.", "pesoRisco": 0 }
+          ]
+        },
+        {
+          "id": "arv_medida_mitigadora_status",
+          "texto": "Foi possível aplicar medida mitigadora ao alvo?",
+          "descricao": "Sempre que viável, remova o bem da zona de risco ou restrinja o acesso de pessoas.",
+          "tipo": "multipla_escolha",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "opcoes": [
+            { "id": "aplicada", "texto": "Sim, medida aplicada", "pesoRisco": 0 },
+            { "id": "nao_aplicada", "texto": "Não aplicada", "pesoRisco": 0 },
+            { "id": "nao_viavel", "texto": "Não foi viável aplicar", "pesoRisco": 0 }
+          ]
+        },
+        {
+          "id": "arv_medida_mitigadora_descricao",
+          "texto": "Medida mitigadora ou justificativa",
+          "descricao": "Descreva a medida aplicada. Se nenhuma medida foi aplicada, justifique tecnicamente.",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: área isolada e acesso de pedestres restringido no raio estimado.",
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "arv_item_2",
+      "titulo": "Item 2 - Avaliação da árvore, tronco e galhos",
+      "instrucao": "Avalie o risco de queda de toda a árvore ou da parte específica. Selecione somente um grau: o mais elevado compatível com o defeito determinante. Os critérios e graus inferiores não são somados.",
+      "perguntas": [
+        {
+          "id": "arv_item2_severidade",
+          "texto": "Qual é o grau de risco mais elevado observado?",
+          "descricao": "Escolha apenas um grau para o defeito determinante da árvore, do tronco, dos galhos ou das raízes.",
+          "tipo": "cards",
+          "layout": "lista",
+          "obrigatoria": true,
+          "opcoes": [
+            {
+              "id": "extremamente_alto",
+              "texto": "Grau extremamente alto - 4 pontos",
+              "descricao": "Tronco degradado ou cavidade excedendo limites de segurança com rachadura severa; tronco ou galho rachado ao meio; defeitos afetando >=40% da circunferência com degradação extensa ou fissuras; união fraca com fissura e degradação; inclinação com rachaduras/elevação recente do solo e degradação extensa; galhos mortos quebrados/dependurados ou rachados; árvore morta com outros defeitos; obstrução física inviável ao tráfego.",
+              "pesoRisco": 4
+            },
+            {
+              "id": "alto",
+              "texto": "Grau alto - 3 pontos",
+              "descricao": "Tronco degradado ou cavidade >30% da circunferência ou no limite de segurança; rachaduras em contato com o solo ou associadas; defeitos >40%; copa quebrada/danificada acima dos limites; união fraca com rachaduras ou degradação; acinturamento de raízes >=40%; danos à raiz >=40% dentro do RCR; inclinação com fissuras/elevação recente, rachaduras ou degradação; árvore morta sem outros defeitos significativos.",
+              "pesoRisco": 3
+            },
+            {
+              "id": "moderado",
+              "texto": "Grau moderado - 2 pontos",
+              "descricao": "Tronco pouco degradado ou cavidade dentro dos limites de segurança; rachaduras sem degradação extensa; defeitos afetando 30% a 40%; copa danificada dentro dos limites; união fraca em galhos grandes ou troncos codominantes; acinturamento <40%; danos à raiz <40% dentro do RCR.",
+              "pesoRisco": 2
+            },
+            {
+              "id": "baixo",
+              "texto": "Grau baixo - 1 ponto",
+              "descricao": "Perda de vigor menos intensa da copa ou galhos; pequenos defeitos, ferimentos ou cancros.",
+              "pesoRisco": 1
+            }
+          ]
+        },
+        {
+          "id": "arv_parte_defeituosa",
+          "texto": "Parte específica avaliada",
+          "descricao": "Identifique tronco, galho, raiz, copa ou outra parte que contém o defeito determinante.",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: tronco principal, região da cavidade.",
+          "opcoes": []
+        },
+        {
+          "id": "arv_defeito_determinante",
+          "texto": "Descrição técnica do defeito determinante",
+          "descricao": "Registre localização, natureza, extensão aparente e sinais associados ao defeito mais severo.",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: cavidade externa estimada em 35% da circunferência e rachadura longitudinal severa.",
+          "opcoes": []
+        },
+        {
+          "id": "arv_foto_defeito",
+          "texto": "Foto do defeito determinante",
+          "tipo": "foto",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "arv_item_3",
+      "titulo": "Item 3 - Maior diâmetro da parte defeituosa",
+      "instrucao": "Considere a parte específica que apresenta o defeito mais grave indicado no Item 2, e não necessariamente o maior diâmetro da árvore.",
+      "perguntas": [
+        {
+          "id": "arv_item3_diametro_faixa",
+          "texto": "Qual é o maior diâmetro da parte defeituosa?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "maior_51", "texto": "Maior que 51 cm", "descricao": "Maior potencial de dano em caso de falha.", "pesoRisco": 3 },
+            { "id": "entre_10_51", "texto": "De 10 a 51 cm", "descricao": "Faixa intermediária de potencial de dano.", "pesoRisco": 2 },
+            { "id": "menor_10", "texto": "Menor que 10 cm", "descricao": "Parte defeituosa de menor diâmetro.", "pesoRisco": 1 }
+          ]
+        },
+        {
+          "id": "arv_diametro_exato_cm",
+          "texto": "Diâmetro medido (opcional)",
+          "descricao": "Informe o valor em centímetros quando houver medição ou estimativa confiável.",
+          "tipo": "texto",
+          "tipoEntrada": "numero_decimal",
+          "unidade": "cm",
+          "valorMinimo": 0.1,
+          "validarComPergunta": "arv_item3_diametro_faixa",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: 42",
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "arv_item_4",
+      "titulo": "Item 4 - Outros fatores de risco presentes",
+      "instrucao": "A critério do avaliador, acrescente 0, 1 ou 2 pontos para defeitos não contemplados no quadro.",
+      "perguntas": [
+        {
+          "id": "arv_item4_outros_fatores",
+          "texto": "Existem outros fatores de risco não contemplados?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_acrescimo", "texto": "Sem acréscimo", "descricao": "Nenhum fator adicional identificado.", "pesoRisco": 0 },
+            { "id": "acrescimo_1", "texto": "Acrescentar 1 ponto", "descricao": "Fator adicional relevante.", "pesoRisco": 1 },
+            { "id": "acrescimo_2", "texto": "Acrescentar 2 pontos", "descricao": "Fator adicional de forte influência.", "pesoRisco": 2 }
+          ]
+        },
+        {
+          "id": "arv_outros_fatores_descricao",
+          "texto": "Descrição do fator adicional",
+          "descricao": "Explique o fator não contemplado e sua influência no risco final.",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": { "perguntaId": "arv_item4_outros_fatores", "respostaIds": ["acrescimo_1", "acrescimo_2"] },
+          "placeholder": "Descreva o fator adicional observado.",
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "arv_conduta",
+      "titulo": "Conduta em risco iminente",
+      "instrucao": "O risco é iminente quando o total é igual ou superior a 9 pontos. Registre a decisão operacional.",
+      "perguntas": [
+        {
+          "id": "arv_decisao_operacional",
+          "texto": "Qual será a decisão operacional?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuandoPontuacaoMinima": 9,
+          "opcoes": [
+            { "id": "intervir", "texto": "Intervir", "descricao": "Encaminhar intervenção para eliminação do risco da parte perigosa.", "pesoRisco": 0 },
+            { "id": "nao_intervir", "texto": "Não intervir", "descricao": "A decisão deve ser tecnicamente justificada no REDS.", "pesoRisco": 0 }
+          ]
+        },
+        {
+          "id": "arv_conduta_recomendada",
+          "texto": "Conduta recomendada",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": { "perguntaId": "arv_decisao_operacional", "respostaIds": ["intervir"] },
+          "mostrarQuandoPontuacaoMinima": 9,
+          "placeholder": "Ex.: corte controlado da parte perigosa por equipe habilitada.",
+          "opcoes": []
+        },
+        {
+          "id": "arv_nao_intervencao_justificativa",
+          "texto": "Justificativa técnica para não intervir",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": { "perguntaId": "arv_decisao_operacional", "respostaIds": ["nao_intervir"] },
+          "mostrarQuandoPontuacaoMinima": 9,
+          "placeholder": "Descreva os fundamentos técnicos da decisão.",
+          "opcoes": []
+        },
+        {
+          "id": "arv_reds_numero",
+          "texto": "Número do REDS",
+          "descricao": "Aceita identificação alfanumérica conforme o registro operacional.",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "mostrarQuando": { "perguntaId": "arv_decisao_operacional", "respostaIds": ["nao_intervir"] },
+          "mostrarQuandoPontuacaoMinima": 9,
+          "placeholder": "Informe o número do REDS.",
+          "opcoes": []
+        }
+      ]
+    }
+  ]
+}

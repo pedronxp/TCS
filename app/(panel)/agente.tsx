@@ -8,7 +8,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
-import { riscoColor, riscoLabel } from '../../utils/riscoUtils';
+import { resolverApresentacaoRisco } from '../../utils/riscoUtils';
 import { formatarData } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
@@ -36,7 +36,7 @@ export default function AgenteVistoriasScreen() {
         supabase.from('users').select('name, email, municipio').eq('uid', uid).single(),
         supabase
           .from('vistorias')
-          .select('id, nivelRisco, endereco, dataVistoria, pontuacaoTotal')
+          .select('id, nivelRisco, endereco, dataVistoria, pontuacaoTotal, formularioId, calculoRisco')
           .eq('agenteUid', uid)
           .order('dataVistoria', { ascending: false }),
       ]);
@@ -163,7 +163,8 @@ export default function AgenteVistoriasScreen() {
           </View>
         ) : (
           filtradas.map(v => {
-            const cor = riscoColor(v.nivelRisco);
+            const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
+            const cor = apresentacao.cor;
             return (
               <TouchableOpacity
                 key={v.id}
@@ -187,7 +188,7 @@ export default function AgenteVistoriasScreen() {
                 </View>
                 <View>
                   <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
-                    <Text style={[styles.nivelText, { color: cor }]}>{riscoLabel(v.nivelRisco)}</Text>
+                    <Text style={[styles.nivelText, { color: cor }]}>{apresentacao.label}</Text>
                   </View>
                 </View>
               </TouchableOpacity>

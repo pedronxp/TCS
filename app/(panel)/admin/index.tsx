@@ -13,7 +13,7 @@ import { DashboardGuide } from '../../../components/DashboardGuide';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
-import { riscoColor } from '../../../utils/riscoUtils';
+import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { tempoRelativo } from '../../../utils/htmlUtils';
 import { AtividadeItem } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,7 +50,7 @@ export default function AdminDashboardScreen() {
       const [kpisRes, vistoriasRes] = await Promise.all([
         supabase.rpc('get_dashboard_kpis_admin', { p_municipio: profile.municipio }),
         supabase.from('vistorias')
-          .select('id, nivelRisco, endereco, dataVistoria, agenteNome')
+          .select('id, nivelRisco, pontuacaoTotal, calculoRisco, formularioId, endereco, dataVistoria, agenteNome')
           .eq('municipio', profile.municipio)
           .order('dataVistoria', { ascending: false })
           .limit(10),
@@ -314,7 +314,8 @@ export default function AdminDashboardScreen() {
           </View>
         ) : (
           atividade.map(v => {
-            const cor = riscoColor(v.nivelRisco);
+            const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
+            const cor = apresentacao.cor;
             return (
               <TouchableOpacity
                 key={v.id}
@@ -334,7 +335,7 @@ export default function AdminDashboardScreen() {
                 </View>
                 <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
                   <Text style={[styles.nivelText, { color: cor }]}>
-                    {v.nivelRisco?.toUpperCase() || '—'}
+                    {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
                   </Text>
                 </View>
               </TouchableOpacity>

@@ -287,6 +287,7 @@ export interface VistoriaLocal {
 // ─── CRUD ──────────────────────────────────────────────────────────────────
 
 type VistoriaInsertInput = Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em' | 'calculo_json' | 'modo_treinamento' | 'training_class_id' | 'training_participant_id'> & {
+  fotos_urls?: string | null;
   municipio_agente?: string | null;
   laudo_url?: string | null;
   laudo_gerado_em?: string | null;
@@ -333,7 +334,7 @@ export function insertVistoria(vistoria: VistoriaInsertInput): void {
       vistoria.nivel_risco,
       vistoria.pontuacao_total,
       vistoria.foto_url ?? null,
-      null, // fotos_urls — preenchido separadamente pela FotoScreen
+      vistoria.fotos_urls ?? null,
       vistoria.laudo_url ?? null,
       vistoria.laudo_gerado_em ?? null,
       vistoria.feita_online ?? null,

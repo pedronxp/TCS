@@ -14,6 +14,7 @@ import { syncPendentes, forceSyncAll } from '../../../services/SyncService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { safeBack } from '../../../utils/navigationUtils';
+import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 
 const RISCO_COLORS: Record<string, string> = {
   r1: '#10B981',
@@ -31,7 +32,13 @@ interface InspecaoCardProps {
 }
 
 const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = false }: InspecaoCardProps) => {
-  const cor = RISCO_COLORS[item.nivel_risco] || '#94A3B8';
+  const apresentacao = resolverApresentacaoRisco({
+    formularioId: item.formulario_id,
+    pontuacao: item.pontuacao_total,
+    nivelRisco: item.nivel_risco,
+    calculoRisco: item.calculo_json,
+  });
+  const cor = apresentacao.cor || RISCO_COLORS[item.nivel_risco] || '#94A3B8';
   const isPendente = item.sincronizado === 0;
   const hasErro = isPendente && !!item.erro_sync;
   const maxTentativas = (item.tentativas_sync ?? 0) >= 5;
@@ -45,6 +52,7 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
             params: {
               id: item.id,
               nivelRisco: item.nivel_risco,
+              formularioId: item.formulario_id,
               pontuacao: String(item.pontuacao_total ?? 0),
               municipio: item.municipio,
               treinamento: '1',
@@ -55,7 +63,7 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
       <View style={[styles.cardInner, { borderColor: hasErro ? 'rgba(239,68,68,0.3)' : theme.cardBorder }]}>
         <View style={styles.cardHeader}>
           <View style={[styles.badge, { backgroundColor: cor }]}>
-            <Text style={styles.badgeText}>{item.nivel_risco?.toUpperCase() || 'N/A'}</Text>
+            <Text style={styles.badgeText}>{item.formulario_id === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (item.nivel_risco?.toUpperCase() || 'N/A')}</Text>
           </View>
           <View style={styles.cardHeaderRight}>
             {isPendente && !hasErro && !maxTentativas && (
@@ -187,6 +195,7 @@ export default function InspecoesListScreen() {
             formulario_id: r.formularioId,
             formulario_versao: r.formularioVersao,
             respostas_json: r.respostasJson,
+            calculo_json: typeof r.calculoRisco === 'string' ? r.calculoRisco : JSON.stringify(r.calculoRisco ?? null),
             nivel_risco: r.nivelRisco,
             pontuacao_total: r.pontuacaoTotal,
             foto_url: r.fotoUrl ?? r.foto_url ?? null,

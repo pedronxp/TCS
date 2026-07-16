@@ -29,11 +29,12 @@ import {
   CalculoRiscoSnapshot,
   LimiteRisco,
   limitarPontuacaoRisco,
-  riscoLabel,
-  riscoColor,
+  resolverApresentacaoRisco,
 } from '../../../utils/riscoUtils';
 import {
   ASSETS,
+  calcularRaioAlvoArvore,
+  filtrarPerguntasPorPontuacao,
   filtrarPerguntasVisiveis,
   filtrarRespostasPorPerguntas,
   flattenPerguntas,
@@ -42,6 +43,7 @@ import {
   opcaoAcionaObservacaoCondicionalRisco,
   opcaoRequerJustificativaTecnica,
   PerguntaModel,
+  validarRespostaFormulario,
 } from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
 import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
@@ -264,9 +266,28 @@ export default function WizardAvaliacaoScreen() {
     }
   };
 
-  const perguntasVisiveis = useMemo(
+  const perguntasVisiveisPorResposta = useMemo(
     () => filtrarPerguntasVisiveis(perguntas, respostas),
     [perguntas, respostas],
+  );
+  const pontuacaoParaVisibilidade = useMemo(() => {
+    const respostasAtivas = filtrarRespostasPorPerguntas(
+      respostas,
+      perguntasVisiveisPorResposta,
+      params.formularioId,
+    );
+    return calcularRiscoFormulario({
+      perguntas: perguntasVisiveisPorResposta,
+      respostas: respostasAtivas,
+      limites,
+      formularioId: params.formularioId,
+      formularioVersao: parseInt(params.formularioVersao || '1') || 1,
+      tipoCalculo,
+    }).pontuacaoTotal;
+  }, [perguntasVisiveisPorResposta, respostas, limites, params.formularioId, params.formularioVersao, tipoCalculo]);
+  const perguntasVisiveis = useMemo(
+    () => filtrarPerguntasPorPontuacao(perguntasVisiveisPorResposta, pontuacaoParaVisibilidade),
+    [perguntasVisiveisPorResposta, pontuacaoParaVisibilidade],
   );
   const respostasVisiveis = useMemo(
     () => filtrarRespostasPorPerguntas(respostas, perguntasVisiveis, params.formularioId),
@@ -301,15 +322,14 @@ export default function WizardAvaliacaoScreen() {
     if (step !== safeStep) setStep(safeStep);
   }, [safeStep, step]);
 
-  const respostaObrigatoriaPreenchida = (pergunta: PerguntaModel | undefined, valor: string | undefined): boolean => {
-    if (!pergunta) return false;
-    if (pergunta.tipo === 'texto') return String(valor ?? '').trim().length > 0;
-    return !!valor;
+  const erroValidacaoPergunta = (pergunta: PerguntaModel | undefined, valor: string | undefined): string | null => {
+    if (!pergunta) return 'Pergunta indisponível.';
+    return validarRespostaFormulario(pergunta, valor, respostas);
   };
 
   const podeAvancar = () => {
     if (!perguntaAtual) return false;
-    if (perguntaAtual.obrigatoria && !respostaObrigatoriaPreenchida(perguntaAtual, resposta)) return false;
+    if (erroValidacaoPergunta(perguntaAtual, resposta)) return false;
     if (justificativaTecnicaObrigatoriaAtiva && !observacaoCondicionalValor.trim()) return false;
     return true;
   };
@@ -402,6 +422,15 @@ export default function WizardAvaliacaoScreen() {
     if (Object.keys(respostas).length === 0) return null;
     return calcularNivelRisco(perguntasVisiveis, respostasVisiveis);
   }, [respostasVisiveis, perguntasVisiveis, limites, tipoCalculo, faseConfigs]);
+  const apresentacaoRiscoAtual = useMemo(() => riscoAtual
+    ? resolverApresentacaoRisco({
+        formularioId: params.formularioId,
+        pontuacao: riscoAtual.pontuacao,
+        nivelRisco: riscoAtual.nivel,
+        calculoRisco: riscoAtual.calculo,
+      })
+    : null,
+  [riscoAtual, params.formularioId]);
 
   // Calcula elemento atual (faseId) para exibição no header
   const elementoAtual = useMemo(() => {
@@ -443,9 +472,9 @@ export default function WizardAvaliacaoScreen() {
 
   const finalizar = async () => {
     // Verifica obrigatórias
-    const pendente = perguntasVisiveis.find(p => p.obrigatoria && !respostaObrigatoriaPreenchida(p, respostasVisiveis[p.id]));
+    const pendente = perguntasVisiveis.find(p => erroValidacaoPergunta(p, respostasVisiveis[p.id]));
     if (pendente) {
-      Alert.alert('Pergunta obrigatória', `Responda: "${pendente.texto}"`);
+      Alert.alert('Revise a resposta', `${pendente.texto}\n\n${erroValidacaoPergunta(pendente, respostasVisiveis[pendente.id])}`);
       const idx = perguntasVisiveis.indexOf(pendente);
       setStep(idx);
       return;
@@ -486,9 +515,14 @@ export default function WizardAvaliacaoScreen() {
       // UUID via crypto (Hermes suporta desde RN 0.73+)
       const id = generateUUID();
 
-      // Extrair URI da foto das respostas (pergunta do tipo 'foto')
-      const perguntaFoto = perguntas.find(p => p.tipo === 'foto');
-      const fotoUri = perguntaFoto ? (respostasVisiveis[perguntaFoto.id] || null) : null;
+      // A primeira foto é a miniatura principal; as demais seguem na fila genérica
+      // de evidências para persistência e upload offline-first.
+      const fotosRespondidas = perguntas
+        .filter(p => p.tipo === 'foto')
+        .map(p => respostasVisiveis[p.id])
+        .filter((uri): uri is string => Boolean(uri));
+      const fotoUri = fotosRespondidas[0] || null;
+      const fotosAdicionais = fotosRespondidas.slice(1);
 
       const municipioVistoria = params.municipio || activeProfile?.municipio || '';
       const coordenadasVistoria = normalizeCoordinatePair(params.lat, params.lng);
@@ -513,6 +547,7 @@ export default function WizardAvaliacaoScreen() {
         nivel_risco: nivel,
         pontuacao_total: pontuacao,
         foto_url: fotoUri,
+        fotos_urls: fotosAdicionais.length ? JSON.stringify(fotosAdicionais) : null,
         laudo_url: null,
         laudo_gerado_em: null,
         feita_online: isConnected ? 1 : 0,
@@ -561,7 +596,8 @@ export default function WizardAvaliacaoScreen() {
         // Nunca enviar file:// ao Supabase — se upload falhou, omitir fotoUrl.
         // O SyncService fará o upload e atualizará o campo quando o app reconectar.
         const fotoUrlRemota = fotoStorageUrl ?? null;
-        const midiaLocalPendente = !!fotoUri?.startsWith('file://') && !fotoStorageUrl;
+        const midiaLocalPendente = (!!fotoUri?.startsWith('file://') && !fotoStorageUrl)
+          || fotosAdicionais.some(uri => uri.startsWith('file://'));
 
         const { error } = await supabase.from('vistorias').upsert({
           id,
@@ -585,6 +621,7 @@ export default function WizardAvaliacaoScreen() {
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
           fotoUrl: fotoUrlRemota,
+          fotosUrls: fotosAdicionais.filter(uri => !uri.startsWith('file://')),
           status: 'concluida',
         });
         if (!error) {
@@ -622,7 +659,7 @@ export default function WizardAvaliacaoScreen() {
 
       router.replace({
         pathname: '/(panel)/inspecoes/resultado',
-        params: { id, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isConnected ? '0' : '1', municipio: vistoriaLocal.municipio, treinamento: trainingMode ? '1' : '0' }
+        params: { id, formularioId: params.formularioId, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isConnected ? '0' : '1', municipio: vistoriaLocal.municipio, treinamento: trainingMode ? '1' : '0' }
       });
     } catch (e: any) {
       logger.error('vistoria', 'Erro crítico ao salvar vistoria', { erro: e.message });
@@ -638,7 +675,7 @@ export default function WizardAvaliacaoScreen() {
         Alert.alert('Justificativa obrigatória', 'Justifique a condição observada em campo para continuar.');
         return;
       }
-      Alert.alert('Resposta obrigatória', 'Responda esta pergunta para continuar.');
+      Alert.alert('Revise a resposta', erroValidacaoPergunta(perguntaAtual, resposta) || 'Responda esta pergunta para continuar.');
       return;
     }
     if (safeStep < totalPerguntas - 1) setStep(safeStep + 1);
@@ -717,6 +754,7 @@ export default function WizardAvaliacaoScreen() {
                       key={op.id}
                       style={[
                         styles.optionCard,
+                        perguntaAtual.layout === 'lista' && styles.optionCardLista,
                         { backgroundColor: theme.surfaceHighlight, borderColor: sel ? theme.primary : theme.cardBorder }
                       ]}
                       onPress={() => setResposta(perguntaAtual.id, op.id)}
@@ -732,8 +770,8 @@ export default function WizardAvaliacaoScreen() {
                               : null
                         )
                       }
-                      <Text style={[styles.optionText, { color: sel ? theme.primary : theme.text }]}>{op.texto}</Text>
-                      {op.descricao && <Text style={[styles.optionDesc, { color: theme.textSecondary }]}>{op.descricao}</Text>}
+                      <Text style={[styles.optionText, perguntaAtual.layout === 'lista' && styles.optionTextLista, { color: sel ? theme.primary : theme.text }]}>{op.texto}</Text>
+                      {op.descricao && <Text style={[styles.optionDesc, perguntaAtual.layout === 'lista' && styles.optionDescLista, { color: theme.textSecondary }]}>{op.descricao}</Text>}
                       {sel && (
                         <View style={[styles.selectedBadge, { backgroundColor: theme.primary }]}>
                           <Feather name="check" size={12} color="#FFF" />
@@ -777,16 +815,39 @@ export default function WizardAvaliacaoScreen() {
 
             {/* TEXTO LIVRE */}
             {perguntaAtual.tipo === 'texto' && (
-              <TextInput
-                style={[styles.textArea, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }]}
-                multiline
-                numberOfLines={5}
-                placeholder={perguntaAtual.placeholder || 'Digite sua resposta...'}
-                placeholderTextColor={theme.textSecondary}
-                value={resposta || ''}
-                onChangeText={t => setResposta(perguntaAtual.id, t)}
-                textAlignVertical="top"
-              />
+              <>
+                <View style={perguntaAtual.tipoEntrada === 'numero_decimal' ? styles.numericInputRow : undefined}>
+                  <TextInput
+                    style={[
+                      styles.textArea,
+                      perguntaAtual.tipoEntrada === 'numero_decimal' && styles.numericInput,
+                      { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text },
+                    ]}
+                    multiline={perguntaAtual.tipoEntrada !== 'numero_decimal'}
+                    numberOfLines={perguntaAtual.tipoEntrada === 'numero_decimal' ? 1 : 5}
+                    keyboardType={perguntaAtual.tipoEntrada === 'numero_decimal' ? 'decimal-pad' : 'default'}
+                    placeholder={perguntaAtual.placeholder || 'Digite sua resposta...'}
+                    placeholderTextColor={theme.textSecondary}
+                    value={resposta || ''}
+                    onChangeText={t => setResposta(perguntaAtual.id, t)}
+                    textAlignVertical={perguntaAtual.tipoEntrada === 'numero_decimal' ? 'center' : 'top'}
+                  />
+                  {perguntaAtual.unidade && (
+                    <View style={[styles.unitBadge, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
+                      <Text style={[styles.unitText, { color: theme.text }]}>{perguntaAtual.unidade}</Text>
+                    </View>
+                  )}
+                </View>
+                {perguntaAtual.calculoDerivado === 'raio_alvo_1_5x' && calcularRaioAlvoArvore(resposta) !== null && (
+                  <View style={[styles.derivedInfo, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
+                    <Feather name="target" size={16} color={theme.primary} />
+                    <Text style={[styles.derivedInfoText, { color: theme.text }]}>Raio de referência dos alvos: {calcularRaioAlvoArvore(resposta)} m</Text>
+                  </View>
+                )}
+                {!!resposta && erroValidacaoPergunta(perguntaAtual, resposta) && (
+                  <Text style={styles.validationError}>{erroValidacaoPergunta(perguntaAtual, resposta)}</Text>
+                )}
+              </>
             )}
 
             {/* FOTO */}
@@ -827,24 +888,24 @@ export default function WizardAvaliacaoScreen() {
       {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
         {/* Banner de risco em tempo real — aparece após primeira resposta */}
-        {riscoAtual && (
+        {riscoAtual && apresentacaoRiscoAtual && (
           <Animated.View
             style={[
               styles.riscoBanner,
               {
-                backgroundColor: riscoColor(riscoAtual.nivel) + '1A',
-                borderColor: riscoColor(riscoAtual.nivel),
+                backgroundColor: apresentacaoRiscoAtual.cor + '1A',
+                borderColor: apresentacaoRiscoAtual.cor,
                 opacity: riscoAnim,
                 transform: [{ translateY: riscoAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
               },
             ]}
           >
-            <Feather name={riscoAtual.nivel === 'r4' || riscoAtual.nivel === 'r3' ? 'alert-triangle' : 'shield'} size={16} color={riscoColor(riscoAtual.nivel)} />
-            <Text style={[styles.riscoBannerLabel, { color: riscoColor(riscoAtual.nivel) }]}>
+            <Feather name={apresentacaoRiscoAtual.codigo === 'risco_iminente' || riscoAtual.nivel === 'r4' || riscoAtual.nivel === 'r3' ? 'alert-triangle' : 'shield'} size={16} color={apresentacaoRiscoAtual.cor} />
+            <Text style={[styles.riscoBannerLabel, { color: apresentacaoRiscoAtual.cor }]}>
               RISCO ATUAL
             </Text>
-            <Text style={[styles.riscoBannerNivel, { color: riscoColor(riscoAtual.nivel) }]}>
-              {riscoAtual.nivel.toUpperCase()} — {riscoLabel(riscoAtual.nivel)}
+            <Text style={[styles.riscoBannerNivel, { color: apresentacaoRiscoAtual.cor }]}>
+              {apresentacaoRiscoAtual.label} · {riscoAtual.pontuacao.toLocaleString('pt-BR')} PONTOS
             </Text>
           </Animated.View>
         )}
@@ -889,10 +950,13 @@ const styles = StyleSheet.create({
   questionDesc: { fontSize: 13, lineHeight: 20, marginTop: -14, marginBottom: 20 },
   optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   optionCard: { width: '47%', borderRadius: 14, borderWidth: 1.5, padding: 16, alignItems: 'center', position: 'relative' },
+  optionCardLista: { width: '100%', alignItems: 'flex-start' },
   optionImage: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10 },
   optionSvg: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10, overflow: 'hidden' },
   optionText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  optionTextLista: { textAlign: 'left', paddingRight: 24 },
   optionDesc: { fontSize: 12, textAlign: 'center', marginTop: 4 },
+  optionDescLista: { textAlign: 'left', lineHeight: 18, marginTop: 8 },
   selectedBadge: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
   conditionalNote: { marginTop: 18, borderRadius: 14, borderWidth: 1, padding: 14 },
   conditionalNoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
@@ -900,6 +964,13 @@ const styles = StyleSheet.create({
   conditionalNoteDesc: { fontSize: 12, lineHeight: 18, marginBottom: 10 },
   conditionalNoteInput: { minHeight: 96, borderRadius: 10, borderWidth: 1, padding: 12, fontSize: 14, lineHeight: 20 },
   textArea: { borderRadius: 14, borderWidth: 1, padding: 16, fontSize: 15, minHeight: 140 },
+  numericInputRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
+  numericInput: { flex: 1, minHeight: 56, height: 56 },
+  unitBadge: { minWidth: 58, borderRadius: 14, borderWidth: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 },
+  unitText: { fontSize: 15, fontWeight: '800' },
+  derivedInfo: { marginTop: 12, borderRadius: 12, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  derivedInfoText: { fontSize: 13, fontWeight: '700', flex: 1 },
+  validationError: { color: '#DC2626', fontSize: 12, fontWeight: '600', marginTop: 8 },
   fotoButton: { height: 160, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 12 },
   fotoButtonText: { fontSize: 15, fontWeight: '600' },
   fotoPreviewWrap: { borderRadius: 14, overflow: 'hidden', position: 'relative' },

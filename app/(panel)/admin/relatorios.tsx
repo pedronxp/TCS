@@ -9,7 +9,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
-import { riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { resolverApresentacaoRisco, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
@@ -29,7 +29,8 @@ interface CardProps {
 }
 
 const VistoriaCard = React.memo(({ item: v, theme }: CardProps) => {
-  const cor = riscoColor(v.nivelRisco);
+  const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
+  const cor = apresentacao.cor;
   const addr = v.endereco || `${v.enderecoRua || ''}, ${v.enderecoNumero || ''} — ${v.enderecoBairro || ''}`;
   return (
     <TouchableOpacity
@@ -57,7 +58,7 @@ const VistoriaCard = React.memo(({ item: v, theme }: CardProps) => {
       </View>
       <View style={{ alignItems: 'flex-end', gap: 4 }}>
         <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
-          <Text style={[styles.nivelText, { color: cor }]}>{riscoLabel(v.nivelRisco)}</Text>
+          <Text style={[styles.nivelText, { color: cor }]}>{apresentacao.label}</Text>
         </View>
         <Feather name="file-text" size={14} color={theme.primary} />
       </View>
@@ -88,7 +89,7 @@ export default function RelatoriosScreen() {
       const offset = append ? vistorias.length : 0;
       let query = supabase
         .from('vistorias')
-        .select('id, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, nivelRisco, pontuacaoTotal, dataVistoria, agenteNome, status')
+        .select('id, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, nivelRisco, pontuacaoTotal, dataVistoria, agenteNome, status, formularioId, calculoRisco')
         .order('dataVistoria', { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1);
 

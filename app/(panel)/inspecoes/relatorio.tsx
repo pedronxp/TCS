@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image,
-  Modal,
+  Modal, useWindowDimensions,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -13,9 +13,7 @@ import { useReport } from '../../../context/ReportContext';
 import {
   formatarPontuacaoRisco,
   parseCalculoRiscoSnapshot,
-  riscoLabel,
-  riscoColor,
-  riscoConduta,
+  resolverApresentacaoRisco,
 } from '../../../utils/riscoUtils';
 import { parseProtocolo } from '../../../utils/uuid';
 import { buildTermoInterdicaoHtml, buildLaudoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
@@ -60,7 +58,7 @@ interface GrupoResolvido {
 /** Resolve IDs de respostas em textos legíveis, agrupados por fase */
 function resolverRespostas(formularioId: string, respostas: Record<string, string>, calculoRisco?: unknown): GrupoResolvido[] {
   const calculo = parseCalculoRiscoSnapshot(calculoRisco);
-  if (calculo?.itens?.length) {
+  if (calculo?.itens?.length && formularioId !== 'avaliacao_arvore_cbmmg_v1') {
     const grupos = new Map<string, GrupoResolvido>();
     for (const item of calculo.itens) {
       const faseId = item.faseId || item.grupo || 'snapshot';
@@ -204,6 +202,8 @@ const ef = StyleSheet.create({
 // ─── Tela principal ───────────────────────────────────────────────────────────
 export default function RelatorioScreen() {
   const { theme } = useTheme();
+  const { width: larguraTela } = useWindowDimensions();
+  const telaCompacta = larguraTela <= 430;
   const insets = useSafeAreaInsets();
   const { draft, updateField } = useReport();
   const { profile } = useAuth();
@@ -305,8 +305,18 @@ export default function RelatorioScreen() {
     );
   }
 
-  const cor   = riscoColor(draft.nivelRisco);
-  const label = riscoLabel(draft.nivelRisco);
+  const apresentacao = resolverApresentacaoRisco({
+    formularioId: draft.formularioId,
+    pontuacao: draft.pontuacaoTotal,
+    nivelRisco: draft.nivelRisco,
+    calculoRisco: draft.calculoRisco,
+  });
+  const cor = apresentacao.cor;
+  const label = apresentacao.label;
+  const isAvaliacaoArvore = draft.formularioId === 'avaliacao_arvore_cbmmg_v1';
+  const formularioLabel = isAvaliacaoArvore
+    ? 'Avaliação de Árvore de Risco - CBMMG'
+    : draft.formularioId;
   const proto = parseProtocolo(draft.protocolo);
 
   const exportarPDF = async () => {
@@ -368,6 +378,10 @@ export default function RelatorioScreen() {
           endereco: draft.endereco || 'Endereço não informado',
           municipio: draft.municipio || '',
           nivelRisco: draft.nivelRisco || 'r1',
+          formularioId: draft.formularioId,
+          formularioTitulo: isAvaliacaoArvore ? 'Avaliação de Árvore de Risco - CBMMG' : undefined,
+          pontuacaoTotal: draft.pontuacaoTotal,
+          calculoRisco: draft.calculoRisco,
           agenteNome: draft.agenteNome || profile?.name || 'Agente',
           dataVistoria: draft.dataVistoria || new Date().toISOString(),
         });
@@ -487,32 +501,34 @@ export default function RelatorioScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <View style={[s.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
+      <View style={[s.header, telaCompacta && s.headerCompacto, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + (telaCompacta ? 8 : 12) }]}>
         <TouchableOpacity
-          style={[s.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
+          style={[s.backBtn, telaCompacta && s.backBtnCompacto, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
           onPress={() => safeBack(isTrainingReport ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
         >
           <Feather name="arrow-left" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[s.headerTitle, { color: theme.text }]}>Relatório Técnico</Text>
-          <Text style={[s.headerSub, { color: theme.textSecondary }]}>{draft.protocolo}</Text>
+          <Text style={[s.headerTitle, telaCompacta && s.headerTitleCompacto, { color: theme.text }]}>Relatório Técnico</Text>
+          <Text style={[s.headerSub, { color: theme.textSecondary }]} numberOfLines={2}>{draft.protocolo}</Text>
         </View>
-        <View style={[s.riscoBadgeSmall, { backgroundColor: cor }]}>
-          <Text style={s.riscoBadgeText}>{label}</Text>
-        </View>
+        {!telaCompacta && (
+          <View style={[s.riscoBadgeSmall, { backgroundColor: cor }]}>
+            <Text style={s.riscoBadgeText}>{label}</Text>
+          </View>
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[s.scroll, telaCompacta && s.scrollCompacto]} keyboardShouldPersistTaps="handled">
 
         {/* ── Card do Relatório ───────────────────────────────────────────── */}
-        <View style={[s.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <View style={[s.card, telaCompacta && s.cardCompacto, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
 
           {/* ── Brand + Protocolo ─────────────────────────────────────── */}
-          <View style={[s.brandHeader, { borderBottomColor: theme.border }]}>
+          <View style={[s.brandHeader, telaCompacta && s.brandHeaderCompacto, { borderBottomColor: theme.border }]}>
             {/* Logo + nome */}
-            <View style={s.brandLeft}>
-              <Image source={require('../../../assets/logo.png')} style={s.logo} resizeMode="contain" />
+            <View style={[s.brandLeft, telaCompacta && s.brandLeftCompacto]}>
+              <Image source={require('../../../assets/logo.png')} style={[s.logo, telaCompacta && s.logoCompacto]} resizeMode="contain" />
               <View>
                 <Text style={[s.brandName, { color: theme.text }]}>Defesa Civil</Text>
                 <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE RISCO</Text>
@@ -521,7 +537,7 @@ export default function RelatorioScreen() {
 
             {/* Protocolo em partes */}
             {proto ? (
-              <View style={[s.protoBox, { borderColor: theme.border, backgroundColor: theme.iconBackground }]}>
+              <View style={[s.protoBox, telaCompacta && s.protoBoxCompacto, { borderColor: theme.border, backgroundColor: theme.iconBackground }]}>
                 <Text style={[s.protoBoxLabel, { color: theme.textSecondary }]}>PROTOCOLO OFICIAL</Text>
                 {/* Linha 1: TCS · CIDADE */}
                 <View style={[s.protoPartes, { marginBottom: 4 }]}>
@@ -553,33 +569,33 @@ export default function RelatorioScreen() {
           </View>
 
           {/* Badge de risco */}
-          <View style={[s.riscoBanner, { backgroundColor: cor }]}>
-            <Text style={s.bannerLabel}>NÍVEL DE RISCO</Text>
-            <Text style={s.bannerNivel}>RISCO {label}</Text>
+          <View style={[s.riscoBanner, telaCompacta && s.riscoBannerCompacto, { backgroundColor: cor }]}>
+            <Text style={s.bannerLabel}>{isAvaliacaoArvore ? 'RESULTADO CBMMG' : 'NÍVEL DE RISCO'}</Text>
+            <Text style={[s.bannerNivel, telaCompacta && s.bannerNivelCompacto]}>{isAvaliacaoArvore ? label : `RISCO ${label}`}</Text>
             <Text style={s.bannerPts}>{formatarPontuacaoRisco(draft.pontuacaoTotal)} pontos acumulados</Text>
           </View>
 
           {/* Dados da vistoria */}
-          <View style={[s.section, { borderBottomColor: theme.border }]}>
+          <View style={[s.section, telaCompacta && s.sectionCompacta, { borderBottomColor: theme.border }]}>
             <Text style={[s.secTitle, { color: theme.textSecondary }]}>DADOS DA VISTORIA</Text>
             <View style={s.infoGrid}>
               <InfoItem label="Endereço"   value={draft.endereco}    theme={theme} />
               <InfoItem label="Município"  value={draft.municipio}   theme={theme} />
               <InfoItem label="Data / Hora" value={fmtData(draft.dataVistoria)} theme={theme} />
               <InfoItem label="Agente"     value={draft.agenteNome}  theme={theme} />
-              <InfoItem label="Formulário" value={draft.formularioId} theme={theme} />
+              <InfoItem label="Formulário" value={formularioLabel} theme={theme} />
             </View>
           </View>
 
           {/* Resumo de cobertura */}
-          <View style={[s.section, { borderBottomColor: theme.border }]}>
+          <View style={[s.section, telaCompacta && s.sectionCompacta, { borderBottomColor: theme.border }]}>
             <View style={s.coverageRow}>
               <Feather name="check-square" size={14} color={cor} />
               <Text style={[s.coverageText, { color: theme.textSecondary }]}>
                 <Text style={{ fontWeight: '800', color: theme.text }}>{totalRespondidas}</Text>
-                {' perguntas respondidas · '}
+                {telaCompacta ? ' perguntas · ' : ' perguntas respondidas · '}
                 <Text style={{ fontWeight: '800', color: theme.text }}>{grupos.length}</Text>
-                {' elementos avaliados'}
+                {telaCompacta ? ' etapas' : ' elementos avaliados'}
               </Text>
             </View>
           </View>
@@ -588,7 +604,7 @@ export default function RelatorioScreen() {
           {grupos.map((g, gi) => (
             <View key={g.faseId} style={[s.grupo, { borderBottomColor: theme.border, borderBottomWidth: gi < grupos.length - 1 ? 1 : 0 }]}>
               {/* Cabeçalho do grupo */}
-              <View style={[s.grupoHeader, { backgroundColor: theme.iconBackground }]}>
+              <View style={[s.grupoHeader, telaCompacta && s.grupoHeaderCompacto, { backgroundColor: theme.iconBackground }]}>
                 <Text style={[s.grupoTitulo, { color: theme.text }]}>{g.grupo}</Text>
                 {g.peso !== undefined && (
                   <View style={[s.pesoTag, { backgroundColor: cor + '22' }]}>
@@ -603,6 +619,7 @@ export default function RelatorioScreen() {
                   key={item.perguntaId}
                   style={[
                     s.itemRow,
+                    telaCompacta && s.itemRowCompacto,
                     { borderBottomColor: theme.border, borderBottomWidth: ii < g.itens.length - 1 ? 1 : 0 },
                   ]}
                 >
@@ -629,7 +646,7 @@ export default function RelatorioScreen() {
           ))}
 
           {grupos.length === 0 && (
-            <View style={[s.section, { borderBottomColor: theme.border }]}>
+            <View style={[s.section, telaCompacta && s.sectionCompacta, { borderBottomColor: theme.border }]}>
               <Text style={[s.emptyText, { color: theme.textSecondary, textAlign: 'center', fontSize: 13 }]}>
                 Nenhuma resposta registrada.
               </Text>
@@ -637,7 +654,7 @@ export default function RelatorioScreen() {
           )}
 
           {/* Conduta recomendada — editável */}
-          <View style={[s.section, { borderBottomColor: theme.border }]}>
+          <View style={[s.section, telaCompacta && s.sectionCompacta, { borderBottomColor: theme.border }]}>
             <EditableField
               label="Conduta Recomendada"
               value={draft.condutaRecomendada}
@@ -649,7 +666,7 @@ export default function RelatorioScreen() {
           </View>
 
           {/* Observações técnicas — editável */}
-          <View style={[s.section, { borderBottomColor: theme.border }]}>
+          <View style={[s.section, telaCompacta && s.sectionCompacta, { borderBottomColor: theme.border }]}>
             <EditableField
               label="Observações Técnicas (opcional)"
               value={draft.observacoesTecnicas}
@@ -660,7 +677,7 @@ export default function RelatorioScreen() {
           </View>
 
           {/* Assinatura — editável */}
-          <View style={[s.section, { borderBottomWidth: 0 }]}>
+          <View style={[s.section, telaCompacta && s.sectionCompacta, { borderBottomWidth: 0 }]}>
             <Text style={[s.secTitle, { color: theme.textSecondary }]}>ASSINATURA</Text>
             <View style={[s.assinaturaCard, { borderColor: theme.border }]}>
               <View style={[s.assinaturaLinha, { borderColor: theme.textSecondary }]} />
@@ -710,7 +727,7 @@ export default function RelatorioScreen() {
         {/* ── Exportação ────────────────────────────────────────────────── */}
         <Text style={[s.exportLabel, { color: theme.textSecondary }]}>EXPORTAR RELATÓRIO</Text>
 
-        {(draft.nivelRisco === 'r3' || draft.nivelRisco === 'r4') && (
+        {!isAvaliacaoArvore && (draft.nivelRisco === 'r3' || draft.nivelRisco === 'r4') && (
           <TouchableOpacity style={[s.exportBtn, { backgroundColor: '#EF4444' }]} onPress={abrirModalTermo} disabled={gerando}>
             {gerando
               ? <ActivityIndicator size="small" color="#FFF" />
@@ -895,26 +912,37 @@ const s = StyleSheet.create({
 
   // Header
   header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1 },
+  headerCompacto: { paddingBottom: 10, paddingHorizontal: 12, gap: 10 },
   backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  backBtnCompacto: { width: 40, height: 40, borderRadius: 11 },
   headerTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
+  headerTitleCompacto: { fontSize: 18 },
   headerSub: { fontSize: 12, fontWeight: '500', marginTop: 1 },
   riscoBadgeSmall: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
+  riscoBadgeSmallCompacto: { maxWidth: 128, paddingHorizontal: 9, paddingVertical: 6 },
   riscoBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  riscoBadgeTextCompacto: { fontSize: 10, lineHeight: 12, textAlign: 'center' },
   scroll: { padding: 20, paddingBottom: 60 },
+  scrollCompacto: { paddingHorizontal: 10, paddingTop: 12, paddingBottom: 40 },
 
   // Card
   card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', marginBottom: 24 },
+  cardCompacto: { borderRadius: 16, marginBottom: 18 },
 
   // Brand header
   brandHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, gap: 12 },
+  brandHeaderCompacto: { flexDirection: 'column', alignItems: 'stretch', padding: 14, gap: 12 },
   brandLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  brandLeftCompacto: { flex: 0, gap: 10 },
   logo: { width: 44, height: 44, borderRadius: 10 },
+  logoCompacto: { width: 40, height: 40, borderRadius: 9 },
   brandName: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
   brandSub: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, marginTop: 1 },
   protoLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   protoNum: { fontSize: 16, fontWeight: '900', marginTop: 2 },
   // Protocolo em partes
   protoBox: { borderWidth: 1, borderRadius: 12, padding: 10, alignItems: 'center', minWidth: 150 },
+  protoBoxCompacto: { minWidth: 0, width: '100%', paddingVertical: 9, paddingHorizontal: 8 },
   protoBoxLabel: { fontSize: 8, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
   protoPartes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   protoParte: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6 },
@@ -923,12 +951,15 @@ const s = StyleSheet.create({
 
   // Risk banner
   riscoBanner: { padding: 20, alignItems: 'center' },
+  riscoBannerCompacto: { paddingHorizontal: 12, paddingVertical: 15 },
   bannerLabel: { color: '#FFF', fontSize: 9, fontWeight: '800', letterSpacing: 2, opacity: 0.85 },
   bannerNivel: { color: '#FFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5, marginVertical: 4 },
+  bannerNivelCompacto: { fontSize: 23, lineHeight: 28, textAlign: 'center' },
   bannerPts:   { color: '#FFF', fontSize: 12, opacity: 0.8 },
 
   // Section
   section: { padding: 18, borderBottomWidth: 1 },
+  sectionCompacta: { paddingHorizontal: 14, paddingVertical: 14 },
   secTitle: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 14 },
 
   // Info grid
@@ -944,12 +975,14 @@ const s = StyleSheet.create({
   // Grupos de perguntas
   grupo: { paddingBottom: 0 },
   grupoHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 },
+  grupoHeaderCompacto: { paddingHorizontal: 14, paddingVertical: 9 },
   grupoTitulo: { fontSize: 13, fontWeight: '800', flex: 1 },
   pesoTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   pesoText: { fontSize: 10, fontWeight: '800' },
 
   // Item de resposta
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 12, gap: 12 },
+  itemRowCompacto: { alignItems: 'flex-start', paddingHorizontal: 14, paddingVertical: 11, gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0, marginTop: 2 },
   itemPergunta: { fontSize: 11, fontWeight: '600', marginBottom: 3 },
   itemResposta: { fontSize: 14, fontWeight: '700' },

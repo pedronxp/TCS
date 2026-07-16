@@ -12,7 +12,7 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { getOfficialVistoriaById, deleteVistoriaOffline } from '../../../utils/database';
-import { formatarPontuacaoRisco, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarPontuacaoRisco, resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
 import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
@@ -212,8 +212,15 @@ export default function VistoriaDetalhesScreen() {
     );
   }
 
-  const cor = riscoColor(vistoria.nivelRisco);
-  const nivel = riscoLabel(vistoria.nivelRisco);
+  const apresentacao = resolverApresentacaoRisco({
+    formularioId: vistoria.formularioId,
+    pontuacao: vistoria.pontuacaoTotal,
+    nivelRisco: vistoria.nivelRisco,
+    calculoRisco: vistoria.calculoRisco,
+  });
+  const cor = apresentacao.cor;
+  const nivel = apresentacao.label;
+  const isAvaliacaoArvore = vistoria.formularioId === 'avaliacao_arvore_cbmmg_v1';
   const endereco = vistoria.endereco || `${vistoria.enderecoRua || ''}, ${vistoria.enderecoNumero || ''} — ${vistoria.enderecoBairro || ''}`;
   const hasCoords = hasValidCoordinates(vistoria.latitude, vistoria.longitude);
 
@@ -265,7 +272,7 @@ export default function VistoriaDetalhesScreen() {
             />
           </View>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={[styles.nivelLabel, { color: theme.textSecondary }]}>NÍVEL DE RISCO</Text>
+            <Text style={[styles.nivelLabel, { color: theme.textSecondary }]}>{isAvaliacaoArvore ? 'RESULTADO CBMMG' : 'NÍVEL DE RISCO'}</Text>
             <Text style={[styles.nivelText, { color: cor }]}>{nivel}</Text>
           </View>
           {vistoria.pontuacaoTotal != null && (
