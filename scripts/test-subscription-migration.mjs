@@ -14,6 +14,26 @@ const commercialDefaultsUrl = new URL(
   '../supabase/migrations/20260716154744_approve_commercial_plan_defaults.sql',
   import.meta.url,
 );
+const purchaseRequestsUrl = new URL(
+  '../supabase/migrations/20260717024434_add_plan_purchase_requests.sql',
+  import.meta.url,
+);
+const purchaseRequestHardeningUrl = new URL(
+  '../supabase/migrations/20260717025908_harden_plan_purchase_request_access.sql',
+  import.meta.url,
+);
+const purchaseRequestPermissionFixUrl = new URL(
+  '../supabase/migrations/20260717030117_fix_anonymous_purchase_request_conflict.sql',
+  import.meta.url,
+);
+const purchaseRequestReturningFixUrl = new URL(
+  '../supabase/migrations/20260717030247_avoid_anonymous_purchase_request_returning.sql',
+  import.meta.url,
+);
+const purchaseRequestDuplicateFixUrl = new URL(
+  '../supabase/migrations/20260717030440_handle_purchase_request_duplicates_without_select.sql',
+  import.meta.url,
+);
 
 const migration = (await readFile(migrationUrl, 'utf8')).replace(
   'CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;',
@@ -21,6 +41,11 @@ const migration = (await readFile(migrationUrl, 'utf8')).replace(
 );
 const validationFix = await readFile(validationFixUrl, 'utf8');
 const commercialDefaults = await readFile(commercialDefaultsUrl, 'utf8');
+const purchaseRequests = await readFile(purchaseRequestsUrl, 'utf8');
+const purchaseRequestHardening = await readFile(purchaseRequestHardeningUrl, 'utf8');
+const purchaseRequestPermissionFix = await readFile(purchaseRequestPermissionFixUrl, 'utf8');
+const purchaseRequestReturningFix = await readFile(purchaseRequestReturningFixUrl, 'utf8');
+const purchaseRequestDuplicateFix = await readFile(purchaseRequestDuplicateFixUrl, 'utf8');
 
 const db = new PGlite();
 
@@ -52,6 +77,9 @@ await db.exec(`
   AS $$
     SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
   $$;
+
+  GRANT USAGE ON SCHEMA auth TO anon, authenticated;
+  GRANT EXECUTE ON FUNCTION auth.uid(), auth.jwt() TO anon, authenticated;
 
   CREATE FUNCTION extensions.digest(value text, algorithm text)
   RETURNS bytea
@@ -108,13 +136,18 @@ try {
   await db.exec(migration);
   await db.exec(validationFix);
   await db.exec(commercialDefaults);
+  await db.exec(purchaseRequests);
+  await db.exec(purchaseRequestHardening);
+  await db.exec(purchaseRequestPermissionFix);
+  await db.exec(purchaseRequestReturningFix);
+  await db.exec(purchaseRequestDuplicateFix);
 
   const planResult = await db.query(`
     SELECT count(*)::integer AS total,
-           count(*) FILTER (WHERE status = 'draft')::integer AS drafts
+           count(*) FILTER (WHERE status = 'active')::integer AS active
     FROM public.plans;
   `);
-  assert.deepEqual(planResult.rows[0], { total: 6, drafts: 5 });
+  assert.deepEqual(planResult.rows[0], { total: 6, active: 6 });
 
   const catalogResult = await db.query(`
     SELECT name, description FROM public.features WHERE code = 'inspection_arv';
@@ -213,7 +246,7 @@ try {
     ) AS result;
   `, [
     planId,
-    JSON.stringify({ name: 'Individual Básico Atualizado', description: 'Teste do editor', status: 'draft' }),
+    JSON.stringify({ name: 'Individual Básico Atualizado', description: 'Teste do editor', status: 'active' }),
     JSON.stringify({ monthly_price_cents: 4990, annual_price_cents: 49900, currency: 'BRL', trial_days: 14, grace_days: 7, overage_policy: 'block', support_tier: 'standard', support_channels: ['E-mail'], support_hours: 'Segunda a sexta' }),
     JSON.stringify({ inspection_standard: true, inspection_arv: false, reports_basic: true }),
     JSON.stringify({ users: { hard_limit: 1, warning_percent: 80 }, inspections: { hard_limit: 30, warning_percent: 80 }, sessions: { hard_limit: 1, warning_percent: 100 } }),
@@ -235,7 +268,58 @@ try {
     monthly_price_cents: 4990,
   });
 
-  console.log('Migration aplicada: catálogo ARV, editor versionado e rollback das flags validados.');
+  const buyerId = '22222222-2222-4222-8222-222222222222';
+  await db.query('INSERT INTO auth.users(id, email) VALUES ($1, $2)', [buyerId, 'buyer@test.local']);
+  await db.query(`
+    INSERT INTO public.users(uid, name, email, role, municipio, "isApproved")
+    VALUES ($1, 'Comprador Teste', 'buyer@test.local', 'agent', 'Teste', true)
+  `, [buyerId]);
+
+  await db.query(`SELECT set_config('request.jwt.claims', '{}', false)`);
+  await db.exec('SET ROLE anon');
+  const requestResult = await db.query(`
+    SELECT public.submit_plan_purchase_request(
+      'individual_basic', 'monthly', 'Comprador Teste', 'buyer@test.local',
+      '(32) 99999-9999', NULL, NULL, 'Solicitacao de teste'
+    ) AS result;
+  `);
+  assert.equal(requestResult.rows[0].result.accepted, true);
+
+  await db.query(`
+    SELECT public.submit_plan_purchase_request(
+      'individual_basic', 'annual', 'Comprador Teste', 'buyer@test.local',
+      '(32) 99999-9999', NULL, NULL, NULL
+    );
+  `);
+  await db.exec('RESET ROLE');
+  const deduplicated = await db.query(`
+    SELECT count(*)::integer AS total, max(billing_cycle) AS billing_cycle
+    FROM public.plan_purchase_requests
+    WHERE contact_email = 'buyer@test.local';
+  `);
+  assert.deepEqual(deduplicated.rows[0], { total: 1, billing_cycle: 'monthly' });
+
+  await db.query(`SELECT set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ sub: ownerId })]);
+  const approvalResult = await db.query(`
+    SELECT public.review_plan_purchase_request(
+      $1::uuid, 'approve', 'Ativacao manual validada em teste'
+    ) AS result;
+  `, [requestResult.rows[0].result.request_id]);
+  assert.equal(approvalResult.rows[0].result.approved, true);
+
+  const activated = await db.query(`
+    SELECT s.status, p.code, s.user_id
+    FROM public.subscriptions s
+    JOIN public.plans p ON p.id = s.plan_id
+    WHERE s.id = $1::uuid;
+  `, [approvalResult.rows[0].result.subscription_id]);
+  assert.deepEqual(activated.rows[0], {
+    status: 'active',
+    code: 'individual_basic',
+    user_id: buyerId,
+  });
+
+  console.log('Migration aplicada: catálogo, contratação manual e ativação de assinatura validados.');
 } finally {
   await db.close();
 }

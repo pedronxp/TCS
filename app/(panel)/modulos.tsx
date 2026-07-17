@@ -20,6 +20,7 @@ export default function ModulosScreen() {
     if (profile?.role === 'master_admin') {
       return [
         ...subscriptionItems,
+        { label: 'Contratações', icon: 'shopping-bag', route: '/(panel)/master/contratacoes', color: '#22C55E', desc: 'Analisar e ativar planos' },
         { label: 'Municípios', icon: 'map', route: '/(panel)/master/municipios', color: '#3B82F6', desc: 'Gerenciar municípios' },
         { label: 'Equipe', icon: 'user-check', route: '/(panel)/equipe', color: '#10B981', desc: 'Agentes de todos os municípios' },
         { label: 'Inspeções', icon: 'clipboard', route: '/(panel)/inspecoes', color: '#F59E0B', desc: 'Vistorias e formulários' },

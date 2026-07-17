@@ -528,7 +528,7 @@ export default function RelatorioScreen() {
           <View style={[s.brandHeader, telaCompacta && s.brandHeaderCompacto, { borderBottomColor: theme.border }]}>
             {/* Logo + nome */}
             <View style={[s.brandLeft, telaCompacta && s.brandLeftCompacto]}>
-              <Image source={require('../../../assets/logo.png')} style={[s.logo, telaCompacta && s.logoCompacto]} resizeMode="contain" />
+              <Image source={require('../../../assets/brand/tcs-mark.png')} style={[s.logo, telaCompacta && s.logoCompacto]} resizeMode="contain" />
               <View>
                 <Text style={[s.brandName, { color: theme.text }]}>Defesa Civil</Text>
                 <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE RISCO</Text>
