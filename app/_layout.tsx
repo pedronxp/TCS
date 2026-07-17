@@ -1,6 +1,5 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -19,6 +18,7 @@ import { LogBox } from 'react-native';
 import { resolveRootRedirect } from '../utils/rootRouting';
 import { SubscriptionProvider } from '../context/SubscriptionContext';
 import { SessionLifecycle } from '../services/SessionService';
+import { OpeningBoot } from '../components/brand';
 
 // Silencia erros internos do Expo Go no Android
 LogBox.ignoreLogs(['Unable to activate keep awake']);
@@ -125,11 +125,7 @@ function RootNavigator() {
   }, [session, profile, loading, trainingLoading, trainingSession, isTrainingActive, appReady, segmentsKey, isExpired, exit]);
 
   if (loading || trainingLoading || !appReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-      </View>
-    );
+    return <OpeningBoot />;
   }
 
   return (

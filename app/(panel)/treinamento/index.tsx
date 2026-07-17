@@ -111,7 +111,7 @@ export default function TrainingDashboardScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 14 }]}>
         <View style={[styles.headerLogoWrap, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
-          <Image source={require('../../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
+          <Image source={require('../../../assets/brand/tcs-mark.png')} style={styles.headerLogo} resizeMode="contain" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.kicker, { color: '#10B981' }]}>MODO TREINAMENTO</Text>

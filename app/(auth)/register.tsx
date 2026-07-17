@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Card, Button } from '../../components/ui';
+import { ProductIdentity } from '../../components/brand';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatarToken = (t: string) => {
@@ -638,6 +639,7 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.titleSection}>
+            <ProductIdentity variant="compact" />
             <Text style={[styles.title, { color: theme.text }]}>Validação Segura</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               Insira o token recebido pelo seu administrador para configurar sua conta.
@@ -924,7 +926,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', marginBottom: 20,
   },
   backButton: { width: 44, height: 44, justifyContent: 'center', borderRadius: 12, alignItems: 'center', borderWidth: 1 },
-  titleSection: { marginBottom: 32 },
+  titleSection: { marginBottom: 32, gap: 16 },
   title: { fontSize: 32, fontWeight: '700', letterSpacing: -1.0, lineHeight: 40 },
   subtitle: { fontSize: 15, fontWeight: '400', marginTop: 12, lineHeight: 22 },
   form: { gap: 20 },

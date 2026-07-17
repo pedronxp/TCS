@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +15,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui/Button';
 import { formatTrainingToken } from '../../services/TrainingService';
+import { ProductIdentity } from '../../components/brand';
 
 export default function TreinamentoEntryScreen() {
   const { theme } = useTheme();
@@ -61,9 +61,7 @@ export default function TreinamentoEntryScreen() {
           </TouchableOpacity>
 
           <View style={styles.hero}>
-            <View style={[styles.logoFrame, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-              <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-            </View>
+            <ProductIdentity variant="compact" />
             <View style={styles.heroBadge}>
               <Feather name="book-open" size={13} color="#10B981" />
               <Text style={styles.heroBadgeText}>Modo treinamento</Text>
@@ -146,16 +144,6 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   hero: { alignItems: 'center', marginBottom: 32 },
-  logoFrame: {
-    width: 88,
-    height: 88,
-    borderRadius: 24,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  logo: { width: 66, height: 66 },
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',

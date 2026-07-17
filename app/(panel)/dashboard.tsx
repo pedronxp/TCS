@@ -17,6 +17,8 @@ import { ErrorState } from '../../components/ui';
 import { DashboardGuide } from '../../components/DashboardGuide';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { resolveInstitutionalIdentity } from '../../utils/institutionalIdentity';
 
 const DIAS_SEMANA = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -28,6 +30,7 @@ export default function DashboardScreen() {
   const { profile, loading: authLoading } = useAuth();
   const { isTrainingActive } = useTraining();
   const { isConnected, isOnlineReal } = useConnectivity();
+  const { context: subscriptionContext } = useSubscription();
 
   const [metrics, setMetrics] = useState({ atividadesHoje: 0, requerAtencao: 0, minhasTotal: 0 });
   const [metricsLoading, setMetricsLoading] = useState(true);
@@ -105,6 +108,8 @@ export default function DashboardScreen() {
   const firstName = profile?.name?.split(' ')[0] ?? '—';
   const initial = firstName[0]?.toUpperCase() ?? '?';
   const roleLabel = profile?.role === 'agent' ? 'Agente' : profile?.role ?? '—';
+  const institutionalIdentity = resolveInstitutionalIdentity(subscriptionContext);
+  const organizationLabel = institutionalIdentity?.organizationName || null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -114,10 +119,12 @@ export default function DashboardScreen() {
           <Text style={[styles.dateText, { color: theme.textSecondary }]}>{diaSemana}, {dataFormatada}</Text>
           <Text style={[styles.greeting, { color: theme.text }]}>Olá, {firstName}</Text>
           <View style={styles.badgeRow}>
-            <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
-              <Feather name="map-pin" size={10} color={theme.primary} />
-              <Text style={[styles.chipText, { color: theme.primary }]}>{profile?.municipio ?? '—'}</Text>
-            </View>
+            {organizationLabel && (
+              <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
+                <Feather name="briefcase" size={10} color={theme.primary} />
+                <Text style={[styles.chipText, { color: theme.primary }]}>{organizationLabel}</Text>
+              </View>
+            )}
             <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
               <Feather name="shield" size={10} color={theme.primary} />
               <Text style={[styles.chipText, { color: theme.primary }]}>{roleLabel}</Text>

@@ -1,7 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+// Deve espelhar o fallback do cliente Supabase. Sem isso, builds sem .env
+// tratavam qualquer Wi‑Fi como internet real e consumiam tentativas de sync.
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://vobcapzssxchdckazfnr.supabase.co';
 const CHECK_TIMEOUT_MS = 8000;
 const DEBOUNCE_MS = 2000;
 const MAX_RETRIES = 2;
@@ -23,7 +25,6 @@ const ConnectivityContext = createContext<ConnectivityContextData>({
  * Exportada para uso fora de hooks React (ex: SyncService).
  */
 export async function checkRealInternet(): Promise<boolean> {
-  if (!SUPABASE_URL) return true;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const controller = new AbortController();

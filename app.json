@@ -5,10 +5,10 @@
     "scheme": "tcs",
     "version": "1.3.18",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/tcs-icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/brand/tcs-splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0B0F19"
     },
@@ -32,7 +32,8 @@
       },
       "versionCode": 24,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/brand/tcs-adaptive-foreground.png",
+        "monochromeImage": "./assets/brand/tcs-monochrome.png",
         "backgroundColor": "#0B0F19"
       },
       "predictiveBackGestureEnabled": false,
@@ -55,7 +56,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/brand/tcs-favicon.png"
     },
     "plugins": [
       "expo-asset",
@@ -64,7 +65,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
+          "icon": "./assets/brand/tcs-notification.png",
           "color": "#3B82F6",
           "sounds": [],
           "mode": "production"
@@ -100,7 +101,8 @@
             "deploymentTarget": "15.1"
           }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {

@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
+import { ProductIdentity } from '../components/brand';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -124,23 +124,7 @@ export default function ShowcaseScreen() {
 
         {/* ── Seção 1: Hero ── */}
         <Animated.View style={[styles.hero, fadeSlide(heroAnim, 28)]}>
-          <Image
-            source={require('../assets/logo.png')}
-            style={styles.logo}
-            contentFit="contain"
-          />
-          <Text style={[styles.heroTitle, { color: text }]}>TCS</Text>
-
-          {/* Barra R1→R4 */}
-          <View style={styles.riskBarRow}>
-            {RISK_COLORS.map((c, i) => (
-              <View key={i} style={[styles.riskSeg, { backgroundColor: c }]}>
-                <Text style={styles.riskSegLabel}>{RISK_LABELS[i]}</Text>
-              </View>
-            ))}
-          </View>
-
-          <Text style={[styles.heroSystem, { color: primary }]}>RELATÓRIO E RISCO</Text>
+          <ProductIdentity variant="hero" />
           <Text style={[styles.heroSub, { color: muted }]}>
             Do registro em campo ao laudo técnico — tudo em um só lugar.
           </Text>

@@ -12,16 +12,14 @@ import {
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '../context/ThemeContext';
 import { Button } from '../components/ui';
 import { Typography } from '../constants/Typography';
 import { Spacing, SpacingAlias } from '../constants/Spacing';
+import { ProductIdentity } from '../components/brand';
 
 const { width, height: screenHeight } = Dimensions.get('window');
-const RISK_COLORS = ['#10B981', '#F59E0B', '#F97316', '#EF4444'];
-const RISK_LABELS = ['R1', 'R2', 'R3', 'R4'];
 
 interface SlideData {
   id: string;
@@ -159,11 +157,7 @@ export default function OnboardingScreen() {
 
               {/* ── Visual ── */}
               {item.isHero ? (
-                <Image
-                  source={require('../assets/logo.png')}
-                  style={styles.heroLogo}
-                  contentFit="contain"
-                />
+                <ProductIdentity variant="hero" />
               ) : (
                 <View style={[styles.iconRing, { borderColor: `${item.color}30` }]}>
                   <View style={[styles.iconDisk, { backgroundColor: `${item.color}15` }]}>
@@ -173,23 +167,13 @@ export default function OnboardingScreen() {
               )}
 
               {/* ── Barra de risco (só no hero) ── */}
-              {item.isHero && (
-                <View style={styles.heroRiskBar}>
-                  {RISK_COLORS.map((c, i) => (
-                    <View key={i} style={[styles.heroRiskSeg, { backgroundColor: c }]}>
-                      <Text style={styles.heroRiskLabel}>{RISK_LABELS[i]}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-
               {/* ── Text ── */}
-              <Text style={[styles.slideTitle, { color: theme.text }]}>
-                {item.title}
-              </Text>
-              <Text style={[styles.slideSubtitle, { color: theme.textSecondary }]}>
-                {item.subtitle}
-              </Text>
+              {!item.isHero && (
+                <>
+                  <Text style={[styles.slideTitle, { color: theme.text }]}>{item.title}</Text>
+                  <Text style={[styles.slideSubtitle, { color: theme.textSecondary }]}>{item.subtitle}</Text>
+                </>
+              )}
 
               {/* ── Feature chips ── */}
               {item.features && (
@@ -293,13 +277,6 @@ const styles = StyleSheet.create({
     paddingBottom: 160,
   },
 
-  /* Hero */
-  heroLogo: {
-    width: 130,
-    height: 130,
-    marginBottom: Spacing[6],
-  },
-
   /* Icon ring */
   iconRing: {
     width: 160,
@@ -333,28 +310,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     maxWidth: 300,
     marginBottom: Spacing[6],
-  },
-
-  /* Hero risk bar */
-  heroRiskBar: {
-    flexDirection: 'row',
-    gap: 4,
-    width: 148,
-    height: 28,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: Spacing[4],
-  },
-  heroRiskSeg: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroRiskLabel: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
   },
 
   /* Feature chips */

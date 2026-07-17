@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
 import { recordLoginAttempt, getLoginBlockedUntil, clearLoginAttempts } from '../../utils/loginRateLimit';
 import { registrarAuditoria } from '../../utils/auditLogger';
+import { ProductIdentity } from '../../components/brand';
 
 type Modo = 'email' | 'whatsapp';
 
@@ -139,6 +140,7 @@ export default function LoginScreen() {
 
           {/* Title */}
           <View style={styles.titleSection}>
+            <ProductIdentity variant="compact" />
             <Text style={[styles.title, { color: theme.text }]}>Autenticação</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               Escolha como deseja acessar o sistema.
@@ -328,7 +330,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 32, paddingTop: 20, paddingBottom: 40 },
   header: { height: 48, justifyContent: 'center', marginBottom: 20 },
   backButton: { width: 44, height: 44, justifyContent: 'center', borderRadius: 12, alignItems: 'center', borderWidth: 1 },
-  titleSection: { marginBottom: 28 },
+  titleSection: { marginBottom: 28, gap: 16 },
   title: { fontSize: 32, fontWeight: '700', letterSpacing: -1.0, lineHeight: 40 },
   subtitle: { fontSize: 15, fontWeight: '400', marginTop: 12, lineHeight: 22 },
 

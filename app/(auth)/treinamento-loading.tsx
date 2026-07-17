@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useTraining } from '../../context/TrainingContext';
 import { trainingEntryMessage, TrainingEntryResult } from '../../services/TrainingService';
 import { supabase } from '../../utils/supabase';
+import { ProductIdentity } from '../../components/brand';
 
 const SUCCESS_VISIBLE_MS = 5000;
 
@@ -49,7 +50,7 @@ export default function TreinamentoLoadingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#080C14' : '#F0F4FF' }]}>
-      <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+      <ProductIdentity variant="compact" />
       <Text style={[styles.title, { color: theme.text }]}>
         {loading ? 'Validando treinamento' : ok ? 'Entrada confirmada' : 'Acesso indisponível'}
       </Text>
@@ -88,7 +89,6 @@ export default function TreinamentoLoadingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  logo: { width: 104, height: 104, marginBottom: 28 },
   title: { fontSize: 26, fontWeight: '800', textAlign: 'center', letterSpacing: -0.4 },
   subtitle: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 10, marginBottom: 24 },
   statusCard: {
