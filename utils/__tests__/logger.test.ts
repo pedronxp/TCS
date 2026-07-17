@@ -83,12 +83,27 @@ describe('logger.sanitize — via comportamento observável', () => {
 });
 
 describe('logger API', () => {
-  beforeEach(() => jest.resetModules());
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+  });
 
   it('expõe info, warn e error', () => {
     const { logger } = require('../logger');
     expect(typeof logger.info).toBe('function');
     expect(typeof logger.warn).toBe('function');
     expect(typeof logger.error).toBe('function');
+  });
+
+  it('não envia falha de sincronização ao console.error/LogBox', () => {
+    const { logger } = require('../logger');
+    logger.error('sync', 'Falha individual (tentativa 1/5)', { id: 'v-1' });
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalledWith(
+      '[ERROR][sync]',
+      'Falha individual (tentativa 1/5)',
+      { id: 'v-1' },
+    );
   });
 });

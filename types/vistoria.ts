@@ -66,6 +66,8 @@ export interface AtividadeItem {
   dataVistoria: string | null;
   agenteNome?: string;
   pontuacaoTotal?: number;
+  formularioId?: string;
+  calculoRisco?: unknown;
   status?: string;
 }
 

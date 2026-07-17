@@ -1,36 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useTraining } from '../../../context/TrainingContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
-import { Card, Badge, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
+import { Card, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscription } from '../../../context/SubscriptionContext';
 
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
   {
-    id: 'vistoria_deslizamento_v3',
-    titulo: 'Vistoria de Risco de Deslizamento',
-    descricao: 'Escala 0-10 · R1-R4 padronizado',
-    asset: require('../../../assets/formularios/vistoria_deslizamento_v3.json'),
-    icon: 'trending-down' as const,
+    id: 'avaliacao_arvore_cbmmg_v1',
+    titulo: 'Risco em Árvore',
+    descricao: 'Árvores ou galhos com risco de queda.',
+    asset: require('../../../assets/formularios/avaliacao_arvore_cbmmg_v1.json'),
+    icon: 'tree-outline' as const,
+    iconColor: '#22C55E',
+    featureCode: 'inspection_arv',
     isBuiltin: true,
-    isNew: true,
+  },
+  {
+    id: 'vistoria_deslizamento_v3',
+    titulo: 'Risco de Deslizamento',
+    descricao: 'Encostas, barrancos e movimentação do solo.',
+    asset: require('../../../assets/formularios/vistoria_deslizamento_v3.json'),
+    icon: 'image-filter-hdr' as const,
+    iconColor: '#F59E0B',
+    featureCode: 'inspection_standard',
+    isBuiltin: true,
   },
   {
     id: 'risco_estrutural_novo_v2',
-    titulo: 'Avaliação de Risco Estrutural',
-    descricao: 'Escala 0-10 · Inspeção técnica',
+    titulo: 'Risco em Edificação',
+    descricao: 'Rachaduras, danos e segurança do imóvel.',
     asset: require('../../../assets/formularios/risco_estrutural_novo_v2.json'),
-    icon: 'home' as const,
+    icon: 'home-city-outline' as const,
+    iconColor: '#3B82F6',
+    featureCode: 'inspection_standard',
     isBuiltin: true,
-    isNew: true,
   },
 ];
 
@@ -42,6 +54,8 @@ interface FormularioItem {
   status?: string;
   asset?: any;
   icon?: any;
+  iconColor?: string;
+  featureCode?: string;
   isBuiltin: boolean;
   isNew?: boolean;
 }
@@ -120,7 +134,7 @@ export default function SelecaoFormularioScreen() {
         const customs: FormularioItem[] = (data || []).map(f => ({
           id: f.id,
           titulo: f.titulo,
-          descricao: `v${f.versao} • Publicado`,
+          descricao: 'Modelo criado pela sua equipe.',
           versao: f.versao,
           status: f.status,
           isBuiltin: false,
@@ -135,7 +149,7 @@ export default function SelecaoFormularioScreen() {
           .map(f => ({
             id: f.id,
             titulo: f.titulo,
-            descricao: `v${f.versao} • Cache offline`,
+            descricao: 'Modelo criado pela sua equipe.',
             versao: f.versao,
             status: f.status,
             isBuiltin: false,
@@ -153,7 +167,7 @@ export default function SelecaoFormularioScreen() {
           .map(f => ({
             id: f.id,
             titulo: f.titulo,
-            descricao: `v${f.versao} • Cache offline`,
+            descricao: 'Modelo criado pela sua equipe.',
             versao: f.versao,
             status: f.status,
             isBuiltin: false,
@@ -179,9 +193,9 @@ export default function SelecaoFormularioScreen() {
     const isBuiltin = !!builtin;
     const form = builtin || dynamicForms.find(f => f.id === selected)!;
     const normalizedTitle = form.titulo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const featureCode = normalizedTitle.includes('arv') || normalizedTitle.includes('arvore')
+    const featureCode = form.featureCode || (normalizedTitle.includes('arv') || normalizedTitle.includes('arvore')
       ? 'inspection_arv'
-      : 'inspection_standard';
+      : 'inspection_standard');
     if (!isTrainingActive && !hasFeature(featureCode)) {
       Alert.alert('Recurso não incluído', 'Este modelo não está disponível no plano atual.', [
         { text: 'Agora não', style: 'cancel' },
@@ -211,7 +225,7 @@ export default function SelecaoFormularioScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>PASSO 2 DE 3</Text>
-          <Text style={[styles.title, { color: theme.text }]}>Tipo de Vistoria</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Escolha a Vistoria</Text>
         </View>
       </View>
 
@@ -223,32 +237,29 @@ export default function SelecaoFormularioScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Built-in forms */}
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-          <Feather name="folder" size={12} /> {isTrainingActive ? 'FORMULÁRIOS DA AULA' : 'MODELOS PADRÃO (OFFLINE)'}
+          <Feather name="clipboard" size={12} /> {isTrainingActive ? 'ESCOLHA A ATIVIDADE' : 'ESCOLHA O TIPO DE VISTORIA'}
         </Text>
+        {!isTrainingActive && (
+          <Text style={[styles.sectionHint, { color: theme.textSecondary }]}>Todos os tipos abaixo funcionam sem internet.</Text>
+        )}
 
         {builtinForms.map(f => {
           const sel = selected === f.id;
           return (
             <TouchableOpacity key={f.id} onPress={() => setSelected(f.id)}>
               <Card style={{ marginBottom: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? theme.primary : theme.cardBorder }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: theme.iconBackground, alignItems: 'center', justifyContent: 'center' }}>
-                    <Feather name={f.icon} size={22} color={theme.primary} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: `${f.iconColor}18`, alignItems: 'center', justifyContent: 'center' }}>
+                    <MaterialCommunityIcons name={f.icon as any} size={27} color={f.iconColor} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
-                    <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
-                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                        <Badge label={isTrainingActive ? 'Aula' : 'Local'} variant="success" />
-                        {f.isNew && <Badge label="Novo" variant="info" />}
-                      </View>
-                      {sel
-                        ? <Feather name="check-circle" size={16} color={theme.primary} />
-                        : <Feather name="chevron-right" size={16} color={theme.muted} />
-                      }
-                    </View>
+                    <Text style={{ fontSize: 13, lineHeight: 18, color: theme.textSecondary, marginTop: 4 }}>{f.descricao}</Text>
                   </View>
+                  {sel
+                    ? <Feather name="check-circle" size={21} color={theme.primary} />
+                    : <Feather name="circle" size={21} color={theme.muted} />
+                  }
                 </View>
               </Card>
             </TouchableOpacity>
@@ -272,7 +283,7 @@ export default function SelecaoFormularioScreen() {
         {!loading && !formError && dynamicForms.length > 0 && (
           <>
             <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: 24 }]}>
-              <Feather name={fromCache ? 'database' : 'cloud'} size={12} /> FORMULÁRIOS PERSONALIZADOS{fromCache ? ' (CACHE)' : ''}
+              <Feather name="users" size={12} /> MODELOS DA SUA EQUIPE
             </Text>
             {dynamicForms.map(f => {
               const sel = selected === f.id;
@@ -286,14 +297,12 @@ export default function SelecaoFormularioScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
                         <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao || ''}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, justifyContent: 'space-between' }}>
-                          <Badge label="Personalizado" variant="warning" />
-                          {sel
-                            ? <Feather name="check-circle" size={16} color={theme.primary} />
-                            : <Feather name="chevron-right" size={16} color={theme.muted} />
-                          }
-                        </View>
+                        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 7 }}>Disponível para sua equipe</Text>
                       </View>
+                      {sel
+                        ? <Feather name="check-circle" size={21} color={theme.primary} />
+                        : <Feather name="circle" size={21} color={theme.muted} />
+                      }
                     </View>
                   </Card>
                 </TouchableOpacity>
@@ -313,7 +322,7 @@ export default function SelecaoFormularioScreen() {
           onPress={avancar}
           disabled={!selected}
         >
-          <Text style={styles.nextBtnText}>AVANÇAR</Text>
+          <Text style={styles.nextBtnText}>CONTINUAR</Text>
           <Feather name="arrow-right" size={18} color="#FFF" />
         </TouchableOpacity>
       </View>
@@ -331,6 +340,7 @@ const styles = StyleSheet.create({
   progressFill: { height: 3 },
   scroll: { padding: 20, paddingBottom: 120 },
   sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
+  sectionHint: { fontSize: 12, lineHeight: 17, marginTop: -5, marginBottom: 14 },
   footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'row', gap: 12 },
   cancelBtn: { flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
   cancelText: { fontSize: 13, fontWeight: '800', letterSpacing: 1 },

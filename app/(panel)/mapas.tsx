@@ -19,6 +19,7 @@ import { hasValidCoordinates, normalizeCoordinatePair } from '../../utils/coordi
 import type { ValidCoordinates } from '../../utils/coordinateUtils';
 import { navSystemBottom } from '../../utils/useBottomTabPadding';
 import { safeBack } from '../../utils/navigationUtils';
+import { resolverApresentacaoRisco } from '../../utils/riscoUtils';
 
 interface VistoriaMarker {
   id: string;
@@ -29,6 +30,8 @@ interface VistoriaMarker {
   agenteNome: string;
   dataVistoria: string | null;
   pontuacaoTotal: number | null;
+  formularioId?: string | null;
+  calculoRisco?: unknown;
 }
 
 interface AgendamentoMarker {
@@ -107,6 +110,20 @@ function getRiscoShortLabel(nivel: string): string {
   if (n === 'r3') return 'R3';
   if (n === 'r2') return 'R2';
   return 'R1';
+}
+
+function getMarkerRiscoLabel(marker: VistoriaMarker): string {
+  return resolverApresentacaoRisco({
+    formularioId: marker.formularioId,
+    pontuacao: marker.pontuacaoTotal,
+    nivelRisco: marker.nivelRisco,
+    calculoRisco: marker.calculoRisco,
+  }).label;
+}
+
+function getMarkerRiscoShortLabel(marker: VistoriaMarker): string {
+  if (marker.formularioId !== 'avaliacao_arvore_cbmmg_v1') return getRiscoShortLabel(marker.nivelRisco);
+  return getMarkerRiscoLabel(marker) === 'RISCO IMINENTE' ? '!' : 'OK';
 }
 
 // Tamanhos do marcador — visual neutro para não sumir no mapa do Android.
@@ -363,7 +380,7 @@ export default function MapasScreen() {
       if (isOnlineReal) {
         let query = supabase
           .from('vistorias')
-          .select('id, latitude, longitude, nivelRisco, endereco, agenteNome, dataVistoria, pontuacaoTotal')
+          .select('id, latitude, longitude, nivelRisco, endereco, agenteNome, dataVistoria, pontuacaoTotal, formularioId, calculoRisco')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null);
 
@@ -387,6 +404,8 @@ export default function MapasScreen() {
               agenteNome: v.agenteNome || '—',
               dataVistoria: v.dataVistoria,
               pontuacaoTotal: v.pontuacaoTotal,
+              formularioId: v.formularioId,
+              calculoRisco: v.calculoRisco,
             }));
           setMarkers(loaded);
 
@@ -483,6 +502,8 @@ export default function MapasScreen() {
           agenteNome: v.agente_nome || '—',
           dataVistoria: v.data_vistoria,
           pontuacaoTotal: v.pontuacao_total,
+          formularioId: v.formulario_id,
+          calculoRisco: v.calculo_json,
         }));
       setMarkers(offlineMarkers);
 
@@ -610,7 +631,7 @@ export default function MapasScreen() {
                 coordinate={{ latitude: m.lat, longitude: m.lng }}
                 onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
                 pinColor={getRiscoColor(m.nivelRisco)}
-                title={getRiscoLabel(m.nivelRisco)}
+                title={getMarkerRiscoLabel(m)}
                 description={m.endereco}
               />
             ) : (
@@ -622,7 +643,7 @@ export default function MapasScreen() {
                 centerOffset={MARKER_CENTER_OFFSET}
                 tracksViewChanges={tracksMarkerChanges}
               >
-                <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getRiscoShortLabel(m.nivelRisco)} />
+                <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getMarkerRiscoShortLabel(m)} />
               </Marker>
             )
           ))}
@@ -816,7 +837,7 @@ export default function MapasScreen() {
         <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight, bottom: bottomNavH + 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <View style={[styles.riscoBadge, { backgroundColor: getRiscoColor(selectedMarker.nivelRisco) }]}>
-              <Text style={styles.riscoBadgeText}>{getRiscoLabel(selectedMarker.nivelRisco)}</Text>
+              <Text style={styles.riscoBadgeText}>{getMarkerRiscoLabel(selectedMarker)}</Text>
             </View>
             {selectedMarker.pontuacaoTotal != null && (
               <Text style={{ fontSize: 12, color: theme.textSecondary }}>{selectedMarker.pontuacaoTotal}pts</Text>

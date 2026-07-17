@@ -16,7 +16,7 @@ import { supabase } from '../../../utils/supabase';
 import { getOfficialVistoriaById, getTrainingVistoriaById, updateLaudoUrl } from '../../../utils/database';
 import { getSignedUrl } from '../../../services/StorageService';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
-import { formatarPontuacaoRisco, normalizarNivelRisco, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarPontuacaoRisco, normalizarNivelRisco, resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { generateProtocolo } from '../../../utils/uuid';
 import { buildShareMessage } from '../../../utils/shareUtils';
 import { uploadLaudoPdf } from '../../../services/StorageService';
@@ -61,8 +61,8 @@ function normalizar(v: any): any {
 
 
 export default function ResultadoScreen() {
-  const { id, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam, treinamento } = useLocalSearchParams<{
-    id: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string;
+  const { id, formularioId: formularioIdParam, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam, treinamento } = useLocalSearchParams<{
+    id: string; formularioId?: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string;
   }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -196,6 +196,7 @@ export default function ResultadoScreen() {
           id,
           nivelRisco: nivelParam,
           pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
+          formularioId: formularioIdParam,
           agenteNome: activeProfile?.name,
           municipio: municipioParam || activeProfile?.municipio,
         });
@@ -215,6 +216,7 @@ export default function ResultadoScreen() {
           id,
           nivelRisco: nivelParam,
           pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
+          formularioId: formularioIdParam,
           agenteNome: activeProfile?.name,
           municipio: municipioParam || activeProfile?.municipio,
         });
@@ -363,6 +365,10 @@ export default function ResultadoScreen() {
         municipio: vistoria?.municipio || municipioParam || '',
         municipio_agente: vistoria?.municipio_agente ?? null,
         nivelRisco: vistoria?.nivelRisco || 'r1',
+        formularioId: vistoria?.formularioId,
+        formularioTitulo: vistoria?.formularioId === 'avaliacao_arvore_cbmmg_v1' ? 'Avaliação de Árvore de Risco - CBMMG' : undefined,
+        pontuacaoTotal: vistoria?.pontuacaoTotal,
+        calculoRisco: vistoria?.calculoRisco,
         agenteNome: vistoria?.agenteNome || activeProfile?.name || 'Agente',
         dataVistoria: vistoria?.dataVistoria || new Date().toISOString(),
       });
@@ -433,8 +439,15 @@ export default function ResultadoScreen() {
   }
 
   const nivel = normalizarNivelRisco(vistoria?.nivelRisco || nivelParam, 'r1');
-  const cor = riscoColor(nivel);
-  const label = riscoLabel(nivel);
+  const apresentacao = resolverApresentacaoRisco({
+    formularioId: vistoria?.formularioId || formularioIdParam,
+    pontuacao: vistoria?.pontuacaoTotal ?? Number(pontuacaoParam || 0),
+    nivelRisco: nivel,
+    calculoRisco: vistoria?.calculoRisco,
+  });
+  const cor = apresentacao.cor;
+  const label = apresentacao.label;
+  const isAvaliacaoArvore = (vistoria?.formularioId || formularioIdParam) === 'avaliacao_arvore_cbmmg_v1';
   const isAltoRisco = nivel === 'r3' || nivel === 'r4';
 
   // CPF mask
@@ -480,7 +493,7 @@ export default function ResultadoScreen() {
             <Feather name="file-text" size={32} color={cor} />
           </View>
           <View style={[styles.nivelBadge, { backgroundColor: cor }]}>
-            <Text style={styles.nivelText}>RISCO {label}</Text>
+            <Text style={styles.nivelText}>{isAvaliacaoArvore ? label : `RISCO ${label}`}</Text>
           </View>
           <Text style={[styles.statusTitle, { color: theme.text }]}>Vistoria Concluída</Text>
           <Text style={[styles.statusDesc, { color: theme.textSecondary }]}>
@@ -490,8 +503,18 @@ export default function ResultadoScreen() {
           </Text>
         </View>
 
+        {isAvaliacaoArvore && (
+          <View style={[styles.condutaCard, { backgroundColor: `${cor}12`, borderColor: cor }]}>
+            <Feather name={apresentacao.codigo === 'risco_iminente' ? 'alert-triangle' : 'clipboard'} size={20} color={cor} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.condutaTitle, { color: cor }]}>Conduta metodológica</Text>
+              <Text style={[styles.condutaText, { color: theme.text }]}>{apresentacao.conduta}</Text>
+            </View>
+          </View>
+        )}
+
         {/* Botão Termo de Interdição — SÓ R3/R4 */}
-        {isAltoRisco && (
+        {isAltoRisco && !isAvaliacaoArvore && (
           <TouchableOpacity
             style={[styles.termoBtn]}
             onPress={() => setShowTermoModal(true)}
@@ -817,6 +840,9 @@ const styles = StyleSheet.create({
   nivelText: { color: '#FFF', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   statusTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
   statusDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  condutaCard: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 18, alignItems: 'flex-start' },
+  condutaTitle: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 },
+  condutaText: { fontSize: 13, lineHeight: 20 },
 
   // Termo de Interdição button
   termoBtn: {

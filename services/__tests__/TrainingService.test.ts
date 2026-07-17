@@ -58,10 +58,11 @@ describe('TrainingService helpers', () => {
       .toContain('Este treinamento ainda nao iniciou.');
   });
 
-  it('limits training to the two approved built-in forms', () => {
+  it('limits training to the approved built-in forms', () => {
     expect(TRAINING_ALLOWED_FORMS).toEqual([
       'vistoria_deslizamento_v3',
       'risco_estrutural_novo_v2',
+      'avaliacao_arvore_cbmmg_v1',
     ]);
   });
 

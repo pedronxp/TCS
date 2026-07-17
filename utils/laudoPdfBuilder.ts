@@ -11,6 +11,7 @@ import {
   formatarPontuacaoRisco,
   normalizarNivelRisco,
   parseCalculoRiscoSnapshot,
+  resolverApresentacaoRisco,
   riscoLabel,
   riscoColor,
   riscoConduta,
@@ -18,6 +19,7 @@ import {
 import { logoBase64 } from './logoBase64';
 import {
   ASSETS,
+  calcularRaioAlvoArvore,
   flattenPerguntas,
   getObservacaoCondicionalRiscoKey,
   getPerguntaIdFromObservacaoCondicionalRiscoKey,
@@ -328,11 +330,18 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   const calculo = parseCalculoRiscoSnapshot(dados.calculoRisco);
   const nivel = normalizarNivelRisco(dados.nivelRisco || calculo?.nivelRisco, 'r1');
   const pontuacaoTotal = calculo?.pontuacaoTotal ?? dados.pontuacaoTotal ?? 0;
-  const cor = riscoColor(nivel);
-  const label = riscoLabel(nivel);
+  const apresentacao = resolverApresentacaoRisco({
+    formularioId: dados.formularioId,
+    pontuacao: pontuacaoTotal,
+    nivelRisco: nivel,
+    calculoRisco: calculo,
+  });
+  const isAvaliacaoArvore = dados.formularioId === 'avaliacao_arvore_cbmmg_v1';
+  const cor = apresentacao.cor;
+  const label = apresentacao.label;
   const data = formatarDataHora(dados.dataVistoria);
   const protocolo = (dados.id || '000000').slice(0, 8).toUpperCase();
-  const conduta = dados.condutaRecomendada || riscoConduta(nivel);
+  const conduta = dados.condutaRecomendada || apresentacao.conduta;
   const agravantes = calculo?.agravantes || [];
   const regrasCondicionais = calculo?.regrasCondicionais || [];
   const agravantesHtml = agravantes.length
@@ -373,11 +382,17 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     schemaForm = ASSETS[dados.formularioId];
     perguntasFlat = flattenPerguntas(schemaForm);
   }
+  let respostasObjeto: Record<string, unknown> = {};
+  try {
+    respostasObjeto = typeof dados.respostasJson === 'string'
+      ? JSON.parse(dados.respostasJson || '{}')
+      : (dados.respostasJson || {}) as Record<string, unknown>;
+  } catch { /* respostas inválidas */ }
 
   // Gerar tabela de respostas mapeadas
   let respostasHtml = '';
   let itemCount = 0;
-  if (calculo?.itens?.length) {
+  if (calculo?.itens?.length && !isAvaliacaoArvore) {
     itemCount = calculo.itens.length;
     respostasHtml = calculo.itens.map((item, index) => {
       const pontuacaoDesc = item.pesoRisco > 0
@@ -390,9 +405,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     }).join('');
   } else if (dados.respostasJson) {
     try {
-      const respostas = typeof dados.respostasJson === 'string'
-        ? JSON.parse(dados.respostasJson)
-        : dados.respostasJson;
+      const respostas = respostasObjeto;
 
       respostasHtml = Object.entries(respostas as Record<string, unknown>)
         .map(([k, val]) => {
@@ -411,6 +424,9 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
             const pDef = perguntasFlat.find((p: any) => p.id === k);
             if (pDef) {
               safeKey = escapeHtml(pDef.texto || safeKey);
+              if (pDef.unidade && pDef.tipoEntrada === 'numero_decimal') {
+                safeVal = `${safeVal} ${escapeHtml(pDef.unidade)}`;
+              }
               if (pDef.tipo === 'cards' || pDef.tipo === 'multipla_escolha') {
                 const opDef = pDef.opcoes?.find((o: any) => o.id === String(val));
                 if (opDef) {
@@ -431,7 +447,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
               }
             }
           }
-          return `<tr><td class="td-num">${String(itemCount).padStart(2, '0')}</td><td class="td-param">${safeKey}</td><td class="td-resp">${safeVal}${pontuacaoDesc}${observacaoDesc}</td></tr>`;
+          const raioDerivado = isAvaliacaoArvore && k === 'arv_altura_m'
+            ? calcularRaioAlvoArvore(String(val))
+            : null;
+          const derivadoHtml = raioDerivado !== null
+            ? `<div class="item-observation"><strong>Raio de referência dos alvos (altura × 1,5):</strong> ${formatarPontuacaoRisco(raioDerivado)} m</div>`
+            : '';
+          return `<tr><td class="td-num">${String(itemCount).padStart(2, '0')}</td><td class="td-param">${safeKey}</td><td class="td-resp">${safeVal}${pontuacaoDesc}${observacaoDesc}${derivadoHtml}</td></tr>`;
         }).join('');
     } catch { /* sem respostas */ }
   }
@@ -444,6 +466,12 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   }
   if (dados.foto_url && !urlsParaProcessar.includes(dados.foto_url)) {
     urlsParaProcessar.unshift(dados.foto_url);
+  }
+  if (isAvaliacaoArvore) {
+    perguntasFlat.filter(p => p.tipo === 'foto').forEach(p => {
+      const uri = String(respostasObjeto[p.id] || '');
+      if (uri && !urlsParaProcessar.includes(uri)) urlsParaProcessar.push(uri);
+    });
   }
 
   const converterParaBase64 = async (url: string): Promise<string | null> => {
@@ -473,8 +501,8 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     const isSingle = fotosBase64.length === 1;
     const fotosHtml = fotosBase64.map((b64, i) => `
       <div style="border:1px solid #E2E8F0; border-radius:8px; overflow:hidden; ${isSingle ? 'max-width:480px; margin:0 auto;' : ''}">
-        <img src="${b64}" style="width:100%; max-height:240px; object-fit:cover; display:block;" alt="Evidência ${i + 1}"/>
-        <div style="font-size:9px; color:#94A3B8; text-align:center; padding:4px;">Foto ${i + 1}</div>
+        <img src="${b64}" style="width:100%; max-height:240px; object-fit:contain; display:block;" alt="Evidência ${i + 1}"/>
+        <div style="font-size:9px; color:#64748B; text-align:center; padding:5px;">Evidência fotográfica ${i + 1}${isAvaliacaoArvore && i === 0 ? ' — visão geral da árvore' : isAvaliacaoArvore ? ' — defeito determinante' : ''}</div>
       </div>`).join('');
     imageHtml = `
       <div class="section" style="page-break-inside: avoid;">
@@ -493,21 +521,39 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     : '';
 
   // Cor de fundo suave para o painel de risco
-  const corBg = nivel === 'r1' ? '#ECFDF5' : nivel === 'r2' ? '#FFFBEB' : nivel === 'r3' ? '#FEF2F2' : '#FEF2F2';
-  const corBorder = nivel === 'r1' ? '#A7F3D0' : nivel === 'r2' ? '#FDE68A' : nivel === 'r3' ? '#FECACA' : '#FECACA';
+  const corBg = apresentacao.codigo === 'nao_iminente' || nivel === 'r1' ? '#ECFDF5' : nivel === 'r2' ? '#FFFBEB' : '#FEF2F2';
+  const corBorder = apresentacao.codigo === 'nao_iminente' || nivel === 'r1' ? '#A7F3D0' : nivel === 'r2' ? '#FDE68A' : '#FECACA';
   const riskPanelHtml = `
   <!-- PAINEL DE RISCO -->
   <div class="risk-panel">
     <div class="risk-indicator">
-      <div class="risk-level-label">Nível de Risco</div>
-      <div class="risk-level-value">${escapeHtml(nivel.toUpperCase())}</div>
-      <div class="risk-pts">${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts</div>
+      <div class="risk-level-label">${isAvaliacaoArvore ? 'Resultado CBMMG' : 'Nível de Risco'}</div>
+      <div class="risk-level-value">${escapeHtml(isAvaliacaoArvore ? label : nivel.toUpperCase())}</div>
+      <div class="risk-pts">${isAvaliacaoArvore ? `${formatarPontuacaoRisco(pontuacaoTotal)} pontos` : `${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts`}</div>
     </div>
     <div class="risk-details">
       ${agravantesHtml}
       ${regrasCondicionaisHtml}
     </div>
   </div>`;
+
+  const metodologiaHtml = isAvaliacaoArvore ? `
+  <div class="section" style="page-break-inside: avoid;">
+    <div class="section-title"><span class="section-icon">🌳</span> Metodologia e Quadro de Pontuação</div>
+    <div class="legal-note" style="margin-bottom:12px;">
+      <strong>${escapeHtml(schemaForm?.metodologia?.titulo || 'Quadro de Avaliação de Árvore de Risco')}</strong><br/>
+      ${escapeHtml(calculo?.fonteMetodologica || schemaForm?.metodologia?.fonte || '')}<br/>
+      Versão metodológica: ${escapeHtml(calculo?.metodologiaVersao || schemaForm?.metodologia?.versao || '1.0')}
+    </div>
+    <table class="resp-table">
+      <thead><tr><th>Item</th><th>Critério determinante</th><th>Pontos</th></tr></thead>
+      <tbody>${(calculo?.itens || []).map((item, index) => `<tr><td class="td-num">${index + 1}</td><td class="td-param">${escapeHtml(item.pergunta)}<br/><span style="font-weight:normal;">${escapeHtml(item.resposta)}</span></td><td class="td-resp"><strong>${formatarPontuacaoRisco(item.pesoRisco)}</strong></td></tr>`).join('')}</tbody>
+      <tfoot>
+        <tr><td colspan="2"><strong>Soma bruta</strong></td><td><strong>${formatarPontuacaoRisco(calculo?.somaBruta ?? pontuacaoTotal)}</strong></td></tr>
+        <tr><td colspan="2"><strong>Total após teto metodológico</strong></td><td><strong>${formatarPontuacaoRisco(pontuacaoTotal)} / ${formatarPontuacaoRisco(calculo?.tetoAplicado ?? 10)}</strong></td></tr>
+      </tfoot>
+    </table>
+  </div>` : '';
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -911,6 +957,8 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     </table>
   </div>
 
+  ${metodologiaHtml}
+
   <!-- RESPOSTAS DO FORMULÁRIO -->
   ${respostasHtml ? `
   <div class="section">
@@ -929,7 +977,9 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 
   <!-- BASE LEGAL -->
   <div class="legal-note" style="page-break-inside: avoid;">
-    <strong>Base legal:</strong> Este relatório de vistoria foi elaborado em conformidade com a
+    <strong>${isAvaliacaoArvore ? 'Referência técnica e base legal:' : 'Base legal:'}</strong>
+    ${isAvaliacaoArvore ? `${escapeHtml(schemaForm?.metodologia?.fonte || '')}<br/>` : ''}
+    Este relatório de vistoria foi elaborado em conformidade com a
     <strong>Lei Federal Nº 12.608/2012</strong> (Política Nacional de Proteção e Defesa Civil)
     e a <strong>Lei Federal Nº 10.257/2001</strong> (Estatuto da Cidade), que estabelecem as
     diretrizes para prevenção de desastres e proteção à vida.
@@ -979,6 +1029,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     Documento gerado pelo TCS — Relatório de Risco<br/>
     ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
     · Protocolo ${escapeHtml(protocolo)}/${ano}
+    ${isAvaliacaoArvore ? ` · Metodologia ${escapeHtml(calculo?.metodologiaId || schemaForm?.metodologia?.id || 'CBMMG ITO nº 06')} v${escapeHtml(calculo?.metodologiaVersao || schemaForm?.metodologia?.versao || '1.0')}` : ''}
   </div>
 
 </body>

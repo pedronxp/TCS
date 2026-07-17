@@ -13,7 +13,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData } from '../../../utils/laudoPdfBuilder';
-import { formatarPontuacaoRisco, parseCalculoRiscoSnapshot, riscoLabel, riscoColor } from '../../../utils/riscoUtils';
+import { formatarPontuacaoRisco, parseCalculoRiscoSnapshot, resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
@@ -36,7 +36,7 @@ function resolverItensVistoriados(
   calculoRisco?: unknown,
 ): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }[] {
   const calculo = parseCalculoRiscoSnapshot(calculoRisco);
-  if (calculo?.itens?.length) {
+  if (calculo?.itens?.length && formularioId !== 'avaliacao_arvore_cbmmg_v1') {
     const grupos = new Map<string, { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }>();
     for (const item of calculo.itens) {
       const key = item.faseId || item.grupo || 'snapshot';
@@ -299,8 +299,10 @@ export default function LaudoScreen() {
   }
 
   if (!vistoria) return null;
-  const cor = riscoColor(vistoria.nivelRisco);
-  const nivel = riscoLabel(vistoria.nivelRisco);
+  const apresentacao = resolverApresentacaoRisco({ formularioId: vistoria.formularioId, pontuacao: vistoria.pontuacaoTotal, nivelRisco: vistoria.nivelRisco, calculoRisco: vistoria.calculoRisco });
+  const cor = apresentacao.cor;
+  const nivel = apresentacao.label;
+  const isAvaliacaoArvore = vistoria.formularioId === 'avaliacao_arvore_cbmmg_v1';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -335,7 +337,7 @@ export default function LaudoScreen() {
             <Feather name={cor === '#EF4444' ? 'alert-triangle' : cor === '#F59E0B' ? 'alert-circle' : 'check-circle'} size={32} color={cor} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.nivelLabel, { color: theme.textSecondary }]}>NÍVEL DE RISCO</Text>
+            <Text style={[styles.nivelLabel, { color: theme.textSecondary }]}>{isAvaliacaoArvore ? 'RESULTADO CBMMG' : 'NÍVEL DE RISCO'}</Text>
             <Text style={[styles.nivelText, { color: cor }]}>{nivel}</Text>
           </View>
           <Text style={[styles.pontuacao, { color: cor }]}>{formatarPontuacaoRisco(vistoria.pontuacaoTotal ?? 0)}<Text style={{ fontSize: 14 }}>pts</Text></Text>
@@ -441,7 +443,7 @@ export default function LaudoScreen() {
           </View>
         )}
 
-        {(vistoria.nivelRisco === 'r3' || vistoria.nivelRisco === 'r4') && (
+        {!isAvaliacaoArvore && (vistoria.nivelRisco === 'r3' || vistoria.nivelRisco === 'r4') && (
           <TouchableOpacity
             style={[styles.shareBtn, { backgroundColor: '#EF4444', marginBottom: 12 }]}
             onPress={abrirModalTermo}

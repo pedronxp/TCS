@@ -1,4 +1,5 @@
 export const ASSETS: Record<string, any> = {
+  'avaliacao_arvore_cbmmg_v1': require('../assets/formularios/avaliacao_arvore_cbmmg_v1.json'),
   'vistoria_deslizamento_v3': require('../assets/formularios/vistoria_deslizamento_v3.json'),
   'vistoria_deslizamento_v2': require('../assets/formularios/vistoria_deslizamento_v2.json'),
   'risco_estrutural_novo_v2': require('../assets/formularios/risco_estrutural_novo_v2.json'),
@@ -29,6 +30,33 @@ export interface MostrarQuando {
   respostaIds?: string[];
 }
 
+export interface FaixaResultadoMetodologia {
+  max: number;
+  codigo: string;
+  label: string;
+  nivelCompatibilidade: 'r1' | 'r2' | 'r3' | 'r4';
+  cor: string;
+  conduta: string;
+}
+
+export interface MetodologiaFormulario {
+  id: string;
+  versao: string;
+  titulo: string;
+  fonte: string;
+  escala: { min: number; max: number; teto: number };
+  faixasResultado: FaixaResultadoMetodologia[];
+}
+
+export interface ConfiguracaoFormulario {
+  id: string;
+  titulo: string;
+  versao: number;
+  featureCode?: string;
+  tipoCalculo?: string;
+  metodologia?: MetodologiaFormulario;
+}
+
 export interface PerguntaModel {
   id: string;
   texto: string;
@@ -38,6 +66,14 @@ export interface PerguntaModel {
   instrucao?: string;
   placeholder?: string;
   tipo: 'cards' | 'multipla_escolha' | 'texto' | 'foto';
+  tipoEntrada?: 'texto' | 'numero_decimal';
+  unidade?: string;
+  valorMinimo?: number;
+  valorMaximo?: number;
+  calculoDerivado?: 'raio_alvo_1_5x';
+  validarComPergunta?: string;
+  mostrarQuandoPontuacaoMinima?: number;
+  mostrarQuandoPontuacaoMaxima?: number;
   layout?: string;
   imagemExemplo?: string | null;
   obrigatoria: boolean;
@@ -116,6 +152,19 @@ export function flattenPerguntas(json: any): PerguntaModel[] {
         instrucao: fase.instrucao,
         placeholder: p.placeholder,
         tipo: p.tipo ?? (fase.tipoFase?.startsWith('radio') ? 'cards' : 'texto'),
+        tipoEntrada: p.tipoEntrada,
+        unidade: p.unidade,
+        valorMinimo: p.valorMinimo !== undefined ? Number(p.valorMinimo) : undefined,
+        valorMaximo: p.valorMaximo !== undefined ? Number(p.valorMaximo) : undefined,
+        calculoDerivado: p.calculoDerivado,
+        validarComPergunta: p.validarComPergunta,
+        mostrarQuandoPontuacaoMinima: p.mostrarQuandoPontuacaoMinima !== undefined
+          ? Number(p.mostrarQuandoPontuacaoMinima)
+          : undefined,
+        mostrarQuandoPontuacaoMaxima: p.mostrarQuandoPontuacaoMaxima !== undefined
+          ? Number(p.mostrarQuandoPontuacaoMaxima)
+          : undefined,
+        layout: p.layout,
         imagemExemplo: p.imagemLocal || null,
         obrigatoria: p.obrigatoria ?? true,
         auxiliarCalculo: Boolean(p.auxiliarCalculo),
@@ -153,6 +202,88 @@ export function perguntaEstaVisivel(pergunta: PerguntaModel, respostas: Record<s
   }
 
   return true;
+}
+
+export function perguntaEstaVisivelPorPontuacao(pergunta: PerguntaModel, pontuacao: number): boolean {
+  if (pergunta.mostrarQuandoPontuacaoMinima !== undefined && pontuacao < pergunta.mostrarQuandoPontuacaoMinima) {
+    return false;
+  }
+  if (pergunta.mostrarQuandoPontuacaoMaxima !== undefined && pontuacao > pergunta.mostrarQuandoPontuacaoMaxima) {
+    return false;
+  }
+  return true;
+}
+
+export function filtrarPerguntasPorPontuacao(perguntas: PerguntaModel[], pontuacao: number): PerguntaModel[] {
+  return perguntas.filter(pergunta => perguntaEstaVisivelPorPontuacao(pergunta, pontuacao));
+}
+
+export function getConfiguracaoFormulario(formularioId?: string | null): ConfiguracaoFormulario | null {
+  if (!formularioId) return null;
+  const asset = ASSETS[formularioId];
+  if (!asset) return null;
+  return {
+    id: String(asset.id || formularioId),
+    titulo: String(asset.titulo || formularioId),
+    versao: Number(asset.versao || 1),
+    featureCode: asset.featureCode ? String(asset.featureCode) : undefined,
+    tipoCalculo: asset.tipoCalculo ? String(asset.tipoCalculo) : undefined,
+    metodologia: asset.metodologia || undefined,
+  };
+}
+
+export function parseNumeroFormulario(valor: string | number | null | undefined): number | null {
+  const normalizado = String(valor ?? '').trim().replace(',', '.');
+  if (!normalizado) return null;
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+export function validarValorNumerico(pergunta: PerguntaModel, valor: string | undefined): string | null {
+  if (pergunta.tipoEntrada !== 'numero_decimal') return null;
+  if (!String(valor ?? '').trim()) return pergunta.obrigatoria ? 'Informe um valor numérico.' : null;
+  const numero = parseNumeroFormulario(valor);
+  if (numero === null) return 'Informe um número válido.';
+  if (pergunta.valorMinimo !== undefined && numero < pergunta.valorMinimo) {
+    return `O valor mínimo é ${pergunta.valorMinimo}${pergunta.unidade ? ` ${pergunta.unidade}` : ''}.`;
+  }
+  if (pergunta.valorMaximo !== undefined && numero > pergunta.valorMaximo) {
+    return `O valor máximo é ${pergunta.valorMaximo}${pergunta.unidade ? ` ${pergunta.unidade}` : ''}.`;
+  }
+  return null;
+}
+
+export function calcularRaioAlvoArvore(altura: string | number | null | undefined): number | null {
+  const valor = parseNumeroFormulario(altura);
+  if (valor === null || valor <= 0) return null;
+  return Math.round(valor * 1.5 * 10) / 10;
+}
+
+export function validarDiametroArvore(faixa: string | undefined, diametro: string | undefined): string | null {
+  if (!String(diametro ?? '').trim()) return null;
+  const valor = parseNumeroFormulario(diametro);
+  if (valor === null || valor <= 0) return 'Informe um diâmetro positivo em centímetros.';
+  if (faixa === 'maior_51' && valor <= 51) return 'O valor deve ser maior que 51 cm para a faixa selecionada.';
+  if (faixa === 'entre_10_51' && (valor < 10 || valor > 51)) return 'O valor deve estar entre 10 e 51 cm.';
+  if (faixa === 'menor_10' && valor >= 10) return 'O valor deve ser menor que 10 cm para a faixa selecionada.';
+  return null;
+}
+
+export function validarRespostaFormulario(
+  pergunta: PerguntaModel,
+  valor: string | undefined,
+  respostas: Record<string, string>,
+): string | null {
+  const preenchida = pergunta.tipo === 'texto'
+    ? String(valor ?? '').trim().length > 0
+    : Boolean(valor);
+  if (pergunta.obrigatoria && !preenchida) return 'Responda esta pergunta para continuar.';
+  const erroNumerico = validarValorNumerico(pergunta, valor);
+  if (erroNumerico) return erroNumerico;
+  if (pergunta.validarComPergunta) {
+    return validarDiametroArvore(respostas[pergunta.validarComPergunta], valor);
+  }
+  return null;
 }
 
 export function filtrarPerguntasVisiveis(perguntas: PerguntaModel[], respostas: Record<string, string>): PerguntaModel[] {

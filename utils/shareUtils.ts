@@ -1,4 +1,4 @@
-import { riscoLabel } from './riscoUtils';
+import { formatarPontuacaoRisco, resolverApresentacaoRisco } from './riscoUtils';
 
 export interface ShareMessageParams {
   protocolo?: string | null;
@@ -6,12 +6,21 @@ export interface ShareMessageParams {
   municipio: string;
   municipio_agente?: string | null;
   nivelRisco: string;
+  formularioId?: string | null;
+  formularioTitulo?: string | null;
+  pontuacaoTotal?: number | null;
+  calculoRisco?: unknown;
   agenteNome: string;
   dataVistoria: string;
 }
 
 export function buildShareMessage(p: ShareMessageParams): string {
-  const risco = riscoLabel(p.nivelRisco);
+  const apresentacao = resolverApresentacaoRisco({
+    formularioId: p.formularioId,
+    pontuacao: p.pontuacaoTotal,
+    nivelRisco: p.nivelRisco,
+    calculoRisco: p.calculoRisco,
+  });
 
   let dataFormatada = '';
   try {
@@ -38,7 +47,11 @@ export function buildShareMessage(p: ShareMessageParams): string {
     `Município: ${p.municipio}`,
     crossMunicipio ? `Secretaria de Origem: ${p.municipio_agente}` : null,
     ``,
-    `Nível de Risco: *${risco}*`,
+    p.formularioTitulo ? `Formulário: ${p.formularioTitulo}` : (p.formularioId ? `Formulário: ${p.formularioId}` : null),
+    p.pontuacaoTotal !== undefined && p.pontuacaoTotal !== null
+      ? `Pontuação: ${formatarPontuacaoRisco(p.pontuacaoTotal)} pontos`
+      : null,
+    `Resultado: *${apresentacao.label}*`,
     ``,
     `Agente: ${p.agenteNome}`,
     `Data: ${dataFormatada}`,

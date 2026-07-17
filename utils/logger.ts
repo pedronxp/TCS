@@ -63,9 +63,12 @@ function writeLog(
   const safeData = data !== undefined ? sanitize(data) : undefined;
   const dataStr = safeData !== undefined ? JSON.stringify(safeData) : null;
 
-  // Console sempre (formatado, com dados sanitizados)
+  // Falhas de sincronização são esperadas no fluxo offline-first. Elas continuam
+  // persistidas como warn/error para auditoria, mas usam console.log para não
+  // acionar o LogBox do React Native e interromper visualmente o usuário.
   const tag = `[${level.toUpperCase()}][${category}]`;
-  if (level === 'error') console.error(tag, message, safeData ?? '');
+  if (category === 'sync') console.log(tag, message, safeData ?? '');
+  else if (level === 'error') console.error(tag, message, safeData ?? '');
   else if (level === 'warn') console.warn(tag, message, safeData ?? '');
   else console.log(tag, message, safeData ?? '');
 

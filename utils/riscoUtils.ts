@@ -5,6 +5,7 @@
  */
 
 import {
+  getConfiguracaoFormulario,
   getObservacaoCondicionalRiscoKey,
   opcaoAcionaObservacaoCondicionalRisco,
 } from './formulariosAssets';
@@ -91,6 +92,24 @@ export interface CalculoRiscoSnapshot {
   itens: CalculoRiscoItem[];
   agravantes?: CalculoRiscoAgravante[];
   regrasCondicionais?: CalculoRiscoRegraCondicional[];
+  metodologiaId?: string;
+  metodologiaVersao?: string;
+  fonteMetodologica?: string;
+  somaBruta?: number;
+  tetoAplicado?: number;
+  resultadoCodigo?: string;
+  resultadoLabel?: string;
+  resultadoCor?: string;
+  resultadoConduta?: string;
+  evidencias?: Record<string, string>;
+}
+
+export interface ApresentacaoRisco {
+  codigo: string;
+  label: string;
+  cor: string;
+  conduta: string;
+  nivelCompatibilidade: NivelRisco;
 }
 
 const PERGUNTA_INCLINACAO_ENCOSTA = 'desl2_q2';
@@ -98,6 +117,7 @@ const RESPOSTAS_INCLINACAO_VERTICAL_OU_NEGATIVA = ['q2_e', 'q2_f'];
 const PERGUNTA_EXPOSICAO_ALTURA_DISTANCIA = 'desl2_q2_exposicao_altura_distancia';
 const PERGUNTA_JUSTIFICATIVA_ALTURA_DISTANCIA = 'desl2_q2_justificativa_tecnica';
 const FORMULARIO_RISCO_ESTRUTURAL_V2 = 'risco_estrutural_novo_v2';
+export const FORMULARIO_AVALIACAO_ARVORE_CBMMG_V1 = 'avaliacao_arvore_cbmmg_v1';
 const RESPOSTA_INEXISTENTE = 'inexistente';
 const RESPOSTAS_CLASSIFICACAO_RISCO_ESTRUTURAL: Record<string, {
   resposta: string;
@@ -165,6 +185,7 @@ const NIVEL_RISCO_MAP: Record<string, NivelRisco> = {
   baixo: 'r1',
   muito_baixo: 'r1',
   baixo_risco: 'r1',
+  nao_iminente: 'r1',
 
   r2: 'r2',
   medio: 'r2',
@@ -181,6 +202,7 @@ const NIVEL_RISCO_MAP: Record<string, NivelRisco> = {
   critico: 'r4',
   muito_alto: 'r4',
   risco_critico: 'r4',
+  risco_iminente: 'r4',
 };
 
 function normalizarChaveNivel(nivel: string): string {
@@ -206,6 +228,29 @@ export function arredondarPontuacaoRisco(valor: number): number {
 
 export function limitarPontuacaoRisco(valor: number): number {
   return Math.min(RISCO_ESCALA_MAXIMA, Math.max(0, arredondarPontuacaoRisco(valor)));
+}
+
+export function limitarPontuacaoRiscoComTeto(valor: number, teto: number = RISCO_ESCALA_MAXIMA): number {
+  const tetoSeguro = Number.isFinite(teto) && teto > 0 ? teto : RISCO_ESCALA_MAXIMA;
+  return Math.min(tetoSeguro, Math.max(0, arredondarPontuacaoRisco(valor)));
+}
+
+function resolverFaixaMetodologica(formularioId: string | undefined, pontuacao: number): ApresentacaoRisco | null {
+  const metodologia = getConfiguracaoFormulario(formularioId)?.metodologia;
+  if (!metodologia?.faixasResultado?.length) return null;
+  const faixa = [...metodologia.faixasResultado]
+    .filter(item => Number.isFinite(Number(item.max)))
+    .sort((a, b) => Number(a.max) - Number(b.max))
+    .find(item => pontuacao <= Number(item.max))
+    || metodologia.faixasResultado[metodologia.faixasResultado.length - 1];
+  if (!faixa) return null;
+  return {
+    codigo: faixa.codigo,
+    label: faixa.label,
+    cor: faixa.cor,
+    conduta: faixa.conduta,
+    nivelCompatibilidade: normalizarNivelRisco(faixa.nivelCompatibilidade, 'r1'),
+  };
 }
 
 export function formatarPontuacaoRisco(valor: number | null | undefined): string {
@@ -433,10 +478,16 @@ export function calcularRiscoFormulario(params: {
       respostas: params.respostas,
     }),
   ];
-  const pontuacaoBase = limitarPontuacaoRisco(total);
+  const configuracao = getConfiguracaoFormulario(params.formularioId);
+  const metodologia = configuracao?.metodologia;
+  const teto = metodologia?.escala?.teto ?? RISCO_ESCALA_MAXIMA;
+  const somaBruta = arredondarPontuacaoRisco(total);
+  const pontuacaoBase = limitarPontuacaoRiscoComTeto(total, teto);
   const pontuacaoMinimaAgravante = maxPontuacaoMinima([...agravantes, ...regrasCondicionais]);
-  const pontuacaoTotal = limitarPontuacaoRisco(Math.max(pontuacaoBase, pontuacaoMinimaAgravante));
+  const pontuacaoTotal = limitarPontuacaoRiscoComTeto(Math.max(pontuacaoBase, pontuacaoMinimaAgravante), teto);
   let nivelRisco = calcularNivelRiscoPorPontuacao(pontuacaoTotal, limites);
+  const resultadoMetodologico = resolverFaixaMetodologica(params.formularioId, pontuacaoTotal);
+  if (resultadoMetodologico) nivelRisco = resultadoMetodologico.nivelCompatibilidade;
   if (agravantes.some(agravante => agravante.nivelMinimo === 'r4')) {
     nivelRisco = 'r4';
   }
@@ -444,8 +495,26 @@ export function calcularRiscoFormulario(params: {
     nivelRisco = elevarNivelRisco(nivelRisco, regra.nivelMinimo);
   }
 
+  const evidencias = params.formularioId === FORMULARIO_AVALIACAO_ARVORE_CBMMG_V1
+    ? Object.fromEntries([
+      'arv_altura_m',
+      'arv_especie_aparente',
+      'arv_medida_mitigadora_status',
+      'arv_medida_mitigadora_descricao',
+      'arv_parte_defeituosa',
+      'arv_defeito_determinante',
+      'arv_diametro_exato_cm',
+      'arv_outros_fatores_descricao',
+      'arv_decisao_operacional',
+      'arv_conduta_recomendada',
+      'arv_nao_intervencao_justificativa',
+      'arv_reds_numero',
+    ].flatMap(key => String(params.respostas[key] ?? '').trim() ? [[key, String(params.respostas[key]).trim()]] : []))
+    : undefined;
+
   return {
-    versaoRegra: params.versaoRegra || REGRA_RISCO_0_10_V1,
+    versaoRegra: params.versaoRegra
+      || (metodologia ? `${metodologia.id}_v${metodologia.versao}` : REGRA_RISCO_0_10_V1),
     escala: { min: 0, max: RISCO_ESCALA_MAXIMA },
     formularioId: params.formularioId,
     formularioVersao: params.formularioVersao,
@@ -457,6 +526,16 @@ export function calcularRiscoFormulario(params: {
     itens,
     agravantes,
     regrasCondicionais,
+    metodologiaId: metodologia?.id,
+    metodologiaVersao: metodologia?.versao,
+    fonteMetodologica: metodologia?.fonte,
+    somaBruta,
+    tetoAplicado: teto,
+    resultadoCodigo: resultadoMetodologico?.codigo,
+    resultadoLabel: resultadoMetodologico?.label,
+    resultadoCor: resultadoMetodologico?.cor,
+    resultadoConduta: resultadoMetodologico?.conduta,
+    evidencias,
   };
 }
 
@@ -522,6 +601,22 @@ export function parseCalculoRiscoSnapshot(raw: unknown): CalculoRiscoSnapshot | 
           justificativa: regra.justificativa ? String(regra.justificativa) : undefined,
         }))
         : undefined,
+      metodologiaId: snapshot.metodologiaId ? String(snapshot.metodologiaId) : undefined,
+      metodologiaVersao: snapshot.metodologiaVersao ? String(snapshot.metodologiaVersao) : undefined,
+      fonteMetodologica: snapshot.fonteMetodologica ? String(snapshot.fonteMetodologica) : undefined,
+      somaBruta: snapshot.somaBruta !== undefined
+        ? arredondarPontuacaoRisco(Number(snapshot.somaBruta ?? 0))
+        : undefined,
+      tetoAplicado: snapshot.tetoAplicado !== undefined
+        ? arredondarPontuacaoRisco(Number(snapshot.tetoAplicado ?? RISCO_ESCALA_MAXIMA))
+        : undefined,
+      resultadoCodigo: snapshot.resultadoCodigo ? String(snapshot.resultadoCodigo) : undefined,
+      resultadoLabel: snapshot.resultadoLabel ? String(snapshot.resultadoLabel) : undefined,
+      resultadoCor: snapshot.resultadoCor ? String(snapshot.resultadoCor) : undefined,
+      resultadoConduta: snapshot.resultadoConduta ? String(snapshot.resultadoConduta) : undefined,
+      evidencias: snapshot.evidencias && typeof snapshot.evidencias === 'object'
+        ? Object.fromEntries(Object.entries(snapshot.evidencias).map(([key, value]) => [key, String(value ?? '')]))
+        : undefined,
     };
   } catch {
     return null;
@@ -566,4 +661,36 @@ export function riscoConduta(nivel: string): string {
     r4: 'EMERGÊNCIA: Risco crítico à vida. Evacuar imediatamente. Acionar defesa civil municipal e corpo de bombeiros. Interdição obrigatória.',
   };
   return map[normalizarNivelRisco(nivel)];
+}
+
+export function resolverApresentacaoRisco(params: {
+  formularioId?: string | null;
+  pontuacao?: number | null;
+  nivelRisco?: string | null;
+  calculoRisco?: unknown;
+}): ApresentacaoRisco {
+  const snapshot = parseCalculoRiscoSnapshot(params.calculoRisco);
+  if (snapshot?.resultadoCodigo && snapshot.resultadoLabel) {
+    return {
+      codigo: snapshot.resultadoCodigo,
+      label: snapshot.resultadoLabel,
+      cor: snapshot.resultadoCor || riscoColor(snapshot.nivelRisco),
+      conduta: snapshot.resultadoConduta || riscoConduta(snapshot.nivelRisco),
+      nivelCompatibilidade: snapshot.nivelRisco,
+    };
+  }
+
+  const pontuacao = Number(snapshot?.pontuacaoTotal ?? params.pontuacao ?? 0);
+  const formularioId = snapshot?.formularioId || params.formularioId || undefined;
+  const metodologica = resolverFaixaMetodologica(formularioId, pontuacao);
+  if (metodologica) return metodologica;
+
+  const nivel = normalizarNivelRisco(snapshot?.nivelRisco || params.nivelRisco, 'r1');
+  return {
+    codigo: nivel,
+    label: riscoLabel(nivel),
+    cor: riscoColor(nivel),
+    conduta: riscoConduta(nivel),
+    nivelCompatibilidade: nivel,
+  };
 }

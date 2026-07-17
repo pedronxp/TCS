@@ -10,7 +10,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
-import { riscoColor } from '../../../utils/riscoUtils';
+import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { tempoRelativo } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useConnectivity } from '../../../context/ConnectivityContext';
@@ -38,7 +38,7 @@ export default function SupervisorDashboardScreen() {
       const [vistoriasRes, agentesRes] = await Promise.all([
         supabase
           .from('vistorias')
-          .select('id, nivelRisco, pontuacaoTotal, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
+          .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
           .eq('municipio', profile.municipio)
           .order('dataVistoria', { ascending: false })
           .limit(20),
@@ -253,7 +253,8 @@ export default function SupervisorDashboardScreen() {
         {/* Atividade recente */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Registro de Operações</Text>
         {vistorias.slice(0, 8).map(v => {
-          const cor = riscoColor(v.nivelRisco);
+          const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
+          const cor = apresentacao.cor;
           return (
             <TouchableOpacity
               key={v.id}
@@ -276,7 +277,7 @@ export default function SupervisorDashboardScreen() {
               </View>
               <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
                 <Text style={[styles.nivelText, { color: cor }]}>
-                  {v.nivelRisco?.toUpperCase() || '—'}
+                  {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
                 </Text>
               </View>
             </TouchableOpacity>
