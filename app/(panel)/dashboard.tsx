@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl,
 } from 'react-native';
-import { countAgendamentosPendentesAgente } from '../../utils/database';
+import { countAgendamentosPendentesAgente, getTrainingVistoriasByAgente } from '../../utils/database';
 import { verificarLaudosExpirando } from '../../utils/laudoExpiracaoNotif';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
@@ -27,7 +27,7 @@ export default function DashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading, localTestMode } = useAuth();
   const { isTrainingActive } = useTraining();
   const { isConnected, isOnlineReal } = useConnectivity();
   const { context: subscriptionContext } = useSubscription();
@@ -57,12 +57,24 @@ export default function DashboardScreen() {
     if (profile.role === 'master_admin') { router.replace('/(panel)/master'); return; }
     if (profile.role === 'admin') { router.replace('/(panel)/admin'); return; }
     if (profile.role === 'supervisor') { router.replace('/(panel)/supervisor'); return; }
+    if (localTestMode) {
+      const locais = getTrainingVistoriasByAgente(profile.uid);
+      const today = new Date().toISOString().slice(0, 10);
+      setMetrics({
+        atividadesHoje: locais.filter(item => item.data_vistoria?.startsWith(today)).length,
+        requerAtencao: locais.filter(item => ['r3', 'r4'].includes(item.nivel_risco)).length,
+        minhasTotal: locais.length,
+      });
+      setMetricsLoading(false);
+      setPendingAgendamentos(0);
+      return;
+    }
     setPendingAgendamentos(countAgendamentosPendentesAgente(profile.uid));
     verificarLaudosExpirando().catch(() => null);
     const now = Date.now();
     if (now - cacheTs.current < CACHE_TTL) return;
     if (isOnlineReal) fetchMetrics(profile.uid, profile.municipio);
-  }, [profile, isOnlineReal, isTrainingActive]);
+  }, [profile, isOnlineReal, isTrainingActive, localTestMode]);
 
   const fetchMetrics = async (uid: string, municipio: string) => {
     setMetricsLoading(true);
@@ -92,10 +104,21 @@ export default function DashboardScreen() {
 
   const onRefresh = useCallback(() => {
     if (!profile) return;
+    if (localTestMode) {
+      const locais = getTrainingVistoriasByAgente(profile.uid);
+      const today = new Date().toISOString().slice(0, 10);
+      setMetrics({
+        atividadesHoje: locais.filter(item => item.data_vistoria?.startsWith(today)).length,
+        requerAtencao: locais.filter(item => ['r3', 'r4'].includes(item.nivel_risco)).length,
+        minhasTotal: locais.length,
+      });
+      setRefreshing(false);
+      return;
+    }
     setRefreshing(true);
     cacheTs.current = 0;
     fetchMetrics(profile.uid, profile.municipio);
-  }, [profile]);
+  }, [profile, localTestMode]);
 
   if (authLoading || isTrainingActive) {
     return (
@@ -168,8 +191,17 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
+        {localTestMode && (
+          <View style={[styles.offlineBanner, { borderColor: 'rgba(124,58,237,0.35)', backgroundColor: 'rgba(124,58,237,0.10)' }]}>
+            <Feather name="tool" size={15} color="#8B5CF6" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.offlineBannerTitle, { color: '#8B5CF6' }]}>Ambiente local para testes</Text>
+              <Text style={[styles.offlineBannerDesc, { color: theme.textSecondary }]}>Vistorias, fotos, documentos e ciências desta conta ficam somente neste aparelho e não consomem a numeração oficial.</Text>
+            </View>
+          </View>
+        )}
         {/* Banner offline */}
-        {!isConnected && (
+        {!isConnected && !localTestMode && (
           <View style={[styles.offlineBanner, { borderColor: 'rgba(245,158,11,0.3)' }]}>
             <Feather name="wifi-off" size={15} color="#F59E0B" />
             <View style={{ flex: 1 }}>

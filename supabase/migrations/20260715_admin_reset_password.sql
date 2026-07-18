@@ -1,8 +1,6 @@
--- SCRIPT PARA DEPLOY NO SQL EDITOR DO SUPABASE.
--- Espelha a migration 20260715_admin_reset_password.sql.
--- master_admin pode redefinir qualquer senha; admin somente de usuários não-master
--- pertencentes ao mesmo município.
-
+-- Redefinição de senha com autorização no banco (não apenas na interface).
+-- master_admin pode redefinir qualquer conta; admin apenas contas não-master
+-- do mesmo município.
 CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 

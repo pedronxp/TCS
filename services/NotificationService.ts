@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
+import { isLocalTestSession } from '../utils/localTestMode';
 import { logger } from '../utils/logger';
 
 // Configuração do handler de notificações (deve ficar no topo do módulo)
@@ -103,7 +104,7 @@ export async function registrarPushToken(): Promise<void> {
     if (!token) return;
 
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session || isLocalTestSession(session)) return;
 
     await supabase
       .from('users')

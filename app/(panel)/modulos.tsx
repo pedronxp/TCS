@@ -9,7 +9,7 @@ import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 
 export default function ModulosScreen() {
   const { theme } = useTheme();
-  const { profile } = useAuth();
+  const { profile, developerMode } = useAuth();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
 
@@ -17,6 +17,32 @@ export default function ModulosScreen() {
     const subscriptionItems = [
       { label: 'Minha Assinatura', icon: 'credit-card', route: '/(panel)/assinatura', color: '#0EA5E9', desc: 'Plano, consumo e suporte' },
     ];
+    if (developerMode) {
+      return [
+        { label: 'Nova Vistoria', icon: 'plus-circle', route: '/(panel)/inspecoes/dados-iniciais', color: '#3B82F6', desc: 'Fluxo completo em sessão temporária' },
+        { label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', color: '#F59E0B', desc: 'Documentos, evidências e ciência eletrônica' },
+        { label: 'Agenda', icon: 'calendar', route: '/(panel)/agendamentos', color: '#A855F7', desc: 'Agendamentos e distribuição' },
+        { label: 'Mapa Global', icon: 'map-pin', route: '/(panel)/mapas', color: '#6366F1', desc: 'Georreferenciamento completo' },
+        { label: 'Painel Administrativo', icon: 'settings', route: '/(panel)/admin', color: '#64748B', desc: 'Ferramentas administrativas' },
+        { label: 'Usuários', icon: 'users', route: '/(panel)/admin/usuarios', color: '#06B6D4', desc: 'Gestão de todos os perfis' },
+        { label: 'Equipe', icon: 'user-check', route: '/(panel)/equipe', color: '#10B981', desc: 'Agentes de todos os municípios' },
+        { label: 'Tokens', icon: 'key', route: '/(panel)/admin/tokens', color: '#8B5CF6', desc: 'Convites e níveis de acesso' },
+        { label: 'Formulários', icon: 'edit-3', route: '/(panel)/admin/form-editor', color: '#EC4899', desc: 'Modelos e perguntas técnicas' },
+        { label: 'Configuração de Risco', icon: 'sliders', route: '/(panel)/admin/risco-config', color: '#EF4444', desc: 'Faixas e classificações' },
+        { label: 'Relatórios', icon: 'file-text', route: '/(panel)/admin/relatorios', color: '#F97316', desc: 'Laudos e exportações' },
+        { label: 'Estatísticas', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas', color: '#14B8A6', desc: 'Indicadores globais' },
+        { label: 'Treinamentos', icon: 'book-open', route: '/(panel)/master/treinamentos', color: '#22C55E', desc: 'Turmas e ambiente de capacitação' },
+        { label: 'Municípios', icon: 'map', route: '/(panel)/master/municipios', color: '#3B82F6', desc: 'Cobertura territorial' },
+        { label: 'Contratações', icon: 'shopping-bag', route: '/(panel)/master/contratacoes', color: '#84CC16', desc: 'Planos e ativações' },
+        { label: 'Logs do Sistema', icon: 'terminal', route: '/(panel)/master/logs', color: '#F97316', desc: 'Diagnóstico e rastreabilidade' },
+        { label: 'Guia de Protocolo', icon: 'hash', route: '/(panel)/admin/protocolo-doc', color: '#0EA5E9', desc: 'Numeração de documentos' },
+        { label: 'Coordenação', icon: 'layers', route: '/(panel)/coordenacao', color: '#D946EF', desc: 'Recursos de coordenação' },
+        { label: 'Planos', icon: 'package', route: '/(panel)/planos', color: '#EAB308', desc: 'Catálogo de planos' },
+        { label: 'Suporte', icon: 'help-circle', route: '/(panel)/suporte', color: '#38BDF8', desc: 'Ajuda e atendimento' },
+        ...subscriptionItems,
+        { label: 'Meu Perfil', icon: 'user', route: '/(panel)/perfil', color: '#8B5CF6', desc: 'Conta Desenvolvedor' },
+      ];
+    }
     if (profile?.role === 'master_admin') {
       return [
         ...subscriptionItems,
@@ -70,7 +96,9 @@ export default function ModulosScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: Math.max(insets.top, 30) }]}>
         <Text style={[styles.title, { color: theme.text }]}>Módulos do Sistema</Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Acesso rápido a todas as funções</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          {developerMode ? 'Acesso Desenvolvedor a todos os módulos' : 'Acesso rápido a todas as funções'}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>

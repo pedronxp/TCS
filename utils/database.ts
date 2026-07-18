@@ -1,9 +1,70 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 14;
+const DB_VERSION = 18;
 
 let db: SQLite.SQLiteDatabase | null = null;
+let acknowledgementSchemaEnsured = false;
+
+function createDocumentAcknowledgementSchema(database: SQLite.SQLiteDatabase): void {
+  database.runSync(`
+    CREATE TABLE IF NOT EXISTS generated_documents_local (
+      id TEXT PRIMARY KEY,
+      vistoria_id TEXT NOT NULL,
+      document_type TEXT NOT NULL CHECK (document_type IN ('report','technical_report','interdiction_term')),
+      document_version INTEGER NOT NULL,
+      template_version TEXT NOT NULL,
+      content_snapshot TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      pdf_hash TEXT NOT NULL,
+      pdf_local_uri TEXT,
+      preview_html TEXT NOT NULL,
+      remote_path TEXT,
+      byte_size INTEGER NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at_device TEXT NOT NULL,
+      training_mode INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending_upload' CHECK (status IN ('pending_upload','available','superseded')),
+      supersedes_id TEXT,
+      UNIQUE (vistoria_id, document_type, document_version)
+    )
+  `);
+  database.runSync(`
+    CREATE TABLE IF NOT EXISTS document_ack_events_local (
+      id TEXT PRIMARY KEY,
+      client_event_id TEXT NOT NULL UNIQUE,
+      document_id TEXT NOT NULL,
+      outcome TEXT NOT NULL CHECK (outcome IN ('acknowledged','refused','unable_to_sign')),
+      declaration_version TEXT NOT NULL,
+      declaration_text TEXT NOT NULL,
+      declaration_hash TEXT NOT NULL,
+      recipient_name TEXT NOT NULL,
+      recipient_relationship TEXT NOT NULL,
+      signature_strokes TEXT,
+      signature_hash TEXT,
+      reason TEXT,
+      witness_json TEXT,
+      occurred_at_device TEXT NOT NULL,
+      recorded_at_server TEXT,
+      device_id_hash TEXT,
+      created_by TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending','syncing','confirmed','failed')),
+      protocol TEXT,
+      remote_signature_path TEXT,
+      error_code TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      training_mode INTEGER NOT NULL DEFAULT 0,
+      correction_of TEXT,
+      correction_reason TEXT,
+      FOREIGN KEY (document_id) REFERENCES generated_documents_local(id)
+    )
+  `);
+  database.runSync(`CREATE INDEX IF NOT EXISTS idx_generated_documents_vistoria ON generated_documents_local (vistoria_id, document_type, document_version DESC)`);
+  database.runSync(`CREATE INDEX IF NOT EXISTS idx_generated_documents_status ON generated_documents_local (status)`);
+  database.runSync(`CREATE INDEX IF NOT EXISTS idx_document_ack_events_document ON document_ack_events_local (document_id, occurred_at_device DESC)`);
+  database.runSync(`CREATE INDEX IF NOT EXISTS idx_document_ack_events_sync ON document_ack_events_local (sync_status, attempts)`);
+  acknowledgementSchemaEnsured = true;
+}
 
 // ─── Abertura e migrations ─────────────────────────────────────────────────
 
@@ -54,6 +115,7 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
           nivel_risco TEXT,
           pontuacao_total REAL,
           foto_url TEXT,
+          laudo_local_uri TEXT,
           modo_treinamento INTEGER DEFAULT 0,
           training_class_id TEXT,
           training_participant_id TEXT,
@@ -240,6 +302,15 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       try { database.runSync(`CREATE INDEX IF NOT EXISTS idx_vistorias_modo_treinamento ON vistorias_offline (modo_treinamento)`); } catch { /* ja existe */ }
     }
 
+    if (currentVersion < 15) {
+      // Mantém o PDF gerado offline até que o SyncService consiga enviá-lo.
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN laudo_local_uri TEXT`); } catch { /* já existe */ }
+    }
+
+    if (currentVersion < 18) {
+      createDocumentAcknowledgementSchema(database);
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -276,6 +347,7 @@ export interface VistoriaLocal {
   municipio_agente: string | null; // município de origem do agente
   laudo_url: string | null;     // URL signed do PDF no Storage
   laudo_gerado_em: string | null; // ISO timestamp da última geração
+  laudo_local_uri?: string | null; // arquivo PDF pendente de upload
   feita_online: number | null;  // 1 = feita com internet, 0 = feita offline, NULL = desconhecido (registro antigo)
   sincronizado: number;         // 0 = pendente, 1 = sincronizado
   erro_sync: string | null;
@@ -286,11 +358,12 @@ export interface VistoriaLocal {
 
 // ─── CRUD ──────────────────────────────────────────────────────────────────
 
-type VistoriaInsertInput = Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em' | 'calculo_json' | 'modo_treinamento' | 'training_class_id' | 'training_participant_id'> & {
+type VistoriaInsertInput = Omit<VistoriaLocal, 'sincronizado' | 'erro_sync' | 'fotos_urls' | 'tentativas_sync' | 'municipio_agente' | 'laudo_url' | 'laudo_gerado_em' | 'laudo_local_uri' | 'calculo_json' | 'modo_treinamento' | 'training_class_id' | 'training_participant_id'> & {
   fotos_urls?: string | null;
   municipio_agente?: string | null;
   laudo_url?: string | null;
   laudo_gerado_em?: string | null;
+  laudo_local_uri?: string | null;
   calculo_json?: string | null;
   modo_treinamento?: number;
   training_class_id?: string | null;
@@ -310,9 +383,9 @@ export function insertVistoria(vistoria: VistoriaInsertInput): void {
       responsavel_nome, latitude, longitude, data_vistoria,
       formulario_id, formulario_versao, respostas_json, calculo_json,
       nivel_risco, pontuacao_total, foto_url, fotos_urls,
-      laudo_url, laudo_gerado_em, feita_online, modo_treinamento,
+      laudo_url, laudo_gerado_em, laudo_local_uri, feita_online, modo_treinamento,
       training_class_id, training_participant_id, sincronizado, criado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       vistoria.id,
       vistoria.agente_uid,
@@ -337,6 +410,7 @@ export function insertVistoria(vistoria: VistoriaInsertInput): void {
       vistoria.fotos_urls ?? null,
       vistoria.laudo_url ?? null,
       vistoria.laudo_gerado_em ?? null,
+      vistoria.laudo_local_uri ?? null,
       vistoria.feita_online ?? null,
       Number(vistoria.modo_treinamento ?? 0),
       vistoria.training_class_id ?? null,
@@ -356,9 +430,9 @@ export function insertTrainingVistoria(vistoria: VistoriaInsertInput): void {
       responsavel_nome, latitude, longitude, data_vistoria,
       formulario_id, formulario_versao, respostas_json, calculo_json,
       nivel_risco, pontuacao_total, foto_url, fotos_urls,
-      laudo_url, laudo_gerado_em, feita_online, modo_treinamento,
+      laudo_url, laudo_gerado_em, laudo_local_uri, feita_online, modo_treinamento,
       training_class_id, training_participant_id, sincronizado, criado_em
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       vistoria.id,
       vistoria.agente_uid,
@@ -383,6 +457,7 @@ export function insertTrainingVistoria(vistoria: VistoriaInsertInput): void {
       null,
       vistoria.laudo_url ?? null,
       vistoria.laudo_gerado_em ?? null,
+      vistoria.laudo_local_uri ?? null,
       vistoria.feita_online ?? null,
       1,
       vistoria.training_class_id ?? null,
@@ -393,12 +468,26 @@ export function insertTrainingVistoria(vistoria: VistoriaInsertInput): void {
   );
 }
 
-export function updateFotosUrls(id: string, urls: string[]): void {
+export function updateVistoriaMedia(id: string, fotoUrl: string | null, fotosUrls: string[]): void {
   const database = getDb();
   database.runSync(
-    `UPDATE vistorias_offline SET fotos_urls = ? WHERE id = ?`,
-    [JSON.stringify(urls), id]
+    `UPDATE vistorias_offline
+     SET foto_url = ?, fotos_urls = ?, sincronizado = 0, erro_sync = NULL, tentativas_sync = 0
+     WHERE id = ?`,
+    [fotoUrl, fotosUrls.length > 0 ? JSON.stringify(fotosUrls) : null, id]
   );
+}
+
+/**
+ * Repara de forma idempotente o schema da ciência eletrônica quando o Metro
+ * atualiza o código sem reinicializar a conexão SQLite já aberta.
+ */
+export function ensureDocumentAcknowledgementSchema(): SQLite.SQLiteDatabase {
+  const database = getDb();
+  if (!acknowledgementSchemaEnsured) {
+    database.withTransactionSync(() => createDocumentAcknowledgementSchema(database));
+  }
+  return database;
 }
 
 export function markSincronizado(id: string): void {
@@ -476,8 +565,23 @@ export function getAllVistorias(): VistoriaLocal[] {
 export function updateLaudoUrl(id: string, laudoUrl: string, laudoGeradoEm: string): void {
   const database = getDb();
   database.runSync(
-    `UPDATE vistorias_offline SET laudo_url = ?, laudo_gerado_em = ? WHERE id = ?`,
+    `UPDATE vistorias_offline
+     SET laudo_url = ?, laudo_gerado_em = ?, laudo_local_uri = NULL,
+         sincronizado = 0, erro_sync = NULL, tentativas_sync = 0
+     WHERE id = ?`,
     [laudoUrl, laudoGeradoEm, id]
+  );
+}
+
+/** Registra um PDF criado sem internet para envio posterior. */
+export function queueLaudoUpload(id: string, localUri: string, laudoGeradoEm: string): void {
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline
+     SET laudo_local_uri = ?, laudo_gerado_em = ?,
+         sincronizado = 0, erro_sync = NULL, tentativas_sync = 0
+     WHERE id = ?`,
+    [localUri, laudoGeradoEm, id]
   );
 }
 
@@ -522,6 +626,96 @@ export function getTrainingVistoriaById(id: string, agenteUid: string): Vistoria
 export function deleteVistoriaOffline(id: string): void {
   const database = getDb();
   database.runSync(`DELETE FROM vistorias_offline WHERE id = ?`, [id]);
+}
+
+export interface LocalTestPurgeResult {
+  vistoriaCount: number;
+  documentCount: number;
+  eventCount: number;
+  fileUris: string[];
+}
+
+/**
+ * Remove somente artefatos descartáveis da conta demo.
+ * Turmas formais de treinamento não entram neste filtro porque possuem
+ * training_class_id; dados de outros usuários no aparelho também são preservados.
+ */
+export function purgeLocalTestData(agenteUid: string): LocalTestPurgeResult {
+  const database = ensureDocumentAcknowledgementSchema();
+  const vistorias = database.getAllSync<{
+    id: string;
+    foto_url: string | null;
+    fotos_urls: string | null;
+    laudo_local_uri: string | null;
+  }>(
+    `SELECT id, foto_url, fotos_urls, laudo_local_uri
+       FROM vistorias_offline
+      WHERE agente_uid = ?
+        AND COALESCE(modo_treinamento, 0) = 1
+        AND training_class_id IS NULL`,
+    [agenteUid]
+  );
+
+  const ids = vistorias.map(v => v.id);
+  const placeholders = ids.map(() => '?').join(',');
+  const documentWhere = ids.length > 0
+    ? `WHERE (created_by = ? AND training_mode = 1) OR vistoria_id IN (${placeholders})`
+    : 'WHERE created_by = ? AND training_mode = 1';
+  const documents = database.getAllSync<{ id: string; pdf_local_uri: string | null }>(
+    `SELECT id, pdf_local_uri FROM generated_documents_local ${documentWhere}`,
+    [agenteUid, ...ids]
+  );
+  const documentIds = documents.map(document => document.id);
+  const documentPlaceholders = documentIds.map(() => '?').join(',');
+  const eventCount = documentIds.length > 0
+    ? (database.getFirstSync<{ total: number }>(
+        `SELECT COUNT(*) AS total FROM document_ack_events_local
+          WHERE document_id IN (${documentPlaceholders})`,
+        documentIds
+      )?.total ?? 0)
+    : 0;
+
+  const fileUris = new Set<string>();
+  const addLocalFile = (value: string | null | undefined) => {
+    if (value?.startsWith('file://')) fileUris.add(value);
+  };
+  for (const vistoria of vistorias) {
+    addLocalFile(vistoria.foto_url);
+    addLocalFile(vistoria.laudo_local_uri);
+    if (vistoria.fotos_urls) {
+      try {
+        const photos = JSON.parse(vistoria.fotos_urls);
+        if (Array.isArray(photos)) photos.forEach(uri => addLocalFile(typeof uri === 'string' ? uri : null));
+      } catch { /* valor antigo inválido: a linha ainda será eliminada */ }
+    }
+  }
+  documents.forEach(document => addLocalFile(document.pdf_local_uri));
+
+  database.withTransactionSync(() => {
+    if (documentIds.length > 0) {
+      database.runSync(
+        `DELETE FROM document_ack_events_local WHERE document_id IN (${documentPlaceholders})`,
+        documentIds
+      );
+      database.runSync(
+        `DELETE FROM generated_documents_local WHERE id IN (${documentPlaceholders})`,
+        documentIds
+      );
+    }
+    if (ids.length > 0) {
+      database.runSync(
+        `DELETE FROM vistorias_offline WHERE id IN (${placeholders})`,
+        ids
+      );
+    }
+  });
+
+  return {
+    vistoriaCount: vistorias.length,
+    documentCount: documents.length,
+    eventCount,
+    fileUris: [...fileUris],
+  };
 }
 
 export function incrementTentativasSync(id: string): void {
@@ -690,28 +884,22 @@ export function deleteAgendamento(id: string): void {
 
 /**
  * Exclui agendamento com tombstone para sync offline.
- * - Se sincronizado=1 (já existe no Supabase): marca status='deletado' e sincronizado=0
- *   para que o SyncService execute o delete remoto na próxima sincronização.
- * - Se sincronizado=0 (nunca foi ao Supabase): remove diretamente, sem tombstone necessário.
+ * `sincronizado=0` também pode representar uma edição local de um registro que
+ * já existe remotamente, portanto nunca é seguro inferir que o delete remoto é
+ * desnecessário. Excluir um id inexistente no Supabase é idempotente.
  */
 export function deleteAgendamentoWithTombstone(id: string): void {
   const database = getDb();
-  const ag = database.getFirstSync<{ sincronizado: number }>(
-    `SELECT sincronizado FROM agendamentos WHERE id = ?`,
+  const ag = database.getFirstSync<{ id: string }>(
+    `SELECT id FROM agendamentos WHERE id = ?`,
     [id]
   );
   if (!ag) return;
 
-  if (ag.sincronizado === 1) {
-    // Já existe no Supabase — marcar para deleção remota
-    database.runSync(
-      `UPDATE agendamentos SET status = 'deletado', sincronizado = 0 WHERE id = ?`,
-      [id]
-    );
-  } else {
-    // Nunca sincronizado — pode remover localmente sem traces
-    database.runSync(`DELETE FROM agendamentos WHERE id = ?`, [id]);
-  }
+  database.runSync(
+    `UPDATE agendamentos SET status = 'deletado', sincronizado = 0 WHERE id = ?`,
+    [id]
+  );
 }
 
 export function countAgendamentosPendentes(municipio: string): number {

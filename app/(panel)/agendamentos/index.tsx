@@ -16,7 +16,10 @@ import {
   insertAgendamento,
   getAgendamentosByMunicipio,
   getAgendamentosByAgente,
+  getAllAgendamentos,
   deleteAgendamento,
+  deleteAgendamentoWithTombstone,
+  markAgendamentoSincronizado,
 } from '../../../utils/database';
 import { generateUUID } from '../../../utils/uuid';
 import { AgendamentoLocal } from '../../../types/agendamento';
@@ -88,6 +91,13 @@ export default function AgendamentosScreen() {
   const canCreate = profile?.role === 'supervisor' || profile?.role === 'admin' || profile?.role === 'master_admin';
   const isAgent = profile?.role === 'agent';
 
+  const getAgendamentosLocaisVisiveis = (): AgendamentoLocal[] => {
+    if (!profile) return [];
+    if (profile.role === 'master_admin') return getAllAgendamentos();
+    if (isAgent) return getAgendamentosByAgente(profile.uid, profile.municipio);
+    return getAgendamentosByMunicipio(profile.municipio ?? '');
+  };
+
   const carregar = async (showRefresh = false) => {
     if (!profile) return;
     if (showRefresh) setRefreshing(true);
@@ -126,8 +136,25 @@ export default function AgendamentosScreen() {
             criado_em: r.criado_em,
             sincronizado: 1,
           }));
-          mapped.forEach(a => insertAgendamento(a));
-          setAgendamentos(mapped);
+          // Nunca sobrescrever uma alteração local ainda pendente com uma cópia
+          // antiga do servidor. Ela deve ser enviada pelo SyncService primeiro.
+          const locais = getAgendamentosLocaisVisiveis();
+          const pendentesPorId = new Map(
+            locais.filter(a => a.sincronizado === 0).map(a => [a.id, a])
+          );
+          const idsRemotos = new Set(mapped.map(a => a.id));
+
+          mapped.forEach(a => {
+            if (!pendentesPorId.has(a.id)) insertAgendamento(a);
+          });
+
+          const mesclados = [
+            ...mapped.map(a => pendentesPorId.get(a.id) ?? a),
+            ...locais.filter(a => a.sincronizado === 0 && !idsRemotos.has(a.id)),
+          ]
+            .filter(a => a.status !== 'deletado')
+            .sort((a, b) => a.data_agendada.localeCompare(b.data_agendada));
+          setAgendamentos(mesclados);
         } else {
           // Fallback para SQLite
           carregarLocal();
@@ -144,12 +171,7 @@ export default function AgendamentosScreen() {
   };
 
   const carregarLocal = () => {
-    if (!profile) return;
-    if (isAgent) {
-      setAgendamentos(getAgendamentosByAgente(profile.uid, profile.municipio));
-    } else {
-      setAgendamentos(getAgendamentosByMunicipio(profile.municipio ?? ''));
-    }
+    setAgendamentos(getAgendamentosLocaisVisiveis().filter(a => a.status !== 'deletado'));
   };
 
   const carregarAgentes = async () => {
@@ -185,10 +207,13 @@ export default function AgendamentosScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Primeiro manter um tombstone local. Se a chamada remota falhar,
+              // o SyncService a repete quando a conexão voltar.
+              deleteAgendamentoWithTombstone(a.id);
               if (isConnected) {
-                await supabase.from('agendamentos').delete().eq('id', a.id);
+                const { error } = await supabase.from('agendamentos').delete().eq('id', a.id);
+                if (!error) deleteAgendamento(a.id);
               }
-              deleteAgendamento(a.id);
               setAgendamentos(prev => prev.filter(x => x.id !== a.id));
             } catch {
               Alert.alert('Erro', 'Não foi possível excluir o agendamento.');
@@ -295,7 +320,7 @@ export default function AgendamentosScreen() {
 
       // 2. Tenta Supabase se online
       if (isConnected) {
-        await supabase.from('agendamentos').upsert({
+        const { error } = await supabase.from('agendamentos').upsert({
           id: agendamento.id,
           titulo: agendamento.titulo,
           endereco: agendamento.endereco ?? null,
@@ -310,6 +335,7 @@ export default function AgendamentosScreen() {
           observacoes: agendamento.observacoes ?? null,
           status: agendamento.status,
         });
+        if (!error) markAgendamentoSincronizado(agendamento.id);
       }
 
       setModalVisible(false);

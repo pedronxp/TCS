@@ -1,6 +1,35 @@
 import { resolveRootRedirect } from '../rootRouting';
 
 describe('resolveRootRedirect', () => {
+  it('routes a first installation to onboarding', () => {
+    expect(resolveRootRedirect({
+      segments: ['(auth)'],
+      onboardingDone: false,
+      isAuthenticated: false,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    })).toBe('/onboarding');
+  });
+
+  it('routes a returning unauthenticated user to the public auth entry', () => {
+    expect(resolveRootRedirect({
+      segments: [],
+      onboardingDone: true,
+      isAuthenticated: false,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    })).toBe('/(auth)');
+  });
+
+  it('allows password recovery routes without forcing the public entry', () => {
+    expect(resolveRootRedirect({
+      segments: ['(auth)', 'reset-password'],
+      onboardingDone: true,
+      isAuthenticated: false,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    })).toBeNull();
+  });
   it('prioritizes active training over an existing operational login on auth routes', () => {
     expect(resolveRootRedirect({
       segments: ['(auth)', 'treinamento-loading'],

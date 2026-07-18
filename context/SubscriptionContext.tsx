@@ -56,13 +56,13 @@ const SubscriptionContext = createContext<Value>({
 });
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const { session } = useAuth();
+  const { session, localTestMode } = useAuth();
   const [context, setContext] = useState<SubscriptionContextValue | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!session) {
+    if (!session || localTestMode) {
       setContext(null);
       setError(null);
       return;
@@ -78,7 +78,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       setError(null);
     }
     setLoading(false);
-  }, [session]);
+  }, [session, localTestMode]);
 
   useEffect(() => {
     refresh().catch(() => setLoading(false));

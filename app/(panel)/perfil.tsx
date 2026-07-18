@@ -15,6 +15,7 @@ import { Badge, Card, ErrorState } from '../../components/ui';
 import { formatarData, formatarDataHora } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
+import { getTrainingVistoriasByAgente } from '../../utils/database';
 
 const ROLE_LABELS: Record<string, string> = {
   agent:        'Agente de Campo',
@@ -51,7 +52,7 @@ export default function PerfilScreen() {
   const { theme, themeMode, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
-  const { session, profile: authProfile, loading: authLoading, signOut, refreshProfile } = useAuth();
+  const { session, profile: authProfile, loading: authLoading, localTestMode, developerMode, signOut, refreshProfile } = useAuth();
   const { isOnlineReal } = useConnectivity();
 
   const [saving, setSaving] = useState(false);
@@ -90,6 +91,17 @@ export default function PerfilScreen() {
       const hoje = new Date().toISOString().split('T')[0];
       const semanaAtras = new Date(Date.now() - 7 * 24 * 3600000).toISOString();
 
+      if (localTestMode && authProfile) {
+        const locais = getTrainingVistoriasByAgente(authProfile.uid);
+        setStats({
+          total: locais.length,
+          altoRisco: locais.filter(item => ['r3', 'r4'].includes(item.nivel_risco)).length,
+          hoje: locais.filter(item => item.data_vistoria?.startsWith(hoje)).length,
+          semana: locais.filter(item => new Date(item.data_vistoria).getTime() >= new Date(semanaAtras).getTime()).length,
+        });
+        return;
+      }
+
       if (authProfile?.role === 'agent') {
         const uid = authProfile.uid;
         const [
@@ -123,6 +135,12 @@ export default function PerfilScreen() {
 
   const saveName = async () => {
     if (!newName.trim() || !authProfile) return;
+    if (localTestMode) {
+      Alert.alert('Modo de teste', 'O perfil da conta de testes é fixo e não será alterado no banco de dados.');
+      setEditingName(false);
+      setNewName(authProfile.name);
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase
@@ -142,6 +160,12 @@ export default function PerfilScreen() {
 
   const savePhone = async () => {
     if (!authProfile) return;
+    if (localTestMode) {
+      Alert.alert('Modo de teste', 'Dados de contato não são enviados ao banco pela conta de testes.');
+      setEditingPhone(false);
+      setPhoneInput('');
+      return;
+    }
     const normalized = normalizarTelefone(phoneInput);
     if (!normalized) {
       Alert.alert('Número inválido', 'Informe um número brasileiro válido com DDD.\nEx: (11) 98765-4321');
@@ -197,7 +221,9 @@ export default function PerfilScreen() {
   }
 
   const initial = authProfile?.name?.[0]?.toUpperCase() || '?';
-  const roleLabel = ROLE_LABELS[authProfile?.role ?? ''] || authProfile?.role || '—';
+  const roleLabel = developerMode
+    ? 'Desenvolvedor (acima da Master)'
+    : ROLE_LABELS[authProfile?.role ?? ''] || authProfile?.role || '—';
   const isAgent = authProfile?.role === 'agent';
   const showStats = isAgent || authProfile?.role === 'supervisor' || authProfile?.role === 'admin';
 

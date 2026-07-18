@@ -1,11 +1,11 @@
 import { supabase } from '../utils/supabase';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { logger } from '../utils/logger';
 import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
 
-const BUCKET_NAME = 'vistorias';
 const BUCKET_FOTOS = 'fotos';
 const BUCKET_LAUDOS = 'laudos';
+const BUCKET_DOCUMENT_EVIDENCE = 'document-evidence';
 
 // ─── Prefixos para identificar o bucket a partir do path persistido ──────────
 // Formato armazenado: "vistorias:<remotePath>" | "fotos:<remotePath>" | "laudos:<remotePath>"
@@ -14,6 +14,7 @@ const PATH_PREFIX = {
   vistorias: 'vistorias:',
   fotos: 'fotos:',
   laudos: 'laudos:',
+  documentEvidence: 'document-evidence:',
 } as const;
 
 type BucketKey = keyof typeof PATH_PREFIX;
@@ -24,6 +25,61 @@ type BucketKey = keyof typeof PATH_PREFIX;
  */
 export function encodePath(bucket: BucketKey, remotePath: string): string {
   return `${PATH_PREFIX[bucket]}${remotePath}`;
+}
+
+function evidencePath(ownerUserId: string, vistoriaId: string, documentId: string, filename: string): string {
+  const safe = [ownerUserId, vistoriaId, documentId, filename].map(segment =>
+    segment.replace(/[^a-zA-Z0-9._-]/g, '_')
+  );
+  return safe.join('/');
+}
+
+async function readLocalFileBytes(localUri: string): Promise<Uint8Array> {
+  const file = new File(localUri);
+  if (!file.exists) throw new Error(`Arquivo local não encontrado: ${localUri}`);
+  const bytes = await file.bytes();
+  if (bytes.byteLength === 0) throw new Error(`Arquivo local vazio: ${localUri}`);
+  return bytes;
+}
+
+/** Upload idempotente para o bucket privado de documentos e evidências. */
+export async function uploadDocumentEvidenceFile(
+  localUri: string,
+  ownerUserId: string,
+  vistoriaId: string,
+  documentId: string
+): Promise<string> {
+  const bytes = await readLocalFileBytes(localUri);
+  const remotePath = evidencePath(ownerUserId, vistoriaId, documentId, 'document.pdf');
+  const { error } = await supabase.storage
+    .from(BUCKET_DOCUMENT_EVIDENCE)
+    .upload(remotePath, bytes, { contentType: 'application/pdf', upsert: false });
+  if (error && !/duplicate|already exists|resource already exists/i.test(error.message)) {
+    throw error;
+  }
+  return remotePath;
+}
+
+/** Armazena traços validados como JSON; SVG arbitrário nunca é aceito. */
+export async function uploadDocumentSignatureEvidence(
+  json: string,
+  ownerUserId: string,
+  vistoriaId: string,
+  documentId: string
+): Promise<string> {
+  const remotePath = evidencePath(ownerUserId, vistoriaId, documentId, 'signature.json');
+  const bytes = new TextEncoder().encode(json);
+  const { error } = await supabase.storage
+    .from(BUCKET_DOCUMENT_EVIDENCE)
+    .upload(remotePath, bytes, { contentType: 'application/json', upsert: false });
+  if (error && !/duplicate|already exists|resource already exists/i.test(error.message)) {
+    throw error;
+  }
+  return remotePath;
+}
+
+export function encodeDocumentEvidencePath(remotePath: string): string {
+  return encodePath('documentEvidence', remotePath);
 }
 
 /**
@@ -53,6 +109,11 @@ export async function getSignedUrl(
   // URL já assinada ou pública — retorna como está
   if (stored.startsWith('http')) return stored;
 
+  // Arquivos ainda locais precisam continuar visíveis no modo offline e no PDF.
+  if (stored.startsWith('file://') || stored.startsWith('content://') || stored.startsWith('data:')) {
+    return stored;
+  }
+
   const decoded = decodePath(stored);
   if (!decoded) {
     logger.warn('storage', 'getSignedUrl: path sem prefixo reconhecido', { stored });
@@ -72,34 +133,24 @@ export async function getSignedUrl(
 }
 
 /**
- * Faz upload de um arquivo local (file:///) para o bucket `vistorias`.
- * Retorna o path codificado (ex: "vistorias:2026/SP/id/thumb.jpg") para
+ * Faz upload de um arquivo local (file:///) para o bucket `fotos`.
+ * Retorna o path codificado (ex: "fotos:2026/SP/id/thumb.jpg") para
  * persistência — NÃO retorna URL assinada para evitar expiração em dados salvos.
  *
  * @note Para exibir a imagem, chame getSignedUrl(storedPath).
  */
 export async function uploadImageFromLocalUri(localUri: string, remotePath: string): Promise<string> {
   try {
-    const fileInfo = await FileSystem.getInfoAsync(localUri);
-    if (!fileInfo.exists) {
-      throw new Error(`Arquivo local não encontrado: ${localUri}`);
-    }
+    const bytes = await readLocalFileBytes(localUri);
 
     const fileExt = localUri.split('.').pop() || 'jpg';
     const mimeType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
 
-    const formData = new FormData();
-    formData.append('file', {
-      uri: localUri,
-      name: remotePath.split('/').pop() || `foto.${fileExt}`,
-      type: mimeType,
-    } as any);
-
-    logger.info('sync', `Iniciando upload de imagem: ${remotePath}`, { size: (fileInfo as any).size });
+    logger.info('sync', `Iniciando upload de imagem: ${remotePath}`, { size: bytes.byteLength });
 
     const { error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(remotePath, formData, { cacheControl: '36000', upsert: false });
+      .from(BUCKET_FOTOS)
+      .upload(remotePath, bytes, { contentType: mimeType, cacheControl: '36000', upsert: false });
 
     if (error) {
       logger.error('sync', `Falha no upload supabase: ${error.message}`, { path: remotePath });
@@ -107,10 +158,10 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
     }
 
     logger.info('sync', `Upload concluído`, { path: remotePath });
-    return encodePath('vistorias', remotePath);
+    return encodePath('fotos', remotePath);
 
   } catch (error: any) {
-    reportClientTechnicalEventSafely({ category: 'storage', severity: 'error', summary: 'Falha no upload de imagem', metadata: { operation: 'upload_image', bucket: BUCKET_NAME } });
+    reportClientTechnicalEventSafely({ category: 'storage', severity: 'error', summary: 'Falha no upload de imagem', metadata: { operation: 'upload_image', bucket: BUCKET_FOTOS } });
     logger.error('sync', `Erro em uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
     throw error;
   }
@@ -128,20 +179,12 @@ export async function uploadFotoVistoria(
   municipio: string
 ): Promise<string | null> {
   try {
-    const fileInfo = await FileSystem.getInfoAsync(localUri);
-    if (!fileInfo.exists) return null;
-
+    const bytes = await readLocalFileBytes(localUri);
     const remotePath = `${municipio}/${vistoriaId}.jpg`;
-    const formData = new FormData();
-    formData.append('file', {
-      uri: localUri,
-      name: `${vistoriaId}.jpg`,
-      type: 'image/jpeg',
-    } as any);
 
     const { error } = await supabase.storage
       .from(BUCKET_FOTOS)
-      .upload(remotePath, formData, { cacheControl: '86400', upsert: true });
+      .upload(remotePath, bytes, { contentType: 'image/jpeg', cacheControl: '86400', upsert: true });
 
     if (error) {
       logger.warn('sync', `Falha upload foto: ${error.message}`, { remotePath });
@@ -168,16 +211,11 @@ export async function uploadLaudoPdf(
 ): Promise<string | null> {
   try {
     const remotePath = `${municipio}/${vistoriaId}.pdf`;
-    const formData = new FormData();
-    formData.append('file', {
-      uri: localUri,
-      name: `${vistoriaId}.pdf`,
-      type: 'application/pdf',
-    } as any);
+    const bytes = await readLocalFileBytes(localUri);
 
     const { error } = await supabase.storage
       .from(BUCKET_LAUDOS)
-      .upload(remotePath, formData, { cacheControl: '3600', upsert: true });
+      .upload(remotePath, bytes, { contentType: 'application/pdf', cacheControl: '3600', upsert: true });
 
     if (error) {
       logger.warn('sync', `Falha upload laudo: ${error.message}`, { remotePath });

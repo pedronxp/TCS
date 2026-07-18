@@ -4,7 +4,7 @@
  * Substitui as 3 implementações inline em resultado.tsx, laudo.tsx e relatorio.tsx.
  */
 
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
 import {
   CalculoRiscoSnapshot,
@@ -90,7 +90,7 @@ export function buildTermoInterdicaoHtml(
   const calculo = parseCalculoRiscoSnapshot(laudo.calculoRisco);
   const nivel = normalizarNivelRisco(laudo.nivelRisco || calculo?.nivelRisco, 'r1');
   const trainingNotice = laudo.modoTreinamento
-    ? `<div class="training-notice">MODO TREINAMENTO - documento sem validade operacional</div>`
+    ? `<div class="training-notice">MODO DE TESTE - documento sem validade operacional</div>`
     : '';
 
   return `<!DOCTYPE html>
@@ -372,7 +372,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   const dataExt = dataExtenso(dados.dataVistoria);
   const ano = dados.dataVistoria ? new Date(dados.dataVistoria).getFullYear() : new Date().getFullYear();
   const trainingNotice = dados.modoTreinamento
-    ? `<div class="training-notice">MODO TREINAMENTO - documento sem validade operacional</div>`
+    ? `<div class="training-notice">MODO DE TESTE - documento sem validade operacional</div>`
     : '';
 
   // O schema form mapeia os IDs para textos ricos
@@ -475,20 +475,28 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   }
 
   const converterParaBase64 = async (url: string): Promise<string | null> => {
+    let temporaryFile: File | null = null;
     try {
       if (url.startsWith('file://')) {
-        const b64 = await FileSystem.readAsStringAsync(url, { encoding: 'base64' as any });
+        const file = new File(url);
+        if (!file.exists) return null;
+        const b64 = await file.base64();
         return `data:image/jpeg;base64,${b64}`;
       } else if (url.startsWith('http://') || url.startsWith('https://')) {
-        const cacheDir: string = (FileSystem as any).cacheDirectory ?? '';
-        const tempUri = `${cacheDir}foto_laudo_${Date.now()}_${Math.random().toString(36).slice(2,6)}.jpg`;
-        const { uri: downloaded } = await (FileSystem as any).downloadAsync(url, tempUri);
-        const b64 = await FileSystem.readAsStringAsync(downloaded, { encoding: 'base64' as any });
-        (FileSystem as any).deleteAsync(downloaded, { idempotent: true }).catch(() => {});
+        temporaryFile = new File(
+          Paths.cache,
+          `foto_laudo_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`
+        );
+        const downloaded = await File.downloadFileAsync(url, temporaryFile, { idempotent: true });
+        const b64 = await downloaded.base64();
         return `data:image/jpeg;base64,${b64}`;
       }
     } catch (e) {
       console.warn('[laudoPdfBuilder] Erro ao converter foto:', e);
+    } finally {
+      if (temporaryFile?.exists) {
+        try { temporaryFile.delete(); } catch { /* arquivo temporário já removido */ }
+      }
     }
     return null;
   };
