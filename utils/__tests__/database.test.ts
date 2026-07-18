@@ -93,6 +93,87 @@ describe('FormularioCache shape', () => {
   });
 });
 
+describe('updateVistoriaMedia', () => {
+  it('persiste foto principal e evidências adicionais separadamente', () => {
+    jest.resetModules();
+    const mockDb = {
+      runSync: jest.fn(),
+      getFirstSync: jest.fn(() => null),
+      getAllSync: jest.fn(() => []),
+      withTransactionSync: jest.fn((cb: () => void) => cb()),
+    };
+    require('expo-sqlite').openDatabaseSync.mockReturnValue(mockDb);
+    const { updateVistoriaMedia } = require('../database');
+
+    updateVistoriaMedia('vistoria-1', 'fotos:principal.jpg', [
+      'fotos:evidencia-1.jpg',
+      'file:///evidencia-2.jpg',
+    ]);
+
+    const updateCall = mockDb.runSync.mock.calls.find((call: any[]) =>
+      typeof call[0] === 'string' && call[0].includes('SET foto_url = ?, fotos_urls = ?')
+    );
+    expect(updateCall?.[1]).toEqual([
+      'fotos:principal.jpg',
+      JSON.stringify(['fotos:evidencia-1.jpg', 'file:///evidencia-2.jpg']),
+      'vistoria-1',
+    ]);
+  });
+});
+
+describe('purgeLocalTestData', () => {
+  it('remove apenas dados temporários do usuário e devolve os arquivos locais', () => {
+    jest.resetModules();
+    const mockDb = {
+      runSync: jest.fn(),
+      getFirstSync: jest.fn((sql: string) =>
+        sql.includes('document_ack_events_local') ? { total: 1 } : null
+      ),
+      getAllSync: jest.fn((sql: string) => {
+        if (sql.includes('FROM vistorias_offline')) {
+          return [{
+            id: 'test-vistoria',
+            foto_url: 'file:///foto-principal.jpg',
+            fotos_urls: JSON.stringify(['file:///evidencia.jpg', 'fotos:remota.jpg']),
+            laudo_local_uri: 'file:///laudo.pdf',
+          }];
+        }
+        if (sql.includes('FROM generated_documents_local')) {
+          return [{ id: 'doc-1', pdf_local_uri: 'file:///documento.pdf' }];
+        }
+        return [];
+      }),
+      withTransactionSync: jest.fn((cb: () => void) => cb()),
+    };
+    require('expo-sqlite').openDatabaseSync.mockReturnValue(mockDb);
+
+    const { purgeLocalTestData } = require('../database');
+    const result = purgeLocalTestData('developer-uid');
+
+    expect(result).toEqual({
+      vistoriaCount: 1,
+      documentCount: 1,
+      eventCount: 1,
+      fileUris: expect.arrayContaining([
+        'file:///foto-principal.jpg',
+        'file:///evidencia.jpg',
+        'file:///laudo.pdf',
+        'file:///documento.pdf',
+      ]),
+    });
+    const selectCalls = mockDb.getAllSync.mock.calls as unknown as any[][];
+    const selectVistorias = selectCalls.find((call: any[]) =>
+      String(call[0]).includes('FROM vistorias_offline')
+    );
+    expect(selectVistorias?.[0]).toContain('training_class_id IS NULL');
+    expect(selectVistorias?.[1]).toEqual(['developer-uid']);
+    expect(mockDb.runSync).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM vistorias_offline'),
+      ['test-vistoria']
+    );
+  });
+});
+
 describe('insertVistoria — persistência offline', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -399,10 +480,10 @@ describe('deleteAgendamentoWithTombstone — tombstone offline', () => {
     expect(deleteCall).toBeUndefined();
   });
 
-  it('remove diretamente quando agendamento nunca foi sincronizado', () => {
+  it('mantém tombstone mesmo com sincronizado=0, pois pode ser edição de registro remoto', () => {
     const mockDb = {
       runSync: jest.fn(),
-      getFirstSync: jest.fn(() => ({ sincronizado: 0 })), // nunca foi ao Supabase
+      getFirstSync: jest.fn(() => ({ id: 'ag-456' })),
       getAllSync: jest.fn(() => []),
       withTransactionSync: jest.fn((cb: () => void) => cb()),
     };
@@ -412,17 +493,16 @@ describe('deleteAgendamentoWithTombstone — tombstone offline', () => {
     deleteAgendamentoWithTombstone('ag-456');
 
     const calls = mockDb.runSync.mock.calls as any[][];
-    const deleteCall = calls.find((c: any[]) =>
-      typeof c[0] === 'string' && c[0].includes('DELETE FROM agendamentos')
-    );
-    expect(deleteCall).toBeDefined();
-    expect(deleteCall![1]).toContain('ag-456');
-
-    // NÃO deve ter criado tombstone
     const tombstoneCall = calls.find((c: any[]) =>
       typeof c[0] === 'string' && c[0].includes("status = 'deletado'")
     );
-    expect(tombstoneCall).toBeUndefined();
+    expect(tombstoneCall).toBeDefined();
+    expect(tombstoneCall![1]).toContain('ag-456');
+
+    const deleteCall = calls.find((c: any[]) =>
+      typeof c[0] === 'string' && c[0].includes('DELETE FROM agendamentos')
+    );
+    expect(deleteCall).toBeUndefined();
   });
 
   it('não faz nada se agendamento não existe', () => {

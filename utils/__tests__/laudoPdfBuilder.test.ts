@@ -1,3 +1,20 @@
+jest.mock('expo-file-system', () => {
+  class MockFile {
+    static downloadFileAsync = jest.fn(async (_url: string, destination: MockFile) => destination);
+    uri: string;
+    exists = true;
+    constructor(...parts: Array<string | { uri?: string }>) {
+      this.uri = parts.map(part => typeof part === 'string' ? part : part.uri || '').join('/');
+    }
+    async base64() { return 'Zm90by10ZXN0ZQ=='; }
+    delete() { this.exists = false; }
+  }
+  return {
+    File: MockFile,
+    Paths: { cache: { uri: 'file:///cache' } },
+  };
+});
+
 import { buildLaudoHtml } from '../laudoPdfBuilder';
 
 describe('laudoPdfBuilder', () => {
@@ -52,5 +69,28 @@ describe('laudoPdfBuilder', () => {
     expect(html).toContain('RISCO IMINENTE');
     expect(html).toContain('Resultado CBMMG');
     expect(html).not.toContain('>R4<');
+  });
+
+  it('inclui foto remota no PDF usando a API atual do Expo FileSystem', async () => {
+    const { File } = require('expo-file-system');
+    const html = await buildLaudoHtml({
+      id: 'vistoria-com-foto',
+      nivelRisco: 'r2',
+      pontuacaoTotal: 2.5,
+      endereco: 'Rua da Foto, 10',
+      municipio: 'Cataguases',
+      dataVistoria: '2026-07-18T12:00:00.000Z',
+      agenteNome: 'Agente Teste',
+      formularioId: 'risco_estrutural_novo_v2',
+      fotosUrls: ['https://storage.example.test/evidencia.jpg'],
+    });
+
+    expect(File.downloadFileAsync).toHaveBeenCalledWith(
+      'https://storage.example.test/evidencia.jpg',
+      expect.any(File),
+      { idempotent: true }
+    );
+    expect(html).toContain('data:image/jpeg;base64,Zm90by10ZXN0ZQ==');
+    expect(html).toContain('Registro Fotográfico da Ocorrência (1 foto)');
   });
 });

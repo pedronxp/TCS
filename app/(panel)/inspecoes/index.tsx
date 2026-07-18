@@ -29,9 +29,10 @@ interface InspecaoCardProps {
   theme: any;
   onDeleteLocal: (item: VistoriaLocal) => void;
   trainingMode?: boolean;
+  localTestMode?: boolean;
 }
 
-const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = false }: InspecaoCardProps) => {
+const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = false, localTestMode = false }: InspecaoCardProps) => {
   const apresentacao = resolverApresentacaoRisco({
     formularioId: item.formulario_id,
     pontuacao: item.pontuacao_total,
@@ -55,7 +56,8 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
               formularioId: item.formulario_id,
               pontuacao: String(item.pontuacao_total ?? 0),
               municipio: item.municipio,
-              treinamento: '1',
+              treinamento: localTestMode ? '0' : '1',
+              testeLocal: localTestMode ? '1' : '0',
             },
           })
         : router.push(`/(panel)/inspecoes/${item.id}`)}
@@ -124,10 +126,11 @@ export default function InspecoesListScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
   const { isOnlineReal: isConnected } = useConnectivity();
-  const { profile } = useAuth();
+  const { profile, localTestMode } = useAuth();
   const { trainingProfile, isTrainingActive } = useTraining();
   const activeProfile = profile || trainingProfile;
-  const trainingMode = !profile && isTrainingActive && !!trainingProfile;
+  const formalTrainingMode = !profile && isTrainingActive && !!trainingProfile;
+  const isolatedMode = localTestMode || formalTrainingMode;
   const [loading, setLoading] = useState(true);
   const [vistorias, setVistorias] = useState<VistoriaLocal[]>([]);
   const [pendentesCount, setPendentesCount] = useState(0);
@@ -148,7 +151,7 @@ export default function InspecoesListScreen() {
       const isAdmin = perfil.role === 'admin' || perfil.role === 'master_admin';
 
       // 1. Carregar do SQLite local imediatamente (offline-first)
-      const locais = trainingMode
+      const locais = isolatedMode
         ? getTrainingVistoriasByAgente(perfil.uid)
         : perfil.role === 'master_admin'
         ? getAllVistorias()
@@ -162,7 +165,7 @@ export default function InspecoesListScreen() {
       setPendentesCount(pendentes);
 
       // 2. Se online, buscar do Supabase e mesclar
-      if (isConnected && !trainingMode) {
+      if (isConnected && !isolatedMode) {
         let query = supabase
           .from('vistorias')
           .select('*')
@@ -264,8 +267,8 @@ export default function InspecoesListScreen() {
   }, [activeProfile?.uid]);
 
   const renderItem = useCallback(({ item }: { item: VistoriaLocal }) => (
-    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={trainingMode} />
-  ), [theme, handleDeleteLocal, trainingMode]);
+    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={isolatedMode} localTestMode={localTestMode} />
+  ), [theme, handleDeleteLocal, isolatedMode, localTestMode]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -279,8 +282,8 @@ export default function InspecoesListScreen() {
         <View style={styles.titleSection}>
           <Text style={[styles.title, { color: theme.text }]}>Inspeções</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {trainingMode
-              ? 'Histórico local do treinamento'
+            {isolatedMode
+              ? localTestMode ? 'Histórico local de testes' : 'Histórico local do treinamento'
               : pendentesCount > 0
               ? `${pendentesCount} pendente${pendentesCount > 1 ? 's' : ''} de sync`
               : 'Todos os laudos sincronizados'}
@@ -292,7 +295,7 @@ export default function InspecoesListScreen() {
         >
           <Feather name="plus" color="#FFF" size={24} />
         </TouchableOpacity>
-        {pendentesCount > 0 && isConnected && !trainingMode && (
+        {pendentesCount > 0 && isConnected && !isolatedMode && (
           <TouchableOpacity
             style={[styles.syncButton, { backgroundColor: syncing ? theme.border : '#F59E0B' }]}
             onPress={handleSync}

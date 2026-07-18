@@ -18,6 +18,8 @@ import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { getSignedUrl } from '../../../services/StorageService';
+import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
 import {
   ASSETS,
   getObservacaoCondicionalRiscoKey,
@@ -141,9 +143,9 @@ export default function LaudoScreen() {
       const { data, error } = await query.single();
       if (error) throw error;
       // Resolver paths de storage → URLs assinadas antes de usar no PDF
-      if (data.foto_url) data.foto_url = await getSignedUrl(data.foto_url) ?? data.foto_url;
+      if (data.fotoUrl) data.fotoUrl = await getSignedUrl(data.fotoUrl) ?? data.fotoUrl;
       if (Array.isArray(data.fotosUrls)) {
-        data.fotosUrls = (await Promise.all(data.fotosUrls.map((u: string) => getSignedUrl(u)))).filter(Boolean);
+        data.fotosUrls = await Promise.all(data.fotosUrls.map(async (u: string) => await getSignedUrl(u) ?? u));
       }
       setVistoria(data);
     } catch (e) {
@@ -151,6 +153,53 @@ export default function LaudoScreen() {
       router.back();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const prepararCiencia = async (
+    documentType: GeneratedDocumentType,
+    payload: object,
+    html: string,
+    pdfUri: string,
+  ) => {
+    if (!profile?.uid || !isAcknowledgementEnabled(documentType, profile.organizationId)) {
+      return { documentId: null, enabled: false, errorMessage: null };
+    }
+    try {
+      const document = await prepareGeneratedDocument({
+        vistoriaId: vistoria.id,
+        documentType,
+        templateVersion: DOCUMENT_TEMPLATE_VERSIONS[documentType],
+        payload,
+        pdfUri,
+        previewHtml: html,
+        createdBy: profile.uid,
+      });
+      return { documentId: document.id, enabled: true, errorMessage: null };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn('vistoria', 'Documento técnico gerado sem preparar ciência eletrônica', {
+        documentType,
+        vistoriaId: vistoria.id,
+        erro: errorMessage,
+      });
+      return { documentId: null, enabled: true, errorMessage };
+    }
+  };
+
+  const concluirOfertaCiencia = (result: Awaited<ReturnType<typeof prepararCiencia>>, titulo: string) => {
+    if (result.documentId) {
+      Alert.alert(`${titulo} preparado`, 'Deseja coletar a ciência eletrônica agora?', [
+        { text: 'Depois', style: 'cancel' },
+        { text: 'Coletar ciência', onPress: () => router.push(`/(panel)/inspecoes/ciencia?documentId=${result.documentId}`) },
+      ]);
+      return;
+    }
+    if (result.enabled && result.errorMessage) {
+      Alert.alert(
+        `${titulo} gerado sem ciência eletrônica`,
+        `O PDF foi emitido, mas a versão para ciência não foi salva. Detalhe: ${result.errorMessage}`,
+      );
     }
   };
 
@@ -196,6 +245,7 @@ export default function LaudoScreen() {
       };
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const acknowledgementDocument = await prepararCiencia('technical_report', dados, html, uri);
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Laudo Técnico' });
@@ -207,6 +257,7 @@ export default function LaudoScreen() {
       supabase.from('vistorias').update({ laudo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
       setVistoria((v: any) => v ? { ...v, laudo_gerado_em: agora } : v);
       notificarDocumentoGerado('laudo', vistoria.endereco || '').catch(() => null);
+      concluirOfertaCiencia(acknowledgementDocument, 'Laudo');
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o PDF.');
       logger.error('vistoria', 'Erro PDF', { erro: String(e) });
@@ -254,6 +305,12 @@ export default function LaudoScreen() {
       };
       const html = buildTermoInterdicaoHtml(laudoData, termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const acknowledgementDocument = await prepararCiencia(
+        'interdiction_term',
+        { ...laudoData, notified: termoForm },
+        html,
+        uri,
+      );
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Termo de Interdição', UTI: 'com.adobe.pdf' });
@@ -265,6 +322,7 @@ export default function LaudoScreen() {
       supabase.from('vistorias').update({ termo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
       setVistoria((v: any) => v ? { ...v, termo_gerado_em: agora } : v);
       notificarDocumentoGerado('termo', vistoria.endereco || '').catch(() => null);
+      concluirOfertaCiencia(acknowledgementDocument, 'Termo');
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
       logger.error('vistoria', 'Erro PDF Interdição', { erro: String(e) });

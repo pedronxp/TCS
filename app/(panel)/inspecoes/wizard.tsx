@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { localTestDraftKey } from '../../../services/LocalTestDataService';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -131,10 +132,11 @@ export default function WizardAvaliacaoScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { isOnlineReal: isConnected } = useConnectivity();
-  const { profile } = useAuth();
+  const { profile, localTestMode } = useAuth();
   const { session: trainingSession, trainingProfile, isTrainingActive, isExpired, exit, revalidate } = useTraining();
   const activeProfile = profile || trainingProfile;
-  const trainingMode = !profile && isTrainingActive && !!trainingProfile;
+  const formalTrainingMode = !profile && isTrainingActive && !!trainingProfile;
+  const isolatedMode = localTestMode || formalTrainingMode;
 
   const [perguntas, setPerguntas] = useState<PerguntaModel[]>([]);
   const [step, setStep] = useState(0); // índice da pergunta atual
@@ -144,7 +146,9 @@ export default function WizardAvaliacaoScreen() {
   const [limites, setLimites] = useState<LimiteRisco[]>([]);
   const [tipoCalculo, setTipoCalculo] = useState<string>('soma_total');
   const [faseConfigs, setFaseConfigs] = useState<{id: string; peso: number}[]>([]);
-  const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
+  const draftKey = localTestMode && profile?.uid
+    ? localTestDraftKey(profile.uid, String(params.formularioId), String(params.formularioVersao || '1'))
+    : `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const riscoAnim = useRef(new Animated.Value(0)).current;
 
@@ -491,13 +495,13 @@ export default function WizardAvaliacaoScreen() {
       return;
     }
 
-    if (trainingMode && (isExpired() || !(await revalidate()))) {
+    if (formalTrainingMode && (isExpired() || !(await revalidate()))) {
       await exit();
       router.replace('/(auth)/treinamento');
       return;
     }
 
-    if (!trainingMode && activeProfile?.uid) {
+    if (!isolatedMode && activeProfile?.uid) {
       const { allowed, message } = await checkRateLimit(activeProfile.uid, 'criar_vistoria');
       if (!allowed) {
         Alert.alert('Limite atingido', message || 'Muitas vistorias criadas hoje. Aguarde para continuar.');
@@ -550,23 +554,23 @@ export default function WizardAvaliacaoScreen() {
         fotos_urls: fotosAdicionais.length ? JSON.stringify(fotosAdicionais) : null,
         laudo_url: null,
         laudo_gerado_em: null,
-        feita_online: isConnected ? 1 : 0,
-        modo_treinamento: trainingMode ? 1 : 0,
-        training_class_id: trainingMode ? trainingSession?.classId ?? null : null,
-        training_participant_id: trainingMode ? trainingSession?.participantId ?? null : null,
+        feita_online: isolatedMode ? 0 : isConnected ? 1 : 0,
+        modo_treinamento: isolatedMode ? 1 : 0,
+        training_class_id: formalTrainingMode ? trainingSession?.classId ?? null : null,
+        training_participant_id: formalTrainingMode ? trainingSession?.participantId ?? null : null,
         criado_em: agora,
       };
 
       // 1. Salvar localmente primeiro (garante zero perda de dados)
-      if (trainingMode) insertTrainingVistoria(vistoriaLocal);
+      if (isolatedMode) insertTrainingVistoria(vistoriaLocal);
       else insertVistoria(vistoriaLocal);
-      logger.info('vistoria', trainingMode ? `Vistoria de treinamento salva localmente — nível ${nivel}` : `Vistoria salva localmente — nível ${nivel}`, {
+      logger.info('vistoria', isolatedMode ? `Vistoria de teste salva somente no aparelho - nível ${nivel}` : `Vistoria salva localmente - nível ${nivel}`, {
         id,
         endereco: `${params.rua}, ${params.numero}`,
         pontuacao,
         formulario: params.formularioId,
       });
-      if (!trainingMode) {
+      if (!isolatedMode) {
         registrarAuditoria({
           acao: 'vistoria_criada',
           adminUid: activeProfile.uid,
@@ -583,7 +587,7 @@ export default function WizardAvaliacaoScreen() {
       }
 
       // 2. Tentar sync imediato se online
-      if (isConnected && !trainingMode) {
+      if (isConnected && !isolatedMode) {
         // Upload da foto para Storage (não bloqueia o fluxo principal)
         let fotoStorageUrl: string | null = null;
         if (fotoUri && fotoUri.startsWith('file://')) {
@@ -636,11 +640,11 @@ export default function WizardAvaliacaoScreen() {
           logger.warn('sync', `Falha no sync imediato — ficará pendente`, { id, erro: error.message });
         }
       } else {
-        logger.info('vistoria', trainingMode ? `Modo treinamento — vistoria mantida somente local` : `Offline — vistoria ficará pendente de sync`, { id });
+        logger.info('vistoria', isolatedMode ? `Modo de teste - vistoria mantida somente no aparelho` : `Offline - vistoria ficará pendente de sincronização`, { id });
       }
 
       // Vincular agendamento à vistoria criada e marcar como concluído
-      if (params.agendamentoId && !trainingMode) {
+      if (params.agendamentoId && !isolatedMode) {
         try {
           updateAgendamentoVistoriaId(params.agendamentoId, id);
           if (isConnected) {
@@ -659,7 +663,7 @@ export default function WizardAvaliacaoScreen() {
 
       router.replace({
         pathname: '/(panel)/inspecoes/resultado',
-        params: { id, formularioId: params.formularioId, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isConnected ? '0' : '1', municipio: vistoriaLocal.municipio, treinamento: trainingMode ? '1' : '0' }
+        params: { id, formularioId: params.formularioId, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isolatedMode || !isConnected ? '1' : '0', municipio: vistoriaLocal.municipio, treinamento: formalTrainingMode ? '1' : '0', testeLocal: localTestMode ? '1' : '0' }
       });
     } catch (e: any) {
       logger.error('vistoria', 'Erro crítico ao salvar vistoria', { erro: e.message });
@@ -695,7 +699,7 @@ export default function WizardAvaliacaoScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeStep > 0 ? setStep(safeStep - 1) : safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes/selecao-formulario')}>
+        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeStep > 0 ? setStep(safeStep - 1) : safeBack(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes/selecao-formulario')}>
           <Feather name={safeStep > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>

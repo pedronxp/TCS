@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal, Pressable, Dimensions } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useReport } from '../../../context/ReportContext';
@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracarRota } from '../../../utils/routingUtils';
 import { hasValidCoordinates } from '../../../utils/coordinateUtils';
 import { safeBack } from '../../../utils/navigationUtils';
+import { listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
 
 export default function VistoriaDetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +34,7 @@ export default function VistoriaDetalhesScreen() {
   const [loading, setLoading] = useState(true);
   const [vistoria, setVistoria] = useState<VistoriaNormalizada | null>(null);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [acknowledgementHistory, setAcknowledgementHistory] = useState<ReturnType<typeof listAcknowledgementHistory>>([]);
 
   useEffect(() => {
     if (!profile && isTrainingActive) {
@@ -41,6 +43,13 @@ export default function VistoriaDetalhesScreen() {
     }
     if (id) fetchDetalhes();
   }, [id, profile?.uid, isTrainingActive]);
+
+  useFocusEffect(React.useCallback(() => {
+    if (id) {
+      setAcknowledgementHistory(listAcknowledgementHistory(id as string));
+      void fetchDetalhes();
+    }
+  }, [id]));
 
   const populateReport = (data: any) => {
     let respostas: Record<string, string> = {};
@@ -57,6 +66,8 @@ export default function VistoriaDetalhesScreen() {
       pontuacaoTotal: data.pontuacaoTotal ?? 0,
       calculoRisco: data.calculoRisco ?? null,
       respostas,
+      foto_url: data.fotosUrls?.[0] ?? data.fotoUrl ?? null,
+      fotosUrls: data.fotosUrls ?? (data.fotoUrl ? [data.fotoUrl] : null),
       condutaRecomendada: '',
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
@@ -98,7 +109,7 @@ export default function VistoriaDetalhesScreen() {
       // Construir query com filtros de segurança por role
       let query = supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status, latitude, longitude, fotosUrls')
+        .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, dataVistoria, agenteNome, agenteUid, responsavelNome, respostasJson, formularioId, status, latitude, longitude, fotoUrl, fotosUrls')
         .eq('id', id as string);
 
       // Agentes só veem suas próprias vistorias
@@ -135,10 +146,14 @@ export default function VistoriaDetalhesScreen() {
 
       if (!error && data) {
         // Resolver paths de storage para URLs assinadas antes de exibir
-        const fotosResolvidas = data.fotosUrls
-          ? await Promise.all(data.fotosUrls.map((u: string) => getSignedUrl(u)))
+        const midias = Array.from(new Set([
+          data.fotoUrl,
+          ...(data.fotosUrls ?? []),
+        ].filter((value): value is string => Boolean(value))));
+        const fotosResolvidas = midias.length > 0
+          ? await Promise.all(midias.map(async (u: string) => await getSignedUrl(u) ?? u))
           : null;
-        const resolved = { ...data, fotosUrls: fotosResolvidas?.filter(Boolean) ?? null };
+        const resolved = { ...data, fotosUrls: fotosResolvidas ?? null };
         setVistoria(resolved);
         populateReport(resolved);
         return;
@@ -152,15 +167,17 @@ export default function VistoriaDetalhesScreen() {
           logger.warn('vistoria', 'Acesso negado — vistoria de outro agente (SQLite)');
           return;
         }
-        let fotosUrlsParsed: string[] | null = null;
-        if (local.fotos_urls) {
-          try {
-            const raw: string[] = JSON.parse(local.fotos_urls);
-            // Resolver paths locais — offline paths (file://) ficam como estão;
-            // paths de storage codificados são assinados se houver conectividade.
-            fotosUrlsParsed = (await Promise.all(raw.map(u => getSignedUrl(u)))).filter(Boolean) as string[];
-          } catch { /* noop */ }
-        }
+        let adicionais: string[] = [];
+        try { adicionais = local.fotos_urls ? JSON.parse(local.fotos_urls) : []; } catch { /* noop */ }
+        const midias = Array.from(new Set([
+          local.foto_url,
+          ...adicionais,
+        ].filter((value): value is string => Boolean(value))));
+        // Resolver paths locais — offline paths (file://) ficam como estão;
+        // paths de storage codificados são assinados se houver conectividade.
+        const fotosUrlsParsed = midias.length > 0
+          ? await Promise.all(midias.map(async u => await getSignedUrl(u) ?? u))
+          : null;
         setVistoria({
           id: local.id,
           nivelRisco: local.nivel_risco,
@@ -319,6 +336,40 @@ export default function VistoriaDetalhesScreen() {
           </View>
         )}
 
+        {acknowledgementHistory.length > 0 && (
+          <View style={{ marginBottom: 22 }}>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Ciência eletrônica por versão</Text>
+            {acknowledgementHistory.map(({ document, event, historyStatus }) => {
+              const statusColor = historyStatus === 'confirmed' ? '#16A34A'
+                : historyStatus === 'sync_failed' ? '#DC2626'
+                : historyStatus === 'not_collected' ? '#64748B' : '#D97706';
+              const statusLabel = {
+                not_collected: 'Não coletada',
+                pending_sync: 'Pendente de sincronização',
+                confirmed: 'Ciência confirmada',
+                refused: 'Recusa registrada',
+                unable_to_sign: 'Impossibilidade registrada',
+                sync_failed: 'Falha de sincronização',
+              }[historyStatus];
+              return (
+                <TouchableOpacity
+                  key={document.id}
+                  onPress={() => router.push(`/(panel)/inspecoes/ciencia?documentId=${document.id}`)}
+                  style={[styles.ackCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.actionTitle, { color: theme.text }]}>{document.documentType} · versão {document.documentVersion}</Text>
+                    <Text style={{ color: statusColor, fontSize: 12, fontWeight: '800', marginTop: 3 }}>{statusLabel}</Text>
+                    {event?.protocol && <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>{event.protocol}</Text>}
+                    {document.status === 'superseded' && <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Versão substituída — histórico preservado</Text>}
+                  </View>
+                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {/* Banner sync pendente */}
         {vistoria.status === 'Pendente Sync' && (
           <TouchableOpacity
@@ -459,6 +510,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1, marginBottom: 12,
   },
   actionBtn: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 10 },
+  ackCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
   actionIconWrap: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   actionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
   actionDesc: { fontSize: 12 },

@@ -18,6 +18,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('../../services/StorageService', () => ({
   uploadImageFromLocalUri: jest.fn().mockResolvedValue('https://storage.example.com/foto.jpg'),
+  uploadLaudoPdf: jest.fn().mockResolvedValue('https://storage.example.com/laudo.pdf'),
 }));
 
 jest.mock('expo-task-manager', () => ({
@@ -54,6 +55,10 @@ jest.mock('../../services/NotificationService', () => ({
   notificarSyncDesistiu: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('../../services/DocumentAcknowledgementService', () => ({
+  syncPendingDocumentAcknowledgements: jest.fn().mockResolvedValue({ success: 0, failed: 0 }),
+}));
+
 jest.mock('expo-sqlite', () => ({
   openDatabaseSync: jest.fn(() => ({
     runSync: jest.fn(),
@@ -68,6 +73,10 @@ jest.mock('../../context/ConnectivityContext', () => ({
   checkRealInternet: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('../../utils/localTestMode', () => ({
+  isCurrentSessionLocalTest: jest.fn().mockResolvedValue(false),
+}));
+
 // Mock database — factory pura com jest.fn() inline
 // Referências obtidas via jest.requireMock() no beforeEach (após hoisting)
 jest.mock('../../utils/database', () => ({
@@ -75,6 +84,7 @@ jest.mock('../../utils/database', () => ({
   markSincronizado: jest.fn(),
   markErroSync: jest.fn(),
   incrementTentativasSync: jest.fn(),
+  resetTentativasSync: jest.fn(),
   getDb: jest.fn(() => ({ runSync: jest.fn() })),
   getAgendamentosNaoSincronizados: jest.fn().mockReturnValue([]),
   markAgendamentoSincronizado: jest.fn(),
@@ -86,10 +96,12 @@ let mockCheckRealInternet: jest.Mock;
 let mockMarkSincronizado: jest.Mock;
 let mockMarkErroSync: jest.Mock;
 let mockIncrementTentativas: jest.Mock;
+let mockResetTentativas: jest.Mock;
 let mockGetVistoriasNaoSincronizadas: jest.Mock;
 let mockGetAgendamentosNaoSincronizados: jest.Mock;
 let mockMarkAgendamentoSincronizado: jest.Mock;
 let mockDeleteAgendamento: jest.Mock;
+let mockIsCurrentSessionLocalTest: jest.Mock;
 
 // ─── Import do módulo em teste (uma única vez) ────────────────────────────────
 
@@ -118,6 +130,9 @@ const makeVistoria = (overrides: Partial<any> = {}) => ({
   pontuacao_total: 35,
   foto_url: null,
   fotos_urls: null,
+  laudo_url: null,
+  laudo_gerado_em: null,
+  laudo_local_uri: null,
   sincronizado: 0,
   erro_sync: null,
   tentativas_sync: 0,
@@ -161,6 +176,7 @@ beforeEach(() => {
   mockMarkSincronizado = dbMock.markSincronizado as jest.Mock;
   mockMarkErroSync = dbMock.markErroSync as jest.Mock;
   mockIncrementTentativas = dbMock.incrementTentativasSync as jest.Mock;
+  mockResetTentativas = dbMock.resetTentativasSync as jest.Mock;
   mockGetVistoriasNaoSincronizadas = dbMock.getVistoriasNaoSincronizadas as jest.Mock;
   mockGetAgendamentosNaoSincronizados = dbMock.getAgendamentosNaoSincronizados as jest.Mock;
   mockMarkAgendamentoSincronizado = dbMock.markAgendamentoSincronizado as jest.Mock;
@@ -168,14 +184,18 @@ beforeEach(() => {
 
   // Obter referência ao mock de checkRealInternet
   mockCheckRealInternet = jest.requireMock('../../context/ConnectivityContext').checkRealInternet as jest.Mock;
+  mockIsCurrentSessionLocalTest = jest.requireMock('../../utils/localTestMode').isCurrentSessionLocalTest as jest.Mock;
   const storageMock = jest.requireMock('../../services/StorageService');
   storageMock.uploadImageFromLocalUri.mockReset();
   storageMock.uploadImageFromLocalUri.mockResolvedValue('https://storage.example.com/foto.jpg');
+  storageMock.uploadLaudoPdf.mockReset();
+  storageMock.uploadLaudoPdf.mockResolvedValue('https://storage.example.com/laudo.pdf');
 
   // Limpar contadores de chamadas dos mocks de database
   mockMarkSincronizado.mockClear();
   mockMarkErroSync.mockClear();
   mockIncrementTentativas.mockClear();
+  mockResetTentativas.mockClear();
   mockGetVistoriasNaoSincronizadas.mockClear();
   mockGetVistoriasNaoSincronizadas.mockReturnValue([]);
   mockGetAgendamentosNaoSincronizados.mockClear();
@@ -184,6 +204,8 @@ beforeEach(() => {
   mockDeleteAgendamento.mockClear();
   mockCheckRealInternet.mockClear();
   mockCheckRealInternet.mockResolvedValue(true);
+  mockIsCurrentSessionLocalTest.mockReset();
+  mockIsCurrentSessionLocalTest.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -353,11 +375,49 @@ describe('syncPendentes', () => {
     expect(mockMarkSincronizado).not.toHaveBeenCalled();
   });
 
+  it('não consulta nem envia a fila quando a conta está no modo de teste local', async () => {
+    mockIsCurrentSessionLocalTest.mockResolvedValue(true);
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
+
+    await expect(syncPendentes()).resolves.toEqual({ sucesso: 0, falha: 0 });
+
+    expect(mockGetVistoriasNaoSincronizadas).not.toHaveBeenCalled();
+    expect(mockFromFn).not.toHaveBeenCalled();
+  });
+
+  it('recupera vistoria esgotada pelo erro antigo de schema calculoRisco', async () => {
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([
+      makeVistoria({
+        tentativas_sync: 5,
+        erro_sync: "Could not find the 'calculoRisco' column of 'vistorias' in the schema cache",
+      }),
+    ]);
+
+    const resultado = await syncPendentes();
+
+    expect(mockResetTentativas).toHaveBeenCalledWith('v-1');
+    expect(mockMarkSincronizado).toHaveBeenCalledWith('v-1');
+    expect(resultado).toEqual({ sucesso: 1, falha: 0 });
+  });
+
   it('protege contra execuções simultâneas', async () => {
-    mockGetVistoriasNaoSincronizadas.mockReturnValue([]);
-    const [r1, r2] = await Promise.all([syncPendentes(), syncPendentes()]);
-    expect(r1).toEqual({ sucesso: 0, falha: 0 });
+    let liberarConectividade!: (online: boolean) => void;
+    mockCheckRealInternet.mockImplementationOnce(() => new Promise<boolean>(resolve => {
+      liberarConectividade = resolve;
+    }));
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
+
+    const primeira = syncPendentes();
+    const segunda = syncPendentes();
+
+    // A segunda chamada deve ser barrada enquanto a primeira ainda aguarda rede.
+    expect(mockCheckRealInternet).toHaveBeenCalledTimes(1);
+    liberarConectividade(true);
+
+    const [r1, r2] = await Promise.all([primeira, segunda]);
+    expect(r1).toEqual({ sucesso: 1, falha: 0 });
     expect(r2).toEqual({ sucesso: 0, falha: 0 });
+    expect(mockUpsertFn).toHaveBeenCalledTimes(1);
   });
 
   it('deduplicação: mesmo id nunca gera upsert duplo', async () => {
@@ -392,6 +452,27 @@ describe('syncPendentes', () => {
     expect(fotoUrlNoPayload).not.toMatch(/^file:\/\//);
 
     expect(resultado.sucesso).toBe(1);
+  });
+
+  it('envia PDF criado offline antes de marcar a vistoria como sincronizada', async () => {
+    const { uploadLaudoPdf } = require('../../services/StorageService');
+    const geradoEm = '2026-07-15T12:00:00.000Z';
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([
+      makeVistoria({
+        laudo_local_uri: 'file:///cache/laudo.pdf',
+        laudo_gerado_em: geradoEm,
+      }),
+    ]);
+
+    const resultado = await syncPendentes();
+
+    expect(uploadLaudoPdf).toHaveBeenCalledWith('file:///cache/laudo.pdf', 'v-1', 'SP');
+    const payload = mockUpsertFn.mock.calls[0][0];
+    const vistoria = Array.isArray(payload) ? payload[0] : payload;
+    expect(vistoria.laudo_url).toBe('https://storage.example.com/laudo.pdf');
+    expect(vistoria.laudo_gerado_em).toBe(geradoEm);
+    expect(resultado).toEqual({ sucesso: 1, falha: 0 });
+    expect(mockMarkSincronizado).toHaveBeenCalledWith('v-1');
   });
 
   it('falha de upsert incrementa tentativas e marca erro', async () => {

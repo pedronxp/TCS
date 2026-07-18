@@ -29,11 +29,11 @@ async function registerSession(replace = false) {
 }
 
 export function SessionLifecycle() {
-  const { session, signOut } = useAuth();
+  const { session, signOut, localTestMode } = useAuth();
   const conflictShown = useRef(false);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session || localTestMode) return;
     let active = true;
     let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -78,7 +78,7 @@ export function SessionLifecycle() {
       if (timer) clearInterval(timer);
       appState.remove();
     };
-  }, [session?.access_token, signOut]);
+  }, [session?.access_token, signOut, localTestMode]);
 
   return null;
 }

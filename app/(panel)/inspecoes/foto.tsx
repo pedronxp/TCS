@@ -9,7 +9,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
-import { updateFotosUrls, getVistoriaById, isTrainingVistoria } from '../../../utils/database';
+import { updateVistoriaMedia, getVistoriaById, isTrainingVistoria } from '../../../utils/database';
+import { syncPendentes } from '../../../services/SyncService';
+import { decodePath, getSignedUrl, uploadImageFromLocalUri } from '../../../services/StorageService';
 import { compressAndPersistImage, EVIDENCE_IMAGE_MAX_WIDTH } from '../../../utils/imageCompression';
 import { EmptyState, Button } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,49 +36,61 @@ export default function FotoScreen() {
   const { isOnlineReal } = useConnectivity();
   const [fotos, setFotos] = useState<FotoItem[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [trainingMode, setTrainingMode] = useState(false);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
 
-    // Tentar SQLite primeiro
-    const local = getVistoriaById(id as string);
-    const localIsTraining = isTrainingVistoria(local);
-    setTrainingMode(localIsTraining);
-    if (local?.fotos_urls) {
-      try {
-        const urls: string[] = JSON.parse(local.fotos_urls);
-        if (urls.length > 0) {
-          setFotos(urls.map(uri => ({
-            localId: uri,
-            uri,
-            url: uri.startsWith('http') ? uri : undefined,
-          })));
+    const carregarValores = async (valores: string[]): Promise<boolean> => {
+      const valoresUnicos = Array.from(new Set(valores.filter(Boolean)));
+      if (valoresUnicos.length === 0) return false;
+      const itens = await Promise.all(valoresUnicos.map(async stored => {
+        const remotePath = decodePath(stored);
+        const isHttp = stored.startsWith('http');
+        const isRemote = isHttp || remotePath !== null;
+        const displayUri = remotePath ? (await getSignedUrl(stored) ?? stored) : stored;
+        return {
+          localId: stored,
+          uri: displayUri,
+          // `url` contém o valor persistível, não necessariamente a URI de exibição.
+          // Assim caminhos fotos:... nunca são reenviados como arquivos locais.
+          url: isRemote ? stored : undefined,
+        } satisfies FotoItem;
+      }));
+      if (!cancelled) setFotos(itens);
+      return true;
+    };
+
+    void (async () => {
+      // Tentar SQLite primeiro
+      const local = getVistoriaById(id as string);
+      const localIsTraining = isTrainingVistoria(local);
+      if (!cancelled) setTrainingMode(localIsTraining);
+      if (local) {
+        let adicionais: string[] = [];
+        try { adicionais = local.fotos_urls ? JSON.parse(local.fotos_urls) : []; } catch { /* noop */ }
+        if (await carregarValores([local.foto_url, ...adicionais].filter((value): value is string => Boolean(value)))) {
           return;
         }
-      } catch { /* noop */ }
-    }
+      }
 
-    // Fallback: buscar fotosUrls do Supabase (vistorias já sincronizadas)
-    if (localIsTraining) return;
-
-    (async () => {
+      // Fallback: buscar fotosUrls do Supabase (vistorias já sincronizadas)
+      if (localIsTraining) return;
       try {
         const { data } = await supabase
           .from('vistorias')
-          .select('fotosUrls')
+          .select('fotoUrl, fotosUrls')
           .eq('id', id as string)
           .single();
-        const urls: string[] = data?.fotosUrls ?? [];
-        if (urls.length > 0) {
-          setFotos(urls.map(uri => ({
-            localId: uri,
-            uri,
-            url: uri.startsWith('http') ? uri : undefined,
-          })));
-        }
+        const urls: string[] = [data?.fotoUrl, ...(data?.fotosUrls ?? [])]
+          .filter((value): value is string => Boolean(value));
+        await carregarValores(urls);
       } catch { /* sem fotos remotas */ }
     })();
+
+    return () => { cancelled = true; };
   }, [id]);
 
   const solicitarPermissaoCamera = async (): Promise<boolean> => {
@@ -94,6 +108,7 @@ export default function FotoScreen() {
 
   const processarFoto = async (uri: string) => {
     if (fotos.length >= MAX_FOTOS) return;
+    setDirty(true);
 
     // Usar localId único para rastrear o item sem depender de índice por closure
     const localId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -112,25 +127,13 @@ export default function FotoScreen() {
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
             const fileName = `vistorias/${id || 'sem-id'}/${Date.now()}.jpg`;
-            const response = await fetch(uriComprimida);
-            const blob = await response.blob();
-
-            const { data: uploadData } = await supabase.storage
-              .from('fotos')
-              .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
-
-            if (uploadData) {
-              const { data: { publicUrl } } = supabase.storage
-                .from('fotos')
-                .getPublicUrl(uploadData.path);
-
-              setFotos(prev => prev.map(f =>
-                f.localId === localId
-                  ? { localId, uri: uriComprimida, url: publicUrl, uploading: false }
-                  : f
-              ));
-              return;
-            }
+            const storedPath = await uploadImageFromLocalUri(uriComprimida, fileName);
+            setFotos(prev => prev.map(f =>
+              f.localId === localId
+                ? { localId, uri: uriComprimida, url: storedPath, uploading: false }
+                : f
+            ));
+            return;
           }
         } catch {
           // Upload falhou — cai para salvar localmente
@@ -201,21 +204,13 @@ export default function FotoScreen() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           const fileName = `vistorias/${id || 'sem-id'}/${Date.now()}.jpg`;
-          const response = await fetch(foto.uri);
-          const blob = await response.blob();
-          const { data: uploadData } = await supabase.storage
-            .from('fotos')
-            .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
-          if (uploadData) {
-            const { data: { publicUrl } } = supabase.storage
-              .from('fotos').getPublicUrl(uploadData.path);
-            setFotos(prev => prev.map(f =>
-              f.localId === localId
-                ? { ...f, url: publicUrl, uploading: false, erro: false }
-                : f
-            ));
-            return;
-          }
+          const storedPath = await uploadImageFromLocalUri(foto.uri, fileName);
+          setFotos(prev => prev.map(f =>
+            f.localId === localId
+              ? { ...f, url: storedPath, uploading: false, erro: false }
+              : f
+          ));
+          return;
         }
       }
       // Sem internet — mantém local sem erro
@@ -234,7 +229,10 @@ export default function FotoScreen() {
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Remover', style: 'destructive',
-        onPress: () => setFotos(prev => prev.filter(f => f.localId !== localId)),
+        onPress: () => {
+          setDirty(true);
+          setFotos(prev => prev.filter(f => f.localId !== localId));
+        },
       },
     ]);
   };
@@ -255,19 +253,10 @@ export default function FotoScreen() {
           for (const foto of pendentes) {
             try {
               const fileName = `vistorias/${id || 'sem-id'}/${Date.now()}.jpg`;
-              const response = await fetch(foto.uri);
-              const blob = await response.blob();
-              const { data: uploadData } = await supabase.storage
-                .from('fotos')
-                .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
-              if (uploadData) {
-                const { data: { publicUrl } } = supabase.storage
-                  .from('fotos')
-                  .getPublicUrl(uploadData.path);
-                fotosAtualizadas = fotosAtualizadas.map(f =>
-                  f.localId === foto.localId ? { ...f, url: publicUrl } : f
-                );
-              }
+              const storedPath = await uploadImageFromLocalUri(foto.uri, fileName);
+              fotosAtualizadas = fotosAtualizadas.map(f =>
+                f.localId === foto.localId ? { ...f, url: storedPath } : f
+              );
             } catch {
               // Não bloqueia — foto fica como local
             }
@@ -278,19 +267,28 @@ export default function FotoScreen() {
       }
 
       const allUris = fotosAtualizadas.map(f => f.url ?? f.uri);
+      const fotoPrincipal = allUris[0] ?? null;
+      const fotosAdicionais = allUris.slice(1);
 
       // Salvar no SQLite local (todas as uris, online ou não)
       if (id) {
-        updateFotosUrls(id, allUris);
+        updateVistoriaMedia(id, fotoPrincipal, fotosAdicionais);
       }
 
       // Salvar URLs no Supabase (incluindo quando todas são removidas — limpar o campo)
-      const remoteUrls = fotosAtualizadas.filter(f => f.url).map(f => f.url!);
+      const remotePrincipal = fotosAtualizadas[0]?.url ?? null;
+      const remoteUrls = fotosAtualizadas.slice(1).filter(f => f.url).map(f => f.url!);
       if (id && isOnlineReal && !trainingMode) {
-        await supabase
+        const { error } = await supabase
           .from('vistorias')
-          .update({ fotosUrls: remoteUrls.length > 0 ? remoteUrls : null })
+          .update({
+            fotoUrl: remotePrincipal,
+            fotosUrls: remoteUrls.length > 0 ? remoteUrls : null,
+          })
           .eq('id', id);
+        if (!error) {
+          void syncPendentes().catch(() => null);
+        }
       }
 
       safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes');
@@ -426,7 +424,7 @@ export default function FotoScreen() {
         </View>
       </ScrollView>
 
-      {fotos.length > 0 && (
+      {(fotos.length > 0 || dirty) && (
         <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: salvando ? theme.textSecondary : theme.primary }]}
@@ -438,7 +436,11 @@ export default function FotoScreen() {
               : <Feather name="check" size={20} color="#FFF" />
             }
             <Text style={styles.saveBtnText}>
-              {salvando ? 'Salvando...' : `Salvar ${fotos.length} Evidência${fotos.length !== 1 ? 's' : ''}`}
+              {salvando
+                ? 'Salvando...'
+                : fotos.length > 0
+                  ? `Salvar ${fotos.length} Evidência${fotos.length !== 1 ? 's' : ''}`
+                  : 'Salvar remoção das fotos'}
             </Text>
           </TouchableOpacity>
         </View>

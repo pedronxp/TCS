@@ -9,6 +9,7 @@ import {
   markSincronizado,
   markErroSync,
   incrementTentativasSync,
+  resetTentativasSync,
   VistoriaLocal,
   getDb,
   getAgendamentosNaoSincronizados,
@@ -16,10 +17,12 @@ import {
   deleteAgendamento,
 } from '../utils/database';
 import { logger } from '../utils/logger';
-import { uploadImageFromLocalUri } from './StorageService';
+import { uploadImageFromLocalUri, uploadLaudoPdf } from './StorageService';
 import { checkRealInternet } from '../context/ConnectivityContext';
 import { isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
 import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
+import { syncPendingDocumentAcknowledgements } from './DocumentAcknowledgementService';
+import { isCurrentSessionLocalTest } from '../utils/localTestMode';
 
 // ─── Configuração ──────────────────────────────────────────────────────────
 
@@ -30,6 +33,13 @@ const VACUUM_LAST_KEY = '@vacuum_last_run';
 
 const BACKGROUND_TASK_ID = 'DEFESA_CIVIL_SYNC';
 const APP_STATE_DEBOUNCE_MS = 3000;
+
+function isRecoverableCalculoRiscoSchemaError(vistoria: VistoriaLocal): boolean {
+  const error = vistoria.erro_sync ?? '';
+  return (vistoria.tentativas_sync ?? 0) >= MAX_TENTATIVAS_SYNC
+    && /calculoRisco/i.test(error)
+    && /(schema cache|could not find)/i.test(error);
+}
 
 // Auto-retry config
 const MAX_AUTO_RETRIES = 3;
@@ -105,15 +115,6 @@ async function markVacuumRun(): Promise<void> {
  */
 export async function syncPendentes(isRetry = false): Promise<{ sucesso: number; falha: number }> {
   if (_syncInProgress) return { sucesso: 0, falha: 0 };
-
-  // Verificar conexão real antes de consumir a fila.
-  // Se não há internet real: sair silenciosamente sem incrementar tentativas nem agendar retry.
-  const online = await checkRealInternet();
-  if (!online) {
-    logger.info('sync', 'Sem internet real — sync adiado, fila preservada');
-    return { sucesso: 0, falha: 0 };
-  }
-
   _syncInProgress = true;
 
   let sucesso = 0;
@@ -121,7 +122,29 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
   let bloqueiosLimite = 0;
 
   try {
-    const pendentes = getVistoriasNaoSincronizadas();
+    // A trava precisa abranger também esta espera. Caso contrário duas chamadas
+    // podem atravessar o await simultaneamente e consumir a mesma fila.
+    const online = await checkRealInternet();
+    if (!online) {
+      logger.info('sync', 'Sem internet real — sync adiado, fila preservada');
+      return { sucesso: 0, falha: 0 };
+    }
+
+    if (await isCurrentSessionLocalTest()) {
+      logger.info('sync', 'Modo de teste local ativo - sincronização bloqueada');
+      return { sucesso: 0, falha: 0 };
+    }
+
+    const pendentes = getVistoriasNaoSincronizadas().map(vistoria => {
+      // The calculoRisco migration was previously missing in the remote schema.
+      // Release records exhausted by that specific historical schema error.
+      if (!isRecoverableCalculoRiscoSchemaError(vistoria)) return vistoria;
+      resetTentativasSync(vistoria.id);
+      logger.info('sync', 'Vistoria recuperada apos atualizacao do schema calculoRisco', {
+        id: vistoria.id,
+      });
+      return { ...vistoria, tentativas_sync: 0, erro_sync: null };
+    });
 
     // Sincronizar agendamentos mesmo quando não há vistorias pendentes
     try {
@@ -130,8 +153,15 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
       logger.warn('sync', `Falha no sync de agendamentos: ${e?.message}`);
     }
 
-    if (pendentes.length === 0) return { sucesso: 0, falha: 0 };
-    logger.info('sync', `Iniciando sync: ${pendentes.length} pendente(s)${isRetry ? ` (retry #${_currentRetryAttempt})` : ''}`);
+    // A fila de ciência é independente da fila de vistorias. Ela precisa rodar
+    // mesmo quando não há nenhuma vistoria aguardando upsert.
+    const acknowledgementSync = await syncPendingDocumentAcknowledgements();
+    sucesso += acknowledgementSync.success;
+    falha += acknowledgementSync.failed;
+
+    if (pendentes.length > 0) {
+      logger.info('sync', `Iniciando sync: ${pendentes.length} pendente(s)${isRetry ? ` (retry #${_currentRetryAttempt})` : ''}`);
+    }
 
     // Separar elegíveis (dentro do limite de tentativas) de esgotados
     const elegiveis = pendentes.filter(v => (v.tentativas_sync ?? 0) < MAX_TENTATIVAS_SYNC);
@@ -329,6 +359,11 @@ export async function forceSyncAll(): Promise<{ sucesso: number; falha: number }
          AND COALESCE(modo_treinamento, 0) = 0
          AND agente_uid NOT LIKE 'training:%'`
     );
+    getDb().runSync(
+      `UPDATE document_ack_events_local
+          SET sync_status = 'pending', attempts = 0, error_code = NULL
+        WHERE sync_status = 'failed' AND training_mode = 0`
+    );
   } catch { /* não crítico */ }
   return syncPendentes();
 }
@@ -385,6 +420,8 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     pontuacaoTotal: v.pontuacao_total,
     fotoUrl: fotoUrlSafe,
     fotosUrls: fotosUrls,
+    laudo_url: v.laudo_url,
+    laudo_gerado_em: v.laudo_gerado_em,
     endereco: `${v.endereco_rua}, ${v.endereco_numero} - ${v.endereco_bairro}`,
     status: 'concluida',
   };
@@ -396,6 +433,7 @@ function isLocalFileUri(value: unknown): value is string {
 
 function hasMidiaLocalPendente(v: VistoriaLocal): boolean {
   if (isLocalFileUri(v.foto_url)) return true;
+  if (isLocalFileUri(v.laudo_local_uri)) return true;
   if (!v.fotos_urls) return false;
   try {
     const parsed = JSON.parse(v.fotos_urls);
@@ -520,12 +558,11 @@ export function stopAppStateSyncListener(): void {
   appStateListener = null;
 }
 
-// --- Funções Auxiliares para Upload de Fotos Offline ---
+// --- Funções Auxiliares para Upload de Mídias Offline ---
 
 /**
- * Escaneia as fotos da vistoria (fotoUrl e fotosUrls do SQLite). 
- * Se contiver URLs locais (file://), faz o upload via Storage e atualiza as strings na vistoria local,
- * persistindo as novas URLs no banco SQLite para que o upload não repita em caso de falha futura.
+ * Escaneia fotos e PDF pendentes. URLs locais são enviadas ao Storage antes do
+ * upsert e os resultados são persistidos no SQLite para evitar reenvios.
  */
 async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal> {
   const db = getDb();
@@ -585,11 +622,30 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
     }
   }
 
+  // Processa PDF de laudo criado enquanto o dispositivo estava offline.
+  if (isLocalFileUri(v.laudo_local_uri)) {
+    try {
+      const laudoUrl = await uploadLaudoPdf(v.laudo_local_uri, v.id, v.municipio || 'geral');
+      if (!laudoUrl) throw new Error('Upload do laudo não retornou URL');
+      v.laudo_url = laudoUrl;
+      v.laudo_gerado_em = v.laudo_gerado_em ?? new Date().toISOString();
+      v.laudo_local_uri = null;
+      sofreuAlteracao = true;
+    } catch (e: any) {
+      logger.warn('sync', 'Falha ao subir laudo; vistoria permanecerá pendente', {
+        id: v.id,
+        erro: e?.message ?? String(e),
+      });
+    }
+  }
+
   // Se fizemos upload de pelo menos uma foto com sucesso, atualizamos a vistoria_offline SQLite.
   if (sofreuAlteracao) {
     db.runSync(
-      `UPDATE vistorias_offline SET foto_url = ?, fotos_urls = ? WHERE id = ?`,
-      [v.foto_url, v.fotos_urls, v.id]
+      `UPDATE vistorias_offline
+       SET foto_url = ?, fotos_urls = ?, laudo_url = ?, laudo_gerado_em = ?, laudo_local_uri = ?
+       WHERE id = ?`,
+      [v.foto_url, v.fotos_urls, v.laudo_url, v.laudo_gerado_em, v.laudo_local_uri ?? null, v.id]
     );
   }
 

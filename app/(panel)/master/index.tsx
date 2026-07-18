@@ -28,7 +28,7 @@ export default function MasterDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
-  const { profile } = useAuth();
+  const { profile, developerMode, localTestMode } = useAuth();
   const { isConnected } = useConnectivity();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -146,6 +146,15 @@ export default function MasterDashboardScreen() {
 
   const confirmarDelete = async () => {
     if (!deleteTarget || !deleteMotivo.trim()) return;
+    if (localTestMode) {
+      Alert.alert(
+        'Simulação concluída',
+        'A conta Desenvolvedor pode testar esta confirmação, mas nenhuma vistoria oficial é excluída.'
+      );
+      setDeleteTarget(null);
+      setDeleteMotivo('');
+      return;
+    }
     setDeletando(true);
     try {
       const { error } = await supabase.from('vistorias').delete().eq('id', deleteTarget.id);
@@ -201,13 +210,15 @@ export default function MasterDashboardScreen() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.greeting, { color: theme.text }]}>
+          <Text style={[styles.greeting, { color: theme.text }]} numberOfLines={1}>
             Olá, {profile?.name?.split(' ')[0]}
           </Text>
           <View style={styles.badgeRow}>
             <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
-              <Feather name="shield" size={10} color={theme.primary} />
-              <Text style={[styles.chipText, { color: theme.primary }]}>Master</Text>
+              <Feather name={developerMode ? 'code' : 'shield'} size={10} color={developerMode ? '#8B5CF6' : theme.primary} />
+              <Text style={[styles.chipText, { color: developerMode ? '#8B5CF6' : theme.primary }]}>
+                {developerMode ? 'Desenvolvedor' : 'Master'}
+              </Text>
             </View>
             {isConnected ? (
               <View style={[styles.chipBadge, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.25)' }]}>
@@ -250,6 +261,19 @@ export default function MasterDashboardScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {developerMode && (
+          <View style={[styles.developerBanner, { backgroundColor: 'rgba(124,58,237,0.10)', borderColor: 'rgba(139,92,246,0.38)' }]}>
+            <View style={styles.developerBannerIcon}>
+              <Feather name="code" size={18} color="#A78BFA" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.developerBannerTitle}>Ambiente Desenvolvedor</Text>
+              <Text style={[styles.developerBannerText, { color: theme.textSecondary }]}>
+                Acesso superior à Master. Dados criados nesta sessão são temporários e nenhuma alteração é gravada no sistema oficial.
+              </Text>
+            </View>
+          </View>
+        )}
         {!isConnected && (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
             <Feather name="wifi-off" size={15} color="#F59E0B" />
@@ -674,6 +698,16 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 100 },
+  developerBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 18,
+  },
+  developerBannerIcon: {
+    width: 38, height: 38, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(124,58,237,0.18)',
+  },
+  developerBannerTitle: { color: '#A78BFA', fontSize: 14, fontWeight: '900' },
+  developerBannerText: { fontSize: 12, lineHeight: 18, marginTop: 3, fontWeight: '500' },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 14, marginTop: 4,

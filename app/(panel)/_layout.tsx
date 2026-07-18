@@ -50,21 +50,23 @@ function PanelContent() {
   const { isLocked } = useSessionGuard();
   const { isOnlineReal } = useConnectivity();
   const { isTrainingActive } = useTraining();
+  const { localTestMode } = useAuth();
+  const isolatedMode = isTrainingActive || localTestMode;
   const prevConnected = useRef(false);
 
   // Guarda de rota por papel — executado a cada mudança de segmento
   useRouteGuard();
 
   useEffect(() => {
-    if (isTrainingActive) return;
+    if (isolatedMode) return;
     registerBackgroundSync();
     startAppStateSyncListener();
     pingSupabaseKeepAlive().catch(() => null); // keep-alive Supabase free tier
     return () => stopAppStateSyncListener();
-  }, [isTrainingActive]);
+  }, [isolatedMode]);
 
   useEffect(() => {
-    if (isTrainingActive) return;
+    if (isolatedMode) return;
     if (isOnlineReal && !prevConnected.current) {
       logger.info('network', 'Conectividade restaurada — iniciando sync automático');
       syncPendentes().catch(() => null);
@@ -72,9 +74,9 @@ function PanelContent() {
       logger.warn('network', 'Sem conexão com a internet — modo offline ativo');
     }
     prevConnected.current = isOnlineReal;
-  }, [isOnlineReal, isTrainingActive]);
+  }, [isOnlineReal, isolatedMode]);
 
-  if (isLocked && !isTrainingActive) {
+  if (isLocked && !isolatedMode) {
     return <SessionLockScreen />;
   }
 
@@ -92,6 +94,7 @@ function PanelContent() {
         <Stack.Screen name="inspecoes/resultado" />
         <Stack.Screen name="inspecoes/relatorio" />
         <Stack.Screen name="inspecoes/foto" />
+        <Stack.Screen name="inspecoes/ciencia" />
         <Stack.Screen name="inspecoes/[id]" />
         <Stack.Screen name="supervisor/index" />
         <Stack.Screen name="admin/index" />
