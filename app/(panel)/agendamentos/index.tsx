@@ -133,6 +133,7 @@ export default function AgendamentosScreen() {
             lng: r.lng,
             observacoes: r.observacoes,
             status: r.status,
+            origem: r.origem === 'web' ? 'web' : 'app',
             criado_em: r.criado_em,
             sincronizado: 1,
           }));
@@ -311,6 +312,7 @@ export default function AgendamentosScreen() {
         lng,
         observacoes: observacoes.trim() || undefined,
         status: 'pendente',
+        origem: 'app',
         criado_em: new Date().toISOString(),
         sincronizado: 0,
       };
@@ -334,6 +336,7 @@ export default function AgendamentosScreen() {
           lng: agendamento.lng ?? null,
           observacoes: agendamento.observacoes ?? null,
           status: agendamento.status,
+          origem: agendamento.origem,
         });
         if (!error) markAgendamentoSincronizado(agendamento.id);
       }
@@ -395,6 +398,12 @@ export default function AgendamentosScreen() {
                     {a.titulo}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {a.origem === 'web' && (
+                      <View style={[styles.originBadge, { backgroundColor: `${theme.primary}18` }]}>
+                        <Feather name="globe" size={11} color={theme.primary} />
+                        <Text style={[styles.originText, { color: theme.primary }]}>FEITO NA WEB</Text>
+                      </View>
+                    )}
                     <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
                       <Text style={[styles.statusText, { color: colors.text }]}>
                         {a.status.toUpperCase()}
@@ -625,6 +634,8 @@ const styles = StyleSheet.create({
   cardTitulo: { fontSize: 15, fontWeight: '700', flex: 1 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  originBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  originText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   cardMetaText: { fontSize: 12, fontWeight: '500', flex: 1 },
 

@@ -21,6 +21,16 @@ jest.mock('../../services/StorageService', () => ({
   uploadLaudoPdf: jest.fn().mockResolvedValue('https://storage.example.com/laudo.pdf'),
 }));
 
+jest.mock('../../services/LaudoService', () => ({
+  ensureInspectionLaudo: jest.fn().mockResolvedValue({
+    ok: true,
+    reused: false,
+    document_status: 'available',
+    signed_url: 'https://signed.example/laudo.pdf',
+    expires_in: 60,
+  }),
+}));
+
 jest.mock('expo-task-manager', () => ({
   defineTask: jest.fn(),
 }));
@@ -102,6 +112,7 @@ let mockGetAgendamentosNaoSincronizados: jest.Mock;
 let mockMarkAgendamentoSincronizado: jest.Mock;
 let mockDeleteAgendamento: jest.Mock;
 let mockIsCurrentSessionLocalTest: jest.Mock;
+let mockEnsureInspectionLaudo: jest.Mock;
 
 // ─── Import do módulo em teste (uma única vez) ────────────────────────────────
 
@@ -190,6 +201,15 @@ beforeEach(() => {
   storageMock.uploadImageFromLocalUri.mockResolvedValue('https://storage.example.com/foto.jpg');
   storageMock.uploadLaudoPdf.mockReset();
   storageMock.uploadLaudoPdf.mockResolvedValue('https://storage.example.com/laudo.pdf');
+  mockEnsureInspectionLaudo = jest.requireMock('../../services/LaudoService').ensureInspectionLaudo as jest.Mock;
+  mockEnsureInspectionLaudo.mockClear();
+  mockEnsureInspectionLaudo.mockResolvedValue({
+    ok: true,
+    reused: false,
+    document_status: 'available',
+    signed_url: 'https://signed.example/laudo.pdf',
+    expires_in: 60,
+  });
 
   // Limpar contadores de chamadas dos mocks de database
   mockMarkSincronizado.mockClear();
@@ -363,6 +383,7 @@ describe('syncPendentes', () => {
     expect(resultado.sucesso).toBe(1);
     expect(resultado.falha).toBe(0);
     expect(mockMarkSincronizado).toHaveBeenCalledWith('v-1');
+    expect(mockEnsureInspectionLaudo).toHaveBeenCalledWith('v-1');
   });
 
   it('ignora vistorias com tentativas esgotadas (≥5)', async () => {

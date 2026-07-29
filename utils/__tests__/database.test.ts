@@ -448,6 +448,42 @@ describe('FormularioCache — payload completo offline', () => {
   });
 });
 
+describe('insertAgendamento — origem compartilhada', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.resetModules();
+  });
+
+  it('persiste a origem web no cache offline do aplicativo', () => {
+    const mockDb = {
+      runSync: jest.fn(),
+      getFirstSync: jest.fn(() => null),
+      getAllSync: jest.fn(() => []),
+      withTransactionSync: jest.fn((cb: () => void) => cb()),
+    };
+    require('expo-sqlite').openDatabaseSync.mockReturnValue(mockDb);
+
+    const { insertAgendamento } = require('../database');
+    insertAgendamento({
+      id: 'ag-web',
+      titulo: 'Vistoria criada no portal',
+      municipio: 'Aurora',
+      data_agendada: '2026-08-01T12:00:00.000Z',
+      criado_por_uid: 'staff-1',
+      status: 'pendente',
+      origem: 'web',
+      sincronizado: 1,
+    });
+
+    const insert = mockDb.runSync.mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT OR REPLACE INTO agendamentos'),
+    );
+    expect(insert).toBeDefined();
+    expect(insert![0]).toContain('origem');
+    expect(insert![1]).toContain('web');
+  });
+});
+
 describe('deleteAgendamentoWithTombstone — tombstone offline', () => {
   beforeEach(() => {
     jest.clearAllMocks();
