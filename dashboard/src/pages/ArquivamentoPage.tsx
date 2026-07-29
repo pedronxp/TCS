@@ -1,419 +1,486 @@
-import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Archive, AlertCircle, Loader2, CheckCircle2, Clock,
-  XCircle, RefreshCcw, ExternalLink, Settings2, ToggleLeft, ToggleRight,
+  Archive,
+  CheckCircle2,
+  Clock3,
+  CloudDownload,
+  ExternalLink,
+  FileCheck2,
+  HardDrive,
+  Loader2,
+  RefreshCw,
+  RotateCcw,
+  Settings2,
+  ShieldCheck,
+  TriangleAlert,
+  XCircle,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { PageHeader } from '@/components/domain/PageHeader';
+import { MetricCard } from '@/components/domain/MetricCard';
+import { StatusBadge } from '@/components/domain/Badges';
+import { HighAssuranceDialog } from '@/components/security/HighAssuranceDialog';
+import { AsyncBoundary } from '@/components/states/AsyncBoundary';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Switch } from '@/components/ui/Switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
+import { useAuth } from '@/contexts/AuthContext';
+import { jsonArray, jsonBoolean, jsonNumber, jsonObject, jsonString } from '@/lib/json';
+import { supabase } from '@/lib/supabase';
+import type { Json } from '@/types/supabase';
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type StorageLocation = 'supabase' | 'archiving' | 'drive_uploaded' | 'drive' | 'failed';
-
-type VistoriaArq = {
+type ArchiveConfig = { mode: 'auto' | 'manual'; enabled: boolean; daysThreshold: number };
+type Inspection = {
   id: string;
-  protocolo: string | null;
-  municipio: string | null;
-  nivelRisco: string | null;
-  dataVistoria: string | null;
-  storage_location: StorageLocation;
-  drive_folder_url: string | null;
-  archived_at: string | null;
+  protocol: string | null;
+  municipality: string | null;
+  risk: string | null;
+  inspectionAt: string | null;
+  storageLocation: string;
+  driveFolderUrl?: string | null;
+  archivedAt?: string | null;
+  restoredAt?: string | null;
+  manifestVerified?: boolean;
+};
+type RestoreRequest = {
+  id: string;
+  batchId: string;
+  inspectionId: string;
+  protocol: string | null;
+  municipality: string | null;
+  status: string;
+  reason: string;
+  requiresSecondApproval: boolean;
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: string;
+  approvedByName: string | null;
+  attemptCount: number;
+  lastError: string | null;
+  completedAt: string | null;
+};
+type LifecycleState = {
+  config: ArchiveConfig;
+  pending: Inspection[];
+  history: Inspection[];
+  restoreRequests: RestoreRequest[];
 };
 
-type ArqConfig = {
-  mode: 'auto' | 'manual';
-  enabled: boolean;
-  days_threshold: number;
-};
+function parseInspection(value: Json): Inspection | null {
+  const row = jsonObject(value);
+  const id = jsonString(row?.id);
+  if (!id) return null;
+  return {
+    id,
+    protocol: jsonString(row?.protocol),
+    municipality: jsonString(row?.municipality),
+    risk: jsonString(row?.risk),
+    inspectionAt: jsonString(row?.inspection_at),
+    storageLocation: jsonString(row?.storage_location) || 'supabase',
+    driveFolderUrl: jsonString(row?.drive_folder_url),
+    archivedAt: jsonString(row?.archived_at),
+    restoredAt: jsonString(row?.restored_at),
+    manifestVerified: jsonBoolean(row?.manifest_verified) ?? false,
+  };
+}
 
-// ─── Config badge ─────────────────────────────────────────────────────────────
+function parseLifecycle(value: Json): LifecycleState {
+  const root = jsonObject(value);
+  const config = jsonObject(root?.config);
+  const restoreRequests = jsonArray(root?.restore_requests).map((value) => {
+    const row = jsonObject(value);
+    const id = jsonString(row?.id);
+    const inspectionId = jsonString(row?.inspection_id);
+    if (!id || !inspectionId) return null;
+    return {
+      id,
+      batchId: jsonString(row?.batch_id) || id,
+      inspectionId,
+      protocol: jsonString(row?.protocol),
+      municipality: jsonString(row?.municipality),
+      status: jsonString(row?.status) || 'pending',
+      reason: jsonString(row?.reason) || '',
+      requiresSecondApproval: jsonBoolean(row?.requires_second_approval) ?? false,
+      requestedBy: jsonString(row?.requested_by) || '',
+      requestedByName: jsonString(row?.requested_by_name) || 'Equipe interna',
+      requestedAt: jsonString(row?.requested_at) || new Date(0).toISOString(),
+      approvedByName: jsonString(row?.approved_by_name),
+      attemptCount: jsonNumber(row?.attempt_count) ?? 0,
+      lastError: jsonString(row?.last_error),
+      completedAt: jsonString(row?.completed_at),
+    } satisfies RestoreRequest;
+  }).filter((item): item is RestoreRequest => Boolean(item));
+  return {
+    config: {
+      mode: jsonString(config?.mode) === 'auto' ? 'auto' : 'manual',
+      enabled: jsonBoolean(config?.enabled) ?? false,
+      daysThreshold: jsonNumber(config?.days_threshold) ?? 7,
+    },
+    pending: jsonArray(root?.pending).map(parseInspection).filter((item): item is Inspection => Boolean(item)),
+    history: jsonArray(root?.history).map(parseInspection).filter((item): item is Inspection => Boolean(item)),
+    restoreRequests,
+  };
+}
 
-const STATUS_CFG: Record<StorageLocation, { label: string; bg: string; text: string; Icon: React.FC<{ className?: string }> }> = {
-  supabase:       { label: 'Pendente',    bg: 'bg-amber-50',   text: 'text-amber-700',   Icon: Clock },
-  archiving:      { label: 'Arquivando',  bg: 'bg-blue-50',    text: 'text-blue-700',    Icon: Loader2 },
-  drive_uploaded: { label: 'Validando',   bg: 'bg-indigo-50',  text: 'text-indigo-700',  Icon: RefreshCcw },
-  drive:          { label: 'No Drive',    bg: 'bg-emerald-50', text: 'text-emerald-700', Icon: CheckCircle2 },
-  failed:         { label: 'Falhou',      bg: 'bg-red-50',     text: 'text-red-700',     Icon: XCircle },
-};
+export function ArquivamentoPage() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [selectedArchiveIds, setSelectedArchiveIds] = useState<Set<string>>(new Set());
+  const [selectedRestoreIds, setSelectedRestoreIds] = useState<Set<string>>(new Set());
+  const [configurationOpen, setConfigurationOpen] = useState(false);
+  const [configDraft, setConfigDraft] = useState<ArchiveConfig | null>(null);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [decisionTarget, setDecisionTarget] = useState<RestoreRequest | null>(null);
 
-// ─── Hooks ────────────────────────────────────────────────────────────────────
-
-function useArquivamento() {
-  return useQuery({
-    queryKey: ['arquivamento'],
+  const lifecycle = useQuery({
+    queryKey: ['archive-lifecycle'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('vistorias')
-        .select('id, protocolo, municipio, "nivelRisco", "dataVistoria", storage_location, drive_folder_url, archived_at')
-        .neq('storage_location', 'supabase')
-        .order('dataVistoria', { ascending: false });
+      const { data, error } = await supabase.rpc('list_internal_archive_lifecycle', { p_limit: 250 });
       if (error) throw error;
-      return (data ?? []) as VistoriaArq[];
+      return parseLifecycle(data);
     },
   });
-}
+  const state = lifecycle.data;
+  const config = configDraft ?? state?.config ?? { mode: 'manual', enabled: false, daysThreshold: 7 };
 
-function usePendentes(daysThreshold: number) {
-  return useQuery({
-    queryKey: ['arquivamento-pendentes', daysThreshold],
-    queryFn: async () => {
-      const cutoff = new Date(Date.now() - daysThreshold * 86_400_000).toISOString();
-      const { data, error } = await supabase
-        .from('vistorias')
-        .select('id, protocolo, municipio, "nivelRisco", "dataVistoria", storage_location, drive_folder_url, archived_at')
-        .eq('storage_location', 'supabase')
-        .lt('dataVistoria', cutoff)
-        .order('dataVistoria', { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as VistoriaArq[];
-    },
-  });
-}
-
-function useArqConfig() {
-  return useQuery({
-    queryKey: ['arq-config'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('configuracoes')
-        .select('valor')
-        .eq('id', 'arquivamento')
-        .single();
-      if (error) throw error;
-      return (data?.valor ?? { mode: 'manual', enabled: false, days_threshold: 7 }) as ArqConfig;
-    },
-  });
-}
-
-function useSalvarConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (cfg: ArqConfig) => {
-      const { error } = await supabase
-        .from('configuracoes')
-        .update({ valor: cfg, atualizadoEm: new Date().toISOString() })
-        .eq('id', 'arquivamento');
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['arq-config'] }),
-  });
-}
-
-function useDisparar() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (ids?: string[]) => {
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['archive-lifecycle'] });
+  const archiveMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
       const { data, error } = await supabase.functions.invoke('archive-lifecycle', {
-        body: ids?.length ? { vistoria_ids: ids } : {},
+        body: { vistoria_ids: ids },
       });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['arquivamento'] });
-      qc.invalidateQueries({ queryKey: ['arquivamento-pendentes'] });
+    onSuccess: async () => {
+      setSelectedArchiveIds(new Set());
+      await refresh();
+      toast.success('Arquivamento processado.');
     },
+  });
+  const saveConfig = useMutation({
+    mutationFn: async (next: ArchiveConfig) => {
+      const { error } = await supabase.from('configuracoes').update({
+        valor: { mode: next.mode, enabled: next.enabled, days_threshold: next.daysThreshold },
+        atualizadoEm: new Date().toISOString(),
+      }).eq('id', 'arquivamento');
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      setConfigDraft(null);
+      setConfigurationOpen(false);
+      await refresh();
+      toast.success('Política de retenção atualizada.');
+    },
+  });
+  const restoreMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const inspectionIds = [...selectedRestoreIds];
+      const { data, error } = await supabase.rpc('request_internal_archive_restore', {
+        p_inspection_ids: inspectionIds,
+        p_reason: reason,
+        p_operation_id: crypto.randomUUID(),
+      });
+      if (error) throw error;
+      const result = jsonObject(data);
+      const requestIds = jsonArray(result?.request_ids).map((value) => typeof value === 'string' ? value : '').filter(Boolean);
+      const needsApproval = jsonBoolean(result?.requires_second_approval) ?? inspectionIds.length > 1;
+      if (!needsApproval && requestIds[0]) {
+        const { error: invokeError } = await supabase.functions.invoke('restore-archive', {
+          body: { request_id: requestIds[0] },
+        });
+        if (invokeError) throw invokeError;
+      }
+      return { needsApproval };
+    },
+    onSuccess: async ({ needsApproval }) => {
+      setSelectedRestoreIds(new Set());
+      await refresh();
+      toast.success(needsApproval ? 'Lote enviado para aprovação de outro owner.' : 'Restauração concluída.');
+    },
+  });
+  const decisionMutation = useMutation({
+    mutationFn: async ({ request, reason }: { request: RestoreRequest; reason: string }) => {
+      const { data, error } = await supabase.rpc('decide_internal_archive_restore', {
+        p_request_id: request.id,
+        p_approve: true,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      const result = jsonObject(data);
+      const requestIds = jsonArray(result?.request_ids)
+        .map((value) => typeof value === 'string' ? value : '')
+        .filter(Boolean);
+      for (const requestId of requestIds.length ? requestIds : [request.id]) {
+        const { error: invokeError } = await supabase.functions.invoke('restore-archive', {
+          body: { request_id: requestId },
+        });
+        if (invokeError) throw invokeError;
+      }
+    },
+    onSuccess: async () => {
+      setDecisionTarget(null);
+      await refresh();
+      toast.success('Pedido aprovado e restauração executada.');
+    },
+  });
+  const retryMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await supabase.functions.invoke('restore-archive', {
+        body: { request_id: requestId },
+      });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await refresh();
+      toast.success('Nova tentativa concluída.');
+    },
+  });
+
+  const stats = useMemo(() => ({
+    ready: state?.pending.length ?? 0,
+    archived: state?.history.filter((item) => item.storageLocation === 'drive').length ?? 0,
+    queue: state?.restoreRequests.filter((item) => ['pending', 'approved', 'restoring'].includes(item.status)).length ?? 0,
+    failed: state?.restoreRequests.filter((item) => item.status === 'failed').length ?? 0,
+  }), [state]);
+  const archived = state?.history.filter((item) => item.storageLocation === 'drive') ?? [];
+
+  return (
+    <div className="page-stack">
+      <PageHeader
+        eyebrow="Governança de dados"
+        title="Arquivamento"
+        description={`Retenção no Google Drive após ${config.daysThreshold} dias, com restauração verificada e auditável.`}
+        actions={(
+          <>
+            <Button variant="outline" onClick={() => void lifecycle.refetch()}><RefreshCw className="h-4 w-4" />Atualizar</Button>
+            <Button variant="outline" onClick={() => setConfigurationOpen((open) => !open)}><Settings2 className="h-4 w-4" />Política</Button>
+          </>
+        )}
+      />
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do arquivamento">
+        <MetricCard label="Prontos para arquivar" value={stats.ready} icon={Archive} />
+        <MetricCard label="Retidos no Drive" value={stats.archived} icon={HardDrive} />
+        <MetricCard label="Na fila de restauração" value={stats.queue} icon={CloudDownload} />
+        <MetricCard label="Restaurações com falha" value={stats.failed} icon={TriangleAlert} />
+      </section>
+
+      {configurationOpen && (
+        <Card>
+          <CardHeader><CardTitle>Política de retenção</CardTitle></CardHeader>
+          <CardContent className="grid gap-5 md:grid-cols-3">
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+              <div><Label htmlFor="archive-enabled">Lifecycle ativo</Label><p className="mt-1 text-xs text-muted-foreground">Permite execução programada.</p></div>
+              <Switch id="archive-enabled" checked={config.enabled} onCheckedChange={(enabled) => setConfigDraft({ ...config, enabled })} />
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+              <div><Label htmlFor="archive-mode">Modo automático</Label><p className="mt-1 text-xs text-muted-foreground">Cron pode executar o lote elegível.</p></div>
+              <Switch id="archive-mode" checked={config.mode === 'auto'} onCheckedChange={(auto) => setConfigDraft({ ...config, mode: auto ? 'auto' : 'manual' })} />
+            </div>
+            <div className="rounded-xl border p-4">
+              <Label htmlFor="archive-days">Retenção no Storage (dias)</Label>
+              <Input id="archive-days" className="mt-2" type="number" min={1} max={365} value={config.daysThreshold} onChange={(event) => setConfigDraft({ ...config, daysThreshold: Number(event.target.value) })} />
+            </div>
+            <div className="flex flex-wrap gap-2 md:col-span-3">
+              <Button onClick={() => void saveConfig.mutateAsync(config)} disabled={saveConfig.isPending || !configDraft}>Salvar política</Button>
+              <Button variant="ghost" onClick={() => { setConfigDraft(null); setConfigurationOpen(false); }}>Cancelar</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Alert>
+        <ShieldCheck className="h-4 w-4" />
+        <AlertTitle>Restauração protegida</AlertTitle>
+        <AlertDescription>
+          Toda solicitação exige MFA e justificativa. Lotes exigem aprovação de outro owner; checksum e tamanho são verificados antes da troca de origem.
+        </AlertDescription>
+      </Alert>
+
+      <AsyncBoundary
+        loading={lifecycle.isLoading}
+        error={lifecycle.error}
+        onRetry={() => void lifecycle.refetch()}
+        empty={false}
+      >
+        {state && (
+          <Tabs defaultValue="archive">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:w-auto sm:grid-cols-none">
+              <TabsTrigger value="archive">Arquivar ({state.pending.length})</TabsTrigger>
+              <TabsTrigger value="restore">Restaurar ({archived.length})</TabsTrigger>
+              <TabsTrigger value="queue">Fila ({state.restoreRequests.length})</TabsTrigger>
+              <TabsTrigger value="history">Histórico ({state.history.length})</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="archive" className="mt-4">
+              <InspectionSection
+                title="Elegíveis para retenção"
+                description="Selecione as vistorias que podem sair do Storage operacional."
+                items={state.pending}
+                selected={selectedArchiveIds}
+                onToggle={(id) => toggleSet(setSelectedArchiveIds, id)}
+                action={<Button disabled={!selectedArchiveIds.size || archiveMutation.isPending} onClick={() => void archiveMutation.mutateAsync([...selectedArchiveIds])}>{archiveMutation.isPending ? <Loader2 className="animate-spin" /> : <Archive />}Arquivar selecionados</Button>}
+              />
+            </TabsContent>
+
+            <TabsContent value="restore" className="mt-4">
+              <InspectionSection
+                title="Retidos no Google Drive"
+                description="A unidade volta imediatamente; lotes aguardam dupla aprovação."
+                items={archived}
+                selected={selectedRestoreIds}
+                onToggle={(id) => toggleSet(setSelectedRestoreIds, id)}
+                action={<Button disabled={!selectedRestoreIds.size} onClick={() => setRestoreDialogOpen(true)}><RotateCcw />Solicitar restauração ({selectedRestoreIds.size})</Button>}
+                showManifest
+              />
+            </TabsContent>
+
+            <TabsContent value="queue" className="mt-4 space-y-3">
+              {!state.restoreRequests.length ? <EmptyPanel title="Fila vazia" description="Nenhuma restauração foi solicitada." /> : state.restoreRequests.map((request) => (
+                <RestoreRequestCard
+                  key={request.id}
+                  request={request}
+                  currentUserId={user?.id ?? ''}
+                  busy={decisionMutation.isPending || retryMutation.isPending}
+                  onApprove={() => setDecisionTarget(request)}
+                  onRetry={() => void retryMutation.mutateAsync(request.id)}
+                />
+              ))}
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-4 space-y-3">
+              {!state.history.length ? <EmptyPanel title="Sem histórico" description="Nenhum ciclo foi registrado." /> : state.history.map((inspection) => (
+                <InspectionCard key={inspection.id} inspection={inspection} />
+              ))}
+            </TabsContent>
+          </Tabs>
+        )}
+      </AsyncBoundary>
+
+      <HighAssuranceDialog
+        open={restoreDialogOpen}
+        onOpenChange={setRestoreDialogOpen}
+        title={selectedRestoreIds.size > 1 ? 'Solicitar restauração em lote' : 'Restaurar vistoria'}
+        impact={selectedRestoreIds.size > 1 ? 'Outro owner precisará aprovar o lote antes da execução.' : 'Os arquivos serão verificados e devolvidos ao Storage operacional.'}
+        confirmLabel="Confirmar solicitação"
+        onConfirm={async (reason) => { await restoreMutation.mutateAsync(reason); }}
+      />
+      <HighAssuranceDialog
+        open={Boolean(decisionTarget)}
+        onOpenChange={(open) => { if (!open) setDecisionTarget(null); }}
+        title="Aprovar restauração em lote"
+        impact="Você será registrado como segundo owner e a restauração será executada após a aprovação."
+        confirmLabel="Aprovar e executar"
+        onConfirm={(reason) => {
+          if (!decisionTarget) return Promise.resolve();
+          return decisionMutation.mutateAsync({ request: decisionTarget, reason });
+        }}
+      />
+    </div>
+  );
+}
+
+function toggleSet(setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) {
+  setter((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
   });
 }
 
-// ─── Componentes ──────────────────────────────────────────────────────────────
-
-function StatusBadge({ loc }: { loc: StorageLocation }) {
-  const cfg = STATUS_CFG[loc] ?? STATUS_CFG.supabase;
-  const { Icon, label, bg, text } = cfg;
+function InspectionSection({
+  title,
+  description,
+  items,
+  selected,
+  onToggle,
+  action,
+  showManifest = false,
+}: {
+  title: string;
+  description: string;
+  items: Inspection[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  action: React.ReactNode;
+  showManifest?: boolean;
+}) {
   return (
-    <span className={cn('flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', bg, text)}>
-      <Icon className={cn('w-3 h-3', loc === 'archiving' && 'animate-spin')} />
-      {label}
-    </span>
+    <Card>
+      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
+        <div><CardTitle>{title}</CardTitle><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>
+        {action}
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {!items.length ? <EmptyPanel title="Nenhum item disponível" description="Não há vistorias neste estado." /> : items.map((inspection) => (
+          <div key={inspection.id} className="flex items-start gap-3 rounded-xl border p-4">
+            <Checkbox checked={selected.has(inspection.id)} onCheckedChange={() => onToggle(inspection.id)} aria-label={`Selecionar ${inspection.protocol || inspection.id}`} className="mt-1" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold">{inspection.protocol || inspection.id.slice(0, 8)}</p>
+                <StatusBadge value={inspection.storageLocation} />
+                {showManifest && <StatusBadge value={inspection.manifestVerified ? 'completed' : 'warning'} fallback={inspection.manifestVerified ? 'Manifesto verificado' : 'Arquivo legado'} />}
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">{inspection.municipality || 'Município não informado'} · {inspection.risk || 'Sem risco'} · {formatDate(inspection.inspectionAt)}</p>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
-function CardVistoria({ v }: { v: VistoriaArq }) {
+function InspectionCard({ inspection }: { inspection: Inspection }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-4">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-          <span className="text-sm font-semibold text-slate-900 truncate">
-            {v.protocolo ?? v.id.slice(0, 8)}
-          </span>
-          {v.municipio && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
-              {v.municipio}
-            </span>
-          )}
-          <StatusBadge loc={v.storage_location} />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {v.dataVistoria ? new Date(v.dataVistoria).toLocaleDateString('pt-BR') : '—'}
-          {v.archived_at && ` · Arquivado em ${new Date(v.archived_at).toLocaleDateString('pt-BR')}`}
-        </p>
+    <Card><CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{inspection.protocol || inspection.id.slice(0, 8)}</p><StatusBadge value={inspection.storageLocation} /></div>
+        <p className="mt-1 text-sm text-muted-foreground">{inspection.municipality || 'Município não informado'} · Arquivado em {formatDate(inspection.archivedAt)}</p>
       </div>
-      {v.drive_folder_url && (
-        <a
-          href={v.drive_folder_url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0"
-        >
-          <ExternalLink className="w-3 h-3" />
-          Drive
-        </a>
-      )}
-    </div>
+      {inspection.driveFolderUrl && <Button asChild variant="ghost" size="sm"><a href={inspection.driveFolderUrl} target="_blank" rel="noreferrer">Abrir Drive<ExternalLink /></a></Button>}
+    </CardContent></Card>
   );
 }
 
-// ─── Página ───────────────────────────────────────────────────────────────────
-
-export function ArquivamentoPage() {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [configAberto, setConfigAberto] = useState(false);
-
-  const { data: config, isLoading: cfgLoading } = useArqConfig();
-  const { data: arquivados = [], isLoading: arqLoading, refetch: refetchArq } = useArquivamento();
-  const { data: pendentes = [], isLoading: pendLoading } = usePendentes(config?.days_threshold ?? 7);
-  const salvar = useSalvarConfig();
-  const disparar = useDisparar();
-
-  const [cfgLocal, setCfgLocal] = useState<ArqConfig | null>(null);
-  const cfg: ArqConfig = cfgLocal ?? config ?? { mode: 'manual', enabled: false, days_threshold: 7 };
-
-  const stats = useMemo(() => ({
-    pendentes: pendentes.length,
-    arquivando: arquivados.filter((v) => v.storage_location === 'archiving').length,
-    concluidos: arquivados.filter((v) => v.storage_location === 'drive').length,
-    falhos: arquivados.filter((v) => v.storage_location === 'failed').length,
-  }), [pendentes, arquivados]);
-
-  const isLoading = cfgLoading || arqLoading || pendLoading;
-
-  function toggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  async function handleDisparar() {
-    const ids = selectedIds.size > 0 ? [...selectedIds] : undefined;
-    await disparar.mutateAsync(ids);
-    setSelectedIds(new Set());
-  }
-
-  async function handleSalvarConfig() {
-    await salvar.mutateAsync(cfg);
-    setCfgLocal(null);
-    setConfigAberto(false);
-  }
-
+function RestoreRequestCard({ request, currentUserId, busy, onApprove, onRetry }: { request: RestoreRequest; currentUserId: string; busy: boolean; onApprove: () => void; onRetry: () => void }) {
+  const canApprove = request.status === 'pending' && request.requestedBy !== currentUserId;
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Arquivamento</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Lifecycle de arquivos: Supabase Storage → Google Drive após {cfg.days_threshold} dias
-          </p>
+    <Card><CardContent className="p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{request.protocol || request.inspectionId.slice(0, 8)}</p><StatusBadge value={request.status} /></div>
+          <p className="mt-1 text-sm text-muted-foreground">{request.municipality || 'Município não informado'} · Solicitado por {request.requestedByName} em {formatDateTime(request.requestedAt)}</p>
+          <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-sm">“{request.reason}”</p>
+          {request.lastError && <p className="mt-2 text-sm text-destructive" role="alert">{request.lastError}</p>}
+          {request.approvedByName && <p className="mt-2 text-xs text-muted-foreground">Aprovado por {request.approvedByName}</p>}
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setConfigAberto(!configAberto)}>
-            <Settings2 className="w-4 h-4" />
-            Configurações
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleDisparar}
-            disabled={disparar.isPending || pendentes.length === 0}
-          >
-            {disparar.isPending
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <Archive className="w-4 h-4" />}
-            {selectedIds.size > 0
-              ? `Arquivar selecionados (${selectedIds.size})`
-              : `Arquivar todos pendentes (${stats.pendentes})`}
-          </Button>
+        <div className="flex shrink-0 gap-2">
+          {canApprove && <Button size="sm" onClick={onApprove} disabled={busy}><CheckCircle2 />Aprovar</Button>}
+          {request.status === 'pending' && request.requestedBy === currentUserId && <Button size="sm" variant="outline" disabled><Clock3 />Outro owner</Button>}
+          {request.status === 'failed' && <Button size="sm" variant="outline" onClick={onRetry} disabled={busy}><RefreshCw />Tentar novamente</Button>}
+          {request.status === 'restoring' && <Button size="sm" variant="outline" disabled><Loader2 className="animate-spin" />Restaurando</Button>}
+          {request.status === 'restored' && <Button size="sm" variant="outline" disabled><FileCheck2 />Concluído</Button>}
+          {request.status === 'rejected' && <Button size="sm" variant="outline" disabled><XCircle />Rejeitado</Button>}
         </div>
       </div>
-
-      {/* Painel de configuração */}
-      {configAberto && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6 space-y-4">
-          <h2 className="font-semibold text-slate-900 text-sm">Configurações de arquivamento</h2>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-800 font-medium">Modo</p>
-              <p className="text-xs text-muted-foreground">
-                {cfg.mode === 'auto'
-                  ? 'Automático: cron diário arquiva sozinho'
-                  : 'Manual: master_admin dispara manualmente'}
-              </p>
-            </div>
-            <button
-              onClick={() => setCfgLocal({ ...cfg, mode: cfg.mode === 'auto' ? 'manual' : 'auto' })}
-              className="text-primary"
-            >
-              {cfg.mode === 'auto'
-                ? <ToggleRight className="w-8 h-8" />
-                : <ToggleLeft className="w-8 h-8 text-slate-400" />}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-800 font-medium">Arquivamento ativo</p>
-              <p className="text-xs text-muted-foreground">
-                {cfg.enabled ? 'Ligado' : 'Desligado'}
-              </p>
-            </div>
-            <button
-              onClick={() => setCfgLocal({ ...cfg, enabled: !cfg.enabled })}
-              className="text-primary"
-            >
-              {cfg.enabled
-                ? <ToggleRight className="w-8 h-8" />
-                : <ToggleLeft className="w-8 h-8 text-slate-400" />}
-            </button>
-          </div>
-
-          <div>
-            <p className="text-sm text-slate-800 font-medium mb-1">Threshold (dias)</p>
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={cfg.days_threshold}
-              onChange={(e) => setCfgLocal({ ...cfg, days_threshold: Number(e.target.value) })}
-              className="h-8 w-24 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSalvarConfig} disabled={salvar.isPending}>
-              {salvar.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Salvar
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => { setCfgLocal(null); setConfigAberto(false); }}>
-              Cancelar
-            </Button>
-          </div>
-
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Para ativar o upload real no Google Drive, configure as variáveis de ambiente
-            <code className="font-mono mx-1">GOOGLE_SERVICE_ACCOUNT_KEY</code> e
-            <code className="font-mono mx-1">DRIVE_FOLDER_ROOT_ID</code> na Edge Function.
-          </p>
-        </div>
-      )}
-
-      {/* Cards de resumo */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white border border-amber-200 rounded-xl p-4">
-          <p className="text-xs text-muted-foreground mb-1">Prontos para arquivar</p>
-          <p className="text-2xl font-bold text-amber-600">{stats.pendentes}</p>
-        </div>
-        <div className="bg-white border border-blue-200 rounded-xl p-4">
-          <p className="text-xs text-muted-foreground mb-1">Arquivando</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.arquivando}</p>
-        </div>
-        <div className="bg-white border border-emerald-200 rounded-xl p-4">
-          <p className="text-xs text-muted-foreground mb-1">No Drive</p>
-          <p className="text-2xl font-bold text-emerald-600">{stats.concluidos}</p>
-        </div>
-        <div className="bg-white border border-red-200 rounded-xl p-4">
-          <p className="text-xs text-muted-foreground mb-1">Com falha</p>
-          <p className="text-2xl font-bold text-red-600">{stats.falhos}</p>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Carregando...</span>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Pendentes */}
-          {pendentes.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-slate-900 text-sm">
-                  Prontos para arquivar ({pendentes.length})
-                </h2>
-                {selectedIds.size > 0 && (
-                  <button onClick={() => setSelectedIds(new Set())} className="text-xs text-muted-foreground hover:text-slate-700">
-                    Limpar seleção
-                  </button>
-                )}
-              </div>
-              <div className="space-y-2">
-                {pendentes.map((v) => (
-                  <div key={v.id} className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(v.id)}
-                      onChange={() => toggleSelect(v.id)}
-                      className="rounded border-slate-300 text-primary focus:ring-ring"
-                    />
-                    <div className="flex-1">
-                      <CardVistoria v={v} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Arquivados / em processo */}
-          {arquivados.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-slate-900 text-sm">
-                  Histórico ({arquivados.length})
-                </h2>
-                <button onClick={() => refetchArq()} className="text-xs text-muted-foreground hover:text-slate-700 flex items-center gap-1">
-                  <RefreshCcw className="w-3 h-3" /> Atualizar
-                </button>
-              </div>
-              <div className="space-y-2">
-                {arquivados.map((v) => <CardVistoria key={v.id} v={v} />)}
-              </div>
-            </div>
-          )}
-
-          {pendentes.length === 0 && arquivados.length === 0 && (
-            <div className="text-center py-20 text-muted-foreground">
-              <Archive className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p>Nenhuma vistoria elegível para arquivamento ainda.</p>
-              <p className="text-xs mt-1">
-                Vistorias com mais de {cfg.days_threshold} dias aparecerão aqui.
-              </p>
-            </div>
-          )}
-
-          {/* Aviso Drive não configurado */}
-          {disparar.isError && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>Falha ao disparar arquivamento. Verifique se a Edge Function está publicada e as variáveis de ambiente configuradas.</span>
-            </div>
-          )}
-
-          {disparar.isSuccess && (
-            <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Arquivamento disparado com sucesso.</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </CardContent></Card>
   );
+}
+
+function EmptyPanel({ title, description }: { title: string; description: string }) {
+  return <div className="rounded-xl border border-dashed p-8 text-center"><Archive className="mx-auto h-7 w-7 text-muted-foreground" /><p className="mt-3 font-semibold">{title}</p><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>;
+}
+
+function formatDate(value: string | null | undefined) {
+  return value ? new Date(value).toLocaleDateString('pt-BR') : 'data não informada';
+}
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('pt-BR');
 }

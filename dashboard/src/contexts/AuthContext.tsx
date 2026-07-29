@@ -17,10 +17,12 @@ interface AuthContextValue {
   profile: InternalStaffProfile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshAssurance: () => Promise<AssuranceLevel>;
   can: (permission: InternalPermission) => boolean;
   isAuthorized: boolean;
+  authMessage: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<InternalStaffProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
 
   const loadProfile = useCallback(async (): Promise<InternalStaffProfile | null> => {
     const { data, error } = await supabase.rpc('get_internal_staff_profile');
@@ -98,9 +101,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function hydrate(nextSession: Session | null) {
       if (!mounted) return;
-      setSession(nextSession);
       const nextProfile = nextSession ? await loadProfile() : null;
       if (!mounted) return;
+      if (nextSession && !nextProfile) {
+        const googleIdentity = nextSession.user.identities?.some((identity) => identity.provider === 'google')
+          || nextSession.user.app_metadata?.provider === 'google';
+        setAuthMessage(
+          googleIdentity
+            ? 'Conta Google conectada. O acesso ao console permanece pendente até a aprovação da equipe TCS.'
+            : 'Acesso restrito à equipe interna ativa.',
+        );
+        setSession(null);
+        setProfile(null);
+        setLoading(false);
+        await supabase.auth.signOut({ scope: 'local' });
+        return;
+      }
+      setSession(nextSession);
       setProfile(nextProfile);
       setLoading(false);
     }
@@ -117,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile]);
 
   async function signIn(email: string, password: string) {
+    setAuthMessage(null);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: traduzirErroSupabase(error.message) };
 
@@ -134,6 +152,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(data.session);
     setProfile(nextProfile);
     return { error: null };
+  }
+
+  async function signInWithGoogle() {
+    setAuthMessage(null);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/login`,
+        },
+      });
+      return { error: error ? traduzirErroSupabase(error.message) : null };
+    } catch (error) {
+      return {
+        error: traduzirErroSupabase(
+          error instanceof Error ? error.message : 'Não foi possível abrir o login Google.',
+        ),
+      };
+    }
   }
 
   async function signOut() {
@@ -156,10 +193,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       signIn,
+      signInWithGoogle,
       signOut,
       refreshAssurance,
       can,
       isAuthorized,
+      authMessage,
     }}>
       {children}
     </AuthContext.Provider>
@@ -177,5 +216,8 @@ export function useAuth() {
 function traduzirErroSupabase(message: string): string {
   if (message.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
   if (message.includes('Email not confirmed')) return 'E-mail ainda não confirmado.';
+  if (message.includes('Unsupported provider')) {
+    return 'O login Google ainda precisa ser habilitado no provedor de autenticação.';
+  }
   return message;
 }

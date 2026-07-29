@@ -33,6 +33,7 @@ export interface CustomerDetailRecord extends CustomerRecord {
   offline_tolerance_minutes: number | null;
   created_at: string | null;
   updated_at: string | null;
+  last_access_at: string | null;
 }
 
 export interface CustomerSubscription {
@@ -135,9 +136,10 @@ export interface CustomerDetail {
   can_view_sensitive: boolean;
 }
 
-export interface CustomerAppointment { id: string; title: string; status: string; scheduled_at: string | null; agent_name: string | null; address: string | null; latitude: number | null; longitude: number | null }
+export interface CustomerAppointment { id: string; title: string; status: string; scheduled_at: string | null; agent_name: string | null; address: string | null; latitude: number | null; longitude: number | null; origin: 'app' | 'web' }
 export interface CustomerMapPoint { id: string; protocol: string | null; risk: string | null; status: string | null; occurred_at: string | null; latitude: number | null; longitude: number | null; address: string | null }
-export interface CustomerDocument { id: string; protocol: string | null; risk: string | null; generated_at: string | null; url: string; storage_location: string | null }
+export type CustomerDocumentStatus = 'available' | 'pending_generation' | 'missing_file';
+export interface CustomerDocument { id: string; inspection_id: string; protocol: string | null; risk: string | null; occurred_at: string | null; generated_at: string | null; storage_location: string | null; document_status: CustomerDocumentStatus; downloadable: boolean; can_generate: boolean }
 export interface CustomerReport { id: string; protocol: string | null; risk: string | null; score: number | null; form_id: string | null; form_version: number | null; generated_at: string | null }
 export interface CustomerOperations { appointments: CustomerAppointment[]; mapPoints: CustomerMapPoint[]; documents: CustomerDocument[]; reports: CustomerReport[] }
 

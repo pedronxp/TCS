@@ -1,192 +1,203 @@
-import { ExternalLink, Database, Cpu, Archive, Hammer, Info } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import {
+  Archive,
+  CheckCircle2,
+  Cloud,
+  Code2,
+  Database,
+  ExternalLink,
+  FileClock,
+  Hammer,
+  Info,
+  KeyRound,
+  ServerCog,
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { PageHeader } from '@/components/domain/PageHeader';
+import { EnvironmentBadge, StatusBadge } from '@/components/domain/Badges';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Separator } from '@/components/ui/Separator';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const projectRef = supabaseUrl?.match(/^https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? 'não configurado';
 
-const INTEGRACOES = [
+const integrations = [
   {
     label: 'EAS Build',
-    descricao: 'Geração remota de APK via Expo Application Services.',
-    variaveis: ['EAS_TOKEN', 'EAS_PROJECT_ID'],
+    description: 'Geração remota dos artefatos do aplicativo.',
+    variables: ['EAS_TOKEN', 'EAS_PROJECT_ID'],
     link: 'https://expo.dev',
-    linkLabel: 'expo.dev',
+    Icon: Hammer,
   },
   {
     label: 'GitHub Actions',
-    descricao: 'Fallback de build via workflow do repositório.',
-    variaveis: ['GH_ACTIONS_TOKEN', 'GITHUB_REPO'],
+    description: 'Pipeline alternativo de build e entrega.',
+    variables: ['GH_ACTIONS_TOKEN', 'GITHUB_REPO'],
     link: 'https://github.com/settings/tokens',
-    linkLabel: 'github.com/settings/tokens',
+    Icon: Code2,
   },
   {
     label: 'Google Drive',
-    descricao: 'Arquivamento de fotos e laudos após 7 dias.',
-    variaveis: ['GOOGLE_SERVICE_ACCOUNT_KEY', 'DRIVE_FOLDER_ROOT_ID'],
+    description: 'Retenção externa e restauração auditável de laudos e fotos.',
+    variables: ['GOOGLE_SERVICE_ACCOUNT_KEY', 'DRIVE_FOLDER_ROOT_ID'],
     link: 'https://console.cloud.google.com',
-    linkLabel: 'console.cloud.google.com',
+    Icon: Cloud,
   },
-];
+] as const;
 
-function CartaoIntegracao({
-  label,
-  descricao,
-  variaveis,
-  link,
-  linkLabel,
-}: (typeof INTEGRACOES)[0]) {
+export function ConfiguracoesPage() {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5">
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div>
-          <h3 className="font-semibold text-slate-900 text-sm">{label}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{descricao}</p>
+    <div className="page-stack">
+      <PageHeader
+        eyebrow="Governança"
+        title="Configurações"
+        description="Visão operacional do ambiente, integrações e contratos usados pelo console interno."
+        actions={<EnvironmentBadge environment={import.meta.env.PROD ? 'production' : 'development'} />}
+      />
+
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>Configuração informativa nesta onda</AlertTitle>
+        <AlertDescription>
+          Ainda não existe contrato server-side para preparar ou publicar um conjunto genérico de mudanças.
+          Por segurança, esta tela não simula edições nem grava segredos no navegador.
+        </AlertDescription>
+      </Alert>
+
+      <section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]" aria-label="Estado do sistema">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ServerCog className="h-5 w-5" />Sistema</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-5 sm:grid-cols-2">
+            <SystemItem label="Aplicativo" value="TCS — Relatório de Risco" />
+            <SystemItem label="Console web" value="0.1.0" />
+            <SystemItem label="Projeto Supabase" value={projectRef} mono />
+            <SystemItem label="Fonte de configuração" value="Variáveis do ambiente" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><FileClock className="h-5 w-5" />Mudanças pendentes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-xl border border-dashed p-5 text-center">
+              <CheckCircle2 className="mx-auto h-7 w-7 text-success" />
+              <p className="mt-3 font-semibold">Nenhuma fonte publicável disponível</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                O estado permanece somente leitura até existir versionamento, revisão e rollback no backend.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section aria-labelledby="configuration-shortcuts">
+        <h2 id="configuration-shortcuts" className="mb-3 text-lg font-bold">Operações relacionadas</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <OperationLink
+            to="/app/governanca/arquivamento"
+            title="Arquivamento e retenção"
+            description="Lifecycle Storage → Drive e fila segura de restauração."
+            Icon={Archive}
+          />
+          <OperationLink
+            to="/app/desenvolvimento/builds"
+            title="Builds e entregas"
+            description="Artefatos, provedores e aprovação de produção."
+            Icon={Hammer}
+          />
         </div>
-        <a
-          href={link}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0"
-        >
-          <ExternalLink className="w-3 h-3" />
-          {linkLabel}
-        </a>
-      </div>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-slate-600 mb-1.5">Variáveis de ambiente (Edge Functions):</p>
-        {variaveis.map((v) => (
-          <div key={v} className="flex items-center gap-2">
-            <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-              {v}
-            </span>
+      </section>
+
+      <section aria-labelledby="external-integrations">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="external-integrations" className="text-lg font-bold">Integrações externas</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Nomes necessários; valores nunca são retornados ao cliente.</p>
           </div>
-        ))}
-      </div>
+          <StatusBadge value="active" fallback="Protegido" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {integrations.map(({ label, description, variables, link, Icon }) => (
+            <Card key={label}>
+              <CardHeader>
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <CardTitle>{label}</CardTitle>
+                <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+              </CardHeader>
+              <CardContent>
+                <Separator className="mb-4" />
+                <div className="flex flex-wrap gap-2" aria-label={`Variáveis de ${label}`}>
+                  {variables.map((variable) => <Badge key={variable} variant="outline" className="font-mono">{variable}</Badge>)}
+                </div>
+                <Button asChild variant="ghost" size="sm" className="mt-4 px-0">
+                  <a href={link} target="_blank" rel="noreferrer">
+                    Abrir provedor <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-accent p-2 text-accent-foreground"><Database className="h-5 w-5" /></div>
+            <div>
+              <p className="font-semibold">Administração do banco</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Alterações de schema passam por migrations; segredos são administrados fora do console.
+              </p>
+            </div>
+          </div>
+          <Button asChild variant="outline">
+            <a href={`https://supabase.com/dashboard/project/${projectRef}/editor`} target="_blank" rel="noreferrer">
+              <KeyRound className="h-4 w-4" />Abrir Studio
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-export function ConfiguracoesPage() {
-  const navigate = useNavigate();
-
+function SystemItem({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Informações do sistema e integrações externas
-        </p>
-      </div>
-
-      {/* Info do sistema */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 mb-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Info className="w-4 h-4 text-slate-500" />
-          <h2 className="font-semibold text-slate-900 text-sm">Sistema</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className="text-xs text-muted-foreground">Aplicativo</p>
-            <p className="font-medium text-slate-800">TCS — Relatório de Risco</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Versão do dashboard</p>
-            <p className="font-medium text-slate-800">1.0.0</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Supabase Project</p>
-            <a
-              href={SUPABASE_URL?.replace('.supabase.co', '') + '.supabase.co'}
-              target="_blank"
-              rel="noreferrer"
-              className="font-mono text-xs text-primary hover:underline"
-            >
-              {SUPABASE_URL}
-            </a>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Ambiente</p>
-            <p className="font-medium text-slate-800">Produção</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Atalhos */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-        <button
-          onClick={() => navigate('/arquivamento')}
-          className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
-        >
-          <div className="w-9 h-9 rounded-lg bg-amber-50 grid place-items-center shrink-0">
-            <Archive className="w-4 h-4 text-amber-600" />
-          </div>
-          <div>
-            <p className="font-medium text-slate-900 text-sm">Arquivamento</p>
-            <p className="text-xs text-muted-foreground">Config. lifecycle Supabase → Drive</p>
-          </div>
-        </button>
-        <button
-          onClick={() => navigate('/builds')}
-          className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
-        >
-          <div className="w-9 h-9 rounded-lg bg-blue-50 grid place-items-center shrink-0">
-            <Hammer className="w-4 h-4 text-blue-600" />
-          </div>
-          <div>
-            <p className="font-medium text-slate-900 text-sm">Builds APK</p>
-            <p className="text-xs text-muted-foreground">Gerar APK remoto via EAS / GitHub</p>
-          </div>
-        </button>
-      </div>
-
-      {/* Integrações */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Cpu className="w-4 h-4 text-slate-500" />
-          <h2 className="font-semibold text-slate-900 text-sm">Integrações externas</h2>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Configure as variáveis abaixo no painel do Supabase em{' '}
-          <a
-            href="https://supabase.com/dashboard/project/vobcapzssxchdckazfnr/functions"
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary hover:underline"
-          >
-            Project → Edge Functions → Secrets
-          </a>
-          .
-        </p>
-        <div className="space-y-3">
-          {INTEGRACOES.map((i) => (
-            <CartaoIntegracao key={i.label} {...i} />
-          ))}
-        </div>
-      </div>
-
-      {/* Supabase DB */}
-      <div className="mt-4 bg-white border border-slate-200 rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Database className="w-4 h-4 text-slate-500" />
-          <h2 className="font-semibold text-slate-900 text-sm">Banco de dados</h2>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">
-          Acesse o editor SQL e as tabelas diretamente no Supabase Studio.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            window.open(
-              'https://supabase.com/dashboard/project/vobcapzssxchdckazfnr/editor',
-              '_blank',
-            )
-          }
-        >
-          <ExternalLink className="w-4 h-4" />
-          Abrir Supabase Studio
-        </Button>
-      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-1 break-all text-sm font-semibold ${mono ? 'font-mono' : ''}`}>{value}</p>
     </div>
+  );
+}
+
+function OperationLink({
+  to,
+  title,
+  description,
+  Icon,
+}: {
+  to: string;
+  title: string;
+  description: string;
+  Icon: typeof Archive;
+}) {
+  return (
+    <Link to={to} className="group rounded-2xl border bg-card p-5 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <div className="flex items-start gap-3">
+        <div className="rounded-xl bg-accent p-2 text-accent-foreground"><Icon className="h-5 w-5" /></div>
+        <div>
+          <p className="font-semibold group-hover:text-primary">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+      </div>
+    </Link>
   );
 }

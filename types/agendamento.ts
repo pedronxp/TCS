@@ -13,6 +13,7 @@ export interface AgendamentoLocal {
   observacoes?: string;
   status: 'pendente' | 'concluido' | 'cancelado' | 'deletado';
   vistoria_id?: string | null;
+  origem?: 'app' | 'web';
   criado_em?: string;
   sincronizado?: number;
 }

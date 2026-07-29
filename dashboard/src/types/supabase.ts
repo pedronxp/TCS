@@ -2174,6 +2174,26 @@ export type Database = {
       }
     }
     Functions: {
+      claim_internal_archive_restore: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
+      decide_internal_archive_restore: {
+        Args: { p_approve: boolean; p_reason: string; p_request_id: string }
+        Returns: Json
+      }
+      list_internal_archive_lifecycle: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      request_internal_archive_restore: {
+        Args: {
+          p_inspection_ids: string[]
+          p_operation_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       accept_organization_invite: { Args: { p_token: string }; Returns: Json }
       admin_reset_password: {
         Args: { p_new_password: string; p_uid: string }
@@ -2237,6 +2257,105 @@ export type Database = {
       }
       get_internal_customer_operations: {
         Args: { p_customer_id: string }
+        Returns: Json
+      }
+      get_internal_agent_summary: {
+        Args: {
+          p_customer_id: string
+          p_user_id: string
+          p_from?: string | null
+          p_to?: string | null
+          p_risks?: string[] | null
+          p_status?: string | null
+          p_form_id?: string | null
+          p_search?: string | null
+        }
+        Returns: Json
+      }
+      list_internal_agent_inspections: {
+        Args: {
+          p_customer_id: string
+          p_user_id: string
+          p_from?: string | null
+          p_to?: string | null
+          p_risks?: string[] | null
+          p_status?: string | null
+          p_form_id?: string | null
+          p_search?: string | null
+          p_cursor_at?: string | null
+          p_cursor_id?: string | null
+          p_page_size?: number
+        }
+        Returns: Json
+      }
+      get_internal_agent_map: {
+        Args: {
+          p_customer_id: string
+          p_user_id: string
+          p_from?: string | null
+          p_to?: string | null
+          p_risks?: string[] | null
+          p_status?: string | null
+          p_form_id?: string | null
+          p_search?: string | null
+          p_west?: number | null
+          p_south?: number | null
+          p_east?: number | null
+          p_north?: number | null
+          p_zoom?: number
+        }
+        Returns: Json
+      }
+      get_internal_agent_operations: {
+        Args: { p_customer_id: string; p_user_id: string }
+        Returns: Json
+      }
+      create_internal_customer_appointment: {
+        Args: {
+          p_customer_id: string
+          p_title: string
+          p_scheduled_at: string
+          p_address?: string | null
+          p_agent_id?: string | null
+          p_notes?: string | null
+          p_operation_id?: string
+        }
+        Returns: Json
+      }
+      authorize_internal_customer_document: {
+        Args: {
+          p_customer_id: string
+          p_inspection_id: string
+          p_kind: string
+        }
+        Returns: Json
+      }
+      authorize_inspection_laudo_generation: {
+        Args: {
+          p_inspection_id: string
+          p_customer_id?: string | null
+        }
+        Returns: Json
+      }
+      authorize_internal_agent_document: {
+        Args: {
+          p_customer_id: string
+          p_user_id: string
+          p_inspection_id: string
+          p_kind: string
+        }
+        Returns: Json
+      }
+      mutate_internal_agent_access: {
+        Args: {
+          p_customer_id: string
+          p_user_id: string
+          p_action: string
+          p_session_id: string | null
+          p_new_password: string | null
+          p_reason: string
+          p_operation_id: string
+        }
         Returns: Json
       }
       get_internal_dashboard: { Args: never; Returns: Json }

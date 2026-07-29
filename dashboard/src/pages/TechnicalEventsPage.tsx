@@ -1,14 +1,234 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { EmptyState, ErrorState, FilterBar, LoadingState, StatusBadge } from '@/components/ui/AsyncState';
+import {
+  AlertTriangle,
+  Boxes,
+  CheckCircle2,
+  Database,
+  FilterX,
+  RefreshCw,
+  ScrollText,
+} from 'lucide-react';
+import { PageHeader } from '@/components/domain/PageHeader';
+import { MetricCard } from '@/components/domain/MetricCard';
+import { StatusBadge } from '@/components/domain/Badges';
+import { AsyncBoundary } from '@/components/states/AsyncBoundary';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { jsonArray, jsonObject, jsonString } from '@/lib/json';
+import { ptBrLabel } from '@/lib/ptBrLabels';
 import { supabase } from '@/lib/supabase';
 
-interface EventRow { id: string; version: string | null; platform: string; category: string; severity: string; correlation: string | null; summary: string; occurredAt: string; customerId: string | null; customerName: string | null }
+interface EventRow {
+  id: string;
+  version: string | null;
+  platform: string;
+  category: string;
+  severity: string;
+  correlation: string | null;
+  summary: string;
+  occurredAt: string;
+  customerId: string | null;
+  customerName: string | null;
+}
 
-export function TechnicalEventsPage({ category: fixedCategory, title }: { category?: string; title: string }) {
-  const [customer, setCustomer] = useState(''); const [version, setVersion] = useState(''); const [platform, setPlatform] = useState(''); const [category, setCategory] = useState(fixedCategory || ''); const [severity, setSeverity] = useState(''); const [from, setFrom] = useState(''); const [to, setTo] = useState('');
-  const query = useQuery({ queryKey: ['technical-events', customer, version, platform, category, severity, from, to], queryFn: async () => { const { data, error } = await supabase.rpc('list_internal_technical_events', { p_customer_id: customer || undefined, p_version: version || undefined, p_platform: platform || undefined, p_category: category || undefined, p_severity: severity || undefined, p_from: from ? new Date(from).toISOString() : undefined, p_to: to ? new Date(`${to}T23:59:59`).toISOString() : undefined, p_limit: 250 }); if (error) throw error; return jsonArray(data).map(jsonObject).filter(Boolean).map((row): EventRow => ({ id: jsonString(row?.id) || jsonString(row?.event_key) || crypto.randomUUID(), version: jsonString(row?.app_version), platform: jsonString(row?.platform) || 'unknown', category: jsonString(row?.category) || 'runtime', severity: jsonString(row?.severity) || 'info', correlation: jsonString(row?.correlation_id), summary: jsonString(row?.summary) || 'Evento técnico', occurredAt: jsonString(row?.occurred_at) || new Date(0).toISOString(), customerId: jsonString(row?.customer_id), customerName: jsonString(row?.customer_name) })); } });
-  return <section><div className="mb-5"><h2 className="text-2xl font-bold">{title}</h2><p className="mt-1 text-sm text-slate-500">Eventos persistidos e sanitizados; indisponibilidade nunca é substituída por dados simulados.</p></div><FilterBar><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="ID do cliente" aria-label="Filtrar cliente" className="h-10 rounded-lg border px-3"/><input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="Versão do app" aria-label="Filtrar versão" className="h-10 rounded-lg border px-3"/><select value={platform} onChange={(e) => setPlatform(e.target.value)} aria-label="Filtrar plataforma" className="h-10 rounded-lg border px-3"><option value="">Plataformas</option>{['android','ios','web','server','unknown'].map(v => <option key={v}>{v}</option>)}</select>{!fixedCategory && <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filtrar categoria" className="h-10 rounded-lg border px-3"><option value="">Categorias</option>{['version','build','sync','storage','runtime','configuration'].map(v => <option key={v}>{v}</option>)}</select>}<select value={severity} onChange={(e) => setSeverity(e.target.value)} aria-label="Filtrar severidade" className="h-10 rounded-lg border px-3"><option value="">Severidades</option>{['debug','info','warning','error','critical'].map(v => <option key={v}>{v}</option>)}</select><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Data inicial" className="h-10 rounded-lg border px-3"/><input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Data final" className="h-10 rounded-lg border px-3"/></FilterBar>{query.isLoading ? <LoadingState/> : query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()}/> : !query.data?.length ? <EmptyState title="Nenhum evento persistido" description="A fonte respondeu sem eventos para os filtros selecionados."/> : <div className="space-y-3">{query.data.map((event) => <article key={event.id} className="rounded-xl border bg-white p-4"><div className="flex flex-wrap items-center gap-2"><StatusBadge value={event.severity}/><span className="text-xs font-semibold uppercase text-slate-500">{event.category} · {event.platform}</span><time className="ml-auto text-xs text-slate-500">{new Date(event.occurredAt).toLocaleString('pt-BR')}</time></div><p className="mt-2 font-semibold">{event.summary}</p><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500"><span>Versão {event.version || '—'} · Correlação {event.correlation || event.id}</span>{event.customerId && <Link className="font-semibold text-blue-700" to={`/clientes/${encodeURIComponent(event.customerId)}`}>{event.customerName || 'Abrir cliente'}</Link>}</div></article>)}</div>}</section>;
+const pageCopy = {
+  sync: {
+    eyebrow: 'Operação técnica',
+    description: 'Acompanhe ciclos, conflitos e falhas de sincronização por cliente, versão e plataforma.',
+    Icon: RefreshCw,
+  },
+  storage: {
+    eyebrow: 'Infraestrutura de dados',
+    description: 'Observe gravações, uploads e falhas de persistência sem expor conteúdo sensível.',
+    Icon: Database,
+  },
+  logs: {
+    eyebrow: 'Observabilidade',
+    description: 'Investigue eventos sanitizados com correlação, severidade e contexto operacional.',
+    Icon: ScrollText,
+  },
+} as const;
+
+export function TechnicalEventsPage({
+  category: fixedCategory,
+  title,
+}: {
+  category?: string;
+  title: string;
+}) {
+  const page = pageCopy[fixedCategory === 'sync' ? 'sync' : fixedCategory === 'storage' ? 'storage' : 'logs'];
+  const [customer, setCustomer] = useState('');
+  const [version, setVersion] = useState('');
+  const [platform, setPlatform] = useState('all');
+  const [category, setCategory] = useState(fixedCategory || 'all');
+  const [severity, setSeverity] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  const query = useQuery({
+    queryKey: ['technical-events', fixedCategory || 'logs', customer, version, platform, category, severity, from, to],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('list_internal_technical_events', {
+        p_customer_id: customer || undefined,
+        p_version: version || undefined,
+        p_platform: platform === 'all' ? undefined : platform,
+        p_category: category === 'all' ? undefined : category,
+        p_severity: severity === 'all' ? undefined : severity,
+        p_from: from ? new Date(from).toISOString() : undefined,
+        p_to: to ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+        p_limit: 250,
+      });
+      if (error) throw error;
+      return jsonArray(data).map(jsonObject).filter(Boolean).map((row): EventRow => ({
+        id: jsonString(row?.id) || jsonString(row?.event_key) || crypto.randomUUID(),
+        version: jsonString(row?.app_version),
+        platform: jsonString(row?.platform) || 'unknown',
+        category: jsonString(row?.category) || 'runtime',
+        severity: jsonString(row?.severity) || 'info',
+        correlation: jsonString(row?.correlation_id),
+        summary: jsonString(row?.summary) || 'Evento técnico',
+        occurredAt: jsonString(row?.occurred_at) || new Date(0).toISOString(),
+        customerId: jsonString(row?.customer_id),
+        customerName: jsonString(row?.customer_name),
+      }));
+    },
+  });
+
+  const metrics = useMemo(() => {
+    const events = query.data ?? [];
+    return {
+      total: events.length,
+      critical: events.filter((event) => ['error', 'critical'].includes(event.severity)).length,
+      warnings: events.filter((event) => event.severity === 'warning').length,
+      customers: new Set(events.map((event) => event.customerId).filter(Boolean)).size,
+    };
+  }, [query.data]);
+
+  const hasFilters = Boolean(customer || version || platform !== 'all' || severity !== 'all' || from || to || (!fixedCategory && category !== 'all'));
+  function clearFilters() {
+    setCustomer('');
+    setVersion('');
+    setPlatform('all');
+    setCategory(fixedCategory || 'all');
+    setSeverity('all');
+    setFrom('');
+    setTo('');
+  }
+
+  return (
+    <div className="page-stack">
+      <PageHeader
+        eyebrow={page.eyebrow}
+        title={title}
+        description={page.description}
+        actions={(
+          <Button variant="outline" onClick={() => void query.refetch()}>
+            <RefreshCw className="h-4 w-4" />
+            Atualizar
+          </Button>
+        )}
+      />
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo dos eventos">
+        <MetricCard label="Eventos encontrados" value={metrics.total} icon={page.Icon} />
+        <MetricCard label="Erros críticos" value={metrics.critical} icon={AlertTriangle} />
+        <MetricCard label="Avisos" value={metrics.warnings} icon={Boxes} />
+        <MetricCard label="Clientes afetados" value={metrics.customers} icon={CheckCircle2} />
+      </section>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>Filtros da investigação</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              O estado destes filtros pertence somente a {title.toLowerCase()}.
+            </p>
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <FilterX className="h-4 w-4" />
+              Limpar
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Input value={customer} onChange={(event) => setCustomer(event.target.value)} placeholder="ID do cliente" aria-label="Filtrar cliente" />
+          <Input value={version} onChange={(event) => setVersion(event.target.value)} placeholder="Versão do app" aria-label="Filtrar versão" />
+          <FilterSelect label="Filtrar plataforma" value={platform} onValueChange={setPlatform} values={['android', 'ios', 'web', 'server', 'unknown']} all="Todas as plataformas" />
+          {!fixedCategory && <FilterSelect label="Filtrar categoria" value={category} onValueChange={setCategory} values={['version', 'build', 'sync', 'storage', 'runtime', 'configuration']} all="Todas as categorias" />}
+          <FilterSelect label="Filtrar severidade" value={severity} onValueChange={setSeverity} values={['debug', 'info', 'warning', 'error', 'critical']} all="Todas as severidades" />
+          <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Data inicial" />
+          <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="Data final" />
+        </CardContent>
+      </Card>
+
+      <AsyncBoundary
+        loading={query.isLoading}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        empty={Boolean(query.data && !query.data.length)}
+        emptyTitle="Nenhum evento persistido"
+        emptyDescription="A fonte respondeu sem eventos para os filtros selecionados."
+      >
+        {query.data && (
+          <section className="space-y-3" aria-label={`Eventos de ${title.toLowerCase()}`}>
+            {query.data.map((event) => (
+              <Card key={event.id}>
+                <CardContent className="p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge value={event.severity} />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {ptBrLabel(event.category)} · {ptBrLabel(event.platform)}
+                    </span>
+                    <time className="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto" dateTime={event.occurredAt}>
+                      {new Date(event.occurredAt).toLocaleString('pt-BR')}
+                    </time>
+                  </div>
+                  <p className="mt-3 font-semibold leading-6">{event.summary}</p>
+                  <div className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                    <span>Versão {event.version || '—'}</span>
+                    <span aria-hidden="true" className="hidden sm:inline">·</span>
+                    <span className="break-all">Correlação {event.correlation || event.id}</span>
+                    {event.customerId && (
+                      <Link className="font-semibold text-primary underline-offset-4 hover:underline" to={`/app/clientes/${encodeURIComponent(event.customerId)}`}>
+                        {event.customerName || 'Abrir cliente'}
+                      </Link>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+        )}
+      </AsyncBoundary>
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onValueChange,
+  values,
+  all,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  values: string[];
+  all: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">{all}</SelectItem>
+        {values.map((item) => <SelectItem key={item} value={item}>{ptBrLabel(item)}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
 }

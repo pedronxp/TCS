@@ -1,200 +1,253 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { Navigate } from 'react-router-dom';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
+import { TcsMark } from '@/components/brand/TcsMark';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
+import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
 import { useAuth } from '@/contexts/AuthContext';
+import { safeConsoleDestination } from '@/lib/routes';
+import { supabaseConfigurationAvailable } from '@/lib/supabase';
+
+interface LoginLocationState {
+  from?: { pathname?: string; search?: string; hash?: string };
+}
 
 export function LoginPage() {
-  const { signIn, isAuthorized, loading: authLoading } = useAuth();
-  const [email, setEmail]           = useState('');
-  const [password, setPassword]     = useState('');
-  const [showPw, setShowPw]         = useState(false);
-  const [erro, setErro]             = useState<string | null>(null);
+  const { signIn, signInWithGoogle, isAuthorized, loading: authLoading, authMessage } = useAuth();
+  const location = useLocation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const requested = (location.state as LoginLocationState | null)?.from;
+  const requestedPath = `${requested?.pathname || ''}${requested?.search || ''}${requested?.hash || ''}`;
+  const destination = safeConsoleDestination(requestedPath);
 
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef          = useRef<maplibregl.Map | null>(null);
-  const rafRef          = useRef<number>(0);
+  if (authLoading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-ink text-warm" aria-live="polite">
+        <Loader2 className="h-7 w-7 animate-spin" />
+        <span className="sr-only">Verificando sessão…</span>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          carto: {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'],
-            tileSize: 256,
-            attribution: '',
-          },
-        },
-        layers: [{ id: 'carto', type: 'raster', source: 'carto' }],
-      },
-      center: [-48.5044, -1.4558],
-      zoom: 11,
-      bearing: 0,
-      pitch: 40,
-      interactive: false,
-      attributionControl: false,
-    });
-    map.on('load', () => {
-      let b = 0;
-      const tick = () => { b += 0.015; map.setBearing(b % 360); rafRef.current = requestAnimationFrame(tick); };
-      rafRef.current = requestAnimationFrame(tick);
-    });
-    mapRef.current = map;
-    return () => { cancelAnimationFrame(rafRef.current); map.remove(); mapRef.current = null; };
-  }, []);
+  if (isAuthorized) return <Navigate to={destination} replace />;
 
-  if (authLoading) return <TelaCarregando />;
-  if (isAuthorized) return <Navigate to="/" replace />;
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setErro(null);
+    if (!supabaseConfigurationAvailable) {
+      setError('O acesso está temporariamente indisponível porque a autenticação não foi configurada.');
+      return;
+    }
+
     setSubmitting(true);
-    const { error } = await signIn(email.trim(), password);
-    if (error) { setErro(error); setSubmitting(false); }
+    const result = await signIn(email.trim(), password);
+    if (result.error) setError(result.error);
+    setSubmitting(false);
+  }
+
+  async function handleGoogle() {
+    setError(null);
+    if (!supabaseConfigurationAvailable) {
+      setError('O acesso está temporariamente indisponível porque a autenticação não foi configurada.');
+      return;
+    }
+    setGoogleSubmitting(true);
+    const result = await signInWithGoogle();
+    if (result.error) setError(result.error);
+    setGoogleSubmitting(false);
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950">
+    <main className="min-h-screen bg-card lg:grid lg:grid-cols-[minmax(0,1.1176fr)_minmax(0,1fr)]">
+      <section className="flex min-h-[330px] flex-col bg-ink px-6 py-8 text-white sm:min-h-[390px] sm:px-10 lg:min-h-screen lg:px-10 lg:py-12 xl:px-14">
+        <Link to="/" className="flex w-fit items-center gap-3 text-[15px] font-semibold">
+          <TcsMark decorative />
+          TCS Console
+        </Link>
 
-      {/* Mapa */}
-      <div ref={mapContainerRef} className="absolute inset-0" />
-
-      {/* Gradiente escuro */}
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'linear-gradient(135deg, rgba(2,6,23,.82) 0%, rgba(15,23,42,.65) 50%, rgba(2,6,23,.82) 100%)' }} />
-
-      {/* Vignette */}
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 85% 85% at 50% 50%, transparent 20%, rgba(2,6,23,.92) 100%)' }} />
-
-      {/*
-        Conteúdo: SEM z-index explícito → não cria stacking context.
-        Vem depois dos absolute no DOM → fica por cima naturalmente.
-        mix-blend-mode no img funciona com mapa+overlays abaixo.
-      */}
-      <div className="relative min-h-screen flex flex-col items-center justify-center gap-6 p-4">
-
-        {/* Logo + título */}
-        <div className="text-center" style={{ animation: 'fadeUp .5s cubic-bezier(.16,1,.3,1) both' }}>
-          <img
-            src="/app-icon.png"
-            alt="TCS"
-            className="w-36 h-36 object-contain mx-auto"
-            style={{
-              maskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
-              WebkitMaskImage: 'radial-gradient(ellipse 88% 82% at 50% 50%, black 45%, transparent 72%)',
-              animation: 'popIn .6s .06s cubic-bezier(.34,1.56,.64,1) both',
-            }}
-          />
-          <h1 className="text-4xl font-extrabold text-white tracking-tight mt-3">
-            TCS — Painel
+        <div className="mt-14 max-w-[610px] lg:mt-[74px]">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-warm">Operação conectada</p>
+          <h1 className="mt-5 text-[32px] font-bold leading-[1.2] tracking-[-0.025em] sm:text-[38px] xl:text-[42px]">
+            Decisões melhores começam com dados confiáveis.
           </h1>
-          <p className="text-slate-400 mt-1 text-sm">Console interno para donos e programadores</p>
+          <p className="mt-6 max-w-[560px] text-[15px] leading-6 text-white/60 sm:text-base">
+            Entre para acompanhar clientes, suporte, assinaturas e a saúde técnica da plataforma em um único lugar.
+          </p>
         </div>
 
-        {/* Card */}
-        <div
-          className="w-full max-w-sm rounded-2xl p-8 space-y-5"
-          style={{
-            background: 'rgba(8,14,36,.72)',
-            backdropFilter: 'blur(28px)',
-            WebkitBackdropFilter: 'blur(28px)',
-            border: '1px solid rgba(255,255,255,.09)',
-            boxShadow: '0 32px 64px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.07)',
-            animation: 'fadeUp .5s .14s cubic-bezier(.16,1,.3,1) both',
-          }}
-        >
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="mt-10 hidden max-w-[648px] rounded-[16px] border border-ink-border bg-ink-panel p-6 md:block lg:mt-[52px] xl:p-8">
+          <blockquote className="max-w-[560px] text-[17px] font-medium leading-7 text-white/85">
+            “A operação ficou mais previsível quando todos passaram a enxergar a mesma informação.”
+          </blockquote>
+          <div className="my-6 h-px bg-ink-border" />
+          <dl className="grid grid-cols-3 gap-4">
+            <LoginMetric label="Clientes ativos" value="148" />
+            <LoginMetric label="SLA cumprido" value="96,8%" />
+            <LoginMetric label="Versão publicada" value="2.17.0" />
+          </dl>
+        </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="internal-email" className="text-xs font-semibold text-slate-400 tracking-widest uppercase">E-mail</label>
-              <input
+        <p className="mt-auto hidden pt-8 text-[11px] text-white/40 lg:block">
+          Conexão segura · Acesso auditado · LGPD
+        </p>
+      </section>
+
+      <section className="bg-card px-5 py-10 sm:px-10 lg:min-h-screen lg:px-8 lg:py-12 xl:px-14">
+        <div className="mx-auto w-full max-w-[496px]">
+          <Link to="/" className="inline-flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Voltar ao site
+          </Link>
+
+          <div className="mt-[92px] lg:mt-[102px]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Área restrita</p>
+            <h2 className="mt-3 text-[32px] font-bold leading-[1.2] tracking-[-0.02em]">Bem-vindo de volta</h2>
+            <p className="mt-2 text-[14px] text-muted-foreground">
+              Use suas credenciais corporativas para continuar.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-[56px]">
+            {!supabaseConfigurationAvailable && (
+              <Alert variant="destructive" className="mb-5">
+                <AlertTitle>Autenticação indisponível</AlertTitle>
+                <AlertDescription>
+                  A configuração pública do Supabase não foi carregada. Reinicie o dashboard com <code>npm run dev</code>.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="internal-email">E-mail</Label>
+              <Input
                 id="internal-email"
-                type="email" autoComplete="email" required
-                value={email} onChange={e => setEmail(e.target.value)}
-                disabled={submitting} placeholder="seu@email.com"
-                className="w-full h-11 px-4 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none transition-all disabled:opacity-50"
-                style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)' }}
-                onFocus={e => e.currentTarget.style.borderColor = 'rgba(59,130,246,.65)'}
-                onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'}
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={submitting || !supabaseConfigurationAvailable}
+                placeholder="nome@empresa.com.br"
+                className="h-12 bg-background"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="internal-password" className="text-xs font-semibold text-slate-400 tracking-widest uppercase">Senha</label>
-              <div className="relative">
-                <input
-                  id="internal-password"
-                  type={showPw ? 'text' : 'password'} autoComplete="current-password" required
-                  value={password} onChange={e => setPassword(e.target.value)}
-                  disabled={submitting}
-                  className="w-full h-11 px-4 pr-11 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none transition-all disabled:opacity-50"
-                  style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)' }}
-                  onFocus={e => e.currentTarget.style.borderColor = 'rgba(59,130,246,.65)'}
-                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'}
-                />
-                <button type="button" onClick={() => setShowPw(v => !v)} aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            <div className="mt-6 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="internal-password">Senha</Label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-primary hover:underline"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
+                >
+                  {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {showPassword ? 'Ocultar' : 'Exibir'}
                 </button>
               </div>
+              <Input
+                id="internal-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={submitting || !supabaseConfigurationAvailable}
+                className="h-12 bg-background"
+              />
             </div>
 
-            {erro && (
-              <div role="alert" className="rounded-xl px-4 py-3 text-sm text-red-300"
-                style={{ background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.25)', animation: 'shake .4s cubic-bezier(.36,.07,.19,.97) both' }}>
-                {erro}
-              </div>
+            <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                <Checkbox
+                  checked={rememberDevice}
+                  onCheckedChange={(checked) => setRememberDevice(checked === true)}
+                />
+                Manter sessão neste dispositivo
+              </label>
+              <a
+                href="mailto:suporte@tcs.app?subject=Recuperação%20de%20acesso"
+                className="text-[13px] font-medium text-primary hover:underline"
+              >
+                Esqueci minha senha
+              </a>
+            </div>
+
+            {error && (
+              <Alert variant="destructive" className="mt-5">
+                <AlertTitle>Não foi possível entrar</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
-            <button type="submit" disabled={submitting}
-              className="w-full h-11 rounded-xl text-sm font-bold text-white transition-all active:scale-[.98] disabled:opacity-50 flex items-center justify-center gap-2"
-              style={{ background: 'linear-gradient(135deg,#1e40af 0%,#2563eb 60%,#3b82f6 100%)', boxShadow: '0 4px 24px rgba(37,99,235,.45)' }}>
-              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {submitting ? 'Entrando…' : 'Entrar'}
-            </button>
+            {authMessage && !error && (
+              <Alert className="mt-5">
+                <AlertTitle>Conta protegida</AlertTitle>
+                <AlertDescription>{authMessage}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              type="submit"
+              disabled={submitting || !supabaseConfigurationAvailable}
+              className="mt-8 h-[46px] w-full"
+            >
+              {submitting && <Loader2 className="animate-spin" />}
+              {submitting ? 'Entrando…' : 'Entrar na TCS Console'}
+            </Button>
           </form>
 
-          <p className="text-[11px] text-slate-600 text-center pt-1 border-t border-white/5">
-            É necessário um vínculo interno explícito e ativo para acessar.
+          <div className="my-10 flex items-center gap-4">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Ou continue com</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-[46px] w-full"
+            disabled={googleSubmitting || !supabaseConfigurationAvailable}
+            onClick={() => void handleGoogle()}
+          >
+            {googleSubmitting ? <Loader2 className="animate-spin" /> : <GoogleMark />}
+            {googleSubmitting ? 'Abrindo Google…' : 'Entrar ou criar conta com Google'}
+          </Button>
+          <p className="mt-7 text-center text-[12px] leading-5 text-muted-foreground">
+            Contas novas ficam pendentes até a aprovação da equipe TCS. Contas existentes mantêm as permissões atuais.
           </p>
         </div>
-      </div>
-
-      <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(22px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes popIn {
-          from { opacity: 0; transform: scale(.65); }
-          to   { opacity: 1; transform: scale(1); }
-        }
-        @keyframes shake {
-          0%,100% { transform: translateX(0); }
-          20%  { transform: translateX(-7px); }
-          40%  { transform: translateX(7px); }
-          60%  { transform: translateX(-4px); }
-          80%  { transform: translateX(4px); }
-        }
-        .maplibregl-ctrl-logo,
-        .maplibregl-ctrl-attrib { display: none !important; }
-      `}</style>
-    </div>
+      </section>
+    </main>
   );
 }
 
-function TelaCarregando() {
+function GoogleMark() {
   return (
-    <div className="min-h-screen grid place-items-center bg-slate-950">
-      <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z" />
+      <path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z" />
+      <path fill="#FBBC05" d="M6.5 14a6 6 0 0 1 0-3.9V7.4H3.1A10 10 0 0 0 2 12c0 1.7.4 3.2 1.1 4.6L6.5 14Z" />
+      <path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.9A9.8 9.8 0 0 0 3.1 7.4l3.4 2.7A5.9 5.9 0 0 1 12 5.9Z" />
+    </svg>
+  );
+}
+
+function LoginMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] text-white/40">{label}</dt>
+      <dd className="mt-2 text-[21px] font-semibold text-white">{value}</dd>
     </div>
   );
 }

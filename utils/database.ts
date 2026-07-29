@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 18;
+const DB_VERSION = 19;
 
 let db: SQLite.SQLiteDatabase | null = null;
 let acknowledgementSchemaEnsured = false;
@@ -205,6 +205,7 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
           lng REAL,
           observacoes TEXT,
           status TEXT DEFAULT 'pendente',
+          origem TEXT DEFAULT 'app',
           criado_em TEXT,
           sincronizado INTEGER DEFAULT 0
         )
@@ -309,6 +310,12 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
 
     if (currentVersion < 18) {
       createDocumentAcknowledgementSchema(database);
+    }
+
+    if (currentVersion < 19) {
+      // Identifica agendamentos criados no portal web e preserva a origem offline.
+      try { database.runSync(`ALTER TABLE agendamentos ADD COLUMN origem TEXT DEFAULT 'app'`); } catch { /* já existe */ }
+      try { database.runSync(`UPDATE agendamentos SET origem = 'app' WHERE origem IS NULL`); } catch { /* já existe */ }
     }
 
     database.runSync(
@@ -816,8 +823,8 @@ export function insertAgendamento(a: AgendamentoLocal): void {
     `INSERT OR REPLACE INTO agendamentos (
       id, titulo, endereco, municipio, data_agendada,
       criado_por_uid, criado_por_nome, agente_uid, agente_nome,
-      lat, lng, observacoes, status, criado_em, sincronizado
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      lat, lng, observacoes, status, origem, criado_em, sincronizado
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       a.id,
       a.titulo,
@@ -832,6 +839,7 @@ export function insertAgendamento(a: AgendamentoLocal): void {
       a.lng ?? null,
       a.observacoes ?? null,
       a.status,
+      a.origem ?? 'app',
       a.criado_em ?? new Date().toISOString(),
       a.sincronizado ?? 0,
     ]

@@ -94,3 +94,21 @@
 - [x] 9.8 Ativar o novo console para donos em piloto interno e validar os fluxos comerciais
 - [x] 9.9 Ativar a visão de programador em piloto interno e validar diagnóstico, builds e permissões negativas
 - [x] 9.10 Remover rotas de compatibilidade e o gate antigo somente após aprovação dos dois pilotos internos
+
+## 10. Extensão do detalhe operacional do agente
+
+- [x] 10.1 Auditar `get_internal_customer_detail` e `get_internal_customer_operations`, documentando os limites atuais de 50 vistorias e 250 pontos e removendo sua responsabilidade pelo histórico individual completo
+- [x] 10.2 Criar consulta server-side de resumo do agente com validação de `customer_id` + `user_id`, período atual/anterior, riscos, dias ativos, geolocalização, documentos, sessão e atividade técnica permitida
+- [x] 10.3 Criar consulta paginada de vistorias por agente com cursor estável, total filtrado, páginas de 25/50/100 e filtros por período, risco, status, formulário e texto permitido
+- [x] 10.4 Criar consulta de mapa por agente e filtros com viewport/clusters, contagem total geolocalizada e contagem sem coordenadas
+- [x] 10.5 Criar consultas por agente para agendamentos, documentos e acesso/atividade reutilizando tabelas e eventos existentes
+- [x] 10.6 Garantir que documentos privados sejam abertos por URL assinada de curta duração após nova verificação de permissão
+- [x] 10.7 Adicionar rota `/clientes/:customerId/usuarios/:userId/:userSection?` e transformar as linhas de Clientes > Usuários em links acessíveis com ação “Ver agente”
+- [x] 10.8 Implementar cabeçalho do agente e módulos Visão geral, Vistorias, Mapa, Agendamentos, Documentos e Acesso/atividade
+- [x] 10.9 Compartilhar filtros de período, risco, status e formulário entre KPIs, lista e mapa por estado de rota/query string
+- [x] 10.10 Mover bloquear/liberar, encerrar sessão e redefinir senha para operações server-side protegidas, confirmadas e auditadas no módulo Acesso
+- [x] 10.11 Auditar vistorias legadas com `agenteUid` ou `organization_id` ausente, executar backfill somente quando houver vínculo persistido e gerar relatório para casos ambíguos
+- [x] 10.12 Testar agente individual e municipal, agente removido, usuário fora do cliente, mais de 50 vistorias, paginação estável, filtros consistentes, mapa agrupado, registro sem coordenadas e documento protegido
+- [x] 10.13 Testar owner, developer sem acesso sensível, developer com suporte ativo e expiração do acesso enquanto a página permanece aberta
+- [x] 10.14 Validar responsividade, navegação por teclado e alternativa textual ao mapa em desktop, tablet e tela estreita
+- [x] 10.15 Executar testes, lint, build do dashboard, validação OpenSpec e testes negativos de RLS/RPC antes de marcar a extensão como concluída

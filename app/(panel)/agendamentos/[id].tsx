@@ -106,6 +106,7 @@ export default function AgendamentoDetalheScreen() {
                 lng: data.lng,
                 observacoes: data.observacoes,
                 status: data.status,
+                origem: data.origem === 'web' ? 'web' : 'app',
                 criado_em: data.criado_em,
                 sincronizado: 1,
               };
@@ -263,6 +264,12 @@ export default function AgendamentoDetalheScreen() {
               {STATUS_LABELS[agendamento.status]?.toUpperCase() ?? agendamento.status.toUpperCase()}
             </Text>
           </View>
+          {agendamento.origem === 'web' && (
+            <View style={[styles.webBadge, { backgroundColor: `${theme.primary}18` }]}>
+              <Feather name="globe" size={12} color={theme.primary} />
+              <Text style={[styles.webBadgeText, { color: theme.primary }]}>FEITO NA WEB</Text>
+            </View>
+          )}
         </View>
 
         {/* Data e hora */}
@@ -444,6 +451,8 @@ const styles = StyleSheet.create({
   titleRow: { marginBottom: 20, gap: 10 },
   titulo: { fontSize: 22, fontWeight: '800', lineHeight: 30 },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
+  webBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  webBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   statusText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
 
   infoCard: {

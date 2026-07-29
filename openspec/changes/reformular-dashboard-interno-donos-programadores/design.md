@@ -98,6 +98,46 @@ Tabelas, filtros, estados, cards, badges e detalhes de ocorrências poderão ser
 
 Rollback: reativar temporariamente o shell e o gate anteriores por feature flag, preservando identidades internas e eventos já gravados. Não remover dados de auditoria, clientes ou configurações durante rollback.
 
+## Extensão de design: detalhe do agente
+
+### Estado encontrado
+
+A aba `Usuários` de `CustomerDetailPage` apenas lista nome, papel, status e último acesso. A linha não abre um usuário. As vistorias do detalhe do cliente vêm de `get_internal_customer_detail` com `LIMIT 50`, enquanto `get_internal_customer_operations` retorna até 250 pontos no mapa para todo o cliente. Portanto, selecionar um agente não produz uma visão individual e os limites atuais não atendem ao requisito de consultar todo o histórico.
+
+### Rota e navegação
+
+A rota canônica será `/clientes/:customerId/usuarios/:userId/:userSection?`. A aba Usuários do cliente transformará a linha inteira e uma ação explícita “Ver agente” em links acessíveis para essa rota. `userSection` aceitará `resumo`, `vistorias`, `mapa`, `agendamentos`, `documentos` e `acesso`; valores inválidos voltarão para `resumo`.
+
+O cabeçalho mostrará nome, papel, status do vínculo, organização, plano herdado, último acesso e última atividade conhecida. O retorno levará à aba Usuários do cliente sem perder filtros e paginação quando o estado de navegação estiver disponível.
+
+### Contrato de dados
+
+Uma consulta server-side receberá `customer_id`, `user_id`, período, riscos, status, formulário, texto, cursor e tamanho da página. O servidor validará que o usuário pertence ao cliente — ou que é o próprio sujeito de um cliente individual — antes de consultar vistorias. A resposta separará:
+
+- identidade e vínculo do agente;
+- totais do período e do período anterior;
+- distribuição R1–R4, dias ativos, última vistoria, percentual geolocalizado e completude documental;
+- página de vistorias ordenada por `dataVistoria` decrescente, com total e próximo cursor;
+- contagens de agendamentos e documentos;
+- última sessão, heartbeat e último evento técnico permitido.
+
+A lista usará páginas de 25 itens e permitirá 25, 50 ou 100. Não haverá `LIMIT` global que esconda registros antigos. O mapa usará consulta própria por usuário e filtros, retornando clusters ou pontos do viewport com contagem total; assim, todos os registros geolocalizados permanecem representados sem enviar um conjunto ilimitado ao navegador.
+
+### Módulos
+
+1. **Visão geral:** KPIs do período, comparação com o período anterior, distribuição de risco, atividade por dia e alertas acionáveis.
+2. **Vistorias:** busca por protocolo/endereço autorizado, filtros por período, risco, status e formulário, paginação, ordenação e abertura do detalhe existente.
+3. **Mapa:** clusters, legenda R1–R4, ajuste aos resultados, sincronização com os mesmos filtros e acesso ao resumo da vistoria.
+4. **Agendamentos:** futuros, atrasados e concluídos vinculados por `agente_uid`, com navegação para a vistoria resultante quando existir.
+5. **Documentos:** laudo, relatório e termo por vistoria, estado de geração e link assinado sob demanda; URLs privadas não serão expostas diretamente.
+6. **Acesso e atividade:** aprovação/vínculo, sessões, dispositivos, heartbeat, versão conhecida, falhas técnicas permitidas e ações protegidas de bloquear/liberar, encerrar sessão e redefinir senha.
+
+Assinatura, cobrança, suporte geral e consumo da organização continuarão no nível do cliente. O detalhe do agente apenas exibirá o plano herdado e o acesso efetivo, evitando duplicar módulos comerciais que não pertencem ao usuário municipal.
+
+### Compatibilidade e dados legados
+
+Antes da ativação, uma auditoria identificará vistorias com `agenteUid` ausente/inválido e vistorias municipais sem `organization_id`. Registros corrigíveis serão vinculados por identificadores persistidos em migração controlada. O runtime não usará nome do agente ou município textual como autorização. Dados não reconciliados aparecerão em um relatório administrativo, não serão atribuídos por aproximação.
+
 ## Open Questions
 
 - O papel `developer` poderá disparar build diretamente em produção ou precisará de aprovação do dono?

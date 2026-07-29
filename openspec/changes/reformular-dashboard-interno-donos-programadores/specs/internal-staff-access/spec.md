@@ -60,3 +60,14 @@ The system SHALL record activation, role change, suspension and removal of inter
 #### Scenario: Owner changes a developer's access
 - **WHEN** an owner changes an internal staff role or active status
 - **THEN** the system SHALL preserve the previous and new values with the acting owner and timestamp
+
+### Requirement: Agent detail inherits customer and sensitive-data permissions
+The system MUST require `customer.read` for agent aggregates and SHALL require the existing sensitive support context before returning protected address, coordinates, contact or document access to a developer.
+
+#### Scenario: Developer opens an agent without support context
+- **WHEN** a developer has customer read permission but no active sensitive support access
+- **THEN** the system SHALL return permitted aggregates and sanitized activity while withholding protected address, exact coordinates, contact and document URLs
+
+#### Scenario: Sensitive support access expires
+- **WHEN** an open agent detail outlives the associated sensitive access grant
+- **THEN** subsequent queries SHALL withhold sensitive fields and the interface SHALL explain that renewed audited access is required

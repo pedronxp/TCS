@@ -11,7 +11,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:subscription-concurrency": "node scripts/test-subscription-concurrency.mjs",
-    "test:subscription-migration": "node scripts/test-subscription-migration.mjs"
+    "test:subscription-migration": "node scripts/test-subscription-migration.mjs",
+    "test:agent-detail": "node scripts/test-internal-agent-detail.mjs",
+    "test:archive-restore": "node scripts/test-archive-restore-security.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

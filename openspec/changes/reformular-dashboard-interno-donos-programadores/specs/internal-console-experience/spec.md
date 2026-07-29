@@ -72,3 +72,65 @@ The system SHALL provide a global search for customers by display name, legal na
 #### Scenario: User selects a search result
 - **WHEN** an internal user selects a permitted customer result
 - **THEN** the system SHALL navigate to that customer's summary and preserve the selected customer across its tabs
+
+### Requirement: Customer users open a dedicated agent detail
+The system SHALL make each permitted user in a customer navigable to `/clientes/:customerId/usuarios/:userId/:userSection?` and SHALL preserve the selected customer as the authorization boundary.
+
+#### Scenario: Staff selects an organization agent
+- **WHEN** authorized staff activates the user row or the “Ver agente” action inside a customer's Users section
+- **THEN** the system SHALL open that agent's summary with identity, membership, effective access, inherited plan, last login and last known activity
+
+#### Scenario: Requested user is outside the customer
+- **WHEN** staff changes `userId` to a user that does not belong to `customerId`
+- **THEN** the server SHALL return not found or access denied without revealing the other user's activity or existence
+
+### Requirement: Agent detail contains only relevant operational modules
+The system SHALL organize agent detail into Visão geral, Vistorias, Mapa, Agendamentos, Documentos and Acesso/atividade.
+
+#### Scenario: Staff navigates between agent modules
+- **WHEN** staff changes the agent section
+- **THEN** the route SHALL remain inside the same customer and agent and each module SHALL provide loading, empty, error and retry states
+
+#### Scenario: Staff opens an invalid agent section
+- **WHEN** `userSection` is absent or unsupported
+- **THEN** the system SHALL show the agent summary without losing customer or user context
+
+### Requirement: Agent overview uses a consistent reporting period
+The system SHALL show inspections, previous-period change, R1–R4 distribution, active days, last inspection, geolocated percentage and document completeness for one shared reporting period.
+
+#### Scenario: Staff changes the period
+- **WHEN** staff selects 7 days, 30 days, 90 days or a valid custom period
+- **THEN** KPIs, charts, inspection totals and map totals SHALL refresh from the same server filters and SHALL identify the comparison period
+
+#### Scenario: A metric has no source data
+- **WHEN** an agent has no persisted source for a metric such as app version or technical activity
+- **THEN** the system SHALL display “Não informado” or “Desconhecido” and SHALL NOT infer a healthy or successful value
+
+### Requirement: Agent inspection history is complete and paginated
+The system SHALL make the agent's complete authorized inspection history queryable through server-side pagination, filtering and stable newest-first ordering.
+
+#### Scenario: Agent has more than fifty inspections
+- **WHEN** staff opens an agent whose history exceeds the current customer-detail limit
+- **THEN** the first page SHALL report the full filtered total and navigation SHALL reach older inspections without a silent global cap
+
+#### Scenario: Staff filters inspections
+- **WHEN** staff filters by period, risk, status, form or permitted protocol/address text
+- **THEN** the list, total, KPIs and map SHALL describe the same filtered inspection set
+
+### Requirement: Agent map represents all filtered geolocated inspections
+The system SHALL render filtered agent inspections through viewport-aware points or clusters and SHALL communicate records that lack valid coordinates.
+
+#### Scenario: Map contains a large history
+- **WHEN** the filtered result contains more points than the browser point threshold
+- **THEN** the server SHALL return clusters or viewport-bounded points whose counts represent the full filtered geolocated set
+
+#### Scenario: Inspection lacks coordinates
+- **WHEN** a filtered inspection has no valid latitude or longitude
+- **THEN** it SHALL remain in list and KPIs, be excluded from map markers and contribute to the visible “sem localização” count
+
+### Requirement: Agent detail remains responsive and accessible
+The system SHALL keep agent modules usable on desktop, tablet and narrow screens with keyboard-accessible user rows, filters, tabs, tables and map alternatives.
+
+#### Scenario: Map cannot be operated visually
+- **WHEN** a user relies on keyboard navigation or a screen reader
+- **THEN** the system SHALL offer an equivalent textual list of mapped inspections and SHALL NOT make the map the only path to inspection detail
