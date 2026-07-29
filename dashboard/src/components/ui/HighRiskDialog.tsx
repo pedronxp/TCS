@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
 
 interface Props {
   open: boolean;
@@ -84,5 +87,124 @@ export function HighRiskDialog({ open, title, description, confirmLabel, onClose
   }
 
   const aal2 = profile?.assuranceLevel === 'aal2';
-  return <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="high-risk-title" aria-describedby="high-risk-description" className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start gap-3"><div className="rounded-xl bg-amber-100 p-2 text-amber-700"><ShieldCheck className="h-5 w-5" /></div><div className="min-w-0 flex-1"><h2 id="high-risk-title" className="text-lg font-bold">{title}</h2><p id="high-risk-description" className="mt-1 text-sm text-slate-500">{description}</p></div><button ref={closeRef} onClick={onClose} aria-label="Fechar confirmação" className="rounded-lg p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"><X className="h-5 w-5" /></button></div>{aal2 ? <div className="mt-5"><label className="text-sm font-semibold" htmlFor="high-risk-reason">Justificativa</label><textarea id="high-risk-reason" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} className="mt-2 w-full rounded-xl border p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" placeholder="Explique por que esta ação é necessária" /><button disabled={busy} onClick={() => void confirm()} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy && <Loader2 className="h-4 w-4 animate-spin" />}{confirmLabel}</button></div> : <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4"><p className="text-sm font-semibold text-blue-900">Confirmação forte necessária</p>{hasVerifiedFactor === false && !enrollment ? <><p className="mt-1 text-xs text-blue-700">Cadastre um aplicativo autenticador para proteger as operações administrativas.</p><button disabled={busy} onClick={() => void enrollMfa()} className="mt-3 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Configurar autenticador</button></> : <>{enrollment && <div className="mt-3 rounded-lg bg-white p-3"><img src={enrollment.qrCode} alt="QR code para cadastrar o TCS Console no autenticador" className="mx-auto h-44 w-44" /><p className="mt-2 text-center text-xs text-slate-500">Se não puder escanear, use o segredo:</p><code className="mt-1 block break-all rounded bg-slate-100 p-2 text-center text-xs">{enrollment.secret}</code></div>}<p className="mt-3 text-xs text-blue-700">Digite o código de 6 dígitos do autenticador para elevar esta sessão a aal2.</p><div className="mt-3 flex gap-2"><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" aria-label="Código do autenticador" className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-center font-mono tracking-[.3em]" /><button disabled={busy || code.length !== 6} onClick={() => void verifyMfa()} className="rounded-lg bg-blue-700 px-4 text-sm font-bold text-white disabled:opacity-50">Verificar</button></div></>}</div>}{error && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}</div></div>;
+  return (
+    <div
+      className="fixed inset-0 z-[100] grid place-items-center bg-foreground/60 p-4"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="high-risk-title"
+        aria-describedby="high-risk-description"
+        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-2xl"
+      >
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-warning-soft p-2 text-warning-soft-foreground">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 id="high-risk-title" className="text-lg font-bold">{title}</h2>
+            <p id="high-risk-description" className="mt-1 text-sm text-muted-foreground">{description}</p>
+          </div>
+          <Button
+            ref={closeRef}
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Fechar confirmação"
+            className="h-9 w-9"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {aal2 ? (
+          <div className="mt-5">
+            <label className="text-sm font-semibold" htmlFor="high-risk-reason">Justificativa</label>
+            <Textarea
+              id="high-risk-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              rows={3}
+              className="mt-2"
+              placeholder="Explique por que esta ação é necessária"
+            />
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busy}
+              onClick={() => void confirm()}
+              className="mt-4 w-full"
+            >
+              {busy && <Loader2 className="animate-spin" />}
+              {confirmLabel}
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-xl border border-info/20 bg-info-soft p-4">
+            <p className="text-sm font-semibold text-foreground">Confirmação forte necessária</p>
+            {hasVerifiedFactor === false && !enrollment ? (
+              <>
+                <p className="mt-1 text-xs text-info">
+                  Cadastre um aplicativo autenticador para proteger as operações administrativas.
+                </p>
+                <Button type="button" disabled={busy} onClick={() => void enrollMfa()} className="mt-3">
+                  Configurar autenticador
+                </Button>
+              </>
+            ) : (
+              <>
+                {enrollment && (
+                  <div className="mt-3 rounded-lg bg-card p-3">
+                    <img
+                      src={enrollment.qrCode}
+                      alt="QR code para cadastrar o TCS Console no autenticador"
+                      className="mx-auto h-44 w-44"
+                    />
+                    <p className="mt-2 text-center text-xs text-muted-foreground">
+                      Se não puder escanear, use o segredo:
+                    </p>
+                    <code className="mt-1 block break-all rounded bg-muted p-2 text-center text-xs">
+                      {enrollment.secret}
+                    </code>
+                  </div>
+                )}
+                <p className="mt-3 text-xs text-info">
+                  Digite o código de 6 dígitos do autenticador para elevar esta sessão a aal2.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Input
+                    value={code}
+                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    aria-label="Código do autenticador"
+                    className="min-w-0 flex-1 text-center font-mono tracking-[.3em]"
+                  />
+                  <Button
+                    type="button"
+                    disabled={busy || code.length !== 6}
+                    onClick={() => void verifyMfa()}
+                  >
+                    Verificar
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {error && (
+          <p className="mt-3 rounded-lg bg-danger-soft p-3 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }

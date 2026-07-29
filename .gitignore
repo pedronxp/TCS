@@ -49,3 +49,22 @@ yarn-error.*
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Local agent tooling and generated work artifacts
+.claude/commands/
+.claude/skills/openspec-apply-change/
+.claude/skills/openspec-archive-change/
+.claude/skills/openspec-explore/
+.claude/skills/openspec-propose/
+.claude/skills/openspec-sync-specs/
+.claude/skills/openspec-update-change/
+.codex/
+.gemini/commands/
+.gemini/skills/openspec-apply-change/
+.gemini/skills/openspec-archive-change/
+.gemini/skills/openspec-explore/
+.gemini/skills/openspec-propose/
+.gemini/skills/openspec-sync-specs/
+.gemini/skills/openspec-update-change/
+output/
+tmp/

@@ -33,6 +33,7 @@ function parseCustomer(record: JsonObject): CustomerDetailRecord {
     session_policy: jsonString(record.session_policy), session_timeout_minutes: jsonNumber(record.session_timeout_minutes),
     offline_tolerance_minutes: jsonNumber(record.offline_tolerance_minutes),
     created_at: jsonString(record.created_at), updated_at: jsonString(record.updated_at),
+    last_access_at: jsonString(record.last_access_at),
   };
 }
 

@@ -86,3 +86,39 @@ The system MUST distinguish demonstration data from production and SHALL NOT ren
 #### Scenario: Production data source is unavailable
 - **WHEN** a required production query fails
 - **THEN** the system SHALL show an error state and SHALL NOT substitute demonstration values
+
+### Requirement: Agent operational queries are scoped and scalable
+The system SHALL resolve agent summary, inspection pages, map clusters, appointments, documents and activity server-side using persisted customer and user identifiers.
+
+#### Scenario: Organization agent data is requested
+- **WHEN** the server receives a valid organization customer and member user
+- **THEN** it SHALL validate active or historical membership as permitted and query records by persisted `organization_id` and user identifier rather than agent name or municipality text
+
+#### Scenario: Pagination is repeated
+- **WHEN** staff requests the next inspection page with an unchanged filter and cursor
+- **THEN** the system SHALL return a stable, non-duplicated continuation ordered by inspection date and identifier
+
+### Requirement: Agent documents use protected download access
+The system SHALL list generated laudo, relatório and termo states for the agent and SHALL create time-limited download access only after authorization.
+
+#### Scenario: Staff opens an agent document
+- **WHEN** authorized staff requests a private document from the agent detail
+- **THEN** the server SHALL verify customer, user and sensitive-data permission before returning a short-lived signed URL
+
+### Requirement: Agent access actions use protected operations
+The system SHALL execute approval, blocking, session termination and password reset through protected server operations with explicit permission, confirmation and audit.
+
+#### Scenario: Owner blocks an agent
+- **WHEN** an owner confirms blocking and provides the required reason
+- **THEN** the server SHALL update effective access, revoke applicable active sessions and record the before-and-after state
+
+#### Scenario: Developer attempts an owner-only access mutation
+- **WHEN** a developer invokes the mutation directly
+- **THEN** the server SHALL reject it even if the frontend control is hidden
+
+### Requirement: Legacy inspection ownership is reconciled explicitly
+The system SHALL report and reconcile inspections with missing organization or invalid agent identifiers before relying on the agent detail for complete history.
+
+#### Scenario: Legacy inspection cannot be matched safely
+- **WHEN** no persistent identifier proves the inspection's customer and agent ownership
+- **THEN** the system SHALL keep it unassigned for administrative review and SHALL NOT authorize or attribute it using name similarity

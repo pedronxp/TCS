@@ -36,3 +36,12 @@ Nenhuma especificação base existente será modificada. A mudança complementa 
 - Edge Functions relacionadas a builds, arquivamento e futuras consultas técnicas.
 - Testes do dashboard para autorização, navegação, mutations administrativas e isolamento de dados.
 - Documentação do dashboard, que deverá refletir o acesso exclusivamente interno e a separação do futuro portal do cliente.
+
+## Extensão: detalhe operacional do agente
+
+- Tornar cada usuário da aba Clientes > Usuários navegável para um detalhe próprio, preservando o cliente selecionado como fronteira de autorização.
+- Exibir todas as vistorias do agente por paginação server-side, sem o limite silencioso das 50 vistorias recentes atualmente retornadas no detalhe do cliente.
+- Reunir no detalhe do agente os módulos Visão geral, Vistorias, Mapa, Agendamentos, Documentos e Acesso/atividade.
+- Compartilhar período e filtros entre indicadores, lista e mapa para que os totais representem exatamente o mesmo conjunto de vistorias.
+- Aproveitar dados já existentes de vistorias, risco, coordenadas, documentos, agendamentos, sessões e eventos técnicos; nenhuma métrica poderá ser simulada quando a fonte não existir.
+- Manter dados pessoais, coordenadas e documentos sujeitos ao modo de suporte auditado e às permissões internas já definidas.

@@ -1,38 +1,343 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Plus, Search } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { IndividualClientDialog } from '@/components/customers/IndividualClientDialog';
-import { EmptyState, ErrorState, LoadingState, StatusBadge } from '@/components/ui/AsyncState';
+import { PageHeader } from '@/components/domain/PageHeader';
+import { StatusBadge } from '@/components/domain/Badges';
+import { AsyncBoundary } from '@/components/states/AsyncBoundary';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu';
+import { Input } from '@/components/ui/Input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
+import { cn } from '@/lib/utils';
+
+const statusFilters = [
+  { value: 'all', label: 'Todos' },
+  { value: 'active', label: 'Ativos' },
+  { value: 'onboarding', label: 'Onboarding' },
+  { value: 'suspended', label: 'Suspensos' },
+] as const;
 
 export function CustomersPage() {
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [page, setPage] = useState(0);
   const [params, setParams] = useSearchParams();
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState(() => params.get('status') || 'all');
+  const [page, setPage] = useState(0);
   const navigate = useNavigate();
   const { can } = useAuth();
-  const query = useCustomers(search, status, page);
+  const query = useCustomers(search, status === 'all' ? '' : status, page);
+  const totalQuery = useCustomers('', '', 0);
+  const onboardingQuery = useCustomers('', 'onboarding', 0);
+  const pilotQuery = useCustomers('', 'pilot', 0);
+  const activeQuery = useCustomers('', 'active', 0);
+  const suspendedQuery = useCustomers('', 'suspended', 0);
   const newCustomer = params.get('novo');
   const creatingOrganization = (newCustomer === '1' || newCustomer === 'municipal') && can('customer.write');
   const creatingIndividual = newCustomer === 'individual' && can('customer.write');
-  const closeCreate = () => { params.delete('novo'); setParams(params, { replace: true }); };
+  const pageCount = query.data ? Math.max(1, Math.ceil(query.data.total / query.data.limit)) : 1;
+
+  const totals = {
+    all: totalQuery.data?.total ?? 0,
+    onboarding: onboardingQuery.data?.total ?? 0,
+    pilot: pilotQuery.data?.total ?? 0,
+    active: activeQuery.data?.total ?? 0,
+    suspended: suspendedQuery.data?.total ?? 0,
+  };
+  const activePercent = totals.all > 0 ? Math.round((totals.active / totals.all) * 100) : 0;
+
+  const setStatusFilter = (nextStatus: string) => {
+    setStatus(nextStatus);
+    setPage(0);
+  };
+  const openCreate = (kind: 'municipal' | 'individual') => {
+    const next = new URLSearchParams(params);
+    next.set('novo', kind);
+    setParams(next);
+  };
+  const closeCreate = () => {
+    const next = new URLSearchParams(params);
+    next.delete('novo');
+    setParams(next, { replace: true });
+  };
 
   return (
-    <section>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="text-2xl font-bold text-slate-950">Clientes</h2><p className="mt-1 text-sm text-slate-500">Organizações e contas individuais em uma visão comercial, operacional e técnica.</p></div>
-        {can('customer.write') && <div className="flex flex-wrap gap-2"><button onClick={() => setParams({ novo: 'municipal' })} className="flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm font-bold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"><Plus className="h-4 w-4" />Cliente municipal</button><button onClick={() => setParams({ novo: 'individual' })} className="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"><Plus className="h-4 w-4" />Cliente individual</button></div>}
-      </div>
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border bg-white p-4 sm:flex-row">
-        <label className="relative flex-1"><span className="sr-only">Buscar clientes</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Nome, município, contato ou identificador" className="h-9 w-full rounded-lg border pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" /></label>
-        <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }} aria-label="Filtrar status" className="h-9 rounded-lg border px-3 text-sm"><option value="">Todos os status</option>{['onboarding', 'pilot', 'active', 'suspended', 'archived'].map((value) => <option key={value}>{value}</option>)}</select>
-      </div>
-      {query.isLoading ? <LoadingState label="Carregando clientes…" /> : query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : !query.data?.items.length ? <EmptyState title="Nenhum cliente encontrado" description="Ajuste os filtros ou crie o primeiro cliente para iniciar a implantação." /> : <><div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full min-w-[760px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"><tr><th className="p-4">Cliente</th><th className="p-4">Plano</th><th className="p-4">Assinatura</th><th className="p-4">Usuários</th><th className="p-4">Atividade</th><th className="p-4">Status</th></tr></thead><tbody>{query.data.items.map((customer) => <tr key={customer.customer_id} className="border-t hover:bg-slate-50"><td className="p-4"><Link className="font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" to={`/clientes/${encodeURIComponent(customer.customer_id)}`}>{customer.display_name}</Link><p className="text-xs text-slate-500">{customer.municipality_name || customer.kind}{customer.state_code ? ` · ${customer.state_code}` : ''}</p></td><td className="p-4">{customer.plan_name || 'Sem plano'}</td><td className="p-4"><StatusBadge value={customer.subscription_status} /></td><td className="p-4">{customer.active_users}</td><td className="p-4">{customer.last_activity_at ? new Date(customer.last_activity_at).toLocaleDateString('pt-BR') : '—'}</td><td className="p-4"><StatusBadge value={customer.status} /></td></tr>)}</tbody></table></div><div className="mt-4 flex items-center justify-between text-sm text-slate-500"><span>{query.data.total} cliente(s)</span><div className="flex gap-2"><button disabled={page === 0} onClick={() => setPage((value) => value - 1)} aria-label="Página anterior" className="rounded-lg border bg-white p-2 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button><button disabled={(page + 1) * query.data.limit >= query.data.total} onClick={() => setPage((value) => value + 1)} aria-label="Próxima página" className="rounded-lg border bg-white p-2 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button></div></div></>}
-      <OrganizationFormDialog open={creatingOrganization} onClose={closeCreate} onSaved={(customerId) => navigate(`/clientes/${encodeURIComponent(customerId)}`)} />
-      <IndividualClientDialog open={creatingIndividual} onClose={closeCreate} onSaved={(customerId) => navigate(`/clientes/${encodeURIComponent(customerId)}`)} />
-    </section>
+    <div className="page-stack">
+      <PageHeader
+        eyebrow="Carteira de clientes"
+        title="Clientes"
+        description="Organizações e contas individuais em uma visão comercial, operacional e técnica."
+        actions={can('customer.write') ? (
+          <>
+            <Button variant="outline" onClick={() => openCreate('municipal')}>
+              <Plus />
+              Municipal
+            </Button>
+            <Button onClick={() => openCreate('individual')}>
+              <Plus />
+              Individual
+            </Button>
+          </>
+        ) : undefined}
+      />
+
+      <CustomerOverview totals={totals} activePercent={activePercent} />
+
+      <Card className="shadow-none">
+        <CardContent className="flex flex-col gap-3 p-2 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1 xl:max-w-[460px]">
+            <span className="sr-only">Buscar clientes</span>
+            <Search className="pointer-events-none absolute left-4 top-3.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(0);
+              }}
+              placeholder="Nome, município, contato ou identificador"
+              className="h-11 border-0 bg-background pl-10 shadow-none"
+            />
+          </label>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            {statusFilters.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                aria-pressed={status === filter.value}
+                onClick={() => setStatusFilter(filter.value)}
+                className={cn(
+                  'h-8 rounded-full border px-3 text-[11px] font-semibold transition-colors',
+                  status === filter.value
+                    ? 'border-ink bg-ink text-white'
+                    : 'bg-card text-muted-foreground hover:bg-secondary',
+                )}
+              >
+                {filter.label}
+              </button>
+            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn('ml-auto h-11', ['pilot', 'archived'].includes(status) && 'border-primary')}
+                >
+                  <Filter />
+                  {status === 'pilot' ? 'Piloto' : status === 'archived' ? 'Arquivados' : 'Filtros'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setStatusFilter('pilot')}>Piloto</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setStatusFilter('archived')}>Arquivados</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setStatusFilter('all')}>Limpar filtro</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardContent>
+      </Card>
+
+      <AsyncBoundary
+        loading={query.isLoading}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        empty={Boolean(query.data && !query.data.items.length)}
+        emptyTitle="Nenhum cliente encontrado"
+        emptyDescription="Ajuste os filtros ou crie o primeiro cliente para iniciar a implantação."
+      >
+        {query.data && query.data.items.length > 0 ? (
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_264px]">
+            <Card className="min-w-0 overflow-hidden shadow-none">
+              <div className="flex items-center justify-between gap-4 px-6 py-5">
+                <h2 className="text-[17px] font-bold">Carteira completa</h2>
+                <p className="text-xs font-medium text-muted-foreground">
+                  {query.data.total.toLocaleString('pt-BR')} clientes
+                </p>
+              </div>
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Cliente</TableHead>
+                    <TableHead>Plano</TableHead>
+                    <TableHead className="text-center">Usuários</TableHead>
+                    <TableHead>Atividade</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {query.data.items.map((customer, index) => (
+                    <TableRow key={customer.customer_id}>
+                      <TableCell className="pl-6">
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            'grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold',
+                            index % 3 === 1 ? 'bg-info-soft text-info' : 'bg-secondary text-primary',
+                          )}>
+                            {customer.display_name.trim().charAt(0).toUpperCase()}
+                          </span>
+                          <div className="min-w-0">
+                            <Link
+                              className="block truncate text-[13px] font-semibold hover:text-primary hover:underline"
+                              to={`/app/clientes/${encodeURIComponent(customer.customer_id)}`}
+                            >
+                              {customer.display_name}
+                            </Link>
+                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                              {customer.state_code || customer.municipality_name || (customer.kind === 'organization' ? 'Organização' : 'Conta individual')}
+                              {customer.kind === 'organization' && customer.state_code ? ' · Organização' : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{customer.plan_name || 'Sem plano'}</TableCell>
+                      <TableCell className="text-center text-xs font-semibold">{customer.active_users}</TableCell>
+                      <TableCell className="text-[11px] text-muted-foreground">{formatActivity(customer.last_activity_at)}</TableCell>
+                      <TableCell><StatusBadge value={customer.status} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="flex items-center justify-between gap-4 border-t px-6 py-4">
+                <p className="text-[11px] font-medium text-muted-foreground">
+                  {query.data.offset + 1}–{Math.min(query.data.offset + query.data.items.length, query.data.total)} de {query.data.total}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
+                    disabled={query.isFetching || page <= 0}
+                    onClick={() => setPage((current) => Math.max(0, current - 1))}
+                    aria-label="Página anterior"
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
+                    disabled={query.isFetching || page + 1 >= pageCount}
+                    onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
+                    aria-label="Próxima página"
+                  >
+                    <ChevronRight />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+            <OnboardingRadar totals={totals} onOpenOnboarding={() => setStatusFilter('onboarding')} />
+          </div>
+        ) : null}
+      </AsyncBoundary>
+
+      <OrganizationFormDialog
+        open={creatingOrganization}
+        onClose={closeCreate}
+        onSaved={(customerId) => navigate(`/app/clientes/${encodeURIComponent(customerId)}`)}
+      />
+      <IndividualClientDialog
+        open={creatingIndividual}
+        onClose={closeCreate}
+        onSaved={(customerId) => navigate(`/app/clientes/${encodeURIComponent(customerId)}`)}
+      />
+    </div>
   );
+}
+
+function CustomerOverview({
+  totals,
+  activePercent,
+}: {
+  totals: Record<'all' | 'onboarding' | 'pilot' | 'active' | 'suspended', number>;
+  activePercent: number;
+}) {
+  const items = [
+    { label: 'Total da base', value: totals.all, detail: 'dados persistidos', tone: 'text-info' },
+    { label: 'Em onboarding', value: totals.onboarding, detail: `${totals.pilot} em piloto`, tone: 'text-info' },
+    { label: 'Operação ativa', value: totals.active, detail: `${activePercent}% da base`, tone: 'text-info' },
+    { label: 'Exigem atenção', value: totals.suspended, detail: 'requer revisão', tone: 'text-warning' },
+  ];
+
+  return (
+    <Card className="shadow-none">
+      <CardContent className="grid p-0 sm:grid-cols-2 xl:grid-cols-4">
+        {items.map((item, index) => (
+          <div key={item.label} className={cn('px-6 py-5', index > 0 && 'border-t sm:border-l sm:border-t-0')}>
+            <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
+            <div className="mt-3 flex items-baseline gap-4">
+              <strong className="text-[26px] leading-none">{item.value.toLocaleString('pt-BR')}</strong>
+              <span className={cn('text-[11px] font-semibold', item.tone)}>{item.detail}</span>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function OnboardingRadar({
+  totals,
+  onOpenOnboarding,
+}: {
+  totals: Record<'all' | 'onboarding' | 'pilot' | 'active' | 'suspended', number>;
+  onOpenOnboarding: () => void;
+}) {
+  const journeyTotal = totals.onboarding + totals.pilot;
+  const max = Math.max(totals.onboarding, totals.pilot, totals.active, totals.suspended, 1);
+  const stages = [
+    { label: 'Em onboarding', value: totals.onboarding, tone: 'bg-info' },
+    { label: 'Em piloto', value: totals.pilot, tone: 'bg-info' },
+    { label: 'Operação ativa', value: totals.active, tone: 'bg-warm' },
+    { label: 'Exigem atenção', value: totals.suspended, tone: 'bg-destructive' },
+  ];
+
+  return (
+    <Card className="overflow-hidden border-ink bg-ink text-white shadow-none">
+      <CardContent className="p-6">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-warm">Radar de implantação</p>
+        <strong className="mt-4 block text-2xl">{journeyTotal.toLocaleString('pt-BR')} clientes</strong>
+        <p className="mt-1 text-xs text-white/60">em jornada de ativação</p>
+        <ul className="mt-10 space-y-8">
+          {stages.map((stage) => (
+            <li key={stage.label}>
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="font-medium">{stage.label}</span>
+                <span className="font-bold text-warm">{stage.value.toLocaleString('pt-BR')}</span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+                <div
+                  className={cn('h-full rounded-full', stage.tone)}
+                  style={{ width: `${Math.max(stage.value > 0 ? 8 : 0, Math.round((stage.value / max) * 100))}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Link
+          to="/app/clientes?status=onboarding"
+          onClick={onOpenOnboarding}
+          className="mt-9 inline-flex border-t border-white/10 pt-6 text-xs font-semibold text-warm hover:underline"
+        >
+          Abrir visão de onboarding →
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatActivity(value: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const elapsed = Date.now() - date.getTime();
+  if (elapsed >= 0 && elapsed < 24 * 60 * 60 * 1000) {
+    return `Hoje, ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(date)}`;
+  }
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
 }

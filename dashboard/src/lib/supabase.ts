@@ -5,23 +5,28 @@ const commercialDemo = import.meta.env.DEV
   && typeof window !== 'undefined'
   && window.location.pathname === '/planos'
   && new URLSearchParams(window.location.search).get('demo') === '1';
+const testRuntime = import.meta.env.MODE === 'test';
 
 // The local commercial demo never performs network requests. Placeholder values
 // let designers test the editor without copying production credentials.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (commercialDemo ? 'http://127.0.0.1:54321' : '');
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (commercialDemo ? 'commercial-demo-public-key' : '');
+const configuredUrl = import.meta.env.VITE_SUPABASE_URL;
+const configuredAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Configuração ausente: defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env do dashboard'
-  );
-}
+export const supabaseConfigurationAvailable = Boolean(
+  (configuredUrl && configuredAnonKey) || commercialDemo || testRuntime,
+);
+
+// Creating the client with inert local values keeps public routes renderable when
+// configuration is missing. Auth actions remain disabled until real public values
+// are available, so a configuration mistake cannot turn the Login into a blank page.
+const supabaseUrl = configuredUrl || 'http://127.0.0.1:54321';
+const supabaseAnonKey = configuredAnonKey || 'local-unconfigured-publishable-key';
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: true,
     storageKey: 'tcs-dashboard-auth',
   },
 });

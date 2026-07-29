@@ -1,202 +1,96 @@
-# TCS — Painel Administrativo
+# TCS Console Web
 
-> Painel web para gestão do app **TCS - Relatório de Risco**, usado pela Defesa Civil.
-> Acesso restrito a administradores aprovados (`admin` e `master_admin`).
+Aplicação React/Vite que reúne a experiência Comercial pública e o console interno para `owner` e `developer`.
 
----
+## Rotas
 
-## Visão geral
+- `/`: Comercial público, sem providers ou consultas internas.
+- `/login`: autenticação da equipe interna.
+- `/app/*`: console protegido e filtrado por permissão.
+- aliases como `/clientes/*`, `/planos` e `/desenvolvimento/*`: redirecionam temporariamente para o equivalente em `/app`.
 
-O painel centraliza todas as operações que os agentes de campo realizam no app mobile:
+## Stack e interface
 
-| Módulo | O que faz |
-|--------|-----------|
-| **Visão Geral** | Estatísticas em tempo real — vistorias, riscos, agendamentos e usuários |
-| **Ocorrências** | Lista e filtros de todas as vistorias registradas, com fotos e nível de risco |
-| **Usuários** | Aprovar/reprovar contas, invite tokens, redefinir senha, excluir com auditoria |
-| **Agendamentos** | Calendário de vistorias agendadas com status e atribuição de agentes |
-| **Mapa** | Mapa interativo com clusters por risco e busca por cidade/CEP |
-| **Laudos** | Visualização e download de laudos em PDF gerados no app |
-| **Relatórios** | Gráficos com Recharts + exportação CSV das vistorias |
-| **Arquivamento** | Lifecycle de fotos e laudos: Supabase → Google Drive após 7 dias *(master_admin)* |
-| **Builds APK** | Disparar build do app via EAS Build + GitHub Actions *(master_admin)* |
-| **Configurações** | Variáveis do sistema e parâmetros globais *(master_admin)* |
+- React 18, TypeScript strict, Vite 5 e React Router 6.
+- TanStack Query/Table, Supabase, Recharts, MapLibre e Lucide.
+- shadcn/ui versionado em `src/components/ui`, configurado por `components.json`.
+- Tailwind CSS 3.4 com tokens semânticos em `src/index.css`.
 
----
+Componentes seguem quatro camadas:
 
-## Stack
+```text
+src/components/ui/        primitivas shadcn
+src/components/layout/    PublicLayout, ConsoleShell, AppSidebar e AppHeader
+src/components/domain/    cabeçalhos, métricas, status, risco e contexto
+src/components/data/      toolbar, ordenação, visualização e paginação
+src/components/states/    loading, vazio, erro e retry
+src/components/security/  confirmação de alta garantia
+```
 
-- **Vite 5** + **React 18** + **TypeScript** (strict)
-- **Tailwind CSS** com tokens de design (cores de risco R1–R4)
-- **TanStack Query v5** — cache, revalidação e estados de loading
-- **TanStack Table v8** — tabelas server-side com paginação e filtros
-- **Supabase JS v2** — mesmo backend do app mobile
-- **React Router v6** — rotas protegidas por role
-- **MapLibre GL JS** — mapa vetorial com tiles CartoDB
-- **Recharts** — gráficos de distribuição de risco e tendências
-- **Lucide React** — ícones
+A rota interna `/app/referencia-ui` apresenta tokens, variantes e estados disponíveis.
 
----
+## Tokens e convenções
 
-## Permissões
+Páginas novas devem usar tokens como `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-primary`, `bg-success`, `bg-warning`, `bg-destructive` e `bg-info`. Risco persistido usa `risk-r1` até `risk-r4` junto de rótulo textual.
 
-O gate de autenticação em `AuthContext.tsx` bloqueia qualquer conta sem `role IN ('master_admin', 'admin')` e `isApproved = true`.
+- Reutilize `Button`, `Input`, `Select`, `Dialog`, `Table` e demais primitivas antes de criar estilos locais.
+- Mantenha tabelas específicas do domínio; compartilhe toolbar, paginação e cabeçalho de coluna.
+- Toda consulta deve cobrir loading, vazio, erro e retry.
+- Ações críticas devem informar alvo, impacto, justificativa e assurance, preservando a autorização server-side.
+- Não altere hooks, query keys, payloads ou contratos Supabase durante uma migração exclusivamente visual.
 
-| Role | Acesso |
-|------|--------|
-| `admin` | Todos os módulos do seu município |
-| `master_admin` | Todos os módulos de todos os municípios + Arquivamento, Builds, Configurações |
+## Catálogo público
 
----
+`src/config/publicPlans.ts` é a fonte sanitizada do site Comercial e reflete `../docs/planos-comerciais-aprovados.md`. A página pública não consulta RPCs protegidas e não substitui indisponibilidade por planos demonstrativos.
 
-## Rodando localmente
+## Execução local
 
 ```bash
 cd dashboard
-cp .env.example .env   # preencher com URL e chave do Supabase
 npm install
-npm run dev            # abre em http://localhost:5173
-```
-
-Para testar somente o editor comercial com dados locais, não é necessário criar `.env`:
-
-```bash
-cd dashboard
 npm run dev
-# abra http://localhost:5173/planos?demo=1
 ```
 
-O modo de demonstração cria versões apenas na memória do navegador e nunca grava no Supabase.
-
-### Variáveis de ambiente
+Variáveis necessárias para Login e console:
 
 ```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=sua-anon-key
 ```
 
-> O arquivo `.env` está no `.gitignore`. Nunca commitar credenciais reais.
+Nunca versione credenciais. O site Comercial funciona sem sessão privilegiada.
 
----
-
-## Deploy (Netlify)
-
-O projeto está configurado para deploy automático via `netlify.toml` na raiz do repositório.
-
-**Configurações do site no Netlify:**
-
-| Campo | Valor |
-|-------|-------|
-| Base directory | `dashboard` |
-| Build command | `npm install && npm run build` |
-| Publish directory | `dashboard/dist` |
-
-**Variáveis de ambiente** a configurar no painel do Netlify (`Site → Environment variables`):
-
-| Variável | Descrição |
-|----------|-----------|
-| `VITE_SUPABASE_URL` | URL do projeto Supabase |
-| `VITE_SUPABASE_ANON_KEY` | Chave anônima pública do Supabase |
-
-Após configurar as variáveis, o deploy é automático a cada push na `main`.
-
----
-
-## Scripts disponíveis
-
-| Comando | O que faz |
-|---------|-----------|
-| `npm run dev` | Dev server com HMR em `localhost:5173` |
-| `npm run build` | Build de produção em `dist/` |
-| `npm run preview` | Servir o build localmente |
-| `npm run types:supabase` | Regenerar tipos TypeScript do schema Supabase |
-
----
-
-## Estrutura de pastas
-
-```
-dashboard/
-├── public/
-│   └── app-icon.png          Ícone do app (favicon + logo)
-├── src/
-│   ├── components/
-│   │   ├── ui/               Primitivos (Button, Input, Label, Badge...)
-│   │   ├── AppLayout.tsx     Shell principal com sidebar responsiva
-│   │   ├── ProtectedRoute    Gate de autenticação e role
-│   │   └── Sidebar.tsx       Navegação lateral com suporte mobile
-│   ├── contexts/
-│   │   └── AuthContext       Sessão Supabase + perfil do usuário logado
-│   ├── hooks/                Hooks reutilizáveis (useUsuarios, useTokens...)
-│   ├── lib/
-│   │   ├── supabase.ts       Cliente Supabase configurado
-│   │   └── utils.ts          Helper cn() (clsx + tailwind-merge)
-│   ├── pages/                Uma página por módulo do painel
-│   ├── types/                Tipos TypeScript + schema gerado do Supabase
-│   └── App.tsx               Definição de rotas
-├── .env.example              Variáveis de ambiente necessárias
-├── index.html
-├── tailwind.config.js
-└── vite.config.ts
-```
-
----
-
-## Console interno v2
-
-O acesso ao console depende de um registro ativo em `public.internal_staff`.
-Papéis municipais (`admin` e `master_admin`) e `user_metadata` não concedem
-acesso. Os papéis iniciais são:
-
-- `owner`: gestão comercial, clientes, staff, suporte, sessões e aprovação de produção;
-- `developer`: diagnóstico técnico, suporte, builds não produtivos e solicitações de produção, sem mutation comercial.
-
-O console interno agora é o único shell. O gate temporário e as rotas globais
-legadas foram removidos após os testes de papéis. Para rollback, restaure o
-artefato web anterior sem remover `internal_staff`, auditoria, eventos técnicos
-ou as políticas de RLS.
-
-Ações de alto risco exigem sessão `aal2` no banco e na Edge Function. Se a API
-retornar `aal2_required`, o usuário deve concluir o desafio MFA e repetir a
-operação com o mesmo identificador idempotente.
-
-### Provisionamento de cliente individual
-
-Na página **Clientes**, o `owner` pode enviar um convite por e-mail ou definir
-uma senha inicial. Os dois caminhos usam a Edge Function
-`provision-individual-client`; a chave administrativa permanece apenas no
-Supabase e nunca entra no bundle do dashboard.
-
-- convite por e-mail: o link temporário e de uso único pertence ao Supabase
-  Auth e não reutiliza `invite_tokens` nem `organization_invites`;
-- senha inicial: a senha trafega somente na requisição HTTPS para a função, não
-  é persistida nem incluída em logs ou metadados de auditoria;
-- ambos exigem `customer.write`, MFA `aal2`, justificativa e registram o usuário
-  criado em `individual_client_provisioning`.
-
-O redirecionamento padrão do convite é `tcs://reset-password`. Para alterá-lo,
-configure o secret `INDIVIDUAL_INVITE_REDIRECT_URL` na Edge Function e inclua a
-mesma URL na lista de Redirect URLs permitidas pelo Supabase Auth.
-
-Validação local:
+## Qualidade
 
 ```bash
+npm run design:validate
 npm run lint
-npm test
+npm run test
+npm run test:visual
 npm run build
 npm audit --omit=dev
 ```
 
-Para regenerar `src/types/supabase.ts`, autentique o Supabase CLI e execute
-`npm run types:supabase`. Nunca coloque o access token do CLI em arquivos do
-dashboard.
+`design:validate` compara o roteador com `design/route-manifest.mjs` e bloqueia o crescimento de cores literais ou primitivas paralelas nas páginas migradas.
 
----
+`test:visual` compara Comercial, Login e as 21 composições internas em 1440, 1024, 768 e 390 px com referências versionadas. As rotas protegidas usam uma sessão e respostas determinísticas exclusivas do Playwright; nenhum bypass ou dado privilegiado entra no bundle. Use `npm run test:visual:update` somente quando uma mudança visual tiver sido comparada com o board correspondente no Penpot e aprovada.
 
-## Decisões técnicas
+Antes de aprovar uma rota, valide 1440 px, 1024 px, 768 px e 390 px; teclado, foco visível, labels, contraste, zoom e `prefers-reduced-motion`.
 
-- **Vite + SPA** em vez de Next.js — painel interno não precisa de SSR; deploy estático é mais simples e barato.
-- **Supabase como único backend** — reutiliza toda a infraestrutura do app mobile (tabelas, RLS, Edge Functions, Storage).
-- **Signed URLs on-demand** — o painel nunca confia nas URLs persistidas no banco (TTL de 1h para fotos e 7d para laudos); sempre regenera via `createSignedUrl()` antes de exibir.
-- **Edge Function `trigger-build`** — autenticação via JWT do usuário logado; o servidor verifica role antes de chamar a API do EAS.
-- **Code splitting** — chunks separados por vendor (React, Supabase, Query, Recharts, MapLibre) para carregamento mais rápido.
+Para validar o contrato de restauração segura a partir da raiz do repositório:
+
+```bash
+npm run test:archive-restore
+```
+
+As convenções de novas rotas, migrations, acessibilidade e revisão Penpot estão em [CONTRIBUTING.md](./CONTRIBUTING.md). O contrato de templates e manifesto está em `../docs/ui-route-governance.md`; os boards aprovados possuem registro executável em `design/penpot-handoff.mjs` e documentação em `../docs/penpot-handoff.md`. A operação de retenção, publicação e rollback está em `../docs/archive-restoration-operations.md`.
+
+## Rollout
+
+A nova interface está ativa por padrão. Para restaurar temporariamente o shell anterior:
+
+```env
+VITE_NEW_CONSOLE_UI=false
+```
+
+O rollback é apenas visual e não remove `/app`, aliases, dados, RLS, auditoria ou operações administrativas. Veja `../docs/nova-ui-console-baseline.md` para decisões, capturas e sequência de rollout.
