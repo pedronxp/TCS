@@ -1,0 +1,33 @@
+{
+  "name": "tcs-portal-semantic",
+  "version": "1.0.0",
+  "source": "Penpot/TCS — Web Dashboard/27 · Portais — Componentes e estados",
+  "platforms": {
+    "web": "dashboard/src/index.css",
+    "reactNative": "constants/PortalSemanticTokens.ts",
+    "android": "colorBackground, colorSurface, colorPrimary, colorOnPrimary, colorError",
+    "ios": "background, surface, tint, onTint, destructive"
+  },
+  "states": [
+    "loading",
+    "empty",
+    "error",
+    "retry",
+    "permission-denied",
+    "plan-locked",
+    "trial",
+    "active",
+    "grace",
+    "past-due",
+    "cancel-at-period-end",
+    "canceled",
+    "expired"
+  ],
+  "accessibility": {
+    "minimumTouchTarget": 44,
+    "bodyContrast": "WCAG AA",
+    "focusVisible": true,
+    "reducedMotion": true,
+    "textAlternativeForMaps": true
+  }
+}

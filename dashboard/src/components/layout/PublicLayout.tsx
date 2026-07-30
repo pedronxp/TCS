@@ -5,7 +5,7 @@ import { TcsMark } from '@/components/brand/TcsMark';
 const publicLinks = [
   ['Produto', '/#produto'],
   ['Soluções', '/#solucoes'],
-  ['Planos', '/#planos'],
+  ['Planos', '/planos'],
   ['Segurança', '/#seguranca'],
 ] as const;
 
@@ -19,9 +19,9 @@ export function PublicLayout() {
         Pular para o conteúdo
       </a>
 
-      <header className="relative z-40 h-[78px] border-b bg-card">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-5 px-4 sm:px-8 lg:px-12 xl:px-16">
-          <Link to="/" className="flex shrink-0 items-center gap-3" aria-label="TCS — página inicial">
+      <header className="relative z-40 min-h-[78px] border-b bg-card">
+        <div className="mx-auto flex min-h-[78px] max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 py-2 sm:gap-5 sm:px-8 lg:px-12 xl:px-16">
+          <Link to="/" className="flex min-h-11 shrink-0 items-center gap-3" aria-label="TCS — página inicial">
             <TcsMark decorative />
             <span className="leading-none">
               <span className="block text-[15px] font-bold tracking-[-0.02em]">TCS</span>
@@ -39,9 +39,9 @@ export function PublicLayout() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Button asChild variant="outline" className="h-[46px] px-5">
-              <Link to="/login">Entrar</Link>
+              <Link to="/entrar">Entrar</Link>
             </Button>
             <Button asChild className="hidden h-[46px] px-5 sm:inline-flex">
               <a href="mailto:comercial@tcs.app?subject=Solicitação%20de%20demonstração">
@@ -52,7 +52,7 @@ export function PublicLayout() {
         </div>
       </header>
 
-      <main id="conteudo">
+      <main id="conteudo" tabIndex={-1}>
         <Outlet />
       </main>
 
@@ -60,9 +60,10 @@ export function PublicLayout() {
         <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-[22px] text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12 xl:px-16">
           <p>© {new Date().getFullYear()} TCS</p>
           <nav className="flex flex-wrap gap-x-6 gap-y-2" aria-label="Links institucionais">
-            <a href="/#seguranca" className="hover:text-foreground">Segurança</a>
-            <a href="mailto:privacidade@tcs.app" className="hover:text-foreground">Privacidade</a>
-            <a href="mailto:contato@tcs.app" className="hover:text-foreground">Contato</a>
+            <a href="/#seguranca" className="inline-flex min-h-11 items-center hover:text-foreground">Segurança</a>
+            <a href="mailto:privacidade@tcs.app" className="inline-flex min-h-11 items-center hover:text-foreground">Privacidade</a>
+            <a href="mailto:contato@tcs.app" className="inline-flex min-h-11 items-center hover:text-foreground">Contato</a>
+            <Link to="/login" className="inline-flex min-h-11 items-center hover:text-foreground">Console TCS</Link>
           </nav>
         </div>
       </footer>

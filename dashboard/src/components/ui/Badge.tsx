@@ -3,15 +3,15 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import type { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
-const badgeVariants = cva('inline-flex h-7 items-center rounded-full border px-3 text-[11px] font-bold leading-none transition-colors focus:outline-none focus:ring-[3px] focus:ring-ring/20', {
+const badgeVariants = cva('inline-flex min-h-7 min-w-0 items-center rounded-full border px-3 py-1.5 text-[11px] font-bold leading-none transition-colors focus:outline-none focus:ring-[3px] focus:ring-ring/20', {
   variants: {
     variant: {
-      default: 'border-border bg-secondary text-muted-foreground',
-      secondary: 'border-border bg-secondary text-muted-foreground',
-      destructive: 'border-transparent bg-status-danger text-destructive',
-      success: 'border-transparent bg-status-success text-success',
-      warning: 'border-transparent bg-status-warning text-warning',
-      info: 'border-transparent bg-info-soft text-info',
+      default: 'border-border bg-secondary text-foreground',
+      secondary: 'border-border bg-secondary text-foreground',
+      destructive: 'border-destructive/25 bg-status-danger text-foreground',
+      success: 'border-success/25 bg-status-success text-foreground',
+      warning: 'border-warning/25 bg-status-warning text-foreground',
+      info: 'border-info/25 bg-info-soft text-foreground',
       outline: 'border-border bg-card text-foreground',
     },
   },

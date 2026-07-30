@@ -21,7 +21,7 @@
     --secondary: 36 29.41% 93.33%;
     --secondary-foreground: 24 9.8% 10%;
     --muted: 36 29.41% 93.33%;
-    --muted-foreground: 25 5.26% 44.71%;
+    --muted-foreground: 25 5.26% 40%;
     --accent: 33.33 36% 75.49%;
     --accent-foreground: 26.04 31.36% 33.14%;
     --warm: 33.33 36% 75.49%;
@@ -103,7 +103,10 @@
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     min-width: 320px;
   }
-  h1, h2, h3 { @apply font-display; }
+  h1, h2, h3 {
+    @apply font-display;
+    overflow-wrap: anywhere;
+  }
   ::selection { @apply bg-accent text-accent-foreground; }
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
     outline: 2px solid hsl(var(--ring));
@@ -125,6 +128,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.portal-map .maplibregl-ctrl button {
+  width: 44px;
+  height: 44px;
 }
 
 /* Scrollbar customizada — fina e discreta */

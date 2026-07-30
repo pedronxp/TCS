@@ -6,5 +6,7 @@ describe('fronteira de rotas do console', () => {
     expect(safeConsoleDestination('/app/clientes?novo=1')).toBe('/app/clientes?novo=1');
     expect(safeConsoleDestination('https://example.com')).toBe('/app');
     expect(safeConsoleDestination('/login')).toBe('/app');
+    expect(safeConsoleDestination('/app/../portal/individual')).toBe('/app');
+    expect(safeConsoleDestination('//example.com/app')).toBe('/app');
   });
 });

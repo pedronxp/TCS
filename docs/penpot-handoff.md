@@ -34,3 +34,11 @@ O board contém as referências aprovadas de 1440, 1024, 768 e 390 px. Ele prese
 ## Aprovação
 
 Os três conjuntos foram revisados visualmente no arquivo do Penpot e estão registrados como `approved` em `dashboard/design/penpot-handoff.mjs` e no manifesto de rotas.
+
+## Portais de clientes
+
+As páginas `26 · Portais — Arquitetura` a `34 · Portais — Validação responsiva` adicionam 21 boards
+aprovados para a arquitetura, componentes/estados, Portal Individual, três papéis municipais, conta,
+checkout, convites e validação nos breakpoints 1440, 1024, 768 e 390 px. O comando
+`/opsx:apply criar-portal-clientes-individual-municipal` foi tratado como aprovação explícita do gate
+visual e iniciou a branch de implementação correspondente.

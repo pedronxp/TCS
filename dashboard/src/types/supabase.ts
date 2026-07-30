@@ -113,6 +113,7 @@ export type Database = {
           data_agendada: string
           endereco: string | null
           id: string
+          inspection_id: string | null
           lat: number | null
           lng: number | null
           municipio: string
@@ -130,6 +131,7 @@ export type Database = {
           data_agendada: string
           endereco?: string | null
           id?: string
+          inspection_id?: string | null
           lat?: number | null
           lng?: number | null
           municipio: string
@@ -147,6 +149,7 @@ export type Database = {
           data_agendada?: string
           endereco?: string | null
           id?: string
+          inspection_id?: string | null
           lat?: number | null
           lng?: number | null
           municipio?: string
@@ -175,6 +178,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agendamentos_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "vistorias"
             referencedColumns: ["id"]
           },
         ]
@@ -1071,6 +1081,7 @@ export type Database = {
           joined_at: string | null
           organization_id: string
           role: string
+          scope: Json
           status: string
           updated_at: string
           user_id: string
@@ -1081,6 +1092,7 @@ export type Database = {
           joined_at?: string | null
           organization_id: string
           role: string
+          scope?: Json
           status?: string
           updated_at?: string
           user_id: string
@@ -1091,6 +1103,7 @@ export type Database = {
           joined_at?: string | null
           organization_id?: string
           role?: string
+          scope?: Json
           status?: string
           updated_at?: string
           user_id?: string
@@ -1289,6 +1302,74 @@ export type Database = {
           },
         ]
       }
+      plan_version_features: {
+        Row: {
+          configuration: Json
+          enabled: boolean
+          feature_code: string
+          plan_version_id: string
+        }
+        Insert: {
+          configuration?: Json
+          enabled?: boolean
+          feature_code: string
+          plan_version_id: string
+        }
+        Update: {
+          configuration?: Json
+          enabled?: boolean
+          feature_code?: string
+          plan_version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_version_features_feature_code_fkey"
+            columns: ["feature_code"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "plan_version_features_plan_version_id_fkey"
+            columns: ["plan_version_id"]
+            isOneToOne: false
+            referencedRelation: "plan_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_version_limits: {
+        Row: {
+          configuration: Json
+          hard_limit: number | null
+          plan_version_id: string
+          resource_code: string
+          warning_percent: number
+        }
+        Insert: {
+          configuration?: Json
+          hard_limit?: number | null
+          plan_version_id: string
+          resource_code: string
+          warning_percent?: number
+        }
+        Update: {
+          configuration?: Json
+          hard_limit?: number | null
+          plan_version_id?: string
+          resource_code?: string
+          warning_percent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_version_limits_plan_version_id_fkey"
+            columns: ["plan_version_id"]
+            isOneToOne: false
+            referencedRelation: "plan_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_versions: {
         Row: {
           configuration: Json
@@ -1360,6 +1441,166 @@ export type Database = {
           name?: string
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      portal_checkout_sessions: {
+        Row: {
+          amount_cents: number
+          checkout_url: string | null
+          completed_at: string | null
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          idempotency_key: string
+          organization_id: string | null
+          periodicity: string
+          plan_id: string
+          plan_version_id: string
+          provider: string | null
+          provider_session_id: string | null
+          requester_id: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          checkout_url?: string | null
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string
+          id?: string
+          idempotency_key: string
+          organization_id?: string | null
+          periodicity: string
+          plan_id: string
+          plan_version_id: string
+          provider?: string | null
+          provider_session_id?: string | null
+          requester_id: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          checkout_url?: string | null
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string
+          id?: string
+          idempotency_key?: string
+          organization_id?: string | null
+          periodicity?: string
+          plan_id?: string
+          plan_version_id?: string
+          provider?: string | null
+          provider_session_id?: string | null
+          requester_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_checkout_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_checkout_sessions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_checkout_sessions_plan_version_id_fkey"
+            columns: ["plan_version_id"]
+            isOneToOne: false
+            referencedRelation: "plan_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_payment_events: {
+        Row: {
+          error_code: string | null
+          event_type: string
+          id: number
+          payload_hash: string
+          processed_at: string | null
+          provider: string
+          provider_event_id: string
+          provider_event_time: string
+          received_at: string
+          status: string
+        }
+        Insert: {
+          error_code?: string | null
+          event_type: string
+          id?: number
+          payload_hash: string
+          processed_at?: string | null
+          provider: string
+          provider_event_id: string
+          provider_event_time: string
+          received_at?: string
+          status?: string
+        }
+        Update: {
+          error_code?: string | null
+          event_type?: string
+          id?: number
+          payload_hash?: string
+          processed_at?: string | null
+          provider?: string
+          provider_event_id?: string
+          provider_event_time?: string
+          received_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      portal_rollout_settings: {
+        Row: {
+          billing_enabled: boolean
+          foundation_enabled: boolean
+          individual_enabled: boolean
+          municipal_agent_enabled: boolean
+          municipal_coordinator_enabled: boolean
+          municipal_supervisor_enabled: boolean
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          billing_enabled?: boolean
+          foundation_enabled?: boolean
+          individual_enabled?: boolean
+          municipal_agent_enabled?: boolean
+          municipal_coordinator_enabled?: boolean
+          municipal_supervisor_enabled?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          billing_enabled?: boolean
+          foundation_enabled?: boolean
+          individual_enabled?: boolean
+          municipal_agent_enabled?: boolean
+          municipal_coordinator_enabled?: boolean
+          municipal_supervisor_enabled?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1478,6 +1719,7 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          cancel_at_period_end: boolean
           canceled_at: string | null
           created_at: string
           current_period_end: string | null
@@ -1487,6 +1729,11 @@ export type Database = {
           organization_id: string | null
           overrides: Json
           plan_id: string
+          plan_version_id: string | null
+          provider: string | null
+          provider_customer_id: string | null
+          provider_event_time: string | null
+          provider_subscription_id: string | null
           starts_at: string
           status: string
           trial_ends_at: string | null
@@ -1494,6 +1741,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          cancel_at_period_end?: boolean
           canceled_at?: string | null
           created_at?: string
           current_period_end?: string | null
@@ -1503,6 +1751,11 @@ export type Database = {
           organization_id?: string | null
           overrides?: Json
           plan_id: string
+          plan_version_id?: string | null
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_event_time?: string | null
+          provider_subscription_id?: string | null
           starts_at?: string
           status: string
           trial_ends_at?: string | null
@@ -1510,6 +1763,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          cancel_at_period_end?: boolean
           canceled_at?: string | null
           created_at?: string
           current_period_end?: string | null
@@ -1519,6 +1773,11 @@ export type Database = {
           organization_id?: string | null
           overrides?: Json
           plan_id?: string
+          plan_version_id?: string | null
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_event_time?: string | null
+          provider_subscription_id?: string | null
           starts_at?: string
           status?: string
           trial_ends_at?: string | null
@@ -1538,6 +1797,13 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_plan_version_id_fkey"
+            columns: ["plan_version_id"]
+            isOneToOne: false
+            referencedRelation: "plan_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -2195,6 +2461,88 @@ export type Database = {
         Returns: Json
       }
       accept_organization_invite: { Args: { p_token: string }; Returns: Json }
+      get_portal_access_context: { Args: never; Returns: Json }
+      portal_ensure_individual_profile: { Args: never; Returns: Json }
+      portal_get_dashboard: { Args: never; Returns: Json }
+      portal_get_workspace: { Args: { p_section: string }; Returns: Json }
+      portal_create_appointment: {
+        Args: {
+          p_inspection_id: string | null
+          p_notes?: string | null
+          p_scheduled_at: string
+          p_title: string
+        }
+        Returns: Json
+      }
+      portal_get_inspection: { Args: { p_inspection_id: string }; Returns: Json }
+      portal_list_own_sessions: { Args: never; Returns: Json }
+      portal_end_own_session: {
+        Args: { p_session_id: string }
+        Returns: boolean
+      }
+      portal_authorize_inspection_document: {
+        Args: { p_inspection_id: string }
+        Returns: Json
+      }
+      portal_get_invite_preview: { Args: { p_token: string }; Returns: Json }
+      portal_create_organization_invite: {
+        Args: { p_email: string; p_expires_in_hours?: number; p_role: string }
+        Returns: Json
+      }
+      portal_accept_organization_invite: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      portal_revoke_organization_invite: {
+        Args: { p_invite_id: string }
+        Returns: boolean
+      }
+      portal_create_checkout: {
+        Args: {
+          p_idempotency_key: string
+          p_periodicity: string
+          p_plan_code: string
+        }
+        Returns: Json
+      }
+      portal_get_checkout_status: {
+        Args: { p_checkout_id: string }
+        Returns: Json
+      }
+      portal_update_organization_member: {
+        Args: {
+          p_confirmation: string
+          p_member_id: string
+          p_reason: string
+          p_role: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      portal_update_organization_settings: {
+        Args: {
+          p_confirmation: string
+          p_contact_email: string
+          p_contact_name: string
+          p_display_name: string
+          p_reason: string
+          p_session_timeout_minutes: number
+        }
+        Returns: Json
+      }
+      portal_process_payment_event: {
+        Args: {
+          p_event_type: string
+          p_payload_hash: string
+          p_provider: string
+          p_provider_event_id: string
+          p_provider_event_time: string
+          p_provider_session_id: string
+          p_provider_subscription_id?: string | null
+          p_subscription_status: string
+        }
+        Returns: Json
+      }
       admin_reset_password: {
         Args: { p_new_password: string; p_uid: string }
         Returns: undefined

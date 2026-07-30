@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { usagePercent } from '../../utils/subscription';
 import { supabase } from '../../utils/supabase';
+import { PortalStateCard, PortalStatusBadge } from '../../components/portal';
 
 const RESOURCE_LABELS: Record<string, string> = {
   users: 'Agentes', inspections: 'Vistorias', invitations: 'Convites', storage_bytes: 'Armazenamento', sessions: 'Sessões',
@@ -49,9 +50,26 @@ export default function AssinaturaScreen() {
         <TouchableOpacity onPress={() => router.back()} style={[styles.back, { backgroundColor: theme.iconBackground }]}><Feather name="arrow-left" size={20} color={theme.text} /></TouchableOpacity>
         <View><Text style={[styles.title, { color: theme.text }]}>Minha assinatura</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Plano, consumo e recursos</Text></View>
       </View>
-      {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={theme.primary} /> : (
+      {loading ? (
+        <View style={styles.loading}>
+          <PortalStateCard
+            kind="loading"
+            title="Carregando assinatura"
+            description="Consultando plano, consumo e permissões."
+          />
+        </View>
+      ) : (
         <ScrollView contentContainerStyle={styles.content} refreshControl={undefined}>
-          {error && <Text style={[styles.notice, { color: theme.warningText, backgroundColor: theme.warningLight }]}>{error}</Text>}
+          {error && (
+            <PortalStateCard
+              kind="error"
+              title="Não foi possível atualizar a assinatura"
+              description={error}
+              actionLabel="Tentar novamente"
+              onAction={() => void refresh()}
+              compact
+            />
+          )}
           <View style={[styles.hero, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.eyebrow, { color: theme.primary }]}>PLANO ATUAL</Text>
             <Text style={[styles.plan, { color: theme.text }]}>{context?.plan?.name || 'Compatibilidade'}</Text>
@@ -60,11 +78,25 @@ export default function AssinaturaScreen() {
               <View><Text style={[styles.commercialLabel, { color: theme.textSecondary }]}>MENSALIDADE</Text><Text style={[styles.commercialValue, { color: theme.text }]}>{formatPrice(context.plan.commercial.monthly_price_cents)}</Text></View>
               <View><Text style={[styles.commercialLabel, { color: theme.textSecondary }]}>TESTE / CARÊNCIA</Text><Text style={[styles.commercialValue, { color: theme.text }]}>{context.plan.commercial.trial_days || 0}d / {context.plan.commercial.grace_days || 0}d</Text></View>
             </View>}
-            <View style={[styles.status, { backgroundColor: theme.successLight }]}><Text style={{ color: theme.successText, fontWeight: '700' }}>{context?.subscription?.status || (context?.enforced ? 'Não configurada' : 'Migração sem bloqueios')}</Text></View>
+            <View style={styles.status}>
+              <PortalStatusBadge
+                status={context?.subscription?.status}
+                label={!context?.subscription
+                  ? context?.enforced ? 'Não configurada' : 'Migração sem bloqueios'
+                  : undefined}
+              />
+            </View>
           </View>
 
           <Text style={[styles.section, { color: theme.text }]}>Consumo</Text>
-          {(context?.usage || []).length === 0 ? <Text style={{ color: theme.textSecondary }}>Nenhum limite comercial configurado.</Text> : context?.usage.map(item => {
+          {(context?.usage || []).length === 0 ? (
+            <PortalStateCard
+              kind="empty"
+              title="Nenhum limite comercial configurado"
+              description="O consumo aparecerá quando os limites do plano forem publicados."
+              compact
+            />
+          ) : context?.usage.map(item => {
             const percent = usagePercent(item) ?? 0;
             return <View key={item.resource} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={styles.row}><Text style={{ color: theme.text, fontWeight: '700' }}>{RESOURCE_LABELS[item.resource]}</Text><Text style={{ color: theme.textSecondary }}>{item.consumed} / {item.limit ?? '∞'}</Text></View>
@@ -92,8 +124,8 @@ export default function AssinaturaScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 }, header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   back: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, title: { fontSize: 21, fontWeight: '800' }, subtitle: { fontSize: 12, marginTop: 2 },
-  content: { padding: 20, paddingBottom: 60 }, notice: { padding: 12, borderRadius: 10, marginBottom: 12 }, hero: { padding: 20, borderRadius: 18, borderWidth: 1 }, eyebrow: { fontSize: 10, letterSpacing: 1.4, fontWeight: '800' }, plan: { fontSize: 26, fontWeight: '800', marginVertical: 5 },
-  status: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, marginTop: 14 }, section: { fontSize: 17, fontWeight: '800', marginTop: 24, marginBottom: 10 }, card: { padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 10 }, row: { flexDirection: 'row', justifyContent: 'space-between' },
+  content: { padding: 20, paddingBottom: 60, gap: 0 }, loading: { padding: 20 }, hero: { padding: 20, borderRadius: 18, borderWidth: 1, marginTop: 12 }, eyebrow: { fontSize: 10, letterSpacing: 1.4, fontWeight: '800' }, plan: { fontSize: 26, fontWeight: '800', marginVertical: 5 },
+  status: { alignSelf: 'flex-start', marginTop: 14 }, section: { fontSize: 17, fontWeight: '800', marginTop: 24, marginBottom: 10 }, card: { padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 10 }, row: { flexDirection: 'row', justifyContent: 'space-between' },
   commercial: { flexDirection: 'row', gap: 28, borderTopWidth: 1, marginTop: 16, paddingTop: 14 }, commercialLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.7 }, commercialValue: { fontSize: 14, fontWeight: '800', marginTop: 3 },
   track: { height: 7, borderRadius: 99, marginTop: 12, overflow: 'hidden' }, fill: { height: 7, borderRadius: 99 }, feature: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 7 }, action: { height: 52, borderRadius: 14, flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center', marginTop: 14 }, actionText: { color: '#fff', fontWeight: '800' }, refresh: { textAlign: 'center', padding: 18, fontWeight: '700' },
   inviteInput: { height: 48, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, letterSpacing: 1.5 }, inviteButton: { height: 46, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
