@@ -1,6 +1,16 @@
 const BREAKPOINTS = [1440, 1024, 768, 390];
 const REQUIRED_STATES = ['loading', 'empty', 'error', 'retry', 'success', 'permission-denied'];
 
+export const portalVisualCoverage = {
+  routeCases: 30,
+  stateCases: 97,
+  breakpoints: BREAKPOINTS,
+  routeBaselines: 120,
+  stateBaselines: 388,
+  totalBaselines: 508,
+  strategy: 'Estados assíncronos por rota pertinente e estados compartilhados de acesso, permissão, plano, convite, checkout e assinatura por público.',
+};
+
 function route(entry) {
   return {
     breakpoints: BREAKPOINTS,
@@ -9,6 +19,22 @@ function route(entry) {
     automatedVisualBaselines: `tests/visual/__screenshots__/internal-routes.spec.ts/{1440,1024,768,390}/${entry.id}.png`,
     ...entry,
   };
+}
+
+function portalRoute(entry) {
+  return route({
+    approvalStatus: 'approved-in-penpot',
+    automatedVisualBaselines: `tests/visual/__screenshots__/portal-routes.spec.ts/{1440,1024,768,390}/${entry.id}.png`,
+    automatedStateBaselines: 'tests/visual/__screenshots__/portal-states.spec.ts/{1440,1024,768,390}/{state}.png',
+    automatedKeyboardCoverage: 'tests/visual/portal-keyboard.spec.ts',
+    states: [
+      'loading', 'empty', 'error', 'retry', 'success', 'plan-locked',
+      'permission-denied', 'trial', 'active', 'grace', 'past-due',
+      'cancel-at-period-end', 'canceled', 'expired',
+    ],
+    visualSource: `Penpot/TCS — Web Dashboard/${entry.penpot}`,
+    ...entry,
+  });
 }
 
 export const routeTemplates = [
@@ -46,6 +72,117 @@ export const routeManifest = [
     states: ['loading', 'error', 'success', 'authenticated-return'],
     visualBaselines: ['docs/ui-final/login-1440-viewport.png', 'docs/ui-final/login-390-viewport.png'],
     automatedVisualBaselines: 'tests/visual/__screenshots__/public-entry.spec.ts/{1440,1024,768,390}/login.png',
+  }),
+  portalRoute({
+    id: 'public-plans',
+    path: '/planos',
+    audience: ['anonymous'],
+    permission: null,
+    template: 'public-page',
+    penpot: '32 · Conta, planos e checkout',
+  }),
+  portalRoute({
+    id: 'portal-login',
+    path: '/entrar',
+    audience: ['anonymous', 'individual', 'coordinator', 'supervisor', 'agent'],
+    permission: null,
+    template: 'authentication',
+    penpot: '32 · Conta, planos e checkout',
+  }),
+  portalRoute({
+    id: 'portal-sign-up',
+    path: '/criar-conta',
+    audience: ['anonymous'],
+    permission: null,
+    template: 'authentication',
+    penpot: '32 · Conta, planos e checkout',
+  }),
+  portalRoute({
+    id: 'portal-invite-acceptance',
+    path: '/convite/:token',
+    audience: ['anonymous', 'coordinator', 'supervisor', 'agent'],
+    permission: null,
+    template: 'authentication',
+    penpot: '33 · Convites municipais',
+  }),
+  portalRoute({
+    id: 'portal-checkout-return',
+    path: '/checkout/retorno',
+    audience: ['individual', 'coordinator'],
+    permission: 'billing.read',
+    template: 'authentication',
+    penpot: '32 · Conta, planos e checkout',
+  }),
+  portalRoute({
+    id: 'portal-individual-dashboard',
+    path: '/portal/individual',
+    audience: ['individual'],
+    permission: 'dashboard.read',
+    template: 'dashboard',
+    penpot: '28 · Portal Individual',
+  }),
+  ...[
+    ['vistorias', 'inspection.read', 'listing'],
+    ['mapa', 'map.read', 'context-detail'],
+    ['agenda', 'appointment.read', 'listing'],
+    ['documentos', 'document.read', 'listing'],
+    ['relatorios', 'report.read', 'context-detail'],
+    ['consumo', 'usage.read', 'context-detail'],
+    ['assinatura', 'billing.read', 'settings'],
+    ['suporte', 'support.read', 'context-detail'],
+    ['perfil', 'profile.read', 'settings'],
+  ].map(([section, permission, template]) => portalRoute({
+    id: `portal-individual-${section}`,
+    path: `/portal/individual/${section}`,
+    audience: ['individual'],
+    permission,
+    template,
+    penpot: '28 · Portal Individual',
+  })),
+  portalRoute({
+    id: 'portal-individual-inspection-detail',
+    path: '/portal/individual/vistorias/:inspectionId',
+    audience: ['individual'],
+    permission: 'inspection.read',
+    template: 'context-detail',
+    penpot: '28 · Portal Individual',
+  }),
+  portalRoute({
+    id: 'portal-municipal-dashboard',
+    path: '/portal/municipal',
+    audience: ['coordinator', 'supervisor', 'agent'],
+    permission: 'dashboard.read',
+    template: 'dashboard',
+    penpot: '29 · Municipal — Coordenador + 30 · Supervisor + 31 · Agente',
+  }),
+  ...[
+    ['vistorias', 'inspection.read', 'listing'],
+    ['mapa', 'map.read', 'context-detail'],
+    ['agenda', 'appointment.read', 'listing'],
+    ['documentos', 'document.read', 'listing'],
+    ['relatorios', 'report.read', 'context-detail'],
+    ['equipe', 'team.read', 'listing'],
+    ['convites', 'invite.agent', 'listing'],
+    ['consumo', 'usage.read', 'context-detail'],
+    ['assinatura', 'billing.read', 'settings'],
+    ['suporte', 'support.read', 'context-detail'],
+    ['configuracoes', 'settings.read', 'settings'],
+    ['perfil', 'profile.read', 'settings'],
+  ].map(([section, permission, template]) => portalRoute({
+    id: `portal-municipal-${section}`,
+    path: `/portal/municipal/${section}`,
+    audience: ['coordinator', 'supervisor', 'agent'],
+    permission,
+    template,
+    penpot: '29 · Municipal — Coordenador + 30 · Supervisor + 31 · Agente',
+  })),
+  portalRoute({
+    id: 'portal-municipal-inspection-detail',
+    path: '/portal/municipal/vistorias/:inspectionId',
+    audience: ['coordinator', 'supervisor', 'agent'],
+    permission: 'inspection.read',
+    template: 'context-detail',
+    penpot: '29 · Municipal — Coordenador + 30 · Supervisor + 31 · Agente',
   }),
   route({
     id: 'dashboard-owner',

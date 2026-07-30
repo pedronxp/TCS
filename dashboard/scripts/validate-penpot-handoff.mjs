@@ -4,6 +4,7 @@ import { routeManifest, routeTemplates } from '../design/route-manifest.mjs';
 import {
   penpotHandoff,
   penpotTarget,
+  portalBoards,
   requiredBreakpoints,
   specificBoards,
   templateBoards,
@@ -38,9 +39,11 @@ assert.equal(penpotHandoff.project, 'TCS — Web Dashboard');
 assert.match(penpotTarget.teamId, /^[0-9a-f-]{36}$/);
 assert.match(penpotTarget.fileId, /^[0-9a-f-]{36}$/);
 assert.match(penpotTarget.initialPageId, /^[0-9a-f-]{36}$/);
-assert.equal(penpotTarget.verifiedExistingPages.length, 25);
-assert.equal(new Set(penpotTarget.verifiedExistingPages).size, 25);
+assert.equal(penpotTarget.verifiedExistingPages.length, 34);
+assert.equal(new Set(penpotTarget.verifiedExistingPages).size, 34);
+assert.equal(portalBoards.length, 21);
+assert(portalBoards.every((board) => board.approvalStatus === 'approved'));
 assert.equal(penpotHandoff.status, 'approved-in-penpot');
-assert.equal(penpotHandoff.pages.length, 3);
+assert.equal(penpotHandoff.pages.length, 12);
 
-console.log(`Handoff Penpot validado: ${templateBoards.length} templates e ${specificBoards.length} boards específicos.`);
+console.log(`Handoff Penpot validado: ${templateBoards.length} templates, ${specificBoards.length} boards específicos e ${portalBoards.length} boards de portal.`);

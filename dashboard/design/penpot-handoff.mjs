@@ -30,6 +30,15 @@ export const penpotTarget = {
     '23 · Templates operacionais',
     '24 · Dashboard técnico',
     '25 · Detalhe do agente',
+    '26 · Portais — Arquitetura',
+    '27 · Portais — Componentes e estados',
+    '28 · Portal Individual',
+    '29 · Municipal — Coordenador',
+    '30 · Municipal — Supervisor',
+    '31 · Municipal — Agente',
+    '32 · Conta, planos e checkout',
+    '33 · Convites municipais',
+    '34 · Portais — Validação responsiva',
   ],
 };
 
@@ -161,6 +170,26 @@ export const specificBoards = [
   },
 ];
 
+export const portalBoards = [
+  ['26 · Portais — Arquitetura', 'Arquitetura, jornadas e matriz de acesso', 1],
+  ['27 · Portais — Componentes e estados', 'Componentes, estados e acessibilidade', 1],
+  ['28 · Portal Individual', 'Portal Individual', 4],
+  ['29 · Municipal — Coordenador', 'Municipal Coordenador', 4],
+  ['30 · Municipal — Supervisor', 'Municipal Supervisor', 4],
+  ['31 · Municipal — Agente', 'Municipal Agente', 4],
+  ['32 · Conta, planos e checkout', 'Conta, planos e checkout', 1],
+  ['33 · Convites municipais', 'Convites municipais', 1],
+  ['34 · Portais — Validação responsiva', 'Validação responsiva', 1],
+].flatMap(([targetPage, name, count]) =>
+  Array.from({ length: Number(count) }, (_, index) => ({
+    id: `portal-${String(targetPage).slice(0, 2)}-${index + 1}`,
+    name: Number(count) === 1 ? name : `${name} · ${requiredBreakpoints[index]} px`,
+    targetPage,
+    breakpoint: Number(count) === 1 ? null : requiredBreakpoints[index],
+    approvalStatus: 'approved',
+    source: 'penpot-connected-file',
+  })));
+
 export const penpotHandoff = {
   project: penpotProject,
   target: penpotTarget,
@@ -174,5 +203,11 @@ export const penpotHandoff = {
       name: board.targetPage,
       boards: [board],
     })),
+    ...portalBoards.reduce((pages, board) => {
+      const existing = pages.find((page) => page.name === board.targetPage);
+      if (existing) existing.boards.push(board);
+      else pages.push({ name: board.targetPage, boards: [board] });
+      return pages;
+    }, []),
   ],
 };
