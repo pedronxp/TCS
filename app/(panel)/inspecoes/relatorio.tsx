@@ -343,6 +343,7 @@ export default function RelatorioScreen() {
     try {
       const dados: LaudoData = {
         id: draft.vistoriaId,
+        protocolo: draft.protocolo,
         nivelRisco: draft.nivelRisco,
         pontuacaoTotal: draft.pontuacaoTotal,
         endereco: draft.endereco,
@@ -469,6 +470,7 @@ export default function RelatorioScreen() {
     try {
       const dados: LaudoData = {
         id: draft.vistoriaId,
+        protocolo: draft.protocolo,
         nivelRisco: draft.nivelRisco,
         pontuacaoTotal: draft.pontuacaoTotal,
         endereco: draft.endereco,

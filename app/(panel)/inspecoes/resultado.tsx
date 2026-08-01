@@ -309,6 +309,11 @@ export default function ResultadoScreen() {
 
   const buildDados = (): LaudoData => ({
     id: vistoria?.id || '',
+    protocolo: vistoria?.protocolo || generateProtocolo(
+      vistoria?.id || '',
+      vistoria?.dataVistoria,
+      vistoria?.municipio,
+    ),
     nivelRisco: vistoria?.nivelRisco || 'r1',
     pontuacaoTotal: vistoria?.pontuacaoTotal ?? 0,
     endereco: vistoria?.endereco || '—',
@@ -456,7 +461,7 @@ export default function ResultadoScreen() {
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
 
-      // Upload para Storage em background (não bloqueia share)
+      // O PDF completo do app é a cópia oficial enviada ao Storage.
       salvarLaudoNoStorage(uri).catch(() => null);
 
       if (profile?.uid && !isolatedMode) {

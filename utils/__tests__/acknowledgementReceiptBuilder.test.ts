@@ -40,6 +40,9 @@ describe('acknowledgementReceiptBuilder', () => {
     expect(html).toContain('&lt;Pessoa&gt;');
     expect(html).toContain('<svg');
     expect(html).not.toContain('page-break-before:always');
+    expect(html).toContain('size: A4 portrait');
+    expect(html).toContain('Modelo v2');
+    expect(html).toContain('alt="Defesa Civil Municipal"');
   });
 
   it('não atribui assinatura à recusa', () => {

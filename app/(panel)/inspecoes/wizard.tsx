@@ -16,7 +16,6 @@ import { useAuth } from '../../../context/AuthContext';
 import { useTraining } from '../../../context/TrainingContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { uploadFotoVistoria } from '../../../services/StorageService';
-import { ensureInspectionLaudo } from '../../../services/LaudoService';
 import { updateFotoUrl } from '../../../utils/database';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
@@ -635,14 +634,6 @@ export default function WizardAvaliacaoScreen() {
             logger.warn('sync', `Dados sincronizados, mas foto local ficou pendente`, { id });
           } else {
             markSincronizado(id);
-            try {
-              await ensureInspectionLaudo(id);
-            } catch (laudoError) {
-              logger.warn('sync', 'Vistoria sincronizada, mas o laudo ficou pendente de geração', {
-                id,
-                erro: laudoError instanceof Error ? laudoError.message : String(laudoError),
-              });
-            }
             logger.info('sync', `Vistoria sincronizada imediatamente apos salvar`, { id });
           }
         } else {

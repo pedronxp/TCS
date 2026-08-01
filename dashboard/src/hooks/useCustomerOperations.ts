@@ -89,6 +89,7 @@ const generatedCustomerLaudoMessages: Record<string, string> = {
   invalid_session: 'Sua sessão expirou. Entre novamente para gerar o laudo.',
   generation_not_allowed: 'Seu perfil não possui autorização para gerar este laudo.',
   inspection_not_available: 'A vistoria não está disponível para geração do laudo.',
+  app_generation_required: 'Gere primeiro o documento oficial pelo aplicativo e aguarde a sincronização.',
   invalid_storage_path: 'O destino do documento é inválido.',
   document_upload_failed: 'Não foi possível salvar o PDF. Tente novamente.',
   document_finalize_failed: 'O PDF foi criado, mas não foi possível finalizar o laudo. Tente novamente.',

@@ -1,11 +1,22 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.100.0';
 import {
   PDFDocument,
+  PDFImage,
   PDFPage,
   PDFFont,
   StandardFonts,
   rgb,
 } from 'https://esm.sh/pdf-lib@1.17.1';
+import {
+  hexToPdfRgb,
+  humanizePdfFieldKey,
+  PDF_COLORS,
+  PDF_DESIGN_LABEL,
+  PDF_DESIGN_VERSION,
+  PDF_PAGE,
+  PDF_RISK_COLORS,
+} from '../_shared/pdfDesignSystem.ts';
+import { DEFESA_CIVIL_LOGO_BASE64 } from '../_shared/defesaCivilLogo.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -110,100 +121,329 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
   return lines.length ? lines : ['-'];
 }
 
-async function buildPdf(inspection: Record<string, unknown>): Promise<Uint8Array> {
+function readInspectionField(
+  inspection: Record<string, unknown>,
+  ...keys: string[]
+): unknown {
+  for (const key of keys) {
+    const value = inspection[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return null;
+}
+
+function parseObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function displayAnswer(value: unknown): string {
+  if (Array.isArray(value)) return value.map(pdfText).filter(Boolean).join(', ');
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return pdfText(value) || '-';
+}
+
+function formatPdfNumber(value: unknown): string {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return pdfText(value) || '0';
+  return number.toLocaleString('pt-BR', {
+    minimumFractionDigits: Number.isInteger(number) ? 0 : 1,
+    maximumFractionDigits: 2,
+  });
+}
+
+export async function buildPdf(inspection: Record<string, unknown>): Promise<Uint8Array> {
   const document = await PDFDocument.create();
   const regular = await document.embedFont(StandardFonts.Helvetica);
   const bold = await document.embedFont(StandardFonts.HelveticaBold);
-  const pageSize: [number, number] = [595.28, 841.89];
-  const margin = 42;
+  const institutionalLogo = await document.embedJpg(Uint8Array.from(
+    atob(DEFESA_CIVIL_LOGO_BASE64.split(',')[1]),
+    character => character.charCodeAt(0),
+  ));
+  const pageSize: [number, number] = [PDF_PAGE.widthPt, PDF_PAGE.heightPt];
+  const margin = PDF_PAGE.marginPt;
   const contentWidth = pageSize[0] - margin * 2;
-  let page: PDFPage;
-  let cursorY: number;
+  const contentBottom = PDF_PAGE.footerHeightPt + 22;
+  const protocol = pdfText(
+    readInspectionField(inspection, 'protocolo')
+      || String(readInspectionField(inspection, 'id') || '').slice(0, 8).toUpperCase(),
+  ) || '-';
+  const riskLevel = pdfText(
+    readInspectionField(inspection, 'nivelRisco', 'nivel_risco') || 'não classificado',
+  ).toLowerCase();
+  const riskKey = riskLevel.includes('r4') || riskLevel.includes('iminente')
+    ? 'r4'
+    : riskLevel.includes('r3')
+      ? 'r3'
+      : riskLevel.includes('r2')
+        ? 'r2'
+        : 'r1';
+  const riskColor = rgb(...hexToPdfRgb(PDF_RISK_COLORS[riskKey]));
+  const color = (hex: string) => rgb(...hexToPdfRgb(hex));
+  let page!: PDFPage;
+  let cursorY = 0;
+
+  const drawHeader = () => {
+    const headerTop = pageSize[1] - 38;
+    page.drawImage(institutionalLogo, {
+      x: margin,
+      y: headerTop - 40,
+      width: 46,
+      height: 46,
+    });
+
+    const title = 'RELATÓRIO TÉCNICO DE VISTORIA';
+    const titleSize = 12;
+    page.drawText(title, {
+      x: pageSize[0] - margin - bold.widthOfTextAtSize(title, titleSize),
+      y: headerTop - 8,
+      size: titleSize,
+      font: bold,
+      color: color(PDF_COLORS.navy),
+    });
+    const meta = `Protocolo ${protocol}`;
+    page.drawText(meta, {
+      x: pageSize[0] - margin - regular.widthOfTextAtSize(meta, 8),
+      y: headerTop - 23,
+      size: 8,
+      font: regular,
+      color: color(PDF_COLORS.muted),
+    });
+    page.drawLine({
+      start: { x: margin, y: headerTop - 40 },
+      end: { x: pageSize[0] - margin, y: headerTop - 40 },
+      thickness: 1.2,
+      color: color(PDF_COLORS.navy),
+    });
+  };
 
   const addPage = () => {
     page = document.addPage(pageSize);
-    page.drawRectangle({ x: 0, y: pageSize[1] - 8, width: pageSize[0], height: 8, color: rgb(0.48, 0.33, 0.23) });
-    cursorY = pageSize[1] - 42;
+    const isFirstPage = document.getPageCount() === 1;
+    if (isFirstPage) drawHeader();
+    cursorY = isFirstPage ? pageSize[1] - 103 : pageSize[1] - margin;
   };
   const ensureSpace = (height: number) => {
-    if (cursorY - height < 58) addPage();
+    if (cursorY - height < contentBottom) addPage();
   };
-  const line = (text: string, size = 10, options: { strong?: boolean; color?: [number, number, number] } = {}) => {
+  const line = (
+    text: string,
+    size = 10,
+    options: {
+      strong?: boolean;
+      color?: string;
+      x?: number;
+      width?: number;
+      lineHeight?: number;
+    } = {},
+  ) => {
     const font = options.strong ? bold : regular;
-    const color: [number, number, number] = options.color || [0.12, 0.11, 0.1];
-    for (const value of wrap(text, font, size, contentWidth)) {
-      ensureSpace(size + 7);
-      page.drawText(value, { x: margin, y: cursorY - size, size, font, color: rgb(...color) });
-      cursorY -= size + 6;
+    const x = options.x ?? margin;
+    const width = options.width ?? contentWidth;
+    const lineHeight = options.lineHeight ?? size + 5;
+    for (const value of wrap(text, font, size, width)) {
+      ensureSpace(lineHeight);
+      page.drawText(value, {
+        x,
+        y: cursorY - size,
+        size,
+        font,
+        color: color(options.color || PDF_COLORS.ink),
+      });
+      cursorY -= lineHeight;
     }
   };
   const section = (title: string) => {
-    ensureSpace(34);
-    cursorY -= 8;
-    line(title.toUpperCase(), 9, { strong: true, color: [0.48, 0.33, 0.23] });
+    ensureSpace(30);
+    cursorY -= 6;
+    line(title.toUpperCase(), 8, { strong: true, color: PDF_COLORS.navy, lineHeight: 12 });
     page.drawLine({
-      start: { x: margin, y: cursorY - 2 },
-      end: { x: pageSize[0] - margin, y: cursorY - 2 },
+      start: { x: margin, y: cursorY },
+      end: { x: pageSize[0] - margin, y: cursorY },
       thickness: 0.5,
-      color: rgb(0.82, 0.79, 0.75),
+      color: color(PDF_COLORS.line),
     });
-    cursorY -= 8;
+    cursorY -= 7;
   };
-  const field = (label: string, value: unknown) => {
-    ensureSpace(28);
-    page.drawText(pdfText(label), { x: margin, y: cursorY - 10, size: 9, font: bold, color: rgb(0.38, 0.35, 0.32) });
-    const values = wrap(pdfText(value) || '-', regular, 10, contentWidth - 142);
-    values.forEach((entry, index) => {
-      if (index > 0) cursorY -= 13;
-      page.drawText(entry, { x: margin + 142, y: cursorY - 10, size: 10, font: regular, color: rgb(0.12, 0.11, 0.1) });
-    });
-    cursorY -= 19;
+  const field = (label: string, value: unknown, labelWidth = 132) => {
+    const lineHeight = 12.5;
+    const values = wrap(pdfText(value) || '-', regular, 9.5, contentWidth - labelWidth - 18);
+    let offset = 0;
+    let firstChunk = true;
+    while (offset < values.length) {
+      if (cursorY - 28 < contentBottom) addPage();
+      const available = cursorY - contentBottom - 10;
+      const maxLines = Math.max(1, Math.floor((available - 10) / lineHeight));
+      const chunk = values.slice(offset, offset + maxLines);
+      const rowHeight = Math.max(25, chunk.length * lineHeight + 10);
+      ensureSpace(rowHeight);
+      page.drawRectangle({
+        x: margin,
+        y: cursorY - rowHeight,
+        width: labelWidth,
+        height: rowHeight,
+        color: color(PDF_COLORS.surface),
+      });
+      page.drawRectangle({
+        x: margin,
+        y: cursorY - rowHeight,
+        width: contentWidth,
+        height: rowHeight,
+        borderWidth: 0.45,
+        borderColor: color(PDF_COLORS.lineSoft),
+      });
+      page.drawText(pdfText(firstChunk ? label : `${label} (continuação)`), {
+        x: margin + 9,
+        y: cursorY - 15,
+        size: 7.5,
+        font: bold,
+        color: color(PDF_COLORS.muted),
+      });
+      chunk.forEach((entry, index) => {
+        page.drawText(entry, {
+          x: margin + labelWidth + 9,
+          y: cursorY - 15 - index * lineHeight,
+          size: 9.5,
+          font: regular,
+          color: color(PDF_COLORS.ink),
+        });
+      });
+      cursorY -= rowHeight;
+      offset += chunk.length;
+      firstChunk = false;
+    }
   };
 
   addPage();
-  line('TCS - RELATORIO DE RISCO', 10, { strong: true, color: [0.48, 0.33, 0.23] });
-  line('Laudo Tecnico de Vistoria', 21, { strong: true });
-  line('Documento tecnico gerado a partir da vistoria concluida', 9, { color: [0.45, 0.42, 0.39] });
+  const score = formatPdfNumber(readInspectionField(inspection, 'pontuacaoTotal', 'pontuacao_total') || '0');
+  ensureSpace(70);
+  page.drawRectangle({
+    x: margin,
+    y: cursorY - 62,
+    width: contentWidth * 0.6,
+    height: 62,
+    color: riskColor,
+  });
+  page.drawRectangle({
+    x: margin + contentWidth * 0.6,
+    y: cursorY - 62,
+    width: contentWidth * 0.4,
+    height: 62,
+    color: color(riskKey === 'r1' ? PDF_COLORS.successSoft : riskKey === 'r2' ? PDF_COLORS.warningSoft : PDF_COLORS.dangerSoft),
+  });
+  page.drawText('CLASSIFICAÇÃO TÉCNICA', {
+    x: margin + 14,
+    y: cursorY - 18,
+    size: 7.5,
+    font: bold,
+    color: color(PDF_COLORS.white),
+  });
+  page.drawText(pdfText(riskLevel.toUpperCase()), {
+    x: margin + 14,
+    y: cursorY - 43,
+    size: 19,
+    font: bold,
+    color: color(PDF_COLORS.white),
+  });
+  const scoreLabel = 'PONTUAÇÃO APURADA';
+  page.drawText(scoreLabel, {
+    x: pageSize[0] - margin - 14 - bold.widthOfTextAtSize(scoreLabel, 7.5),
+    y: cursorY - 18,
+    size: 7.5,
+    font: bold,
+    color: riskColor,
+  });
+  page.drawText(score, {
+    x: pageSize[0] - margin - 14 - bold.widthOfTextAtSize(score, 19),
+    y: cursorY - 43,
+    size: 19,
+    font: bold,
+    color: riskColor,
+  });
+  cursorY -= 76;
 
-  section('Identificacao');
-  field('Protocolo', inspection.protocolo || String(inspection.id).slice(0, 8).toUpperCase());
-  field('Data da vistoria', inspection.dataVistoria ? new Date(String(inspection.dataVistoria)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-');
-  field('Municipio', inspection.municipio || inspection.municipio_agente);
-  field('Agente responsavel', inspection.agenteNome);
-  field('Responsavel pelo imovel', inspection.responsavelNome);
-
-  section('Local vistoriado');
+  section('Dados da vistoria');
+  const inspectionDate = readInspectionField(inspection, 'dataVistoria', 'data_vistoria');
+  field('Protocolo', protocol);
   field(
-    'Endereco',
-    inspection.endereco
-      || [inspection.enderecoRua, inspection.enderecoNumero, inspection.enderecoBairro].filter(Boolean).join(', '),
+    'Data e hora',
+    inspectionDate
+      ? new Date(String(inspectionDate)).toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      : '-',
   );
-  field('Coordenadas', inspection.latitude && inspection.longitude ? `${inspection.latitude}, ${inspection.longitude}` : '-');
-
-  section('Resultado tecnico');
-  field('Nivel de risco', String(inspection.nivelRisco || 'nao classificado').toUpperCase());
-  field('Pontuacao', inspection.pontuacaoTotal);
-  field('Formulario', inspection.formularioId);
-
-  let answers: Record<string, unknown> = {};
-  try {
-    const raw = inspection.respostasJson;
-    answers = typeof raw === 'string' ? JSON.parse(raw) : (raw as Record<string, unknown>) || {};
-  } catch {
-    answers = {};
-  }
-  const answerEntries = Object.entries(answers).filter(([, value]) => value !== null && value !== undefined && String(value).trim());
+  field('Município', readInspectionField(inspection, 'municipio', 'municipio_agente'));
+  field('Agente responsável', readInspectionField(inspection, 'agenteNome', 'agente_nome'));
+  field('Responsável pelo imóvel', readInspectionField(inspection, 'responsavelNome', 'responsavel_nome'));
+  field(
+    'Endereço',
+    readInspectionField(inspection, 'endereco')
+      || [
+        readInspectionField(inspection, 'enderecoRua', 'endereco_rua'),
+        readInspectionField(inspection, 'enderecoNumero', 'endereco_numero'),
+        readInspectionField(inspection, 'enderecoBairro', 'endereco_bairro'),
+      ].filter(Boolean).join(', '),
+  );
+  const calculation = parseObject(readInspectionField(inspection, 'calculoRisco', 'calculo_risco', 'calculo_json'));
+  const calculationItems = Array.isArray(calculation.itens)
+    ? calculation.itens.filter((item): item is Record<string, unknown> => (
+      Boolean(item && typeof item === 'object')
+      && !pdfText((item as Record<string, unknown>).pergunta).toLowerCase().includes('conduta recomendada')
+    ))
+    : [];
+  const answers = parseObject(readInspectionField(inspection, 'respostasJson', 'respostas_json'));
+  const answerEntries: Array<[string, unknown]> = calculationItems.length
+    ? calculationItems.map((item, index) => [
+      pdfText(item.pergunta) || `Item ${index + 1}`,
+      `${displayAnswer(item.resposta)}${Number(item.pesoRisco) > 0 ? ` (+${formatPdfNumber(item.pesoRisco)} pts)` : ''}${item.observacao ? ` - Observação: ${displayAnswer(item.observacao)}` : ''}`,
+    ])
+    : Object.entries(answers).filter(([key, value]) => (
+      !key.toLowerCase().includes('foto')
+      && !key.toLowerCase().includes('conduta_recomendada')
+      && !key.toLowerCase().includes('formulario_utilizado')
+      && key.toLowerCase() !== 'formularioid'
+      && value !== null
+      && value !== undefined
+      && String(value).trim()
+    ));
   if (answerEntries.length) {
     section('Itens vistoriados');
-    for (const [key, value] of answerEntries) field(key, typeof value === 'object' ? JSON.stringify(value) : value);
+    answerEntries.forEach(([key, value], index) => {
+      field(
+      `${String(index + 1).padStart(2, '0')} - ${calculationItems.length ? key : humanizePdfFieldKey(key)}`,
+        displayAnswer(value),
+        215,
+      );
+    });
   }
 
   const photos = [
-    ...(Array.isArray(inspection.fotosUrls) ? inspection.fotosUrls : []),
-    ...(!Array.isArray(inspection.fotosUrls) && inspection.fotoUrl ? [inspection.fotoUrl] : []),
+    ...(Array.isArray(readInspectionField(inspection, 'fotosUrls', 'fotos_urls'))
+      ? readInspectionField(inspection, 'fotosUrls', 'fotos_urls') as unknown[]
+      : []),
+    ...(!Array.isArray(readInspectionField(inspection, 'fotosUrls', 'fotos_urls'))
+      && readInspectionField(inspection, 'fotoUrl', 'foto_url')
+      ? [readInspectionField(inspection, 'fotoUrl', 'foto_url')]
+      : []),
   ].slice(0, 6);
   if (photos.length) {
-    section(`Registro fotografico (${photos.length})`);
+    const embeddedPhotos: Array<{ image: PDFImage; index: number }> = [];
     for (let index = 0; index < photos.length; index += 1) {
       const loaded = await loadImage(photos[index]);
       if (!loaded) continue;
@@ -211,54 +451,133 @@ async function buildPdf(inspection: Record<string, unknown>): Promise<Uint8Array
         const image = loaded.extension === 'png'
           ? await document.embedPng(loaded.bytes)
           : await document.embedJpg(loaded.bytes);
-        ensureSpace(230);
-        const dimensions = image.scaleToFit(contentWidth, 205);
-        page.drawImage(image, {
-          x: margin + (contentWidth - dimensions.width) / 2,
-          y: cursorY - dimensions.height,
-          width: dimensions.width,
-          height: dimensions.height,
-        });
-        cursorY -= dimensions.height + 8;
-        line(`Foto ${index + 1}`, 8, { color: [0.45, 0.42, 0.39] });
+        embeddedPhotos.push({ image, index });
       } catch {
         // A foto permanece registrada na vistoria mesmo quando o formato não
         // pode ser incorporado ao PDF.
       }
     }
+    if (embeddedPhotos.length) {
+      section(`Registro fotográfico (${embeddedPhotos.length})`);
+      const gap = 10;
+      const cardWidth = (contentWidth - gap) / 2;
+      for (let index = 0; index < embeddedPhotos.length; index += 2) {
+        const row = embeddedPhotos.slice(index, index + 2);
+        const dimensions = row.map(entry => entry.image.scaleToFit(cardWidth - 12, 142));
+        const rowHeight = Math.max(...dimensions.map(entry => entry.height)) + 28;
+        ensureSpace(rowHeight + 8);
+        row.forEach((entry, column) => {
+          const x = margin + column * (cardWidth + gap);
+          const imageSize = dimensions[column];
+          page.drawRectangle({
+            x,
+            y: cursorY - rowHeight,
+            width: cardWidth,
+            height: rowHeight,
+            borderWidth: 0.5,
+            borderColor: color(PDF_COLORS.line),
+          });
+          page.drawImage(entry.image, {
+            x: x + (cardWidth - imageSize.width) / 2,
+            y: cursorY - 8 - imageSize.height,
+            width: imageSize.width,
+            height: imageSize.height,
+          });
+          const caption = `Evidência fotográfica ${entry.index + 1}`;
+          page.drawText(caption, {
+            x: x + (cardWidth - regular.widthOfTextAtSize(caption, 7.5)) / 2,
+            y: cursorY - rowHeight + 8,
+            size: 7.5,
+            font: regular,
+            color: color(PDF_COLORS.muted),
+          });
+        });
+        cursorY -= rowHeight + 8;
+      }
+    }
   }
 
-  section('Responsabilidade tecnica');
-  line('Este documento reproduz os dados registrados na vistoria e deve ser analisado em conjunto com as evidencias e normas aplicaveis.', 9);
+  const technicalNotes = readInspectionField(
+    inspection,
+    'observacoesTecnicas',
+    'observacoes_tecnicas',
+    'observacoes',
+  );
+  if (technicalNotes) {
+    section('Observações técnicas');
+    line(pdfText(technicalNotes), 9.5, { color: PDF_COLORS.text, lineHeight: 14 });
+  }
+
+  // Mantém o bloco de encerramento unido para evitar títulos ou frases
+  // isolados entre páginas.
+  ensureSpace(205);
+  section('Base legal');
+  line(
+    'Este relatório técnico foi elaborado em conformidade com a Lei Federal nº 12.608/2012, que institui a Política Nacional de Proteção e Defesa Civil, e com a Lei Federal nº 10.257/2001, denominada Estatuto da Cidade. Esses dispositivos estabelecem diretrizes para a prevenção de desastres e a proteção da vida.',
+    8.5,
+    { color: PDF_COLORS.muted, lineHeight: 12.5 },
+  );
+
+  section('Responsabilidade técnica');
+  line('Documento emitido com base nas condições observadas na data da vistoria. Sua interpretação deve considerar os registros fotográficos e as normas técnicas aplicáveis.', 9);
   cursorY -= 28;
+  ensureSpace(68);
   page.drawLine({
     start: { x: margin + 90, y: cursorY },
     end: { x: pageSize[0] - margin - 90, y: cursorY },
     thickness: 0.6,
-    color: rgb(0.38, 0.35, 0.32),
+    color: color(PDF_COLORS.navy),
   });
-  cursorY -= 16;
-  line(pdfText(inspection.agenteNome) || 'Agente responsavel', 9, { strong: true });
+  cursorY -= 18;
+  const signatureName = pdfText(readInspectionField(inspection, 'agenteNome', 'agente_nome'))
+    || 'Agente responsável';
+  const signatureRole = pdfText(readInspectionField(inspection, 'cargo'))
+    || 'Agente de Proteção e Defesa Civil';
+  page.drawText(signatureName, {
+    x: (pageSize[0] - bold.widthOfTextAtSize(signatureName, 9)) / 2,
+    y: cursorY,
+    size: 9,
+    font: bold,
+    color: color(PDF_COLORS.navy),
+  });
+  cursorY -= 14;
+  page.drawText(signatureRole, {
+    x: (pageSize[0] - regular.widthOfTextAtSize(signatureRole, 8)) / 2,
+    y: cursorY,
+    size: 8,
+    font: regular,
+    color: color(PDF_COLORS.muted),
+  });
 
-  const generatedAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   document.getPages().forEach((item, index) => {
     item.drawLine({
       start: { x: margin, y: 38 },
       end: { x: pageSize[0] - margin, y: 38 },
       thickness: 0.4,
-      color: rgb(0.82, 0.79, 0.75),
+      color: color(PDF_COLORS.line),
     });
-    item.drawText(`TCS - Laudo gerado em ${generatedAt} - Pagina ${index + 1}/${document.getPageCount()}`, {
+    const footerLeft = `Defesa Civil - Relatório Técnico de Vistoria - ${PDF_DESIGN_LABEL}`;
+    const footerRight = `Página ${index + 1}/${document.getPageCount()} - Protocolo ${protocol}`;
+    item.drawText(footerLeft, {
       x: margin,
       y: 23,
       size: 7,
       font: regular,
-      color: rgb(0.45, 0.42, 0.39),
+      color: color(PDF_COLORS.muted),
+    });
+    item.drawText(footerRight, {
+      x: pageSize[0] - margin - regular.widthOfTextAtSize(footerRight, 7),
+      y: 23,
+      size: 7,
+      font: regular,
+      color: color(PDF_COLORS.muted),
     });
   });
 
-  document.setTitle(`Laudo ${pdfText(inspection.protocolo) || inspection.id}`);
-  document.setCreator('TCS');
+  document.setTitle(`Relatório Técnico de Vistoria ${protocol}`);
+  document.setCreator('Defesa Civil');
+  document.setProducer(`Defesa Civil ${PDF_DESIGN_VERSION}`);
+  document.setSubject('Relatório técnico de vistoria e classificação de risco');
   return document.save();
 }
 
@@ -302,7 +621,9 @@ Deno.serve(async (request) => {
     return json({ ok: false, error: 'invalid_storage_path' }, 422);
   }
 
-  if (authorization.already_available && body.force !== true) {
+  // A web nunca monta uma primeira versão nem substitui o PDF oficial.
+  // Ela apenas assina a cópia completa criada e sincronizada pelo aplicativo.
+  if (authorization.already_available) {
     const generatedAt = new Date().toISOString();
     const { data: finalizationData, error: finalizationError } = await admin.rpc(
       'finalize_inspection_laudo_generation',
@@ -337,76 +658,9 @@ Deno.serve(async (request) => {
     return json({ ok: false, error: 'document_signing_failed' }, 502);
   }
 
-  const { data: inspection, error: inspectionError } = await admin
-    .from('vistorias')
-    .select('*')
-    .eq('id', body.inspection_id)
-    .single();
-  if (inspectionError || !inspection) return json({ ok: false, error: 'inspection_not_found' }, 404);
-
-  try {
-    const pdf = await buildPdf(inspection);
-    const { error: uploadError } = await admin.storage
-      .from('laudos')
-      .upload(authorization.path, pdf, { contentType: 'application/pdf', cacheControl: '3600', upsert: true });
-    if (uploadError) {
-      console.error('[generate-inspection-laudo:upload]', {
-        message: uploadError.message,
-        statusCode: uploadError.statusCode,
-      });
-      return json({ ok: false, error: 'document_upload_failed' }, 502);
-    }
-
-    const generatedAt = new Date().toISOString();
-    const { data: finalizationData, error: finalizationError } = await admin.rpc(
-      'finalize_inspection_laudo_generation',
-      {
-        p_inspection_id: body.inspection_id,
-        p_storage_path: authorization.path,
-        p_generated_at: generatedAt,
-      },
-    );
-    if (finalizationError || !finalizationData) {
-      console.error('[generate-inspection-laudo:finalize]', {
-        code: finalizationError?.code,
-        message: finalizationError?.message,
-      });
-      return json({ ok: false, error: 'document_finalize_failed' }, 502);
-    }
-
-    const { data: signed, error: signedError } = await admin.storage
-      .from('laudos')
-      .createSignedUrl(authorization.path, 60);
-    if (signedError || !signed?.signedUrl) {
-      console.error('[generate-inspection-laudo:sign]', {
-        message: signedError?.message,
-      });
-      return json({ ok: false, error: 'document_signing_failed' }, 502);
-    }
-
-    await admin.from('audit_logs').insert({
-      uid: user.id,
-      acao: 'generate_laudo',
-      entidade: 'vistoria',
-      entidade_id: body.inspection_id,
-      metadata: {
-        source: typeof body.customer_id === 'string' ? 'web' : 'app_sync',
-        size_bytes: pdf.byteLength,
-      },
-      criado_em: generatedAt,
-    });
-
-    return json({
-      ok: true,
-      reused: false,
-      document_status: 'available',
-      signed_url: signed.signedUrl,
-      expires_in: 60,
-      generated_at: generatedAt,
-      size_bytes: pdf.byteLength,
-    });
-  } catch (error) {
-    console.error('[generate-inspection-laudo]', error);
-    return json({ ok: false, error: 'document_generation_failed' }, 500);
-  }
+  return json({
+    ok: false,
+    error: 'app_generation_required',
+    document_status: authorization.document_status,
+  }, 409);
 });

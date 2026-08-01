@@ -55,7 +55,6 @@ import { useCustomerDetail } from '@/hooks/useCustomerDetail';
 import {
   useCreateCustomerAppointment,
   useCustomerOperations,
-  useGenerateCustomerLaudo,
 } from '@/hooks/useCustomerOperations';
 import { supabase } from '@/lib/supabase';
 import { ptBrLabel } from '@/lib/ptBrLabels';
@@ -900,17 +899,13 @@ function MapSection({ operations }: { operations: CustomerOperations }) {
 }
 
 function Documents({ operations, customerId }: { operations: CustomerOperations; customerId: string }) {
-  const generateLaudo = useGenerateCustomerLaudo();
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewTitle, setPreviewTitle] = useState('Laudo técnico');
   const [busy, setBusy] = useState('');
-  const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState('');
+  const [appRequiredDocument, setAppRequiredDocument] = useState<CustomerOperations['documents'][number] | null>(null);
   const availableCount = operations.documents.filter(item => item.document_status === 'available').length;
   const pendingCount = operations.documents.length - availableCount;
-  const pendingDocuments = operations.documents.filter(
-    item => item.document_status !== 'available' && item.can_generate,
-  );
 
   async function previewDocument(document: CustomerOperations['documents'][number]) {
     setBusy(document.id);
@@ -930,49 +925,6 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
     }
     setPreviewTitle(document.protocol ? `Laudo ${document.protocol}` : 'Laudo técnico');
     setPreviewUrl(data.signed_url);
-  }
-
-  async function generateDocument(document: CustomerOperations['documents'][number]) {
-    setBusy(document.id);
-    setError('');
-    try {
-      const result = await generateLaudo.mutateAsync({
-        customerId,
-        inspectionId: document.inspection_id,
-        force: document.document_status === 'missing_file',
-      });
-      setPreviewTitle(document.protocol ? `Laudo ${document.protocol}` : 'Laudo técnico');
-      setPreviewUrl(result.signed_url);
-    } catch (generationError) {
-      setError(
-        generationError instanceof Error
-          ? generationError.message
-          : 'Não foi possível gerar o laudo desta vistoria.',
-      );
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function generatePendingDocuments() {
-    setBulkBusy(true);
-    setError('');
-    let failures = 0;
-    for (const document of pendingDocuments) {
-      try {
-        await generateLaudo.mutateAsync({
-          customerId,
-          inspectionId: document.inspection_id,
-          force: document.document_status === 'missing_file',
-        });
-      } catch {
-        failures += 1;
-      }
-    }
-    setBulkBusy(false);
-    if (failures > 0) {
-      setError(`${failures} laudo${failures === 1 ? '' : 's'} permaneceram pendentes. Tente novamente ou consulte os eventos técnicos.`);
-    }
   }
 
   function documentStatus(item: CustomerOperations['documents'][number]) {
@@ -1020,13 +972,11 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
         variant="outline"
         size="sm"
         className={fullWidth ? 'w-full' : undefined}
-        disabled={!item.can_generate || busy === item.id}
-        onClick={() => void generateDocument(item)}
+        disabled={busy === item.id}
+        onClick={() => setAppRequiredDocument(item)}
       >
-        {busy === item.id ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-        {item.can_generate
-          ? item.document_status === 'missing_file' ? 'Gerar novamente' : 'Gerar laudo'
-          : 'Requer acesso'}
+        <RefreshCw />
+        Gerar no aplicativo
       </Button>
     );
   }
@@ -1043,7 +993,7 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
             Laudos das vistorias concluídas
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Toda vistoria concluída aparece aqui. Arquivos ausentes podem ser gerados novamente com autorização auditada.
+            O aplicativo gera a versão oficial. A web visualiza e baixa exatamente o arquivo sincronizado.
           </p>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
@@ -1057,12 +1007,6 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
               </span>
             )}
           </div>
-          {pendingDocuments.length > 0 && (
-            <Button variant="outline" size="sm" disabled={bulkBusy} onClick={() => void generatePendingDocuments()}>
-              {bulkBusy ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-              Gerar pendentes
-            </Button>
-          )}
         </div>
       </div>
       {error && (
@@ -1071,6 +1015,28 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      <Dialog open={Boolean(appRequiredDocument)} onOpenChange={(open) => !open && setAppRequiredDocument(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Documento oficial ainda não gerado</DialogTitle>
+            <DialogDescription>
+              Para manter o padrão institucional, gere primeiro o laudo pelo aplicativo.
+              Após o envio e a sincronização, o mesmo arquivo ficará disponível para
+              visualização e download neste portal.
+            </DialogDescription>
+          </DialogHeader>
+          {appRequiredDocument?.protocol && (
+            <p className="rounded-lg bg-muted px-3 py-2 font-mono text-xs">
+              Protocolo {appRequiredDocument.protocol}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAppRequiredDocument(null)}>
+              Entendi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="grid gap-3 md:grid-cols-2 xl:hidden">
         {operations.documents.map(item => (
           <Card key={item.id}>

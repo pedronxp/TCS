@@ -128,14 +128,6 @@ vi.mock('@/hooks/useCustomerDetail', () => ({
 }));
 
 const createAppointment = vi.fn().mockResolvedValue({});
-const generateLaudo = vi.fn().mockResolvedValue({
-  ok: true,
-  reused: false,
-  document_status: 'available',
-  signed_url: 'https://signed.example/laudo.pdf',
-  expires_in: 60,
-});
-
 vi.mock('@/hooks/useCustomerOperations', () => ({
   useCustomerOperations: () => ({
     data: {
@@ -174,10 +166,6 @@ vi.mock('@/hooks/useCustomerOperations', () => ({
   }),
   useCreateCustomerAppointment: () => ({
     mutateAsync: createAppointment,
-    isPending: false,
-  }),
-  useGenerateCustomerLaudo: () => ({
-    mutateAsync: generateLaudo,
     isPending: false,
   }),
 }));
@@ -237,7 +225,7 @@ describe('Detalhe do cliente', () => {
     }));
   });
 
-  it('representa toda vistoria concluída e gera o laudo que estiver pendente', async () => {
+  it('orienta a gerar no aplicativo quando o documento oficial estiver pendente', async () => {
     const user = userEvent.setup();
     renderPage('/app/clientes/organization%3Aaurora/laudos');
 
@@ -245,13 +233,11 @@ describe('Detalhe do cliente', () => {
     expect(screen.getByText('1 pendente')).toBeVisible();
     expect(screen.getAllByText('Aguardando geração')[0]).toBeVisible();
 
-    await user.click(screen.getAllByRole('button', { name: 'Gerar laudo' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Gerar no aplicativo' })[0]);
 
-    expect(generateLaudo).toHaveBeenCalledWith({
-      customerId: 'organization:aurora',
-      inspectionId: 'inspection-2',
-      force: false,
-    });
-    expect(screen.getByTitle('Laudo TCS-2026-002')).toBeVisible();
+    expect(screen.getByRole('dialog')).toBeVisible();
+    expect(screen.getByText('Documento oficial ainda não gerado')).toBeVisible();
+    expect(screen.getByText(/gere primeiro o laudo pelo aplicativo/i)).toBeVisible();
+    expect(screen.getByText('Protocolo TCS-2026-002')).toBeVisible();
   });
 });
