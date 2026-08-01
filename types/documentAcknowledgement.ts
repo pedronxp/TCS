@@ -119,9 +119,9 @@ export interface AcknowledgementCorrection {
 }
 
 export const DOCUMENT_TEMPLATE_VERSIONS: Record<GeneratedDocumentType, string> = {
-  report: 'report-v1',
-  technical_report: 'technical-report-v1',
-  interdiction_term: 'interdiction-term-v1',
+  report: 'report-v3',
+  technical_report: 'technical-report-v3',
+  interdiction_term: 'interdiction-term-v3',
 };
 
 export const INITIAL_ACKNOWLEDGEMENT_DECLARATION: DocumentDeclaration = {

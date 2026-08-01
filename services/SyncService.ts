@@ -18,7 +18,6 @@ import {
 } from '../utils/database';
 import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri, uploadLaudoPdf } from './StorageService';
-import { ensureInspectionLaudo } from './LaudoService';
 import { checkRealInternet } from '../context/ConnectivityContext';
 import { isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
 import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
@@ -62,22 +61,6 @@ async function notificarFalha(falhas: number, proxRetrySegundos: number): Promis
     const { notificarSyncFalha } = await import('./NotificationService');
     await notificarSyncFalha(falhas, proxRetrySegundos);
   } catch { /* não crítico */ }
-}
-
-async function garantirLaudos(vistorias: VistoriaLocal[]): Promise<void> {
-  const elegiveis = vistorias.filter(vistoria => !hasMidiaLocalPendente(vistoria));
-  const resultados = await Promise.allSettled(
-    elegiveis.map(vistoria => ensureInspectionLaudo(vistoria.id)),
-  );
-
-  resultados.forEach((resultado, indice) => {
-    if (resultado.status === 'rejected') {
-      logger.warn('sync', 'Vistoria sincronizada, mas o laudo ficou pendente de geração', {
-        id: elegiveis[indice]?.id,
-        erro: resultado.reason instanceof Error ? resultado.reason.message : String(resultado.reason),
-      });
-    }
-  });
 }
 
 async function notificarRetrying(tentativa: number): Promise<void> {
@@ -230,7 +213,6 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
             sucesso++;
           }
         });
-        await garantirLaudos(loteProntoParaSync);
         logger.info('sync', `Lote sincronizado: ${loteProntoParaSync.length} vistoria(s)`, {
           indices: `${i}–${i + loteProntoParaSync.length - 1}`,
         });
@@ -247,7 +229,6 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
             } else {
               markSincronizado(vistoria.id);
               sucesso++;
-              await garantirLaudos([vistoria]);
             }
           } catch (e2: any) {
             const bloqueadoPorLimite = isSubscriptionLimitError(e2);

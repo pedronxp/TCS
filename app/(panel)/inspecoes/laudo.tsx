@@ -17,7 +17,7 @@ import { formatarPontuacaoRisco, parseCalculoRiscoSnapshot, resolverApresentacao
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
-import { getSignedUrl } from '../../../services/StorageService';
+import { getSignedUrl, uploadLaudoPdf } from '../../../services/StorageService';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
 import {
@@ -225,6 +225,7 @@ export default function LaudoScreen() {
     try {
       const dados: LaudoData = {
         id: vistoria.id,
+        protocolo: vistoria.protocolo,
         nivelRisco: vistoria.nivelRisco,
         pontuacaoTotal: vistoria.pontuacaoTotal ?? 0,
         endereco: vistoria.endereco || `${vistoria.enderecoRua || ''}, ${vistoria.enderecoNumero || ''}`,
@@ -246,16 +247,21 @@ export default function LaudoScreen() {
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('technical_report', dados, html, uri);
+      const agora = new Date().toISOString();
+      const laudoUrl = await uploadLaudoPdf(uri, vistoria.id, vistoria.municipio || 'geral');
+      if (!laudoUrl) throw new Error('Falha ao enviar o documento oficial.');
+      const { error: updateError } = await supabase
+        .from('vistorias')
+        .update({ laudo_url: laudoUrl, laudo_gerado_em: agora })
+        .eq('id', vistoria.id);
+      if (updateError) throw updateError;
+      setVistoria((v: any) => v ? { ...v, laudo_url: laudoUrl, laudo_gerado_em: agora } : v);
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Laudo Técnico' });
       } else {
         Alert.alert('PDF Gerado', `Arquivo salvo em: ${uri}`);
       }
-      // Registrar geração no Supabase
-      const agora = new Date().toISOString();
-      supabase.from('vistorias').update({ laudo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
-      setVistoria((v: any) => v ? { ...v, laudo_gerado_em: agora } : v);
       notificarDocumentoGerado('laudo', vistoria.endereco || '').catch(() => null);
       concluirOfertaCiencia(acknowledgementDocument, 'Laudo');
     } catch (e: any) {

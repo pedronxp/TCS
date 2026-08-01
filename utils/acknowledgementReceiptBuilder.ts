@@ -5,6 +5,12 @@ import {
   SignatureStroke,
 } from '../types/documentAcknowledgement';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
+import { DEFESA_CIVIL_LOGO_BASE64 } from '../supabase/functions/_shared/defesaCivilLogo';
+import {
+  buildPdfBaseCss,
+  PDF_COLORS,
+  PDF_DESIGN_LABEL,
+} from '../supabase/functions/_shared/pdfDesignSystem';
 
 const OUTCOME_LABELS: Record<LocalAcknowledgementEvent['outcome'], string> = {
   acknowledged: 'Ciência confirmada',
@@ -102,25 +108,23 @@ export function buildAcknowledgementReceiptFragment(
     : '';
 
   return `
-    <section style="box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#172033;padding:20px 24px;${forcePageBreak ? 'page-break-before:always;' : ''}page-break-inside:avoid">
+    <section style="box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:${PDF_COLORS.ink};padding:0;${forcePageBreak ? 'page-break-before:always;' : ''}">
       ${training}
-      <header style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #2563eb;padding-bottom:12px">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:42px;height:42px;border-radius:10px;background:#153e75;color:#ffffff;font-size:15px;font-weight:800;line-height:42px;text-align:center">TCS</div>
-          <div>
-            <div style="font-size:18px;font-weight:800;color:#102a56">Comprovante de ciência</div>
-            <div style="margin-top:2px;font-size:10px;color:#64748b">Registro de apresentação e recebimento de documento</div>
+      <header style="display:flex;align-items:flex-start;justify-content:space-between;border-bottom:2px solid ${PDF_COLORS.navy};padding-bottom:12px;margin-bottom:14px">
+        <img src="${DEFESA_CIVIL_LOGO_BASE64}" alt="Defesa Civil Municipal" style="display:block;width:auto;height:54px"/>
+        <div style="max-width:330px;text-align:right">
+          <div style="font-size:16px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:${PDF_COLORS.navy}">Comprovante de ciência</div>
+          <div style="margin-top:2px;font-size:9px;color:${PDF_COLORS.muted}">Registro de apresentação e recebimento de documento</div>
+          <div style="display:inline-block;margin-top:7px;border-radius:999px;padding:6px 10px;background:${event.outcome === 'acknowledged' ? PDF_COLORS.successSoft : PDF_COLORS.warningSoft};font-size:8px;font-weight:800;line-height:1.25;text-align:center;text-transform:uppercase;color:${event.outcome === 'acknowledged' ? PDF_COLORS.success : PDF_COLORS.warning}">
+            ${escapeHtml(OUTCOME_LABELS[event.outcome])}
           </div>
-        </div>
-        <div style="max-width:190px;border-radius:999px;padding:7px 11px;background:${event.outcome === 'acknowledged' ? '#dcfce7' : '#ffedd5'};font-size:9px;font-weight:800;line-height:1.25;text-align:center;text-transform:uppercase;color:${event.outcome === 'acknowledged' ? '#166534' : '#9a3412'}">
-          ${escapeHtml(OUTCOME_LABELS[event.outcome])}
         </div>
       </header>
 
-      <p style="margin:14px 0 12px;font-size:11px;line-height:1.5;color:#334155">${escapeHtml(receiptExplanation(event.outcome))}</p>
+      <p style="margin:0 0 12px;font-size:10.5px;line-height:1.5;color:${PDF_COLORS.text}">${escapeHtml(receiptExplanation(event.outcome))}</p>
 
       <div style="border:1px solid #cbd5e1;border-radius:10px;overflow:hidden">
-        <div style="padding:8px 12px;background:#eff6ff;font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#1d4ed8">Documento apresentado</div>
+        <div style="padding:8px 12px;background:${PDF_COLORS.blueSoft};font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:${PDF_COLORS.navy}">Documento apresentado</div>
         <table style="width:100%;border-collapse:collapse;font-size:10.5px">
           <tr>
             <td style="width:22%;padding:7px 12px;color:#64748b">Documento</td>
@@ -142,7 +146,7 @@ export function buildAcknowledgementReceiptFragment(
       </div>
 
       <div style="margin-top:12px;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden">
-        <div style="padding:8px 12px;background:#f8fafc;font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#475569">Dados do registro</div>
+        <div style="padding:8px 12px;background:${PDF_COLORS.surface};font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:${PDF_COLORS.navy}">Dados do registro</div>
         <table style="width:100%;border-collapse:collapse;font-size:10.5px">
           <tr>
             <td style="width:22%;padding:7px 12px;color:#64748b">Destinatário</td>
@@ -159,7 +163,7 @@ export function buildAcknowledgementReceiptFragment(
         </table>
       </div>
 
-      <div style="margin-top:12px;border-radius:10px;padding:10px 14px;background:#f8fafc">
+      <div style="margin-top:12px;border-radius:6px;padding:10px 14px;background:${PDF_COLORS.surface};border-left:3px solid ${PDF_COLORS.blue}">
         <div style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#475569">Declaração registrada</div>
         <p style="margin:5px 0 0;font-size:10.5px;line-height:1.45;color:#334155">${escapeHtml(event.declarationText)}</p>
       </div>
@@ -167,12 +171,13 @@ export function buildAcknowledgementReceiptFragment(
       ${buildEvidenceBlock(event)}
       ${event.witness ? `<p style="margin:8px 0 0;font-size:10px;color:#475569"><strong>Testemunha presente:</strong> ${escapeHtml(event.witness.name)}</p>` : ''}
 
-      <footer style="margin-top:14px;border-top:1px solid #cbd5e1;padding-top:10px;text-align:center">
+      <footer style="margin-top:14px;border-top:1px solid ${PDF_COLORS.line};padding-top:10px;text-align:center">
         <div style="font-size:9px;color:#64748b">Protocolo do registro</div>
         <div style="margin-top:2px;font-size:12px;font-weight:800;letter-spacing:.3px;color:#102a56">${escapeHtml(protocol)}</div>
         <p style="margin:7px auto 0;max-width:650px;font-size:8.5px;line-height:1.4;color:#64748b">
           ${escapeHtml(footerNote)}
         </p>
+        <div style="margin-top:7px;font-size:7px;color:${PDF_COLORS.subtle}">${PDF_DESIGN_LABEL}</div>
       </footer>
     </section>`;
 }
@@ -181,7 +186,7 @@ export function buildAcknowledgementReceiptHtml(
   document: LocalGeneratedDocument,
   event: LocalAcknowledgementEvent
 ): string {
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>@page{size:A4;margin:10mm}html,body{margin:0;padding:0;background:#fff}*{box-sizing:border-box}</style></head><body>${buildAcknowledgementReceiptFragment(document, event, false)}</body></html>`;
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${buildPdfBaseCss()}</style></head><body>${buildAcknowledgementReceiptFragment(document, event, false)}</body></html>`;
 }
 
 export function buildCombinedDocumentHtml(

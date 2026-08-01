@@ -11,7 +11,6 @@ import { supabase } from '../../../utils/supabase';
 import { insertVistoria, markSincronizado, getVistoriaById } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
-import { ensureInspectionLaudo } from '../../../services/LaudoService';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -164,14 +163,6 @@ export default function ResultadoRiscoScreen() {
           });
           if (!error) {
             markSincronizado(vistoriaId);
-            try {
-              await ensureInspectionLaudo(vistoriaId);
-            } catch (laudoError) {
-              logger.warn('sync', 'Vistoria sincronizada, mas o laudo ficou pendente de geração', {
-                id: vistoriaId,
-                erro: laudoError instanceof Error ? laudoError.message : String(laudoError),
-              });
-            }
           }
         }
 

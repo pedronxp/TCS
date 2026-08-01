@@ -12,11 +12,15 @@ import {
   normalizarNivelRisco,
   parseCalculoRiscoSnapshot,
   resolverApresentacaoRisco,
-  riscoLabel,
-  riscoColor,
-  riscoConduta,
 } from './riscoUtils';
-import { logoBase64 } from './logoBase64';
+import { DEFESA_CIVIL_LOGO_BASE64 } from '../supabase/functions/_shared/defesaCivilLogo';
+import {
+  buildPdfBaseCss,
+  humanizePdfFieldKey,
+  PDF_COLORS,
+  PDF_DESIGN_LABEL,
+  PDF_RISK_COLORS,
+} from '../supabase/functions/_shared/pdfDesignSystem';
 import {
   ASSETS,
   calcularRaioAlvoArvore,
@@ -29,6 +33,7 @@ import {
 
 export interface LaudoData {
   id: string;
+  protocolo?: string;
   nivelRisco: string;
   pontuacaoTotal: number;
   endereco: string;
@@ -40,7 +45,8 @@ export interface LaudoData {
   calculoRisco?: CalculoRiscoSnapshot | string | null;
   foto_url?: string | null;
   fotosUrls?: string[] | null;
-  // Campos opcionais do relatório técnico editável
+  // Mantido no contrato de entrada para compatibilidade com snapshots antigos.
+  // A conduta não é mais exibida no PDF de vistoria.
   condutaRecomendada?: string;
   observacoesTecnicas?: string;
   cargo?: string;
@@ -66,12 +72,12 @@ export interface TermoInterdicaoData {
  * Ex: "02 de abril de 2026"
  */
 function dataExtenso(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     const d = new Date(iso);
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   } catch {
-    return '—';
+    return '-';
   }
 }
 
@@ -86,7 +92,7 @@ export function buildTermoInterdicaoHtml(
   const protocolo = (laudo.id || '000000').slice(0, 8).toUpperCase();
   const dataExt = dataExtenso(laudo.dataVistoria);
   const ano = laudo.dataVistoria ? new Date(laudo.dataVistoria).getFullYear() : new Date().getFullYear();
-  const cidade = notificado.cidade || laudo.municipio || '—';
+  const cidade = notificado.cidade || laudo.municipio || '-';
   const calculo = parseCalculoRiscoSnapshot(laudo.calculoRisco);
   const nivel = normalizarNivelRisco(laudo.nivelRisco || calculo?.nivelRisco, 'r1');
   const trainingNotice = laudo.modoTreinamento
@@ -97,139 +103,127 @@ export function buildTermoInterdicaoHtml(
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
-  @page { margin: 50px 60px; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Times New Roman', Times, serif;
-    color: #000;
-    background: #fff;
-    font-size: 13px;
-    line-height: 1.6;
-    padding: 0;
-  }
-  @media print {
-    *, body, html {
-      background-color: #fff !important;
-      color: #000 !important;
-      -webkit-print-color-adjust: exact;
-    }
-  }
+  ${buildPdfBaseCss()}
   .doc-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 2px solid #000;
-    padding-bottom: 20px;
-    margin-bottom: 30px;
+    border-bottom: 2px solid ${PDF_COLORS.navy};
+    padding-bottom: 14px;
+    margin-bottom: 22px;
   }
   .training-notice {
-    border: 2px solid #10B981;
-    background: #ECFDF5;
-    color: #047857;
-    border-radius: 10px;
-    padding: 10px 14px;
-    margin-bottom: 18px;
-    font-size: 12px;
+    border: 1px solid ${PDF_COLORS.warning};
+    background: ${PDF_COLORS.warningSoft};
+    color: ${PDF_COLORS.warning};
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    font-size: 9px;
     font-weight: bold;
     text-align: center;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.7px;
   }
   .doc-header-logo img {
-    height: 70px;
+    height: 54px;
+    width: auto;
+    display: block;
   }
   .doc-header-text {
     text-align: right;
   }
   .doc-title {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: bold;
-    letter-spacing: 2px;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #1A365D;
+    color: ${PDF_COLORS.navy};
     margin-bottom: 4px;
   }
   .doc-number {
-    font-size: 14px;
-    color: #666;
+    font-size: 10px;
+    color: ${PDF_COLORS.muted};
     font-weight: bold;
   }
   .preambulo {
     text-align: justify;
-    margin-bottom: 28px;
-    font-size: 13px;
-    line-height: 1.8;
+    margin-bottom: 20px;
+    font-size: 10.5pt;
+    line-height: 1.65;
   }
   .section-title {
-    font-size: 13px;
+    font-size: 9px;
     font-weight: bold;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid #999;
-    padding-bottom: 6px;
-    margin-bottom: 16px;
-    margin-top: 28px;
+    letter-spacing: 0.9px;
+    color: ${PDF_COLORS.navy};
+    border-bottom: 1px solid ${PDF_COLORS.line};
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    margin-top: 20px;
   }
   .field-grid {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    border: 1px solid ${PDF_COLORS.line};
   }
   .field-grid td {
-    padding: 8px 10px;
-    border: 1px solid #ccc;
-    font-size: 13px;
+    padding: 7px 9px;
+    border: 1px solid ${PDF_COLORS.lineSoft};
+    font-size: 9.5pt;
     vertical-align: top;
   }
   .field-grid .field-label {
     font-weight: bold;
-    width: 140px;
-    background: #f8f8f8;
+    width: 118px;
+    background: ${PDF_COLORS.surface};
+    color: ${PDF_COLORS.muted};
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
   .motivo {
     text-align: justify;
-    line-height: 1.9;
-    margin-top: 16px;
-    font-size: 13px;
+    line-height: 1.65;
+    margin-top: 12px;
+    font-size: 10.5pt;
   }
   .motivo strong {
     font-weight: bold;
     text-transform: uppercase;
   }
   .lei {
-    margin-top: 16px;
-    font-size: 12px;
-    color: #333;
-    border-left: 3px solid #666;
-    padding-left: 12px;
-    font-style: italic;
-    line-height: 1.7;
+    margin-top: 14px;
+    padding: 11px 13px;
+    font-size: 8.8pt;
+    color: ${PDF_COLORS.text};
+    border: 1px solid ${PDF_COLORS.lineSoft};
+    border-left: 3px solid ${PDF_COLORS.blue};
+    background: ${PDF_COLORS.surface};
+    line-height: 1.55;
   }
   .assinatura-section {
-    margin-top: 60px;
+    margin-top: 48px;
     text-align: center;
+    page-break-inside: avoid;
   }
   .assinatura-linha {
-    border-top: 1px solid #000;
-    width: 300px;
+    border-top: 1px solid ${PDF_COLORS.navy};
+    width: 280px;
     margin: 0 auto 8px;
   }
   .assinatura-nome {
-    font-size: 13px;
+    font-size: 10pt;
     font-weight: bold;
+    color: ${PDF_COLORS.navy};
   }
   .assinatura-cargo {
-    font-size: 11px;
-    color: #555;
-  }
-  .footer-info {
-    margin-top: 40px;
-    border-top: 1px solid #ccc;
-    padding-top: 12px;
-    font-size: 10px;
-    color: #888;
-    text-align: center;
+    font-size: 8.5pt;
+    color: ${PDF_COLORS.muted};
   }
 </style>
 </head>
@@ -238,7 +232,7 @@ export function buildTermoInterdicaoHtml(
 
   <div class="doc-header">
     <div class="doc-header-logo">
-      <img src="${logoBase64}" alt="Logo Defesa Civil" />
+      <img src="${DEFESA_CIVIL_LOGO_BASE64}" alt="Defesa Civil Municipal" />
     </div>
     <div class="doc-header-text">
       <div class="doc-title">Termo de Interdição</div>
@@ -256,29 +250,29 @@ export function buildTermoInterdicaoHtml(
   <table class="field-grid">
     <tr>
       <td class="field-label">Nome</td>
-      <td colspan="3">${escapeHtml(notificado.nomeNotificado || '—')}</td>
+      <td colspan="3">${escapeHtml(notificado.nomeNotificado || '-')}</td>
     </tr>
     <tr>
       <td class="field-label">CPF</td>
-      <td colspan="3">${escapeHtml(notificado.cpfNotificado || '—')}</td>
+      <td colspan="3">${escapeHtml(notificado.cpfNotificado || '-')}</td>
     </tr>
     <tr>
       <td class="field-label">Endereço</td>
-      <td>R: ${escapeHtml(notificado.enderecoRua || '—')}</td>
+      <td>R: ${escapeHtml(notificado.enderecoRua || '-')}</td>
       <td class="field-label" style="width:50px">Nº</td>
-      <td style="width:80px">${escapeHtml(notificado.enderecoNumero || '—')}</td>
+      <td style="width:80px">${escapeHtml(notificado.enderecoNumero || '-')}</td>
     </tr>
     <tr>
       <td class="field-label">Complemento</td>
-      <td>${escapeHtml(notificado.complemento || '—')}</td>
+      <td>${escapeHtml(notificado.complemento || '-')}</td>
       <td class="field-label">Bairro</td>
-      <td>${escapeHtml(notificado.bairro || '—')}</td>
+      <td>${escapeHtml(notificado.bairro || '-')}</td>
     </tr>
     <tr>
       <td class="field-label">Cidade</td>
       <td>${escapeHtml(cidade)}</td>
       <td class="field-label">Contato</td>
-      <td>${escapeHtml(notificado.telefone || '—')}</td>
+      <td>${escapeHtml(notificado.telefone || '-')}</td>
     </tr>
   </table>
 
@@ -307,13 +301,15 @@ export function buildTermoInterdicaoHtml(
 
   <div class="assinatura-section">
     <div class="assinatura-linha"></div>
-    <div class="assinatura-nome">${escapeHtml(laudo.agenteNome || '—')}</div>
+    <div class="assinatura-nome">${escapeHtml(laudo.agenteNome || '-')}</div>
     <div class="assinatura-cargo">${escapeHtml(laudo.cargo || 'Vistoriador de Proteção e Defesa Civil')}</div>
   </div>
 
-  <div class="footer-info">
-    Documento gerado pelo TCS — Relatório de Risco<br/>
-    ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+  <div class="pdf-page-footer">
+    <div class="pdf-page-footer-row">
+      <span>Defesa Civil - Termo de Interdição - ${PDF_DESIGN_LABEL}</span>
+      <span>Protocolo ${escapeHtml(protocolo)}/${ano}</span>
+    </div>
   </div>
 
 </body>
@@ -337,11 +333,15 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     calculoRisco: calculo,
   });
   const isAvaliacaoArvore = dados.formularioId === 'avaliacao_arvore_cbmmg_v1';
-  const cor = apresentacao.cor;
+  const riskColorKey = apresentacao.codigo === 'risco_iminente'
+    ? 'iminente'
+    : apresentacao.codigo === 'nao_iminente'
+      ? 'nao_iminente'
+      : nivel;
+  const cor = PDF_RISK_COLORS[riskColorKey];
   const label = apresentacao.label;
   const data = formatarDataHora(dados.dataVistoria);
-  const protocolo = (dados.id || '000000').slice(0, 8).toUpperCase();
-  const conduta = dados.condutaRecomendada || apresentacao.conduta;
+  const protocolo = dados.protocolo?.trim() || (dados.id || '000000').slice(0, 8).toUpperCase();
   const agravantes = calculo?.agravantes || [];
   const regrasCondicionais = calculo?.regrasCondicionais || [];
   const agravantesHtml = agravantes.length
@@ -369,8 +369,6 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
         `).join('')}
       </div>`
     : '';
-  const dataExt = dataExtenso(dados.dataVistoria);
-  const ano = dados.dataVistoria ? new Date(dados.dataVistoria).getFullYear() : new Date().getFullYear();
   const trainingNotice = dados.modoTreinamento
     ? `<div class="training-notice">MODO DE TESTE - documento sem validade operacional</div>`
     : '';
@@ -396,12 +394,12 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     itemCount = calculo.itens.length;
     respostasHtml = calculo.itens.map((item, index) => {
       const pontuacaoDesc = item.pesoRisco > 0
-        ? `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${formatarPontuacaoRisco(item.pesoRisco)} pts]</div>`
+        ? ` <span class="answer-score">(+${formatarPontuacaoRisco(item.pesoRisco)} pts)</span>`
         : '';
       const observacaoDesc = item.observacao
-        ? `<div class="item-observation"><strong>Observação do agente:</strong> ${escapeHtml(item.observacao)}</div>`
+        ? `<div class="item-observation"><strong>Observação:</strong> ${escapeHtml(item.observacao)}</div>`
         : '';
-      return `<tr><td class="td-num">${String(index + 1).padStart(2, '0')}</td><td class="td-param">${escapeHtml(item.pergunta)}</td><td class="td-resp">${escapeHtml(item.resposta)}${pontuacaoDesc}${observacaoDesc}</td></tr>`;
+      return `<tr><td class="td-param">${String(index + 1).padStart(2, '0')} - ${escapeHtml(item.pergunta)}</td><td class="td-resp">${escapeHtml(item.resposta)}${pontuacaoDesc}${observacaoDesc}</td></tr>`;
     }).join('');
   } else if (dados.respostasJson) {
     try {
@@ -411,10 +409,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
         .map(([k, val]) => {
           // Remover campo foto das perguntas normais caso seja o "id"
           if (k.includes('foto')) return '';
+          if (k.toLowerCase().includes('conduta_recomendada')) return '';
+          if (k.toLowerCase().includes('formulario_utilizado')) return '';
+          if (k.toLowerCase() === 'formularioid') return '';
           if (getPerguntaIdFromObservacaoCondicionalRiscoKey(k)) return '';
 
           itemCount++;
-          let safeKey = escapeHtml(k);
+          let safeKey = escapeHtml(humanizePdfFieldKey(k));
           let safeVal = escapeHtml(Array.isArray(val) ? (val as string[]).join(', ') : String(val));
           let pontuacaoDesc = '';
           let observacaoDesc = '';
@@ -434,14 +435,14 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
                   if (opDef.descricao) vExtenso += `<br/><span style="font-size: 10px; color: #64748B;">(${escapeHtml(opDef.descricao)})</span>`;
                   safeVal = vExtenso;
                   if (opDef.pesoRisco > 0) {
-                      pontuacaoDesc = `<div style="font-size:10px; color:#E53E3E; font-weight:bold; margin-top:4px;">[+${formatarPontuacaoRisco(opDef.pesoRisco)} pts]</div>`;
+                      pontuacaoDesc = ` <span class="answer-score">(+${formatarPontuacaoRisco(opDef.pesoRisco)} pts)</span>`;
                   }
                   const observacaoKey = getObservacaoCondicionalRiscoKey(pDef.id);
                   const observacao = opcaoAcionaObservacaoCondicionalRisco(dados.formularioId, pDef, String(val))
                     ? String((respostas as Record<string, unknown>)[observacaoKey] ?? '').trim()
                     : '';
                   if (observacao) {
-                    observacaoDesc = `<div class="item-observation"><strong>Observação do agente:</strong> ${escapeHtml(observacao)}</div>`;
+                    observacaoDesc = `<div class="item-observation"><strong>Observação:</strong> ${escapeHtml(observacao)}</div>`;
                   }
                 }
               }
@@ -453,7 +454,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
           const derivadoHtml = raioDerivado !== null
             ? `<div class="item-observation"><strong>Raio de referência dos alvos (altura × 1,5):</strong> ${formatarPontuacaoRisco(raioDerivado)} m</div>`
             : '';
-          return `<tr><td class="td-num">${String(itemCount).padStart(2, '0')}</td><td class="td-param">${safeKey}</td><td class="td-resp">${safeVal}${pontuacaoDesc}${observacaoDesc}${derivadoHtml}</td></tr>`;
+          return `<tr><td class="td-param">${String(itemCount).padStart(2, '0')} - ${safeKey}</td><td class="td-resp">${safeVal}${pontuacaoDesc}${observacaoDesc}${derivadoHtml}</td></tr>`;
         }).join('');
     } catch { /* sem respostas */ }
   }
@@ -508,13 +509,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   if (fotosBase64.length > 0) {
     const isSingle = fotosBase64.length === 1;
     const fotosHtml = fotosBase64.map((b64, i) => `
-      <div style="border:1px solid #E2E8F0; border-radius:8px; overflow:hidden; ${isSingle ? 'max-width:480px; margin:0 auto;' : ''}">
-        <img src="${b64}" style="width:100%; max-height:240px; object-fit:contain; display:block;" alt="Evidência ${i + 1}"/>
-        <div style="font-size:9px; color:#64748B; text-align:center; padding:5px;">Evidência fotográfica ${i + 1}${isAvaliacaoArvore && i === 0 ? ' — visão geral da árvore' : isAvaliacaoArvore ? ' — defeito determinante' : ''}</div>
+      <div class="photo-card" style="${isSingle ? 'max-width:480px; margin:0 auto;' : ''}">
+        <img src="${b64}" alt="Evidência ${i + 1}"/>
+        <div style="font-size:9px; color:#64748B; text-align:center; padding:5px;">Evidência fotográfica ${i + 1}${isAvaliacaoArvore && i === 0 ? ' - visão geral da árvore' : isAvaliacaoArvore ? ' - defeito determinante' : ''}</div>
       </div>`).join('');
     imageHtml = `
-      <div class="section" style="page-break-inside: avoid;">
-        <div class="section-title"><span class="section-icon">📷</span> Registro Fotográfico da Ocorrência (${fotosBase64.length} foto${fotosBase64.length !== 1 ? 's' : ''})</div>
+      <div class="section">
+        <div class="section-title">Registro Fotográfico (${fotosBase64.length})</div>
         <div style="display:${isSingle ? 'block' : 'grid'}; ${isSingle ? '' : 'grid-template-columns: repeat(2, 1fr);'} gap:10px;">
           ${fotosHtml}
         </div>
@@ -523,31 +524,38 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 
   const obsHtml = dados.observacoesTecnicas
     ? `<div class="section">
-        <div class="section-title"><span class="section-icon">📋</span> Observações Técnicas</div>
-        <div class="obs-box">${escapeHtml(dados.observacoesTecnicas)}</div>
+        <div class="section-title">Observações Técnicas</div>
+        <div class="obs-box pdf-preserve-lines">${escapeHtml(dados.observacoesTecnicas)}</div>
       </div>`
     : '';
 
   // Cor de fundo suave para o painel de risco
-  const corBg = apresentacao.codigo === 'nao_iminente' || nivel === 'r1' ? '#ECFDF5' : nivel === 'r2' ? '#FFFBEB' : '#FEF2F2';
-  const corBorder = apresentacao.codigo === 'nao_iminente' || nivel === 'r1' ? '#A7F3D0' : nivel === 'r2' ? '#FDE68A' : '#FECACA';
+  const corBg = apresentacao.codigo === 'nao_iminente' || nivel === 'r1'
+    ? PDF_COLORS.successSoft
+    : nivel === 'r2'
+      ? PDF_COLORS.warningSoft
+      : PDF_COLORS.dangerSoft;
+  const corBorder = PDF_COLORS.line;
+  const riskDetailsHtml = agravantesHtml || regrasCondicionaisHtml
+    ? `<div class="risk-details">${agravantesHtml}${regrasCondicionaisHtml}</div>`
+    : '';
   const riskPanelHtml = `
   <!-- PAINEL DE RISCO -->
-  <div class="risk-panel">
+  <div class="risk-panel pdf-avoid-break">
     <div class="risk-indicator">
-      <div class="risk-level-label">${isAvaliacaoArvore ? 'Resultado CBMMG' : 'Nível de Risco'}</div>
+      <div class="risk-level-label">${isAvaliacaoArvore ? 'Resultado CBMMG' : 'Classificação Técnica'}</div>
       <div class="risk-level-value">${escapeHtml(isAvaliacaoArvore ? label : nivel.toUpperCase())}</div>
-      <div class="risk-pts">${isAvaliacaoArvore ? `${formatarPontuacaoRisco(pontuacaoTotal)} pontos` : `${escapeHtml(label)} · ${formatarPontuacaoRisco(pontuacaoTotal)} pts`}</div>
     </div>
-    <div class="risk-details">
-      ${agravantesHtml}
-      ${regrasCondicionaisHtml}
+    <div class="risk-score">
+      <div class="risk-score-label">Pontuação apurada</div>
+      <div class="risk-score-value">${formatarPontuacaoRisco(pontuacaoTotal)}</div>
     </div>
-  </div>`;
+  </div>
+  ${riskDetailsHtml}`;
 
   const metodologiaHtml = isAvaliacaoArvore ? `
   <div class="section" style="page-break-inside: avoid;">
-    <div class="section-title"><span class="section-icon">🌳</span> Metodologia e Quadro de Pontuação</div>
+    <div class="section-title">Metodologia e Quadro de Pontuação</div>
     <div class="legal-note" style="margin-bottom:12px;">
       <strong>${escapeHtml(schemaForm?.metodologia?.titulo || 'Quadro de Avaliação de Árvore de Risco')}</strong><br/>
       ${escapeHtml(calculo?.fonteMetodologica || schemaForm?.metodologia?.fonte || '')}<br/>
@@ -567,23 +575,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
-  @page { margin: 40px 50px; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  ${buildPdfBaseCss()}
+  @page { size: A4 portrait; margin: 13.5mm 16mm 20mm; }
   body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    color: #1A202C;
-    background: #fff;
-    font-size: 13px;
-    line-height: 1.5;
-    padding: 0;
-  }
-  @media print {
-    *, body, html {
-      background-color: #fff !important;
-      color: #000 !important;
-      -webkit-print-color-adjust: exact;
-    }
+    color: ${PDF_COLORS.ink};
+    font-size: 10.5pt;
   }
 
   /* ═══ CABEÇALHO ═══ */
@@ -591,111 +589,110 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    border-bottom: 3px solid #1A365D;
-    padding-bottom: 20px;
+    border-bottom: 2px solid ${PDF_COLORS.navy};
+    padding-bottom: 10px;
     margin-bottom: 28px;
   }
   .training-notice {
-    border: 2px solid #10B981;
-    background: #ECFDF5;
-    color: #047857;
-    border-radius: 10px;
-    padding: 10px 14px;
-    margin-bottom: 18px;
+    border: 1px solid ${PDF_COLORS.warning};
+    background: ${PDF_COLORS.warningSoft};
+    color: ${PDF_COLORS.warning};
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
     text-align: center;
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 1.2px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
     text-transform: uppercase;
   }
-  .doc-header-logo img {
-    height: 80px;
+  .doc-brand {
+    min-width: 76px;
+  }
+  .doc-brand img {
+    display: block;
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
   }
   .doc-info { text-align: right; }
   .doc-type {
-    font-size: 18px;
+    font-size: 12pt;
     font-weight: 800;
-    color: #1A365D;
-    letter-spacing: 1px;
+    color: ${PDF_COLORS.navy};
+    letter-spacing: 0.8px;
     text-transform: uppercase;
   }
   .doc-num {
-    font-size: 12px;
+    font-size: 9px;
     font-weight: 600;
-    color: #718096;
+    color: ${PDF_COLORS.muted};
     margin-top: 4px;
-  }
-  .doc-date {
-    font-size: 12px;
-    color: #4A5568;
-    margin-top: 2px;
   }
 
   /* ═══ PAINEL DE RISCO ═══ */
   .risk-panel {
     display: flex;
-    border: 2px solid ${corBorder};
-    border-radius: 12px;
+    border: 0;
+    border-radius: 0;
     overflow: hidden;
-    margin-bottom: 28px;
+    margin-bottom: 26px;
   }
   .risk-indicator {
     background: ${cor};
     color: white;
-    padding: 20px 28px;
-    text-align: center;
-    min-width: 160px;
+    padding: 14px 16px;
+    width: 60%;
+    min-height: 62px;
   }
   .risk-level-label {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 700;
-    letter-spacing: 2px;
+    letter-spacing: 1.2px;
     opacity: 0.85;
     text-transform: uppercase;
   }
   .risk-level-value {
-    font-size: 28px;
+    font-size: 19pt;
     font-weight: 900;
-    margin: 6px 0;
+    margin: 4px 0 2px;
     letter-spacing: -0.5px;
   }
-  .risk-pts {
-    font-size: 12px;
-    opacity: 0.8;
-  }
-  .risk-details {
+  .risk-score {
     background: ${corBg};
-    padding: 16px 20px;
+    padding: 12px 16px;
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
+    text-align: right;
   }
-  .risk-conduta-title {
-    font-size: 10px;
+  .risk-score-label {
+    font-size: 8px;
     font-weight: 800;
     color: ${cor};
-    letter-spacing: 1px;
+    letter-spacing: 0.7px;
     text-transform: uppercase;
-    margin-bottom: 6px;
   }
-  .risk-conduta-text {
-    font-size: 12px;
-    line-height: 1.6;
-    color: #2D3748;
+  .risk-score-value {
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 900;
+    color: ${cor};
+    margin: 4px 0 2px;
   }
-  .conduct-note {
+  .risk-details {
     background: ${corBg};
     border: 1px solid ${corBorder};
-    border-radius: 8px;
-    padding: 14px 18px;
-    margin: -10px 0 24px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 0 0 20px;
     page-break-inside: avoid;
   }
   .risk-aggravants {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid ${corBorder};
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
   .risk-rules {
     margin-top: 10px;
@@ -715,7 +712,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   .risk-rule-item {
     font-size: 11px;
     line-height: 1.5;
-    color: #2D3748;
+    color: ${PDF_COLORS.text};
   }
   .risk-rule-justification {
     margin-top: 6px;
@@ -726,242 +723,212 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   }
 
   /* ═══ SEÇÕES ═══ */
-  .section { margin-bottom: 24px; }
+  .section { margin-bottom: 20px; }
   .section-title {
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 800;
-    letter-spacing: 1.5px;
-    color: #1A365D;
+    letter-spacing: 0.9px;
+    color: ${PDF_COLORS.navy};
     text-transform: uppercase;
-    border-bottom: 2px solid #E2E8F0;
-    padding-bottom: 8px;
-    margin-bottom: 14px;
+    border-bottom: 1px solid ${PDF_COLORS.line};
+    padding-bottom: 5px;
+    margin-bottom: 10px;
   }
-  .section-icon { margin-right: 6px; }
 
   /* ═══ TABELA DE DADOS ═══ */
   .data-table {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #E2E8F0;
-    border-radius: 8px;
+    border: 1px solid ${PDF_COLORS.line};
+    border-radius: 6px;
     overflow: hidden;
   }
   .data-table td {
-    padding: 10px 14px;
-    border-bottom: 1px solid #F1F5F9;
-    font-size: 13px;
+    padding: 7px 10px;
+    border-bottom: 1px solid ${PDF_COLORS.lineSoft};
+    font-size: 9.5pt;
     vertical-align: top;
   }
   .data-table .dt-label {
     font-weight: 700;
-    color: #64748B;
-    background: #F8FAFC;
-    width: 180px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: ${PDF_COLORS.muted};
+    background: ${PDF_COLORS.surface};
+    width: 26%;
+    font-size: 7.5pt;
   }
   .data-table .dt-value {
-    color: #1E293B;
-    font-weight: 600;
+    color: ${PDF_COLORS.ink};
+    font-weight: 400;
   }
 
   /* ═══ TABELA DE RESPOSTAS ═══ */
   .resp-table {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #E2E8F0;
+    border: 1px solid ${PDF_COLORS.line};
   }
   .resp-table th {
-    font-size: 9px;
+    font-size: 7.5px;
     font-weight: 800;
-    color: #64748B;
+    color: ${PDF_COLORS.muted};
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.7px;
     text-align: left;
-    padding: 10px 12px;
-    background: #F1F5F9;
-    border-bottom: 2px solid #CBD5E1;
+    padding: 7px 9px;
+    background: ${PDF_COLORS.surface};
+    border-bottom: 1px solid ${PDF_COLORS.line};
   }
   .resp-table td {
-    font-size: 12px;
-    padding: 9px 12px;
-    border-bottom: 1px solid #F1F5F9;
+    font-size: 9.2pt;
+    padding: 7px 9px;
+    border-bottom: 1px solid ${PDF_COLORS.lineSoft};
+    vertical-align: top;
   }
   .td-num {
     width: 36px;
     text-align: center;
     font-weight: 800;
-    color: #94A3B8;
-    font-size: 11px;
+    color: ${PDF_COLORS.subtle};
+    font-size: 8px;
   }
   .td-param {
     font-weight: 600;
-    color: #334155;
-    width: 42%;
+    color: ${PDF_COLORS.muted};
+    width: 43%;
+    font-size: 7.8pt;
   }
   .td-resp {
-    color: #1E293B;
+    color: ${PDF_COLORS.ink};
+  }
+  .answer-score {
+    color: ${PDF_COLORS.ink};
+    white-space: nowrap;
   }
   .item-observation {
     margin-top: 7px;
     padding: 7px 9px;
-    border: 1px solid #E2E8F0;
-    border-left: 3px solid #3B82F6;
-    border-radius: 6px;
-    background: #F8FAFC;
-    font-size: 10.5px;
+    border: 1px solid ${PDF_COLORS.lineSoft};
+    border-left: 3px solid ${PDF_COLORS.blue};
+    border-radius: 4px;
+    background: ${PDF_COLORS.surface};
+    font-size: 8px;
     line-height: 1.5;
-    color: #334155;
+    color: ${PDF_COLORS.text};
   }
   .resp-table tr:nth-child(even) {
-    background: #FAFBFC;
+    background: ${PDF_COLORS.surface};
   }
 
   /* ═══ OBSERVAÇÕES ═══ */
   .obs-box {
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    border-left: 4px solid #3B82F6;
-    padding: 14px 18px;
-    border-radius: 0 8px 8px 0;
-    font-size: 13px;
-    line-height: 1.7;
-    color: #334155;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    border-radius: 0;
+    font-size: 9.2pt;
+    line-height: 1.5;
+    color: ${PDF_COLORS.text};
+  }
+  .photo-card {
+    border: 1px solid ${PDF_COLORS.line};
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .photo-card img {
+    display: block;
+    width: 100%;
+    max-height: 205px;
+    object-fit: contain;
   }
 
   /* ═══ BASE LEGAL ═══ */
   .legal-note {
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    border-radius: 8px;
-    padding: 14px 18px;
-    margin-bottom: 24px;
-    font-size: 11px;
-    color: #64748B;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 20px;
+    font-size: 8.5pt;
+    color: ${PDF_COLORS.muted};
     line-height: 1.6;
   }
   .legal-note strong {
-    color: #334155;
+    color: ${PDF_COLORS.text};
   }
 
   /* ═══ RODAPÉ & ASSINATURA ═══ */
   .footer-section {
-    margin-top: 40px;
-    border-top: 2px solid #E2E8F0;
-    padding-top: 24px;
-  }
-  .sig-grid {
-    display: flex;
-    justify-content: space-between;
-    gap: 32px;
-    margin-top: 20px;
+    margin-top: 26px;
+    page-break-inside: avoid;
   }
   .sig-block {
-    flex: 1;
+    width: 65%;
+    margin: 0 auto;
     text-align: center;
   }
   .sig-line {
-    border-top: 1px solid #1A365D;
+    border-top: 1px solid ${PDF_COLORS.navy};
     width: 100%;
-    margin-bottom: 8px;
-    margin-top: 60px;
+    margin: 48px 0 12px;
   }
   .sig-name {
-    font-size: 13px;
+    font-size: 9.5pt;
     font-weight: 700;
-    color: #1A365D;
+    color: ${PDF_COLORS.navy};
+    text-align: center;
   }
   .sig-role {
-    font-size: 10px;
-    color: #718096;
-    margin-top: 2px;
-  }
-  .stamp-area {
-    flex: 1;
+    margin-top: 4px;
+    font-size: 8pt;
+    color: ${PDF_COLORS.muted};
     text-align: center;
-    font-size: 10px;
-    color: #CBD5E1;
-    border: 2px dashed #E2E8F0;
-    border-radius: 12px;
-    padding: 20px;
-    margin-top: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .doc-footer {
-    margin-top: 24px;
-    text-align: center;
-    font-size: 9px;
-    color: #A0AEC0;
-    letter-spacing: 0.5px;
-  }
-  .ciente-section {
-    margin-top: 30px;
-    padding: 16px;
-    border: 1px solid #E2E8F0;
-    border-radius: 8px;
-    background: #F8FAFC;
-    page-break-inside: avoid;
-  }
-  .ciente-title {
-    font-size: 11px;
-    font-weight: bold;
-    text-transform: uppercase;
-    color: #1A365D;
-    margin-bottom: 30px;
-  }
-  .ciente-grid {
-    display: flex;
-    justify-content: space-between;
-    gap: 30px;
   }
 </style>
 </head>
 <body>
-
   ${trainingNotice}
 
   <!-- CABEÇALHO -->
   <div class="doc-header">
-    <div class="doc-header-logo">
-      <img src="${logoBase64}" alt="Logo Defesa Civil" />
+    <div class="doc-brand">
+      <img src="${DEFESA_CIVIL_LOGO_BASE64}" alt="Defesa Civil Municipal" />
     </div>
     <div class="doc-info">
-      <div class="doc-type">RELATÓRIO TÉCNICO VISTORIA</div>
-      <div class="doc-num">Nº ${escapeHtml(protocolo)}/${ano}</div>
-      <div class="doc-date">Vistoria realizada em ${escapeHtml(dataExt)}</div>
+      <div class="doc-type">RELATÓRIO TÉCNICO DE VISTORIA</div>
+      <div class="doc-num">Protocolo ${escapeHtml(protocolo)}</div>
     </div>
   </div>
+
+  ${riskPanelHtml}
+
   <!-- DADOS DA VISTORIA -->
   <div class="section">
-    <div class="section-title"><span class="section-icon">📍</span> Dados da Vistoria</div>
+    <div class="section-title">Dados da Vistoria</div>
     <table class="data-table">
       <tr>
-        <td class="dt-label">Endereço</td>
-        <td class="dt-value">${escapeHtml(dados.endereco || '—')}</td>
-      </tr>
-      ${dados.bairro ? `<tr><td class="dt-label">Bairro</td><td class="dt-value">${escapeHtml(dados.bairro)}</td></tr>` : ''}
-      <tr>
-        <td class="dt-label">Município</td>
-        <td class="dt-value">${escapeHtml(dados.municipio || '—')}</td>
+        <td class="dt-label">Protocolo</td>
+        <td class="dt-value">${escapeHtml(protocolo)}</td>
       </tr>
       <tr>
-        <td class="dt-label">Data e Hora</td>
+        <td class="dt-label">Data e hora</td>
         <td class="dt-value">${escapeHtml(data)}</td>
       </tr>
       <tr>
-        <td class="dt-label">Agente Responsável</td>
-        <td class="dt-value">${escapeHtml(dados.agenteNome || '—')}</td>
+        <td class="dt-label">Município</td>
+        <td class="dt-value">${escapeHtml(dados.municipio || '-')}</td>
       </tr>
       <tr>
-        <td class="dt-label">Formulário Utilizado</td>
-        <td class="dt-value">${escapeHtml(dados.formularioId || 'Padrão')}</td>
+        <td class="dt-label">Agente responsável</td>
+        <td class="dt-value">${escapeHtml(dados.agenteNome || '-')}</td>
       </tr>
-      ${dados.responsavelNome ? `<tr><td class="dt-label">Responsável pelo Imóvel</td><td class="dt-value">${escapeHtml(dados.responsavelNome)}</td></tr>` : ''}
+      <tr>
+        <td class="dt-label">Responsável pelo imóvel</td>
+        <td class="dt-value">${escapeHtml(dados.responsavelNome || '-')}</td>
+      </tr>
+      <tr>
+        <td class="dt-label">Endereço</td>
+        <td class="dt-value">${escapeHtml(dados.endereco || '-')}</td>
+      </tr>
     </table>
   </div>
 
@@ -970,9 +937,8 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   <!-- RESPOSTAS DO FORMULÁRIO -->
   ${respostasHtml ? `
   <div class="section">
-    <div class="section-title"><span class="section-icon">📝</span> Itens Avaliados (${itemCount})</div>
+    <div class="section-title">Itens Vistoriados</div>
     <table class="resp-table" style="page-break-inside: auto;">
-      <thead><tr><th>#</th><th>Parâmetro Avaliado</th><th>Resposta / Constatação Técnica</th></tr></thead>
       <tbody>${respostasHtml}</tbody>
     </table>
   </div>` : ''}
@@ -984,60 +950,41 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   ${obsHtml}
 
   <!-- BASE LEGAL -->
-  <div class="legal-note" style="page-break-inside: avoid;">
-    <strong>${isAvaliacaoArvore ? 'Referência técnica e base legal:' : 'Base legal:'}</strong>
-    ${isAvaliacaoArvore ? `${escapeHtml(schemaForm?.metodologia?.fonte || '')}<br/>` : ''}
-    Este relatório de vistoria foi elaborado em conformidade com a
-    <strong>Lei Federal Nº 12.608/2012</strong> (Política Nacional de Proteção e Defesa Civil)
-    e a <strong>Lei Federal Nº 10.257/2001</strong> (Estatuto da Cidade), que estabelecem as
-    diretrizes para prevenção de desastres e proteção à vida.
+  <div class="section" style="page-break-inside: avoid;">
+    <div class="section-title">Base Legal</div>
+    <div class="legal-note">
+      ${isAvaliacaoArvore ? `${escapeHtml(schemaForm?.metodologia?.fonte || '')}<br/>` : ''}
+      Este relatório técnico foi elaborado em conformidade com a Lei Federal
+      nº 12.608/2012, que institui a Política Nacional de Proteção e Defesa
+      Civil, e com a Lei Federal nº 10.257/2001, denominada Estatuto da Cidade.
+      Esses dispositivos estabelecem diretrizes para a prevenção de desastres
+      e a proteção da vida.
+    </div>
   </div>
 
-  ${riskPanelHtml}
-
-  <!-- CONDUTA RECOMENDADA -->
-  <div class="conduct-note">
-    <div class="risk-conduta-title">Conduta Recomendada</div>
-    <div class="risk-conduta-text">${escapeHtml(conduta)}</div>
+  <div class="section" style="page-break-inside: avoid;">
+    <div class="section-title">Responsabilidade Técnica</div>
+    <div class="legal-note">
+      Documento emitido com base nas condições observadas na data da vistoria.
+      Sua interpretação deve considerar os registros fotográficos e as normas
+      técnicas aplicáveis.
+    </div>
   </div>
 
   <!-- ASSINATURA -->
   <div class="footer-section" style="page-break-inside: avoid;">
-    <div class="sig-grid">
-      <div class="sig-block">
-        <div class="sig-line"></div>
-        <div class="sig-name">${escapeHtml(dados.agenteNome || '—')}</div>
-        <div class="sig-role">${escapeHtml(dados.cargo || 'Vistoriador de Proteção e Defesa Civil')}</div>
-      </div>
-      <div class="stamp-area">
-        Espaço reservado para<br/>carimbo institucional
-      </div>
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <div class="sig-name">${escapeHtml(dados.agenteNome || '-')}</div>
+      <div class="sig-role">${escapeHtml(dados.cargo || 'Agente de Proteção e Defesa Civil')}</div>
     </div>
   </div>
 
-  <!-- CIENTE DO PROPRIETARIO / NOTIFICADO -->
-  <div class="ciente-section">
-    <div class="ciente-title">Declaração de Ciência e Notificação</div>
-    <div class="ciente-grid">
-      <div class="sig-block" style="flex: 2; text-align: left;">
-        <span style="font-size: 11px; color: #4A5568;">
-          Declaro ter acompanhado a vistoria, recebido as orientações técnicas de
-          Defesa Civil e estar ciente da classificação de risco e da conduta recomendada.
-        </span>
-      </div>
-      <div class="sig-block" style="flex: 1.5;">
-        <div class="sig-line" style="margin-top: 30px;"></div>
-        <div class="sig-name">Assinatura do Morador / Responsável</div>
-        <div class="sig-role">Data: ___ / ___ / ______</div>
-      </div>
+  <div class="pdf-page-footer">
+    <div class="pdf-page-footer-row">
+      <span>Defesa Civil - Relatório Técnico de Vistoria - ${PDF_DESIGN_LABEL}</span>
+      <span>Protocolo ${escapeHtml(protocolo)}</span>
     </div>
-  </div>
-
-  <div class="doc-footer">
-    Documento gerado pelo TCS — Relatório de Risco<br/>
-    ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-    · Protocolo ${escapeHtml(protocolo)}/${ano}
-    ${isAvaliacaoArvore ? ` · Metodologia ${escapeHtml(calculo?.metodologiaId || schemaForm?.metodologia?.id || 'CBMMG ITO nº 06')} v${escapeHtml(calculo?.metodologiaVersao || schemaForm?.metodologia?.versao || '1.0')}` : ''}
   </div>
 
 </body>
