@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PortalAuthPage } from './PortalAuthPage';
@@ -34,6 +35,7 @@ vi.mock('@/contexts/PortalAuthContext', () => ({
 afterEach(() => {
   cleanup();
   portalAuthState.entryContext.accountKind = null;
+  portalAuthState.signOut.mockReset();
 });
 
 describe('entrada autenticada do portal', () => {
@@ -64,5 +66,20 @@ describe('entrada autenticada do portal', () => {
       name: 'Aceito os Termos de Uso e a Política de Privacidade vigentes.',
     })).toBeVisible();
     expect(screen.queryByText(/customer-terms-2026-08/i)).not.toBeInTheDocument();
+  });
+
+  it('permite encerrar a sessão e usar outra conta durante a configuração', async () => {
+    const user = userEvent.setup();
+    portalAuthState.signOut.mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter initialEntries={['/entrar']}>
+        <PortalAuthPage mode="sign-in" />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Sair e usar outra conta' }));
+
+    await waitFor(() => expect(portalAuthState.signOut).toHaveBeenCalledOnce());
   });
 });

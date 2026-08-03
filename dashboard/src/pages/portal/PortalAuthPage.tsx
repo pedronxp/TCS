@@ -38,6 +38,11 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     if (status === 'vinculo-inativo') setMessage('Seu vínculo municipal não está ativo. Fale com a coordenação.');
   }, [status]);
 
+  async function useAnotherAccount() {
+    await signOut();
+    navigate('/entrar', { replace: true });
+  }
+
   if (!loading && session && entryContext?.accountKind === 'internal') {
     return <Navigate to="/login" replace />;
   }
@@ -64,7 +69,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             </p>
             <Button
               className="w-full"
-              onClick={() => void signOut().then(() => navigate('/entrar', { replace: true }))}
+              onClick={() => void useAnotherAccount()}
             >
               Sair e usar outra conta
             </Button>
@@ -191,6 +196,15 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               {submitting ? 'Preparando…' : accountKind === 'individual' ? 'Iniciar acesso individual' : 'Iniciar implantação municipal'}
             </Button>
             <Button asChild variant="outline" className="w-full"><Link to="/#planos">Ver planos</Link></Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              disabled={submitting}
+              onClick={() => void useAnotherAccount()}
+            >
+              Sair e usar outra conta
+            </Button>
           </CardContent>
         </Card>
       </AuthFrame>
