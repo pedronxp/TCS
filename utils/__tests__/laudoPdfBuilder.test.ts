@@ -95,6 +95,49 @@ describe('laudoPdfBuilder', () => {
     expect(html).not.toContain('Corte controlado da parte perigosa.');
   });
 
+  it('inclui campos auxiliares respondidos junto aos itens pontuados', async () => {
+    const html = await buildLaudoHtml({
+      id: 'inundacao-test-123456',
+      nivelRisco: 'r3',
+      pontuacaoTotal: 4.2,
+      endereco: 'Avenida Beira-Rio, 120',
+      municipio: 'Cidade Teste',
+      dataVistoria: '2026-08-02T12:00:00.000Z',
+      agenteNome: 'Agente Teste',
+      formularioId: 'risco_inundacao_v1',
+      respostasJson: JSON.stringify({
+        inundacao_q1: 'inundacao_progressiva',
+        inundacao_q2: 'lamina_media',
+        inundacao_altura_agua_m: '0,45',
+        inundacao_q8: 'acesso_restrito',
+        inundacao_acao_imediata: 'Via isolada e moradores orientados.',
+        inundacao_observacoes: 'Marca de agua registrada na fachada.',
+      }),
+      calculoRisco: {
+        versaoRegra: 'risco_0_10_v1',
+        escala: { min: 0, max: 10 },
+        formularioId: 'risco_inundacao_v1',
+        tipoCalculo: 'soma_total',
+        pontuacaoTotal: 4.2,
+        nivelRisco: 'r3',
+        limites: [],
+        itens: [
+          {
+            perguntaId: 'inundacao_q1',
+            pergunta: 'Qual condicao hidrica foi identificada?',
+            respostaId: 'inundacao_progressiva',
+            resposta: 'Inundacao progressiva',
+            pesoRisco: 0.6,
+          },
+        ],
+      },
+    });
+
+    expect(html).toContain('0,45 m');
+    expect(html).toContain('Via isolada e moradores orientados.');
+    expect(html).toContain('Marca de agua registrada na fachada.');
+  });
+
   it('inclui foto remota no PDF usando a API atual do Expo FileSystem', async () => {
     const { File } = require('expo-file-system');
     const html = await buildLaudoHtml({

@@ -1,4 +1,8 @@
 export const ASSETS: Record<string, any> = {
+  'inspecao_bueiro_drenagem_v1': require('../assets/formularios/inspecao_bueiro_drenagem_v1.json'),
+  'inspecao_ponte_passarela_v1': require('../assets/formularios/inspecao_ponte_passarela_v1.json'),
+  'risco_incendio_vegetacao_v1': require('../assets/formularios/risco_incendio_vegetacao_v1.json'),
+  'risco_inundacao_v1': require('../assets/formularios/risco_inundacao_v1.json'),
   'avaliacao_arvore_cbmmg_v1': require('../assets/formularios/avaliacao_arvore_cbmmg_v1.json'),
   'vistoria_deslizamento_v3': require('../assets/formularios/vistoria_deslizamento_v3.json'),
   'vistoria_deslizamento_v2': require('../assets/formularios/vistoria_deslizamento_v2.json'),

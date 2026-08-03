@@ -1,0 +1,192 @@
+{
+  "id": "inspecao_bueiro_drenagem_v1",
+  "titulo": "Inspeção de Bueiro, Galeria e Drenagem",
+  "versao": 1,
+  "ativo": true,
+  "featureCode": "inspection_standard",
+  "tipoCalculo": "soma_total",
+  "observacaoCondicionalRisco": {
+    "ativo": true,
+    "pesoMinimo": 0.3,
+    "titulo": "Evidência técnica da drenagem",
+    "descricao": "Descreva a obstrução, o dano, o caminho da água e a medida recomendada."
+  },
+  "descricao": "Vistoria visual de bueiros, galerias, sarjetas e dispositivos de drenagem para avaliar obstrução, transbordamento, erosão e ameaça a vias ou imóveis.",
+  "classificacao": {
+    "limites": [
+      { "max": 2.0, "nivel": "r1", "label": "R1 — BAIXO — Drenagem em condição controlada", "cor": "verde" },
+      { "max": 3.9, "nivel": "r2", "label": "R2 — MÉDIO — Limpeza e manutenção recomendadas", "cor": "amarelo" },
+      { "max": 6.9, "nivel": "r3", "label": "R3 — ALTO — Intervenção preventiva urgente necessária", "cor": "laranja" },
+      { "max": 10.0, "nivel": "r4", "label": "R4 — CRÍTICO — Transbordamento, ruptura ou ameaça grave", "cor": "vermelho" }
+    ]
+  },
+  "fases": [
+    {
+      "id": "drenagem_identificacao",
+      "titulo": "Caracterização do dispositivo",
+      "instrucao": "Observe entrada, saída e entorno sem entrar em galerias, bueiros ou locais com água corrente, gases, instabilidade ou risco de soterramento.",
+      "perguntas": [
+        { "id": "drenagem_foto_geral", "texto": "Foto geral do bueiro, galeria ou trecho de drenagem", "tipo": "foto", "obrigatoria": false, "auxiliarCalculo": true, "opcoes": [] },
+        {
+          "id": "drenagem_q1",
+          "texto": "Qual o estado geral do dispositivo?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "integro", "texto": "Íntegro e funcionando", "descricao": "Dispositivo sem dano ou alteração relevante aparente.", "pesoRisco": 0.0 },
+            { "id": "desgaste", "texto": "Desgaste ou manutenção pendente", "descricao": "Há desgaste, sujeira ou pequena falha sem impacto imediato.", "pesoRisco": 0.3 },
+            { "id": "dano_relevante", "texto": "Dano relevante localizado", "descricao": "Há falha que reduz o funcionamento ou exige intervenção.", "pesoRisco": 0.6 },
+            { "id": "ruptura", "texto": "Ruptura, colapso ou perda de seção", "descricao": "O dispositivo não cumpre sua função ou pode agravar o risco no local.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_q2",
+          "texto": "Qual o nível de obstrução na entrada ou no percurso?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_obstrucao", "texto": "Sem obstrução", "descricao": "Entrada e percurso aparentam estar livres.", "pesoRisco": 0.0 },
+            { "id": "obstrucao_leve", "texto": "Obstrução leve", "descricao": "Há folhas, lixo ou material que não impede o fluxo atual.", "pesoRisco": 0.3 },
+            { "id": "obstrucao_parcial", "texto": "Obstrução parcial", "descricao": "Parte significativa da seção está bloqueada ou assoreada.", "pesoRisco": 0.6 },
+            { "id": "obstrucao_total", "texto": "Obstrução total ou seção colmatada", "descricao": "A água não consegue passar ou retorna para a via e imóveis.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_q3",
+          "texto": "Como está a capacidade de escoamento?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "capacidade_adequada", "texto": "Capacidade adequada", "descricao": "O fluxo observado passa sem retenção ou transbordamento.", "pesoRisco": 0.0 },
+            { "id": "capacidade_reduzida", "texto": "Capacidade reduzida", "descricao": "Há lentidão ou retenção, mas sem transbordamento atual.", "pesoRisco": 0.3 },
+            { "id": "transbordamento_local", "texto": "Transbordamento localizado", "descricao": "A água ultrapassa o dispositivo em chuva ou fluxo moderado.", "pesoRisco": 0.6 },
+            { "id": "sem_capacidade", "texto": "Sem capacidade ou fluxo fora do dispositivo", "descricao": "A água não é conduzida e ameaça a via, imóveis ou pessoas.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_diametro_m",
+          "texto": "Diâmetro ou largura aproximada do dispositivo em metros",
+          "tipo": "texto",
+          "tipoEntrada": "numero_decimal",
+          "unidade": "m",
+          "valorMinimo": 0,
+          "valorMaximo": 100,
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: 1,2",
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "drenagem_danos",
+      "titulo": "Danos, erosão e entorno",
+      "instrucao": "Registre os efeitos do escoamento sobre o solo, pavimento, margens e estruturas próximas.",
+      "perguntas": [
+        {
+          "id": "drenagem_q4",
+          "texto": "Há erosão na entrada, saída ou margem do dispositivo?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_erosao", "texto": "Sem erosão aparente", "descricao": "Solo, margem e pavimento sem perda relevante de material.", "pesoRisco": 0.0 },
+            { "id": "erosao_leve", "texto": "Erosão leve", "descricao": "Pequena perda de solo sem ameaça imediata.", "pesoRisco": 0.3 },
+            { "id": "erosao_proxima", "texto": "Erosão próxima à via ou estrutura", "descricao": "A perda de material pode atingir pavimento, muro, imóvel ou fundação.", "pesoRisco": 0.6 },
+            { "id": "erosao_ativa", "texto": "Erosão ativa ou solapamento", "descricao": "A água remove apoio e pode provocar ruptura ou desmoronamento.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_q5",
+          "texto": "Há assoreamento, lixo ou material carregado pela água?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_material", "texto": "Sem material acumulado", "descricao": "Seção e entorno livres de material que reduza o fluxo.", "pesoRisco": 0.0 },
+            { "id": "material_pontual", "texto": "Material pontual", "descricao": "Há acúmulo pequeno e removível com limpeza de rotina.", "pesoRisco": 0.3 },
+            { "id": "assoreamento_relevante", "texto": "Assoreamento relevante", "descricao": "Sedimentos ou resíduos reduzem significativamente a seção de passagem.", "pesoRisco": 0.6 },
+            { "id": "bloqueio_por_material", "texto": "Bloqueio por material ou detritos", "descricao": "Galhos, resíduos ou sedimentos impedem o escoamento.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_q6",
+          "texto": "Como está a condição estrutural do dispositivo?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "estrutura_integra", "texto": "Estrutura íntegra", "descricao": "Sem trincas, deslocamentos ou deformações relevantes.", "pesoRisco": 0.0 },
+            { "id": "fissura_desgaste", "texto": "Fissura ou desgaste superficial", "descricao": "Dano localizado sem perda aparente de suporte.", "pesoRisco": 0.3 },
+            { "id": "deslocamento_parcial", "texto": "Deslocamento, trinca ou deformação relevante", "descricao": "Há redução do funcionamento ou risco de agravamento.", "pesoRisco": 0.6 },
+            { "id": "colapso_estrutural", "texto": "Colapso ou perda de suporte", "descricao": "Parte do dispositivo está rompida, deslocada ou sem condição de uso.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_q7",
+          "texto": "Qual o efeito sobre a via ou o terreno?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_efeito", "texto": "Sem efeito relevante", "descricao": "Via e terreno permanecem estáveis.", "pesoRisco": 0.0 },
+            { "id": "acumulo_local", "texto": "Acúmulo localizado de água", "descricao": "Há poça ou umidade sem perda de circulação.", "pesoRisco": 0.3 },
+            { "id": "dano_pavimento", "texto": "Dano no pavimento ou acostamento", "descricao": "Há buraco, abatimento, erosão ou redução da circulação.", "pesoRisco": 0.6 },
+            { "id": "ruptura_via", "texto": "Ruptura, desmoronamento ou via ameaçada", "descricao": "A circulação está insegura ou a via pode romper.", "pesoRisco": 1.0 }
+          ]
+        },
+        { "id": "drenagem_foto_entrada_saida", "texto": "Foto da entrada, saída ou ponto de dano", "tipo": "foto", "obrigatoria": false, "auxiliarCalculo": true, "opcoes": [] }
+      ]
+    },
+    {
+      "id": "drenagem_exposicao",
+      "titulo": "Exposição e providências",
+      "instrucao": "Avalie os alvos próximos e encaminhe a limpeza, manutenção, sinalização ou interdição compatível com o risco.",
+      "perguntas": [
+        {
+          "id": "drenagem_q8",
+          "texto": "Há imóveis, pessoas ou equipamento público exposto?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_alvo", "texto": "Sem alvo próximo", "descricao": "Não há pessoas, imóveis ou equipamentos diretamente ameaçados.", "pesoRisco": 0.0 },
+            { "id": "alvo_eventual", "texto": "Alvo eventual", "descricao": "Há circulação ou bem isolado com possibilidade limitada de dano.", "pesoRisco": 0.3 },
+            { "id": "imovel_ou_via", "texto": "Imóvel ou via exposta", "descricao": "O mau funcionamento pode atingir ocupação ou circulação frequente.", "pesoRisco": 0.6 },
+            { "id": "infraestrutura_essencial", "texto": "Infraestrutura essencial ou múltiplos alvos", "descricao": "A ameaça atinge acesso principal, serviço público ou várias ocupações.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_q9",
+          "texto": "Como está a possibilidade de manutenção e acesso?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "acesso_facil", "texto": "Acesso fácil", "descricao": "Equipe consegue acessar o ponto com segurança.", "pesoRisco": 0.0 },
+            { "id": "acesso_condicionado", "texto": "Acesso condicionado", "descricao": "É necessária sinalização ou equipamento simples para manutenção.", "pesoRisco": 0.3 },
+            { "id": "acesso_dificil", "texto": "Acesso difícil", "descricao": "Talude, água, tráfego ou instabilidade dificultam o serviço.", "pesoRisco": 0.6 },
+            { "id": "acesso_inseguro", "texto": "Acesso inseguro", "descricao": "A entrada apresenta risco de soterramento, queda, afogamento ou colapso.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_q10",
+          "texto": "Qual providência deve ser encaminhada?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "manutencao_rotina", "texto": "Manutenção de rotina", "descricao": "Limpeza ou ajuste programável sem restrição imediata.", "pesoRisco": 0.0 },
+            { "id": "limpeza_prioritaria", "texto": "Limpeza prioritária", "descricao": "Remover material e acompanhar antes de novos eventos de chuva.", "pesoRisco": 0.3 },
+            { "id": "intervencao_urgente", "texto": "Intervenção urgente", "descricao": "Executar reparo, proteção de margem, sinalização ou desvio.", "pesoRisco": 0.6 },
+            { "id": "isolar_via", "texto": "Isolar via ou área", "descricao": "Impedir circulação e acionar equipe responsável por emergência.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "drenagem_acao_imediata",
+          "texto": "Descreva a providência ou encaminhamento realizado",
+          "tipo": "texto",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: ponto sinalizado, equipe de obras acionada e rota alternativa indicada.",
+          "mostrarQuando": { "perguntaId": "drenagem_q10", "respostaIds": ["intervencao_urgente", "isolar_via"] },
+          "opcoes": []
+        },
+        { "id": "drenagem_observacoes", "texto": "Observações técnicas adicionais", "tipo": "texto", "obrigatoria": false, "auxiliarCalculo": true, "placeholder": "Registre dimensões, referências, histórico e recomendações.", "opcoes": [] }
+      ]
+    }
+  ]
+}

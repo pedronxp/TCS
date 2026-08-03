@@ -38,15 +38,7 @@ function resolverItensVistoriados(
   calculoRisco?: unknown,
 ): { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }[] {
   const calculo = parseCalculoRiscoSnapshot(calculoRisco);
-  if (calculo?.itens?.length && formularioId !== 'avaliacao_arvore_cbmmg_v1') {
-    const grupos = new Map<string, { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }>();
-    for (const item of calculo.itens) {
-      const key = item.faseId || item.grupo || 'snapshot';
-      if (!grupos.has(key)) grupos.set(key, { grupo: item.grupo || 'Itens avaliados', itens: [] });
-      grupos.get(key)!.itens.push({ pergunta: item.pergunta, resposta: item.resposta, pesoRisco: item.pesoRisco, observacao: item.observacao });
-    }
-    return Array.from(grupos.values());
-  }
+  const itensPorPerguntaId = new Map((calculo?.itens || []).map(item => [item.perguntaId, item]));
 
   let respostas: Record<string, string> = {};
   try {
@@ -57,6 +49,16 @@ function resolverItensVistoriados(
 
   const form = FORM_JSONS[formularioId];
   if (!form) {
+    if (calculo?.itens?.length) {
+      const grupos = new Map<string, { grupo: string; itens: { pergunta: string; resposta: string; pesoRisco: number; observacao?: string }[] }>();
+      for (const item of calculo.itens) {
+        const key = item.faseId || item.grupo || 'snapshot';
+        if (!grupos.has(key)) grupos.set(key, { grupo: item.grupo || 'Itens avaliados', itens: [] });
+        grupos.get(key)!.itens.push({ pergunta: item.pergunta, resposta: item.resposta, pesoRisco: item.pesoRisco, observacao: item.observacao });
+      }
+      return Array.from(grupos.values());
+    }
+
     const itens = Object.entries(respostas)
       .filter(([k]) => !getPerguntaIdFromObservacaoCondicionalRiscoKey(k))
       .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
@@ -70,17 +72,20 @@ function resolverItensVistoriados(
     for (const p of fase.perguntas || []) {
       if (p.tipo === 'foto') continue;
       const raw = respostas[p.id];
-      if (raw === undefined || raw === null || raw === '') continue;
-      let respostaTexto = String(raw);
-      let pesoRisco = 0;
-      if (p.tipo === 'cards' || p.tipo === 'multipla_escolha') {
+      const itemCalculado = itensPorPerguntaId.get(p.id);
+      if ((raw === undefined || raw === null || raw === '') && !itemCalculado) continue;
+      let respostaTexto = itemCalculado?.resposta ?? String(raw);
+      let pesoRisco = itemCalculado?.pesoRisco ?? 0;
+      if (!itemCalculado && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
         const op = (p.opcoes || []).find((o: any) => o.id === raw);
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
+      } else if (!itemCalculado && p.unidade && p.tipoEntrada === 'numero_decimal') {
+        respostaTexto = `${respostaTexto} ${p.unidade}`;
       }
       const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
-      const observacao = opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
+      const observacao = itemCalculado?.observacao || (opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
         ? respostas[observacaoKey]?.trim()
-        : undefined;
+        : undefined);
       itens.push({ pergunta: p.texto, resposta: respostaTexto, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, itens });

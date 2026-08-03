@@ -1,0 +1,192 @@
+{
+  "id": "inspecao_ponte_passarela_v1",
+  "titulo": "Inspeção Visual de Ponte e Passarela",
+  "versao": 1,
+  "ativo": true,
+  "featureCode": "inspection_standard",
+  "tipoCalculo": "soma_total",
+  "observacaoCondicionalRisco": {
+    "ativo": true,
+    "pesoMinimo": 0.3,
+    "titulo": "Evidência técnica da estrutura",
+    "descricao": "Descreva o elemento afetado, a localização do dano, a extensão aparente e a providência recomendada."
+  },
+  "descricao": "Inspeção visual preliminar de pontes, pontilhões e passarelas para identificar danos, risco de uso e necessidade de avaliação especializada.",
+  "classificacao": {
+    "limites": [
+      { "max": 2.0, "nivel": "r1", "label": "R1 — BAIXO — Condição visual controlada", "cor": "verde" },
+      { "max": 3.9, "nivel": "r2", "label": "R2 — MÉDIO — Monitoramento e manutenção recomendados", "cor": "amarelo" },
+      { "max": 6.9, "nivel": "r3", "label": "R3 — ALTO — Restrição de uso e avaliação técnica necessárias", "cor": "laranja" },
+      { "max": 10.0, "nivel": "r4", "label": "R4 — CRÍTICO — Isolamento ou interdição imediata quando aplicável", "cor": "vermelho" }
+    ]
+  },
+  "fases": [
+    {
+      "id": "ponte_identificacao",
+      "titulo": "Identificação e segurança de uso",
+      "instrucao": "Faça uma inspeção visual sem acessar partes inseguras. Não entre em estrutura instável ou sob risco de queda, colapso, correnteza ou tráfego.",
+      "perguntas": [
+        { "id": "ponte_foto_geral", "texto": "Foto geral da ponte ou passarela", "tipo": "foto", "obrigatoria": false, "auxiliarCalculo": true, "opcoes": [] },
+        {
+          "id": "ponte_q1",
+          "texto": "Qual a condição geral aparente da estrutura?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "boa", "texto": "Boa condição aparente", "descricao": "Sem dano relevante visível no conjunto observado.", "pesoRisco": 0.0 },
+            { "id": "desgaste", "texto": "Desgaste ou manutenção pendente", "descricao": "Há deterioração superficial ou item de manutenção sem ameaça imediata.", "pesoRisco": 0.3 },
+            { "id": "dano_relevante", "texto": "Dano relevante localizado", "descricao": "Há elemento danificado que pode afetar o uso ou requer avaliação técnica.", "pesoRisco": 0.6 },
+            { "id": "instabilidade", "texto": "Instabilidade, deslocamento ou deformação grave", "descricao": "Há sinal de perda de estabilidade, colapso parcial ou condição crítica.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_q2",
+          "texto": "Como está o tabuleiro, piso ou superfície de passagem?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "tabuleiro_integro", "texto": "Íntegro e regular", "descricao": "Sem buracos, degraus ou deformação relevante.", "pesoRisco": 0.0 },
+            { "id": "desgaste_superficial", "texto": "Desgaste superficial", "descricao": "Há desgaste, fissuras leves ou irregularidade sem perda aparente de suporte.", "pesoRisco": 0.3 },
+            { "id": "deformacao_local", "texto": "Deformação ou falha localizada", "descricao": "A passagem está prejudicada e pode exigir restrição parcial.", "pesoRisco": 0.6 },
+            { "id": "ruptura_tabuleiro", "texto": "Ruptura, buraco aberto ou perda de suporte", "descricao": "O uso pode causar queda, acidente ou agravamento do dano.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_q3",
+          "texto": "Como estão guarda-corpos, corrimãos e proteção lateral?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "protecao_integra", "texto": "Proteção íntegra", "descricao": "Guarda-corpos e corrimãos estão presentes e firmes.", "pesoRisco": 0.0 },
+            { "id": "protecao_desgastada", "texto": "Proteção desgastada", "descricao": "Há corrosão ou falha leve sem abertura relevante.", "pesoRisco": 0.3 },
+            { "id": "protecao_incompleta", "texto": "Proteção incompleta ou solta", "descricao": "Há trechos sem proteção ou com risco de queda lateral.", "pesoRisco": 0.6 },
+            { "id": "queda_livre", "texto": "Queda livre ou proteção ausente em trecho crítico", "descricao": "O uso apresenta risco grave de queda de pessoas ou veículos.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_comprimento_m",
+          "texto": "Comprimento aproximado da estrutura em metros",
+          "tipo": "texto",
+          "tipoEntrada": "numero_decimal",
+          "unidade": "m",
+          "valorMinimo": 0,
+          "valorMaximo": 10000,
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: 18,5",
+          "opcoes": []
+        }
+      ]
+    },
+    {
+      "id": "ponte_elementos_estruturais",
+      "titulo": "Elementos estruturais e fundações",
+      "instrucao": "Observe pilares, apoios, encontros, lajes e elementos visíveis a partir de local seguro. Registre o ponto exato de cada dano.",
+      "perguntas": [
+        {
+          "id": "ponte_q4",
+          "texto": "Há trincas, concreto destacado ou armadura exposta?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_dano_concreto", "texto": "Sem dano visível", "descricao": "Elementos observados sem trinca ou desplacamento relevante.", "pesoRisco": 0.0 },
+            { "id": "fissura_leve", "texto": "Fissuras leves", "descricao": "Fissuras finas sem sinal aparente de evolução ou perda de seção.", "pesoRisco": 0.3 },
+            { "id": "trinca_desplacamento", "texto": "Trinca, desplacamento ou corrosão localizada", "descricao": "Dano relevante que exige registro e avaliação técnica.", "pesoRisco": 0.6 },
+            { "id": "dano_estrutural_grave", "texto": "Dano grave em elemento estrutural", "descricao": "Perda de seção, armadura exposta extensa, ruptura ou risco de desprendimento.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_q5",
+          "texto": "Foi observada deformação, inclinação ou desalinhamento?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "alinhamento_normal", "texto": "Alinhamento normal", "descricao": "Não há deformação ou inclinação aparente.", "pesoRisco": 0.0 },
+            { "id": "desalinhamento_sutil", "texto": "Desalinhamento sutil", "descricao": "Há alteração visual que deve ser acompanhada.", "pesoRisco": 0.3 },
+            { "id": "deformacao_visivel", "texto": "Deformação visível", "descricao": "A geometria ou o apoio aparenta alteração relevante.", "pesoRisco": 0.6 },
+            { "id": "inclinacao_grave", "texto": "Inclinação ou deslocamento grave", "descricao": "Há possível perda de estabilidade ou risco de colapso.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_q6",
+          "texto": "Como estão apoios, pilares, encontros ou fundações visíveis?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "apoio_integro", "texto": "Apoios aparentemente íntegros", "descricao": "Sem erosão, deslocamento ou dano relevante visível.", "pesoRisco": 0.0 },
+            { "id": "desgaste_apoio", "texto": "Desgaste ou dano superficial", "descricao": "Há deterioração sem perda aparente de apoio.", "pesoRisco": 0.3 },
+            { "id": "dano_apoio", "texto": "Dano ou deslocamento localizado", "descricao": "Há anomalia em apoio, pilar ou encontro que requer avaliação.", "pesoRisco": 0.6 },
+            { "id": "perda_apoio", "texto": "Perda de apoio ou instabilidade", "descricao": "Há risco de comprometimento do suporte da estrutura.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_q7",
+          "texto": "Há erosão, solapamento ou obstrução junto à água?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "margem_estavel", "texto": "Margens e leito estáveis", "descricao": "Sem erosão, acúmulo ou impacto aparente nos apoios.", "pesoRisco": 0.0 },
+            { "id": "erosao_inicial", "texto": "Erosão ou acúmulo inicial", "descricao": "Há alteração localizada sem exposição de fundação.", "pesoRisco": 0.3 },
+            { "id": "erosao_proxima_apoio", "texto": "Erosão próxima a apoio", "descricao": "A água remove material na proximidade de pilar, encontro ou margem.", "pesoRisco": 0.6 },
+            { "id": "solapamento_apoio", "texto": "Solapamento ou obstrução com risco ao apoio", "descricao": "A condição hidráulica pode comprometer a estabilidade ou aumentar esforços.", "pesoRisco": 1.0 }
+          ]
+        },
+        { "id": "ponte_foto_elemento", "texto": "Foto do elemento estrutural ou apoio afetado", "tipo": "foto", "obrigatoria": false, "auxiliarCalculo": true, "opcoes": [] }
+      ]
+    },
+    {
+      "id": "ponte_operacao",
+      "titulo": "Operação, exposição e providências",
+      "instrucao": "Considere o uso atual da estrutura e indique a providência preventiva compatível com o que foi observado.",
+      "perguntas": [
+        {
+          "id": "ponte_q8",
+          "texto": "Qual a exposição de usuários e tráfego?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "uso_baixo", "texto": "Uso baixo ou eventual", "descricao": "Poucas pessoas ou veículos utilizam a estrutura.", "pesoRisco": 0.0 },
+            { "id": "uso_moderado", "texto": "Uso moderado", "descricao": "Há circulação regular, sem grande concentração.", "pesoRisco": 0.3 },
+            { "id": "uso_intenso", "texto": "Uso intenso", "descricao": "A estrutura atende fluxo frequente de pessoas ou veículos.", "pesoRisco": 0.6 },
+            { "id": "uso_vulneravel", "texto": "Uso intenso com pessoas vulneráveis ou rota essencial", "descricao": "A interrupção ou falha pode atingir grande número de pessoas ou acesso essencial.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_q9",
+          "texto": "Qual o nível de restrição necessário neste momento?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_restricao", "texto": "Sem restrição imediata", "descricao": "Manter uso com monitoramento e manutenção programada.", "pesoRisco": 0.0 },
+            { "id": "sinalizar", "texto": "Sinalizar e monitorar", "descricao": "Orientar usuários e acompanhar a evolução do dano.", "pesoRisco": 0.3 },
+            { "id": "restricao_parcial", "texto": "Restrição parcial de uso", "descricao": "Limitar faixa, peso, velocidade, sentido ou circulação de pedestres.", "pesoRisco": 0.6 },
+            { "id": "interditar", "texto": "Isolar ou interditar", "descricao": "Impedir o uso até avaliação técnica ou eliminação da condição de risco.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_q10",
+          "texto": "Qual providência deve ser encaminhada?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "manutencao_rotina", "texto": "Manutenção de rotina", "descricao": "Limpeza, pintura, sinalização ou reparo simples programável.", "pesoRisco": 0.0 },
+            { "id": "avaliacao_tecnica", "texto": "Avaliação técnica complementar", "descricao": "Encaminhar fotos e registro para profissional ou secretaria responsável.", "pesoRisco": 0.3 },
+            { "id": "intervencao_urgente", "texto": "Intervenção urgente", "descricao": "Priorizar reparo, escoramento, limpeza hidráulica ou controle de acesso.", "pesoRisco": 0.6 },
+            { "id": "emergencia_interdicao", "texto": "Emergência e interdição imediata", "descricao": "Acionar responsáveis, sinalizar e impedir o uso até avaliação especializada.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "ponte_acao_imediata",
+          "texto": "Descreva a sinalização, isolamento ou encaminhamento realizado",
+          "tipo": "texto",
+          "obrigatoria": false,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: acesso lateral isolado e Secretaria de Obras acionada para avaliação.",
+          "mostrarQuando": { "perguntaId": "ponte_q9", "respostaIds": ["restricao_parcial", "interditar"] },
+          "opcoes": []
+        },
+        { "id": "ponte_observacoes", "texto": "Observações técnicas adicionais", "tipo": "texto", "obrigatoria": false, "auxiliarCalculo": true, "placeholder": "Registre localização do dano, material, referências e recomendações.", "opcoes": [] }
+      ]
+    }
+  ]
+}

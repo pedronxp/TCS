@@ -72,7 +72,7 @@ completa do dispositivo até o local da vistoria. Zero esforço.
 | Funcionalidade | Descrição |
 |----------------|-----------|
 | **Vistoria offline** | Preenche formulários sem internet, sync automático ao conectar |
-| **5 formulários técnicos** | Estrutural, Deslizamento, Inundação, Avaliação Completa e mais |
+| **7 formulários técnicos** | Árvore, Deslizamento, Edificação, Inundação, Incêndio, Ponte e Drenagem |
 | **Classificação R1–R4** | Calculada automaticamente com base nas respostas |
 | **Laudo em PDF** | Gerado no dispositivo com foto, protocolo e assinatura |
 | **Compartilhamento rico** | Mensagem formatada com todos os dados para WhatsApp |
