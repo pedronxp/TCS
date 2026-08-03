@@ -5,7 +5,7 @@
   base    = "dashboard"
   command = "npm install && npm run build"
   publish = "dist"
-  ignore  = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+  ignore  = "git -C \"$(git rev-parse --show-toplevel)\" diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- dashboard"
 
 [build.environment]
   NODE_VERSION = "20"
