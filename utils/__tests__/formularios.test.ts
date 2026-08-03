@@ -7,18 +7,25 @@ import {
   filtrarPerguntasVisiveis,
   filtrarRespostasPorPerguntas,
   flattenPerguntas,
+  ASSETS,
   getObservacaoCondicionalRiscoConfig,
   getObservacaoCondicionalRiscoKey,
   opcaoAcionaObservacaoCondicionalRisco,
   opcaoRequerJustificativaTecnica,
 } from '../formulariosAssets';
+import { calcularRiscoFormulario } from '../riscoUtils';
 
 const riscoEstrutural = require('../../assets/formularios/risco_estrutural_novo_v2.json');
 const vistoriaDeslizamento = require('../../assets/formularios/vistoria_deslizamento_v3.json');
+const riscoInundacao = require('../../assets/formularios/risco_inundacao_v1.json');
+const riscoIncendioVegetacao = require('../../assets/formularios/risco_incendio_vegetacao_v1.json');
+const inspecaoPontePassarela = require('../../assets/formularios/inspecao_ponte_passarela_v1.json');
+const inspecaoBueiroDrenagem = require('../../assets/formularios/inspecao_bueiro_drenagem_v1.json');
 
 const FORMULARIOS_ATIVOS = [riscoEstrutural, vistoriaDeslizamento];
 const TIPO_CALCULO_VALIDOS = ['soma_total', 'ponderada_max_elemento'];
 const NIVEL_VALIDOS_LIMITES = ['r1', 'r2', 'r3', 'r4'];
+const NOVOS_FORMULARIOS = [riscoInundacao, riscoIncendioVegetacao, inspecaoPontePassarela, inspecaoBueiroDrenagem];
 
 function perguntasPontuaveis(form: any) {
   return form.fases.flatMap((fase: any) =>
@@ -33,6 +40,16 @@ function maxTotal(form: any) {
   }, 0);
 }
 
+function respostasComPesos(form: any, pesos: number[]): Record<string, string> {
+  const perguntas = perguntasPontuaveis(form);
+  return Object.fromEntries(perguntas.map((pergunta: any, index: number) => {
+    const peso = pesos[index] ?? 0;
+    const opcao = pergunta.opcoes.find((item: any) => Number(item.pesoRisco) === peso);
+    if (!opcao) throw new Error(`Peso ${peso} indisponível em ${form.id}/${pergunta.id}`);
+    return [pergunta.id, opcao.id];
+  }));
+}
+
 describe('JSONs built-in ativos - estrutura base', () => {
   FORMULARIOS_ATIVOS.forEach(f => {
     it(`${f.id} tem id, versao, fases e tipoCalculo`, () => {
@@ -41,6 +58,66 @@ describe('JSONs built-in ativos - estrutura base', () => {
       expect(Array.isArray(f.fases)).toBe(true);
       expect(f.fases.length).toBeGreaterThan(0);
       expect(TIPO_CALCULO_VALIDOS).toContain(f.tipoCalculo);
+    });
+  });
+});
+
+describe('novos formulários operacionais - integração', () => {
+  NOVOS_FORMULARIOS.forEach(f => {
+    it(`${f.id} está registrado no catálogo e pronto para o wizard`, () => {
+      expect(ASSETS[f.id]).toBeTruthy();
+      expect(f.ativo).toBe(true);
+      expect(f.versao).toBe(1);
+      expect(f.tipoCalculo).toBe('soma_total');
+      expect(f.fases.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it(`${f.id} possui dez itens pontuáveis na escala 0-10`, () => {
+      const pontuaveis = perguntasPontuaveis(f);
+      expect(pontuaveis).toHaveLength(10);
+      expect(maxTotal(f)).toBeCloseTo(10, 5);
+      expect(f.classificacao.limites.map((l: any) => l.nivel)).toEqual(NIVEL_VALIDOS_LIMITES);
+      expect(f.classificacao.limites.map((l: any) => l.max)).toEqual([2.0, 3.9, 6.9, 10.0]);
+    });
+
+    it(`${f.id} possui fotos, texto auxiliar e condições de campo`, () => {
+      const perguntas = flattenPerguntas(f);
+      expect(perguntas.some(p => p.tipo === 'foto')).toBe(true);
+      expect(perguntas.some(p => p.tipo === 'texto')).toBe(true);
+      expect(perguntas.some(p => p.mostrarQuando)).toBe(true);
+      for (const p of perguntasPontuaveis(f)) {
+        for (const opcao of p.opcoes || []) {
+          expect(typeof opcao.pesoRisco).toBe('number');
+          expect(opcao.pesoRisco).toBeGreaterThanOrEqual(0);
+          expect(opcao.pesoRisco).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
+});
+
+describe('novos formulários operacionais - limites de cálculo', () => {
+  const cenarios = [
+    { nome: 'R1 no limite de 2 pontos', pesos: [1, 1, 0, 0, 0, 0, 0, 0, 0, 0], pontuacao: 2, nivel: 'r1' },
+    { nome: 'entrada de R2 em 2,1 pontos', pesos: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0, 0, 0], pontuacao: 2.1, nivel: 'r2' },
+    { nome: 'entrada de R3 em 4 pontos', pesos: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0], pontuacao: 4, nivel: 'r3' },
+    { nome: 'R3 no limite de 6,9 pontos', pesos: [1, 1, 1, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.3], pontuacao: 6.9, nivel: 'r3' },
+    { nome: 'entrada de R4 em 7 pontos', pesos: [1, 1, 1, 1, 1, 1, 1, 0, 0, 0], pontuacao: 7, nivel: 'r4' },
+  ];
+
+  NOVOS_FORMULARIOS.forEach(formulario => {
+    it.each(cenarios)(`${formulario.id} classifica corretamente $nome`, ({ pesos, pontuacao, nivel }) => {
+      const calculo = calcularRiscoFormulario({
+        perguntas: flattenPerguntas(formulario),
+        respostas: respostasComPesos(formulario, pesos),
+        limites: formulario.classificacao.limites,
+        formularioId: formulario.id,
+        formularioVersao: formulario.versao,
+        tipoCalculo: formulario.tipoCalculo,
+      });
+
+      expect(calculo.pontuacaoTotal).toBe(pontuacao);
+      expect(calculo.nivelRisco).toBe(nivel);
     });
   });
 });

@@ -60,7 +60,7 @@ O sistema implementa 4 níveis de acesso com permissões distintas.
 | Funcionalidade | Descrição |
 |----------------|-----------|
 | Iniciar vistoria | Localização GPS automática + preenchimento de endereço via CEP |
-| Formulários dinâmicos | 5 formulários built-in com lógica condicional (skip automático) |
+| Formulários dinâmicos | 7 formulários built-in com lógica condicional (skip automático) |
 | Classificação de risco | Cálculo automático R1 (baixo) a R4 (iminente) ao final da vistoria |
 | Laudo em PDF | Geração no dispositivo com foto, protocolo sequencial e QR |
 | Compartilhar laudo | WhatsApp, e-mail ou link — com mensagem rica e protocolo |
@@ -304,12 +304,13 @@ Os formulários seguem um schema JSON padronizado com suporte a:
 
 | ID | Nome | Fases | Tipo de Cálculo | Uso |
 |----|------|-------|-----------------|-----|
-| `estrutural_v1` | Vistoria Estrutural | 7 | Soma total | Vistoria rápida de campo |
-| `estrutural_avancado_v1` | Vistoria Estrutural Avançada | Multi-fase | Por item | Inspeção detalhada |
-| `risco_estrutural_v2` | Avaliação Estrutural Inteligente | 7–35* | Por elemento × peso | Com skip automático |
-| `avaliacao_completa_v1` | Avaliação Completa — 10 Elementos | 10 | Ponderado | Laudo técnico completo |
-| `deslizamento_campo_v1` | Risco de Deslizamento | 10 | Soma + SVGs | Encostas e taludes |
-| `inundacao_v1` | Risco de Inundação | 8 | Soma total | Áreas de várzea |
+| `avaliacao_arvore_cbmmg_v1` | Risco em Árvore | 6 fases | Soma total | Árvores e galhos |
+| `vistoria_deslizamento_v3` | Risco de Deslizamento | 3 fases | Soma total | Encostas e taludes |
+| `risco_estrutural_novo_v2` | Risco em Edificação | 1 fase | Soma total | Imóveis e estruturas |
+| `risco_inundacao_v1` | Risco de Inundação e Alagamento | 3 fases | Soma total | Inundação, alagamento e enxurrada |
+| `risco_incendio_vegetacao_v1` | Risco de Incêndio em Vegetação | 3 fases | Soma total | Vegetação seca, fumaça e fogo |
+| `inspecao_ponte_passarela_v1` | Inspeção de Ponte e Passarela | 3 fases | Soma total | Pontes, pontilhões e passarelas |
+| `inspecao_bueiro_drenagem_v1` | Inspeção de Bueiro e Drenagem | 3 fases | Soma total | Bueiros, galerias e vias |
 
 *\* Com skip automático — bom estado reduz de 35 para 7 perguntas.*
 

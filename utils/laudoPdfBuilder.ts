@@ -391,8 +391,54 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   let respostasHtml = '';
   let itemCount = 0;
   if (calculo?.itens?.length && !isAvaliacaoArvore) {
-    itemCount = calculo.itens.length;
-    respostasHtml = calculo.itens.map((item, index) => {
+    const itensPorPerguntaId = new Map(calculo.itens.map(item => [item.perguntaId, item]));
+    const perguntaIdsDoSchema = new Set(perguntasFlat.map(pergunta => pergunta.id));
+    const itensParaExibir: Array<{ pergunta: string; resposta: string; pesoRisco: number; observacao?: string }> = [];
+
+    for (const pergunta of perguntasFlat) {
+      if (pergunta.tipo === 'foto') continue;
+
+      const valor = respostasObjeto[pergunta.id];
+      const itemCalculado = itensPorPerguntaId.get(pergunta.id);
+      const possuiValor = valor !== undefined && valor !== null && String(valor).trim() !== '';
+      if (!possuiValor && !itemCalculado) continue;
+
+      let resposta = itemCalculado?.resposta || '';
+      let pesoRisco = itemCalculado?.pesoRisco ?? 0;
+      let observacao = itemCalculado?.observacao;
+
+      if (!itemCalculado) {
+        if (pergunta.tipo === 'cards' || pergunta.tipo === 'multipla_escolha') {
+          const opcao = pergunta.opcoes.find(op => op.id === String(valor));
+          resposta = opcao?.texto || String(valor);
+          pesoRisco = Number(opcao?.pesoRisco ?? 0);
+        } else {
+          resposta = Array.isArray(valor) ? valor.join(', ') : String(valor);
+          if (pergunta.unidade && pergunta.tipoEntrada === 'numero_decimal') {
+            resposta = `${resposta} ${pergunta.unidade}`;
+          }
+        }
+      }
+
+      if (!observacao && opcaoAcionaObservacaoCondicionalRisco(dados.formularioId, pergunta, String(valor))) {
+        observacao = String(respostasObjeto[getObservacaoCondicionalRiscoKey(pergunta.id)] ?? '').trim() || undefined;
+      }
+
+      itensParaExibir.push({
+        pergunta: pergunta.texto || pergunta.id,
+        resposta,
+        pesoRisco,
+        observacao,
+      });
+    }
+
+    for (const item of calculo.itens) {
+      if (perguntaIdsDoSchema.has(item.perguntaId)) continue;
+      itensParaExibir.push(item);
+    }
+
+    itemCount = itensParaExibir.length;
+    respostasHtml = itensParaExibir.map((item, index) => {
       const pontuacaoDesc = item.pesoRisco > 0
         ? ` <span class="answer-score">(+${formatarPontuacaoRisco(item.pesoRisco)} pts)</span>`
         : '';
@@ -883,9 +929,30 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     color: ${PDF_COLORS.muted};
     text-align: center;
   }
+  body.document-tree .section {
+    margin-bottom: 12px;
+  }
+  body.document-tree .data-table td,
+  body.document-tree .resp-table td {
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+  body.document-tree .legal-note {
+    margin-bottom: 10px;
+  }
+  body.document-tree .footer-section {
+    margin-top: 10px;
+  }
+  body.document-tree .sig-line {
+    margin-top: 18px;
+    margin-bottom: 8px;
+  }
+  body.document-tree .pdf-page-footer {
+    margin-top: 2mm;
+  }
 </style>
 </head>
-<body>
+<body class="${isAvaliacaoArvore ? 'document-tree' : ''}">
   ${trainingNotice}
 
   <!-- CABEÇALHO -->

@@ -60,26 +60,28 @@ interface GrupoResolvido {
 /** Resolve IDs de respostas em textos legíveis, agrupados por fase */
 function resolverRespostas(formularioId: string, respostas: Record<string, string>, calculoRisco?: unknown): GrupoResolvido[] {
   const calculo = parseCalculoRiscoSnapshot(calculoRisco);
-  if (calculo?.itens?.length && formularioId !== 'avaliacao_arvore_cbmmg_v1') {
-    const grupos = new Map<string, GrupoResolvido>();
-    for (const item of calculo.itens) {
-      const faseId = item.faseId || item.grupo || 'snapshot';
-      const grupo = item.grupo || 'Itens avaliados';
-      if (!grupos.has(faseId)) grupos.set(faseId, { grupo, faseId, itens: [] });
-      grupos.get(faseId)!.itens.push({
-        perguntaId: item.perguntaId,
-        pergunta: item.pergunta,
-        resposta: item.resposta,
-        tipo: 'cards',
-        pesoRisco: item.pesoRisco,
-        observacao: item.observacao,
-      });
-    }
-    return Array.from(grupos.values());
-  }
+  const itensPorPerguntaId = new Map((calculo?.itens || []).map(item => [item.perguntaId, item]));
 
   const form = FORM_JSONS[formularioId];
   if (!form) {
+    if (calculo?.itens?.length) {
+      const grupos = new Map<string, GrupoResolvido>();
+      for (const item of calculo.itens) {
+        const faseId = item.faseId || item.grupo || 'snapshot';
+        const grupo = item.grupo || 'Itens avaliados';
+        if (!grupos.has(faseId)) grupos.set(faseId, { grupo, faseId, itens: [] });
+        grupos.get(faseId)!.itens.push({
+          perguntaId: item.perguntaId,
+          pergunta: item.pergunta,
+          resposta: item.resposta,
+          tipo: 'cards',
+          pesoRisco: item.pesoRisco,
+          observacao: item.observacao,
+        });
+      }
+      return Array.from(grupos.values());
+    }
+
     // Fallback genérico: mostra chave → valor bruto
     const itens = Object.entries(respostas)
       .filter(([k]) => !getPerguntaIdFromObservacaoCondicionalRiscoKey(k))
@@ -92,21 +94,24 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
   for (const fase of form.fases || []) {
     const itens: ItemResolvido[] = [];
     for (const p of fase.perguntas || []) {
-      if (p.tipo === 'foto') continue; // fotos não entram no relatório de texto
+      if (p.tipo === 'foto') continue;
       const raw = respostas[p.id];
-      if (raw === undefined || raw === null || raw === '') continue;
+      const itemCalculado = itensPorPerguntaId.get(p.id);
+      if ((raw === undefined || raw === null || raw === '') && !itemCalculado) continue;
 
-      let respostaTexto = raw;
-      let pesoRisco = 0;
-      if (p.tipo === 'cards' || p.tipo === 'multipla_escolha') {
+      let respostaTexto = itemCalculado?.resposta ?? raw;
+      let pesoRisco = itemCalculado?.pesoRisco ?? 0;
+      if (!itemCalculado && (p.tipo === 'cards' || p.tipo === 'multipla_escolha')) {
         const op = (p.opcoes || []).find((o: any) => o.id === raw);
         if (op) { respostaTexto = op.texto; pesoRisco = op.pesoRisco ?? 0; }
+      } else if (!itemCalculado && p.unidade && p.tipoEntrada === 'numero_decimal') {
+        respostaTexto = `${respostaTexto} ${p.unidade}`;
       }
 
       const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
-      const observacao = opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
+      const observacao = itemCalculado?.observacao || (opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
         ? respostas[observacaoKey]?.trim()
-        : undefined;
+        : undefined);
       itens.push({ perguntaId: p.id, pergunta: p.texto, resposta: respostaTexto, tipo: p.tipo, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, faseId: fase.id, peso: fase.peso, itens });

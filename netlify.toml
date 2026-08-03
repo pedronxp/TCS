@@ -5,9 +5,7 @@
   base    = "dashboard"
   command = "npm install && npm run build"
   publish = "dist"
-  # O app mobile e o dashboard compartilham o repositório. Evita criar
-  # previews web quando a alteração não toca nenhum arquivo do dashboard.
-  ignore  = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF ."
+  ignore  = "git -C \"$(git rev-parse --show-toplevel)\" diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- dashboard"
 
 [build.environment]
   NODE_VERSION = "20"

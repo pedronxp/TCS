@@ -1,0 +1,180 @@
+{
+  "id": "risco_incendio_vegetacao_v1",
+  "titulo": "Risco de Incêndio em Vegetação",
+  "versao": 1,
+  "ativo": true,
+  "featureCode": "inspection_standard",
+  "tipoCalculo": "soma_total",
+  "observacaoCondicionalRisco": {
+    "ativo": true,
+    "pesoMinimo": 0.3,
+    "titulo": "Evidência técnica do risco de incêndio",
+    "descricao": "Descreva o material combustível, a área exposta, a direção provável de propagação e a medida recomendada."
+  },
+  "descricao": "Vistoria preventiva ou emergencial de áreas com vegetação seca, fumaça ou fogo, avaliando propagação, exposição de pessoas e acesso para resposta.",
+  "classificacao": {
+    "limites": [
+      { "max": 2.0, "nivel": "r1", "label": "R1 — BAIXO — Condição controlada e sem ameaça imediata", "cor": "verde" },
+      { "max": 3.9, "nivel": "r2", "label": "R2 — MÉDIO — Prevenção e monitoramento recomendados", "cor": "amarelo" },
+      { "max": 6.9, "nivel": "r3", "label": "R3 — ALTO — Acionamento e controle preventivo necessários", "cor": "laranja" },
+      { "max": 10.0, "nivel": "r4", "label": "R4 — CRÍTICO — Propagação ou exposição grave; acionar resposta imediata", "cor": "vermelho" }
+    ]
+  },
+  "fases": [
+    {
+      "id": "incendio_caracterizacao",
+      "titulo": "Caracterização do fogo e da área",
+      "instrucao": "Não se aproxime de fogo ativo. Registre somente condições observáveis com segurança e acione os órgãos responsáveis quando houver fumaça ou chamas.",
+      "perguntas": [
+        { "id": "incendio_foto_geral", "texto": "Foto geral da área de vegetação", "tipo": "foto", "obrigatoria": false, "auxiliarCalculo": true, "opcoes": [] },
+        {
+          "id": "incendio_q1",
+          "texto": "Qual situação foi identificada?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_fogo", "texto": "Sem fumaça ou fogo aparente", "descricao": "A vistoria identifica apenas condição preventiva sem sinais de combustão.", "pesoRisco": 0.0 },
+            { "id": "vegetacao_suscetivel", "texto": "Vegetação suscetível, sem fogo", "descricao": "Há material seco e condição favorável, mas sem fumaça ou chama.", "pesoRisco": 0.3 },
+            { "id": "fumaca_ou_foco", "texto": "Fumaça ou foco localizado", "descricao": "Há sinal de combustão, mas não foi observada propagação ampla.", "pesoRisco": 0.6 },
+            { "id": "fogo_propagando", "texto": "Fogo ativo ou em propagação", "descricao": "Chamas, frente de fogo ou propagação visível na área.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_q2",
+          "texto": "Qual o grau de ressecamento da vegetação?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "vegetacao_umida", "texto": "Vegetação úmida ou verde", "descricao": "Baixa disponibilidade imediata de material combustível seco.", "pesoRisco": 0.0 },
+            { "id": "secamento_local", "texto": "Secamento localizado", "descricao": "Há trechos secos, mas a continuidade do material é limitada.", "pesoRisco": 0.3 },
+            { "id": "vegetacao_seca", "texto": "Vegetação predominantemente seca", "descricao": "Material combustível seco em grande parte da área.", "pesoRisco": 0.6 },
+            { "id": "material_extremamente_seco", "texto": "Material extremamente seco", "descricao": "Vegetação seca, leve e contínua, com alta facilidade de ignição.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_q3",
+          "texto": "Qual a quantidade de material combustível acumulado?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "baixo", "texto": "Baixa", "descricao": "Pouca matéria seca, sem continuidade relevante.", "pesoRisco": 0.0 },
+            { "id": "moderado", "texto": "Moderada", "descricao": "Folhas, capim ou galhos secos em pontos delimitados.", "pesoRisco": 0.3 },
+            { "id": "alto", "texto": "Alta", "descricao": "Material acumulado ou contínuo em boa parte da área.", "pesoRisco": 0.6 },
+            { "id": "muito_alto", "texto": "Muito alta", "descricao": "Mato alto, resíduos, galhos ou material contínuo junto a áreas expostas.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_q4",
+          "texto": "Qual a possibilidade de propagação?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "propagacao_limitada", "texto": "Propagação limitada", "descricao": "Área pequena, sem continuidade e sem vento relevante observado.", "pesoRisco": 0.0 },
+            { "id": "propagacao_direcionada", "texto": "Propagação direcionada", "descricao": "A continuidade do material ou a topografia pode conduzir o fogo.", "pesoRisco": 0.3 },
+            { "id": "propagacao_facilitada", "texto": "Propagação facilitada", "descricao": "Vento, declive ou material contínuo favorecem o avanço.", "pesoRisco": 0.6 },
+            { "id": "propagacao_rapida", "texto": "Propagação rápida ou sem controle", "descricao": "Fogo avança em direção a áreas ocupadas ou não pode ser contido localmente.", "pesoRisco": 1.0 }
+          ]
+        },
+        { "id": "incendio_foto_fumaca_fogo", "texto": "Foto segura da fumaça, foco ou área afetada", "tipo": "foto", "obrigatoria": false, "auxiliarCalculo": true, "opcoes": [] },
+        { "id": "incendio_area_ha", "texto": "Área aproximada afetada em hectares", "tipo": "texto", "tipoEntrada": "numero_decimal", "unidade": "ha", "valorMinimo": 0, "valorMaximo": 100000, "obrigatoria": false, "auxiliarCalculo": true, "placeholder": "Ex.: 2,5", "opcoes": [] }
+      ]
+    },
+    {
+      "id": "incendio_exposicao",
+      "titulo": "Exposição e capacidade de resposta",
+      "instrucao": "Avalie o que pode ser atingido e se as equipes conseguem acessar a área sem se expor ao fogo.",
+      "perguntas": [
+        {
+          "id": "incendio_q5",
+          "texto": "Qual a proximidade de imóveis ou instalações sensíveis?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_exposicao", "texto": "Sem imóvel ou instalação próxima", "descricao": "A área não apresenta alvo vulnerável no entorno imediato.", "pesoRisco": 0.0 },
+            { "id": "alvo_distante", "texto": "Alvo distante", "descricao": "Há imóveis ou instalações, mas fora da direção provável de propagação.", "pesoRisco": 0.3 },
+            { "id": "imoveis_proximos", "texto": "Imóveis ou instalações próximas", "descricao": "O fogo pode alcançar residências, comércio, escola ou unidade pública.", "pesoRisco": 0.6 },
+            { "id": "alvo_ameacado", "texto": "Alvo diretamente ameaçado", "descricao": "Fogo, fumaça ou calor já atingem ou se aproximam de área ocupada.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_q6",
+          "texto": "Há pessoas ou população vulnerável exposta?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "sem_pessoas", "texto": "Sem pessoas expostas", "descricao": "Não há ocupação ou circulação próxima observada.", "pesoRisco": 0.0 },
+            { "id": "circulacao_eventual", "texto": "Circulação eventual", "descricao": "Há passagem ocasional, sem concentração de pessoas.", "pesoRisco": 0.3 },
+            { "id": "ocupacao_frequente", "texto": "Ocupação frequente", "descricao": "Pessoas moram, trabalham ou circulam próximas à área.", "pesoRisco": 0.6 },
+            { "id": "vulneraveis_expostos", "texto": "Pessoas vulneráveis expostas", "descricao": "Inclui crianças, idosos, pessoas com mobilidade reduzida ou aglomeração.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_q7",
+          "texto": "Como está o acesso para equipes e veículos?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "acesso_bom", "texto": "Acesso bom", "descricao": "Há rota livre e segura para aproximação das equipes.", "pesoRisco": 0.0 },
+            { "id": "acesso_limitado", "texto": "Acesso limitado", "descricao": "Aproximação depende de veículo menor, orientação ou rota alternativa.", "pesoRisco": 0.3 },
+            { "id": "acesso_dificil", "texto": "Acesso difícil", "descricao": "Topografia, vegetação ou via impedem parte da resposta.", "pesoRisco": 0.6 },
+            { "id": "sem_acesso_seguro", "texto": "Sem acesso seguro", "descricao": "A aproximação expõe equipes ou não permite resposta terrestre adequada.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_q8",
+          "texto": "Há água, equipamentos ou apoio disponíveis para a resposta?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "recursos_disponiveis", "texto": "Recursos disponíveis", "descricao": "Há fonte de água, acesso e equipe ou apoio compatível com a situação.", "pesoRisco": 0.0 },
+            { "id": "recursos_parciais", "texto": "Recursos parciais", "descricao": "Existe parte dos recursos, mas é necessário apoio complementar.", "pesoRisco": 0.3 },
+            { "id": "recursos_insuficientes", "texto": "Recursos insuficientes", "descricao": "A resposta local não cobre a extensão ou o avanço provável.", "pesoRisco": 0.6 },
+            { "id": "sem_recursos", "texto": "Sem recursos ou apoio imediato", "descricao": "Não há condição local de resposta segura ou suficiente.", "pesoRisco": 1.0 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "incendio_preventivo",
+      "titulo": "Prevenção e providências",
+      "instrucao": "Registre as condições de prevenção e a providência necessária. O combate a incêndio deve ser realizado por equipes habilitadas.",
+      "perguntas": [
+        {
+          "id": "incendio_q9",
+          "texto": "Como estão os aceiros e a manutenção da área?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "manutencao_adequada", "texto": "Manutenção adequada", "descricao": "Aceiros, limpeza e controle da vegetação reduzem a continuidade do combustível.", "pesoRisco": 0.0 },
+            { "id": "manutencao_parcial", "texto": "Manutenção parcial", "descricao": "Há proteção em parte da área, mas existem trechos sem cuidado.", "pesoRisco": 0.3 },
+            { "id": "sem_aceiro_suficiente", "texto": "Aceiro insuficiente ou limpeza inadequada", "descricao": "A continuidade da vegetação aumenta a chance de propagação.", "pesoRisco": 0.6 },
+            { "id": "area_sem_controle", "texto": "Área sem controle preventivo", "descricao": "Não há aceiro, limpeza ou medida capaz de reduzir o risco identificado.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_q10",
+          "texto": "Qual a situação da providência imediata?",
+          "tipo": "cards",
+          "obrigatoria": true,
+          "opcoes": [
+            { "id": "monitorar", "texto": "Monitorar e orientar", "descricao": "Risco preventivo sem necessidade de isolamento imediato.", "pesoRisco": 0.0 },
+            { "id": "limpar_area", "texto": "Solicitar limpeza ou aceiro", "descricao": "A prevenção depende de manutenção e redução do material combustível.", "pesoRisco": 0.3 },
+            { "id": "isolar_area", "texto": "Isolar ou restringir acesso", "descricao": "A área precisa de sinalização, isolamento ou acionamento de equipe.", "pesoRisco": 0.6 },
+            { "id": "acionar_emergencia", "texto": "Acionar resposta de emergência", "descricao": "Há fogo, fumaça ou ameaça grave; acione Corpo de Bombeiros e Defesa Civil.", "pesoRisco": 1.0 }
+          ]
+        },
+        {
+          "id": "incendio_acao_imediata",
+          "texto": "Descreva o acionamento ou a medida adotada",
+          "tipo": "texto",
+          "obrigatoria": true,
+          "auxiliarCalculo": true,
+          "placeholder": "Ex.: Corpo de Bombeiros acionado; área sinalizada; moradores orientados a deixar o local.",
+          "mostrarQuando": { "perguntaId": "incendio_q1", "respostaIds": ["fumaca_ou_foco", "fogo_propagando"] },
+          "opcoes": []
+        },
+        { "id": "incendio_observacoes", "texto": "Observações técnicas adicionais", "tipo": "texto", "obrigatoria": false, "auxiliarCalculo": true, "placeholder": "Registre direção do vento, limites da área, relatos e recomendações.", "opcoes": [] }
+      ]
+    }
+  ]
+}
