@@ -18,6 +18,7 @@ import { tempoRelativo } from '../../../utils/htmlUtils';
 import { AtividadeItem } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { CustomerOnboardingChecklist } from '../../../components/CustomerOnboardingChecklist';
 
 interface KPI {
   label: string;
@@ -170,6 +171,7 @@ export default function AdminDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         <DashboardGuide role="admin" inline />
+        <CustomerOnboardingChecklist />
         {!isConnected && (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
             <Feather name="wifi-off" size={15} color="#F59E0B" />

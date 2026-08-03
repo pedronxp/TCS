@@ -30,6 +30,11 @@ describe('experiência comercial pública', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Municipal' })).toBeVisible();
     expect(screen.getByRole('heading', { level: 3, name: 'Enterprise' })).toBeVisible();
     expect(screen.queryByText('Municipal Profissional')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Do primeiro acesso à operação em campo.' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Fale direto com a equipe certa.' })).toBeVisible();
+    expect(screen.getByText('privacidade@tcs.app')).toBeVisible();
+    expect(screen.queryByText('Plataforma para operações de campo')).not.toBeInTheDocument();
+    expect(screen.queryByText('14 dias para testar')).not.toBeInTheDocument();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

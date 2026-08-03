@@ -1,6 +1,8 @@
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, ClipboardCheck, Database, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { TcsMark } from '@/components/brand/TcsMark';
+import { AppExperienceShowcase } from '@/components/public/AppExperienceShowcase';
 import { PUBLIC_PLANS } from '@/config/publicPlans';
 
 const benefits = [
@@ -47,14 +49,17 @@ const securityItems = [
   {
     title: 'Identidade protegida',
     text: 'MFA, SSO corporativo e controle granular por função.',
+    icon: ShieldCheck,
   },
   {
     title: 'Dados sob controle',
     text: 'Criptografia, retenção configurável e backups verificados.',
+    icon: Database,
   },
   {
     title: 'Auditoria completa',
     text: 'Histórico imutável de acesso, mudanças e exportações.',
+    icon: ClipboardCheck,
   },
 ] as const;
 
@@ -103,14 +108,11 @@ const plans = [
 
 export function CommercialPage() {
   return (
-    <div className="overflow-hidden">
+    <div className="overflow-x-clip">
       <section id="produto" className="bg-background">
         <div className="mx-auto max-w-[1440px] px-4 pb-7 pt-11 sm:px-8 lg:px-12 xl:px-16">
-          <div className="grid gap-12 xl:grid-cols-[620px_634px] xl:gap-[58px]">
+          <div className="grid gap-10 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)] lg:items-center lg:gap-8 xl:gap-12">
             <div className="min-w-0">
-              <Badge variant="info" className="mb-[22px]">
-                Plataforma para operações de campo
-              </Badge>
               <h1 className="max-w-[620px] text-[36px] font-bold leading-[1.16] tracking-[-0.025em] sm:text-[42px] xl:text-[48px] xl:leading-[1.12]">
                 Da vistoria em campo à decisão de gestão.
               </h1>
@@ -142,7 +144,7 @@ export function CommercialPage() {
             <div className="mt-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {benefits.map((benefit) => (
                 <article key={benefit.title} className="min-h-[142px] rounded-lg border bg-card p-5 shadow-card">
-                  <span aria-hidden="true" className="block h-2.5 w-2.5 rounded-full bg-info" />
+                  <span aria-hidden="true" className="block h-2.5 w-2.5 rounded-full bg-primary" />
                   <h3 className="mt-5 text-[15px] font-semibold">{benefit.title}</h3>
                   <p className="mt-2 text-[13px] leading-5 text-muted-foreground">{benefit.text}</p>
                 </article>
@@ -194,19 +196,18 @@ export function CommercialPage() {
         </div>
       </section>
 
+      <AppExperienceShowcase />
+
       <section id="planos" className="bg-commercial-section">
         <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-8 lg:px-12 xl:px-16 xl:py-[72px]">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <Eyebrow>Planos</Eyebrow>
-              <h2 className="mt-3 max-w-[760px] text-[30px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[34px]">
-                Comece no tamanho certo. Evolua sem reconstruir.
-              </h2>
-              <p className="mt-4 max-w-[700px] text-[15px] leading-6 text-muted-foreground">
-                Estrutura transparente para profissionais, municípios e operações de maior escala.
-              </p>
-            </div>
-            <Badge variant="info" className="shrink-0">14 dias para testar</Badge>
+          <div>
+            <Eyebrow>Planos</Eyebrow>
+            <h2 className="mt-3 max-w-[760px] text-[30px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[34px]">
+              Comece no tamanho certo. Evolua sem reconstruir.
+            </h2>
+            <p className="mt-4 max-w-[700px] text-[15px] leading-6 text-muted-foreground">
+              Estrutura transparente para profissionais, municípios e operações de maior escala.
+            </p>
           </div>
 
           <div className="mt-9 grid gap-4 lg:grid-cols-3">
@@ -258,7 +259,7 @@ export function CommercialPage() {
       </section>
 
       <section id="seguranca" className="bg-ink text-white">
-        <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-16 sm:px-8 lg:px-12 xl:grid-cols-[620px_632px] xl:gap-[60px] xl:px-16 xl:py-[46px]">
+        <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-16 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:px-12 xl:gap-12 xl:px-16 xl:py-[46px]">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-warm">Segurança por padrão</p>
             <h2 className="mt-4 max-w-[550px] text-[32px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[36px]">
@@ -285,15 +286,38 @@ export function CommercialPage() {
               </div>
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              {securityItems.map((item) => (
-                <article key={item.title} className="min-h-[194px] rounded-lg border border-ink-border bg-ink-panel p-5">
-                  <span aria-hidden="true" className="block h-9 w-9 rounded-md bg-warm" />
-                  <h3 className="mt-6 text-[15px] font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-[12px] leading-[1.55] text-white/55">{item.text}</p>
-                </article>
-              ))}
+              {securityItems.map((item) => {
+                const SecurityIcon = item.icon;
+                return (
+                  <article key={item.title} className="min-h-[194px] rounded-lg border border-ink-border bg-ink-panel p-5">
+                    <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-md bg-warm">
+                      <SecurityIcon className="h-5 w-5 text-primary" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mt-6 text-[15px] font-semibold">{item.title}</h3>
+                    <p className="mt-2 text-[12px] leading-[1.55] text-white/55">{item.text}</p>
+                  </article>
+                );
+              })}
             </div>
             <p className="mt-4 text-[11px] text-white/40">Controles alinhados à LGPD e às práticas de segurança para software como serviço.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="contato" className="scroll-mt-20 bg-commercial-section">
+        <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-8 lg:px-12 xl:px-16 xl:py-[72px]">
+          <Eyebrow>Contato</Eyebrow>
+          <h2 className="mt-3 max-w-[760px] text-[30px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[34px]">
+            Fale direto com a equipe certa.
+          </h2>
+          <p className="mt-4 max-w-[720px] text-[15px] leading-6 text-muted-foreground">
+            Escolha o assunto para receber orientação comercial, suporte operacional ou atendimento especializado.
+          </p>
+          <div className="mt-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <ContactCard title="Contratar o TCS" text="Planos, demonstração e liberação inicial." email="comercial@tcs.app" />
+            <ContactCard title="Suporte" text="Acesso, uso do app e dúvidas operacionais." email="suporte@tcs.app" />
+            <ContactCard title="Privacidade e LGPD" text="Dados pessoais, consentimento e seus direitos." email="privacidade@tcs.app" />
+            <ContactCard title="Segurança" text="Incidentes, controles e comunicações responsáveis." email="seguranca@tcs.app" />
           </div>
         </div>
       </section>
@@ -333,7 +357,7 @@ function ProductPreview() {
     >
       <aside className="hidden bg-ink px-4 py-5 text-white sm:block">
         <div className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-warm text-xs font-bold text-warm-foreground">T</span>
+          <TcsMark decorative size={28} />
           <span className="text-[11px] font-semibold">TCS</span>
         </div>
         <div className="mt-8 space-y-3">
@@ -359,10 +383,10 @@ function ProductPreview() {
           <PreviewMetric value="8" label="Equipes" />
         </div>
 
-        <div className="relative mt-5 h-[210px] overflow-hidden rounded-lg border bg-info-soft">
-          <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(hsl(var(--info-strong)/.09)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--info-strong)/.09)_1px,transparent_1px)] [background-size:32px_32px]" />
-          <div className="absolute left-[8%] top-[58%] h-px w-[88%] -rotate-[12deg] bg-info/25" />
-          <div className="absolute left-[26%] top-[10%] h-[90%] w-px rotate-[18deg] bg-info/20" />
+        <div className="relative mt-5 h-[210px] overflow-hidden rounded-lg border bg-secondary">
+          <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(hsl(var(--primary)/.09)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary)/.09)_1px,transparent_1px)] [background-size:32px_32px]" />
+          <div className="absolute left-[8%] top-[58%] h-px w-[88%] -rotate-[12deg] bg-primary/25" />
+          <div className="absolute left-[26%] top-[10%] h-[90%] w-px rotate-[18deg] bg-primary/20" />
           <MapDot className="left-[18%] top-[58%]" />
           <MapDot className="left-[42%] top-[34%]" />
           <MapDot className="left-[63%] top-[62%]" emphasized />
@@ -380,7 +404,7 @@ function MapDot({ className, emphasized = false }: { className: string; emphasiz
   return (
     <span
       className={`absolute h-3 w-3 rounded-full border-2 border-card shadow-card ${
-        emphasized ? 'bg-primary' : 'bg-info'
+        emphasized ? 'bg-success' : 'bg-primary'
       } ${className}`}
     />
   );
@@ -405,5 +429,17 @@ function PlanSummary({ label, value }: { label: string; value: string }) {
       <p className="font-semibold">{label}</p>
       <p className="mt-1 text-[11px] text-white/45">{value}</p>
     </div>
+  );
+}
+
+function ContactCard({ title, text, email }: { title: string; text: string; email: string }) {
+  return (
+    <article className="flex min-h-[190px] flex-col rounded-[18px] border bg-card p-6 shadow-card">
+      <h3 className="text-lg font-semibold">{title}</h3>
+      <p className="mt-2 text-[13px] leading-5 text-muted-foreground">{text}</p>
+      <a className="mt-auto inline-flex items-center gap-2 pt-5 text-[13px] font-semibold text-primary" href={`mailto:${email}`}>
+        {email} <ArrowRight className="h-3.5 w-3.5" />
+      </a>
+    </article>
   );
 }

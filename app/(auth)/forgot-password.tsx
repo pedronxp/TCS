@@ -4,11 +4,11 @@ import {
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../utils/supabase';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
+import { requestCustomerPasswordRecovery } from '../../services/CustomerAuthService';
 
 type Canal = 'email' | 'whatsapp';
 
@@ -18,6 +18,7 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
 
   const handleEnviar = async () => {
     if (!email.trim()) {
@@ -29,26 +30,36 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: { shouldCreateUser: false },
-      });
-
-      // Sempre navega para verify-otp por segurança (não revela se email existe)
-      if (otpError && otpError.message !== 'Signups not allowed for otp') {
-        throw otpError;
+      await requestCustomerPasswordRecovery(email);
+      setSent(true);
+    } catch (recoveryError: any) {
+      if (recoveryError?.message === 'password_recovery_disabled') {
+        setError('A recuperação de senha está temporariamente indisponível.');
+      } else {
+        // Resposta indistinguível para não revelar se a conta existe.
+        setSent(true);
       }
-
-      router.push({
-        pathname: '/(auth)/verify-otp',
-        params: { email: email.trim().toLowerCase(), canal },
-      });
-    } catch {
-      setError('Erro ao enviar o código. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (sent) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+        <View style={styles.sentContainer}>
+          <Feather name="mail" size={48} color={theme.primary} />
+          <Text style={[styles.title, { color: theme.text, textAlign: 'center' }]}>Confira seu e-mail</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary, textAlign: 'center' }]}>
+            Se existir uma conta elegível, enviaremos um link seguro para redefinir a senha. O link expira e só pode ser usado uma vez.
+          </Text>
+          <Button variant="primary" onPress={() => router.replace('/(auth)/login')} style={{ width: '100%' }}>
+            Voltar ao login
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
@@ -74,7 +85,7 @@ export default function ForgotPasswordScreen() {
           <View style={styles.titleSection}>
             <Text style={[styles.title, { color: theme.text }]}>Recuperar Acesso</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Enviaremos um código de verificação para confirmar sua identidade.
+              Enviaremos um link seguro para você criar uma nova senha.
             </Text>
           </View>
 
@@ -131,7 +142,7 @@ export default function ForgotPasswordScreen() {
             )}
 
             <Button variant="primary" loading={loading} onPress={handleEnviar} disabled={loading}>
-              Enviar Código
+              Enviar link de recuperação
             </Button>
 
             <TouchableOpacity style={styles.linkBtn} onPress={() => router.back()}>
@@ -147,6 +158,7 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  sentContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20, paddingHorizontal: 32 },
   header: { height: 48, justifyContent: 'center', marginBottom: 20 },
   backButton: {
     width: 44, height: 44, borderRadius: 12, borderWidth: 1,

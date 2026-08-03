@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ScrollView,
@@ -13,6 +13,10 @@ import { Button } from '../../components/ui';
 import { recordLoginAttempt, getLoginBlockedUntil, clearLoginAttempts } from '../../utils/loginRateLimit';
 import { registrarAuditoria } from '../../utils/auditLogger';
 import { ProductIdentity } from '../../components/brand';
+import {
+  getPublicAuthCapabilities,
+  signInCustomerWithGoogle,
+} from '../../services/CustomerAuthService';
 
 type Modo = 'email' | 'whatsapp';
 
@@ -42,6 +46,26 @@ export default function LoginScreen() {
   // ── Geral ─────────────────────────────────────────────────────────────────
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [googleAvailable, setGoogleAvailable] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    getPublicAuthCapabilities()
+      .then(capabilities => setGoogleAvailable(capabilities.googleAuth))
+      .catch(() => setGoogleAvailable(false));
+  }, []);
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      await signInCustomerWithGoogle();
+    } catch {
+      setError('Não foi possível entrar com o Google. Tente novamente.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   // Login por e-mail
@@ -213,6 +237,25 @@ export default function LoginScreen() {
                 Entrar no Sistema
               </Button>
 
+              {googleAvailable && (
+                <>
+                  <View style={styles.dividerRow}>
+                    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                    <Text style={[styles.dividerText, { color: theme.textSecondary }]}>ou</Text>
+                    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                  </View>
+                  <Button
+                    variant="secondary"
+                    iconLeft="chrome"
+                    loading={googleLoading}
+                    disabled={googleLoading || loading}
+                    onPress={handleGoogle}
+                  >
+                    Continuar com Google
+                  </Button>
+                </>
+              )}
+
               <TouchableOpacity style={styles.linkBtn} onPress={() => router.push('/(auth)/forgot-password')}>
                 <Text style={[styles.linkText, { color: theme.textSecondary }]}>Recuperar credenciais</Text>
               </TouchableOpacity>
@@ -346,6 +389,9 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 13, fontWeight: '700' },
 
   form: { gap: 24 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  dividerText: { fontSize: 12, fontWeight: '600' },
   fieldGroup: { gap: 8 },
   label: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   inputContainer: {

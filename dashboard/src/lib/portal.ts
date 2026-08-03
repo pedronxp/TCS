@@ -1,9 +1,11 @@
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type {
+  CustomerOnboardingItem,
   MunicipalRole,
   PortalAccessContext,
   PortalAccountKind,
+  PortalCustomerEntryContext,
   PortalDashboardData,
   PortalMembershipStatus,
   PortalPermission,
@@ -111,10 +113,53 @@ export async function fetchPortalAccessContext(user?: User | null) {
   return parsePortalAccessContext(data, user);
 }
 
-export async function ensureIndividualPortalProfile() {
-  const { data, error } = await rpc('portal_ensure_individual_profile');
+export function parseCustomerEntryContext(value: unknown): PortalCustomerEntryContext {
+  const source = record(value);
+  const features = record(source?.features);
+  const organization = record(source?.organization);
+  const subscription = record(source?.subscription);
+  const onboarding = record(source?.onboarding);
+  const rawKind = string(source?.account_kind);
+  const accountKind = rawKind === 'individual' || rawKind === 'organization' || rawKind === 'internal'
+    ? rawKind
+    : null;
+  const lifecycle = string(source?.lifecycle_state);
+  const allowedLifecycle = new Set(['creating', 'under_review', 'trial', 'contracting_pending', 'active', 'blocked']);
+  const rawChecklist = record(onboarding?.checklist) ?? {};
+  const rawCurrentStep = string(onboarding?.current_step);
+  const allowedSteps = new Set([
+    'identity', 'organization', 'plan', 'team', 'configuration', 'first_operation', 'completed',
+  ]);
+  const checklist = Object.fromEntries(
+    Object.entries(rawChecklist).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'),
+  );
+  return {
+    accountKind,
+    entryState: string(source?.entry_state),
+    lifecycleState: allowedLifecycle.has(lifecycle ?? '')
+      ? lifecycle as PortalCustomerEntryContext['lifecycleState']
+      : 'creating',
+    individualBootstrapEnabled: features?.individual_bootstrap === true,
+    municipalBootstrapEnabled: features?.municipal_bootstrap === true,
+    organizationName: string(organization?.display_name),
+    subscriptionStatus: string(subscription?.status),
+    onboarding: onboarding ? {
+      status: string(onboarding.status) ?? 'in_progress',
+      currentStep: allowedSteps.has(rawCurrentStep ?? '')
+        ? rawCurrentStep as CustomerOnboardingItem | 'completed'
+        : null,
+      checklist,
+      completedItems: typeof onboarding.completed_items === 'number' ? onboarding.completed_items : 0,
+      totalItems: typeof onboarding.total_items === 'number' ? onboarding.total_items : Object.keys(checklist).length,
+      progressPercent: typeof onboarding.progress_percent === 'number' ? onboarding.progress_percent : 0,
+    } : null,
+  };
+}
+
+export async function fetchCustomerEntryContext(): Promise<PortalCustomerEntryContext> {
+  const { data, error } = await rpc('get_customer_entry_context');
   if (error) throw new Error(error.message);
-  return data;
+  return parseCustomerEntryContext(data);
 }
 
 export async function fetchPortalDashboard(): Promise<PortalDashboardData> {

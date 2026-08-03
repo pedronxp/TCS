@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalDashboard, portalHome } from '@/lib/portal';
+import { PortalOnboardingChecklist } from '@/components/portal/PortalOnboardingChecklist';
 
 const metricIcons = [ClipboardCheck, CalendarDays, FileText, Gauge];
 
@@ -28,6 +29,8 @@ export function PortalDashboardPage() {
           <Button asChild><Link to={`${root}/vistorias?nova=1`}>Nova vistoria <ArrowRight /></Link></Button>
         )}
       </header>
+
+      <PortalOnboardingChecklist />
 
       {query.isLoading && <DashboardSkeleton />}
       {query.isError && (

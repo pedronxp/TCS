@@ -6,28 +6,14 @@ type TcsMarkProps = {
 
 export function TcsMark({ className, decorative = false, size = 42 }: TcsMarkProps) {
   return (
-    <svg
+    <span
       aria-hidden={decorative || undefined}
-      aria-label={decorative ? undefined : 'TCS — Gestão Territorial'}
-      className={className}
-      height={size}
+      aria-label={decorative ? undefined : 'TCS — Relatório e Risco'}
+      className={`relative inline-flex shrink-0 items-center justify-center ${className ?? ''}`}
       role={decorative ? undefined : 'img'}
-      viewBox="0 0 42 42"
-      width={size}
-      xmlns="http://www.w3.org/2000/svg"
+      style={{ height: size, width: size }}
     >
-      <rect width="42" height="42" rx="12" fill="#D7C3AA" />
-      <text
-        x="21"
-        y="28"
-        fill="#6F513A"
-        fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
-        fontSize="20"
-        fontWeight="700"
-        textAnchor="middle"
-      >
-        T
-      </text>
-    </svg>
+      <img alt="" className="h-full w-full object-contain" src="/tcs-system-logo.png" />
+    </span>
   );
 }

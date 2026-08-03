@@ -42,6 +42,20 @@ async function readLocalFileBytes(localUri: string): Promise<Uint8Array> {
   return bytes;
 }
 
+export async function scopeCustomerStoragePath(remotePath: string): Promise<string> {
+  const clean = remotePath.replace(/^\/+/, '');
+  const segments = clean.split('/');
+  if (!clean || segments.includes('..')) throw new Error('Caminho de Storage inválido.');
+  const { data, error } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (error || !userId) throw new Error('Sessão autenticada obrigatória para enviar arquivos.');
+  if (segments[0] === 'users') {
+    if (segments[1] !== userId) throw new Error('Escopo de Storage inválido.');
+    return clean;
+  }
+  return `users/${userId}/${clean}`;
+}
+
 /** Upload idempotente para o bucket privado de documentos e evidências. */
 export async function uploadDocumentEvidenceFile(
   localUri: string,
@@ -142,23 +156,24 @@ export async function getSignedUrl(
 export async function uploadImageFromLocalUri(localUri: string, remotePath: string): Promise<string> {
   try {
     const bytes = await readLocalFileBytes(localUri);
+    const scopedPath = await scopeCustomerStoragePath(remotePath);
 
     const fileExt = localUri.split('.').pop() || 'jpg';
     const mimeType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
 
-    logger.info('sync', `Iniciando upload de imagem: ${remotePath}`, { size: bytes.byteLength });
+    logger.info('sync', `Iniciando upload de imagem: ${scopedPath}`, { size: bytes.byteLength });
 
     const { error } = await supabase.storage
       .from(BUCKET_FOTOS)
-      .upload(remotePath, bytes, { contentType: mimeType, cacheControl: '36000', upsert: false });
+      .upload(scopedPath, bytes, { contentType: mimeType, cacheControl: '36000', upsert: false });
 
     if (error) {
-      logger.error('sync', `Falha no upload supabase: ${error.message}`, { path: remotePath });
+      logger.error('sync', `Falha no upload supabase: ${error.message}`, { path: scopedPath });
       throw error;
     }
 
-    logger.info('sync', `Upload concluído`, { path: remotePath });
-    return encodePath('fotos', remotePath);
+    logger.info('sync', `Upload concluído`, { path: scopedPath });
+    return encodePath('fotos', scopedPath);
 
   } catch (error: any) {
     reportClientTechnicalEventSafely({ category: 'storage', severity: 'error', summary: 'Falha no upload de imagem', metadata: { operation: 'upload_image', bucket: BUCKET_FOTOS } });
@@ -180,7 +195,7 @@ export async function uploadFotoVistoria(
 ): Promise<string | null> {
   try {
     const bytes = await readLocalFileBytes(localUri);
-    const remotePath = `${municipio}/${vistoriaId}.jpg`;
+    const remotePath = await scopeCustomerStoragePath(`${municipio}/${vistoriaId}.jpg`);
 
     const { error } = await supabase.storage
       .from(BUCKET_FOTOS)
@@ -210,7 +225,7 @@ export async function uploadLaudoPdf(
   municipio: string
 ): Promise<string | null> {
   try {
-    const remotePath = `${municipio}/${vistoriaId}.pdf`;
+    const remotePath = await scopeCustomerStoragePath(`${municipio}/${vistoriaId}.pdf`);
     const bytes = await readLocalFileBytes(localUri);
 
     const { error } = await supabase.storage

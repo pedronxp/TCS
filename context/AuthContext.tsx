@@ -139,13 +139,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(cached);
           }
           // Se sem cache, aguarda reconexão — não deslogar imediatamente
-        } else if (profileResult?.isApproved) {
+        } else if (profileResult) {
           setSession(sess);
           setProfile(profileResult);
-          await saveProfileToCache(profileResult);
+          if (profileResult.isApproved) await saveProfileToCache(profileResult);
         } else {
-          // Conta não aprovada ou não encontrada no banco
-          await supabase.auth.signOut().catch(() => {});
+          // Identidades OAuth novas permanecem autenticadas, porém neutras,
+          // para concluir o bootstrap server-side. A reconciliação nunca aprova.
+          try { await supabase.rpc('reconcile_customer_identity'); } catch { /* mantém sessão neutra */ }
+          const reconciled = await fetchProfile(sess.user.id);
+          setSession(sess);
+          if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
         }
       })
       .catch(async (err) => {
@@ -172,14 +176,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setSession(sess);
               setProfile(cached);
             }
-          } else if (profileResult?.isApproved) {
+          } else if (profileResult) {
             setSession(sess);
             setProfile(profileResult);
-            await saveProfileToCache(profileResult);
+            if (profileResult.isApproved) await saveProfileToCache(profileResult);
           } else {
-            await supabase.auth.signOut();
-            setSession(null);
-            setProfile(null);
+            try { await supabase.rpc('reconcile_customer_identity'); } catch { /* mantém sessão neutra */ }
+            const reconciled = await fetchProfile(sess.user.id);
+            setSession(sess);
+            if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
           }
         } else if (event === 'SIGNED_OUT') {
           const localUid = activeLocalUser.current;
@@ -193,12 +198,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const profileResult = await fetchProfile(sess.user.id);
           if (profileResult === 'timeout') {
             // Offline: manter perfil atual
-          } else if (profileResult?.isApproved) {
+          } else if (profileResult) {
             setProfile(profileResult);
-            await saveProfileToCache(profileResult);
+            if (profileResult.isApproved) await saveProfileToCache(profileResult);
           } else {
-            await supabase.auth.signOut();
-            setSession(null);
+            setSession(sess);
             setProfile(null);
           }
         }
@@ -222,9 +226,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession) return;
     const profileResult = await fetchProfile(currentSession.user.id);
-    if (profileResult && profileResult !== 'timeout' && profileResult.isApproved) {
+    if (profileResult && profileResult !== 'timeout') {
       setProfile(profileResult);
-      await saveProfileToCache(profileResult);
+      if (profileResult.isApproved) await saveProfileToCache(profileResult);
     }
   };
 

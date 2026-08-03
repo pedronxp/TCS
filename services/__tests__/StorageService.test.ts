@@ -13,7 +13,10 @@ jest.mock('../../utils/supabase', () => {
     createSignedUrl: jest.fn().mockResolvedValue({ data: { signedUrl: 'https://signed.test/file' }, error: null }),
   };
   return {
-    supabase: { storage: { from: jest.fn(() => storageApi) } },
+    supabase: {
+      auth: { getSession: jest.fn().mockResolvedValue({ data: { session: { user: { id: '11111111-1111-4111-8111-111111111111' } } }, error: null }) },
+      storage: { from: jest.fn(() => storageApi) },
+    },
     __storageApi: storageApi,
   };
 });
@@ -38,11 +41,18 @@ describe('StorageService', () => {
   it('envia os bytes reais da imagem ao Storage', async () => {
     await expect(
       uploadImageFromLocalUri('file:///documents/foto.jpg', 'vistorias/v-1/foto.jpg')
-    ).resolves.toBe('fotos:vistorias/v-1/foto.jpg');
+    ).resolves.toBe('fotos:users/11111111-1111-4111-8111-111111111111/vistorias/v-1/foto.jpg');
 
-    const [, body, options] = supabaseModule.__storageApi.upload.mock.calls[0];
+    const [path, body, options] = supabaseModule.__storageApi.upload.mock.calls[0];
+    expect(path).toBe('users/11111111-1111-4111-8111-111111111111/vistorias/v-1/foto.jpg');
     expect(body).toBeInstanceOf(Uint8Array);
     expect(body.byteLength).toBe(4);
     expect(options).toEqual(expect.objectContaining({ contentType: 'image/jpeg' }));
+  });
+
+  it('rejeita caminho já prefixado para outro usuário', async () => {
+    await expect(
+      uploadImageFromLocalUri('file:///documents/foto.jpg', 'users/22222222-2222-4222-8222-222222222222/foto.jpg')
+    ).rejects.toThrow('Escopo de Storage inválido');
   });
 });

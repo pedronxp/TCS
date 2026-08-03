@@ -16,6 +16,11 @@ import { formatarData, formatarDataHora } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { getTrainingVistoriasByAgente } from '../../utils/database';
+import {
+  linkCustomerGoogleIdentity,
+  requestCustomerPasswordRecovery,
+  translateCustomerIdentityError,
+} from '../../services/CustomerAuthService';
 
 const ROLE_LABELS: Record<string, string> = {
   agent:        'Agente de Campo',
@@ -71,6 +76,7 @@ export default function PerfilScreen() {
   const [lgpdExpanded, setLgpdExpanded] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [googleLinking, setGoogleLinking] = useState(false);
 
   useEffect(() => {
     if (authProfile) {
@@ -193,15 +199,27 @@ export default function PerfilScreen() {
     if (!authProfile?.email || resetLoading) return;
     setResetLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(authProfile.email, {
-        redirectTo: 'tcs://reset-password',
-      });
-      if (error) throw error;
+      await requestCustomerPasswordRecovery(authProfile.email);
       setResetSent(true);
     } catch {
       Alert.alert('Erro', 'Não foi possível enviar o e-mail de redefinição. Tente novamente.');
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  const linkGoogle = async () => {
+    if (googleLinking) return;
+    setGoogleLinking(true);
+    try {
+      const result = await linkCustomerGoogleIdentity();
+      if (result === 'completed' || result === 'already-linked') {
+        Alert.alert('Google vinculado', 'Sua conta Google foi vinculada sem alterar seu papel ou seus acessos.');
+      }
+    } catch (cause) {
+      Alert.alert('Vínculo não concluído', translateCustomerIdentityError(cause));
+    } finally {
+      setGoogleLinking(false);
     }
   };
 
@@ -238,6 +256,7 @@ export default function PerfilScreen() {
 
   const hasPhone = !!authProfile?.phone;
   const phoneDisplay = hasPhone ? formatarTelefone(authProfile!.phone!) : null;
+  const googleLinked = session?.user.identities?.some(identity => identity.provider === 'google') ?? false;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -528,6 +547,26 @@ export default function PerfilScreen() {
             {!resetLoading && <Feather name="chevron-right" size={20} color={theme.textSecondary} />}
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity
+          style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+          onPress={linkGoogle}
+          disabled={googleLinked || googleLinking || !isOnlineReal || localTestMode}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}15` }]}>
+            {googleLinking
+              ? <ActivityIndicator size="small" color={theme.primary} />
+              : <Feather name={googleLinked ? 'check-circle' : 'link'} size={20} color={googleLinked ? '#10B981' : theme.primary} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.actionTitle, { color: googleLinked ? '#10B981' : theme.text }]}>Conta Google</Text>
+            <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>
+              {googleLinked ? 'Vinculada a este acesso' : !isOnlineReal ? 'Conecte-se para vincular' : 'Vincular com sessão autenticada'}
+            </Text>
+          </View>
+          {!googleLinked && !googleLinking && <Feather name="chevron-right" size={20} color={theme.textSecondary} />}
+        </TouchableOpacity>
 
         {/* Privacidade e Permissões */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Privacidade e Permissões</Text>

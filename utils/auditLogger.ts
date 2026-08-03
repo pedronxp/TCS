@@ -33,7 +33,11 @@ export interface AuditEntry {
   detalhes?: Record<string, any>;
 }
 
-// ─── Registro de auditoria (fire-and-forget — nunca bloqueia o fluxo) ───────
+// ─── Telemetria auxiliar (não autoritativa) ─────────────────────────────────
+// Este logger ajuda diagnóstico e UX, mas não comprova uma operação crítica:
+// usa horário do cliente, é fire-and-forget e pode falhar offline. Bootstrap,
+// papéis, convites, recuperação, identidade e ativação devem ser auditados pela
+// mesma transação server-side que efetiva a mudança.
 
 export function registrarAuditoria(entry: AuditEntry): void {
   supabase.from('audit_logs').insert({

@@ -30,6 +30,28 @@ describe('resolveRootRedirect', () => {
       hasExpiredTrainingSession: false,
     })).toBeNull();
   });
+
+  it('routes a neutral authenticated customer to persisted onboarding', () => {
+    expect(resolveRootRedirect({
+      segments: ['(auth)', 'login'],
+      onboardingDone: true,
+      isAuthenticated: false,
+      hasPendingCustomerSession: true,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    })).toBe('/(auth)/customer-onboarding');
+  });
+
+  it('keeps a neutral customer inside customer onboarding', () => {
+    expect(resolveRootRedirect({
+      segments: ['(auth)', 'customer-onboarding'],
+      onboardingDone: true,
+      isAuthenticated: false,
+      hasPendingCustomerSession: true,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    })).toBeNull();
+  });
   it('prioritizes active training over an existing operational login on auth routes', () => {
     expect(resolveRootRedirect({
       segments: ['(auth)', 'treinamento-loading'],

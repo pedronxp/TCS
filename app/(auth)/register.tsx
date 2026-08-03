@@ -91,6 +91,11 @@ interface TokenValidationResult {
   expiraEm?: string | null;
 }
 
+interface SignupInviteClaimResult {
+  signup_claim_nonce: string;
+  expires_at: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RegisterScreen() {
   const { theme } = useTheme();
@@ -205,9 +210,9 @@ export default function RegisterScreen() {
     }
   };
 
-  // ── Etapa 1: validar formulário e token ─────────────────────────────────
+  // ── Etapa 1: validar formulário e convite opcional ────────────────────────
   const handleValidarFormulario = async () => {
-    if (!token || !nome || !email || !senha || !confirmarSenha) {
+    if (!nome || !email || !senha || !confirmarSenha) {
       setError('Preencha todos os campos obrigatórios.');
       return;
     }
@@ -239,8 +244,10 @@ export default function RegisterScreen() {
       let tokenData = tokenDataRef.current;
       const codigoNorm = token.trim().toUpperCase().replace(/\s/g, ''); // mantém traços
 
-      // Reutiliza resultado cacheado da verificação inline, ou revalida
-      if (!tokenData) {
+      // Convites antigos permanecem opcionais durante a janela de
+      // compatibilidade. Sem convite, a identidade nasce neutra e segue para
+      // a escolha individual/organização no onboarding server-side.
+      if (codigoNorm && !tokenData) {
         const { data: rawData2, error: valError } = await supabase
           .rpc('validate_invite_token', { p_codigo: codigoNorm })
           .single();
@@ -252,7 +259,7 @@ export default function RegisterScreen() {
         codigoNormRef.current = codigoNorm;
       }
 
-      if (tokenData.municipio) {
+      if (tokenData?.municipio) {
         const { data: dominioOk } = await supabase.rpc('check_email_domain', {
           p_municipio: tokenData.municipio,
           p_email: email.trim().toLowerCase(),
@@ -272,7 +279,9 @@ export default function RegisterScreen() {
 
   // ── Etapa 2: aceitar termos ──────────────────────────────────────────────
   const handleAceitarTermos = () => {
-    setEtapa('permissoes');
+    // A criação da identidade não depende de câmera, localização ou
+    // notificações. Cada permissão será solicitada na funcionalidade de uso.
+    void handleRegistrar();
   };
 
   // ── Etapa 3: solicitar permissões ────────────────────────────────────────
@@ -314,6 +323,23 @@ export default function RegisterScreen() {
         throw new Error('Este e-mail já está cadastrado. Utilize a opção de login.');
       }
 
+      let claim: SignupInviteClaimResult | null = null;
+      if (codigoNorm) {
+        // Troca o código legado por um claim opaco e curto. Papel, município,
+        // organização e aprovação permanecem exclusivamente no servidor.
+        const { data: rawClaim, error: claimError } = await supabase.rpc(
+          'prepare_legacy_invite_signup',
+          {
+            p_codigo: codigoNorm,
+            p_email: email.trim().toLowerCase(),
+          },
+        );
+        claim = rawClaim as SignupInviteClaimResult | null;
+        if (claimError || !claim?.signup_claim_nonce) {
+          throw new Error('Token de convite inválido, expirado ou incompatível com este e-mail. Solicite um novo convite.');
+        }
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: senha,
@@ -322,8 +348,9 @@ export default function RegisterScreen() {
             name: nome,
             username: email.split('@')[0],
             phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
-            role: tokenData.role,
-            municipio: tokenData.municipio,
+            ...(claim?.signup_claim_nonce
+              ? { signup_claim_nonce: claim.signup_claim_nonce }
+              : {}),
           },
         },
       });
@@ -346,37 +373,9 @@ export default function RegisterScreen() {
       const uid = authData.user?.id;
       if (!uid) throw new Error('Falha ao criar conta. Tente novamente.');
 
-      // ── public.users criado via trigger on_auth_user_created ─────────────
-      // O trigger usa raw_user_meta_data passado no signUp acima.
-      // Não há insert manual aqui — se o trigger falhar, o signUp também falha
-      // e nenhum registro é criado em nenhuma tabela (atomicidade real no BD).
-
-      // ── Validação do token com retorno boolean real ───────────────────────
-      // mark_token_used foi atualizada para retornar boolean:
-      //   TRUE  → token existia, estava livre, e foi marcado como usado
-      //   FALSE → token não existe, já foi usado, ou outra condição inválida
-      let deviceIp = '';
-      try {
-        const ipRes = await fetch('https://api.ipify.org?format=json');
-        deviceIp = (await ipRes.json()).ip || '';
-      } catch { /* silencioso */ }
-
-      const { data: tokenConsumed, error: tokenError } = await supabase.rpc('mark_token_used', {
-        p_codigo: codigoNorm,
-        p_uid: uid,
-        p_nome: nome,
-        p_ip: deviceIp,
-      });
-      if (tokenError || tokenConsumed !== true) {
-        // Token inválido: desfaz o registro criado pelo trigger e encerra sessão.
-        // O auth.user permanece em auth.users (sem service_role não é possível
-        // deletá-lo do cliente), mas sem registro em public.users o app o trata
-        // como não-cadastrado. A próxima tentativa de cadastro com mesmo e-mail
-        // será bloqueada pelo Supabase Auth ("user already registered").
-        try { await supabase.from('users').delete().eq('uid', uid); } catch { /* silencioso */ }
-        try { await supabase.auth.signOut(); } catch { /* silencioso */ }
-        throw new Error('Token de convite inválido ou já utilizado. Cadastro cancelado. Solicite um novo token ao administrador.');
-      }
+      // O trigger valida e consome o claim, cria o perfil e, quando aplicável,
+      // cria o membership na mesma transação do auth.users. Uma falha reverte
+      // todo o signup, sem identidade órfã e sem compensação no cliente.
 
       try {
         if (tokenData.criadoPor) {
@@ -642,14 +641,14 @@ export default function RegisterScreen() {
             <ProductIdentity variant="compact" />
             <Text style={[styles.title, { color: theme.text }]}>Validação Segura</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Insira o token recebido pelo seu administrador para configurar sua conta.
+              Crie sua conta para iniciar o onboarding. Se recebeu um convite antigo, informe-o abaixo.
             </Text>
           </View>
 
           <View style={styles.form}>
             {/* Token */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Token de Acesso</Text>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Token de Acesso (opcional)</Text>
               <View style={[
                 styles.inputContainer,
                 {

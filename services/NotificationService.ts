@@ -65,6 +65,12 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return finalStatus === 'granted';
 }
 
+export async function hasNotificationPermission(): Promise<boolean> {
+  if (!Device.isDevice) return false;
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === 'granted';
+}
+
 // ─── Token Expo Push ──────────────────────────────────────────────────────────
 
 export async function getExpoPushToken(): Promise<string | null> {

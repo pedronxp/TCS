@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -41,6 +41,60 @@ jobs:
           path: coverage/
           retention-days: 7
 
+  dashboard-contracts:
+    name: Portal contracts + production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dashboard dependencies
+        run: npm ci
+
+      - name: Run portal unit and contract tests
+        run: npm test
+
+      - name: Build portal and internal console
+        run: npm run build
+
+  database-security:
+    name: Supabase migrations + RLS contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start isolated Supabase stack
+        run: npx --yes supabase@2.111.0 start
+
+      - name: Run migrations and pgTAP security contracts
+        run: npx --yes supabase@2.111.0 test db --local
+
+      - name: Stop isolated Supabase stack
+        if: always()
+        run: npx --yes supabase@2.111.0 stop --no-backup
+
   dashboard-visual-regression:
     name: Dashboard visual regression
     runs-on: windows-latest
@@ -55,7 +109,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: dashboard/package-lock.json
 

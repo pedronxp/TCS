@@ -130,6 +130,19 @@
   }
 }
 
+@keyframes app-phone-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.app-phone-float { animation: app-phone-float 6s ease-in-out infinite; }
+.app-phone-float-delay { animation-delay: -2s; }
+.app-phone-float-delay-2 { animation-delay: -4s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-phone-float { animation: none; }
+}
+
 .portal-map .maplibregl-ctrl button {
   width: 44px;
   height: 44px;
