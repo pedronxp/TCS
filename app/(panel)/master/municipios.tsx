@@ -11,6 +11,7 @@ import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { AppHeader, EmptyState, FormField, MetricCard, Button } from '../../../components/ui';
 
 /*
   SQL to create the RPC in Supabase:
@@ -230,6 +231,9 @@ export default function MunicipiosScreen() {
   const filtrados = municipios.filter(m =>
     !busca || m.nome.toLowerCase().includes(busca.toLowerCase())
   );
+  const totalVistorias = municipios.reduce((sum, item) => sum + item.totalVistorias, 0);
+  const totalAgentes = municipios.reduce((sum, item) => sum + item.agentes, 0);
+  const totalAltoRisco = municipios.reduce((sum, item) => sum + item.altoRisco, 0);
 
   if (loading) {
     return (
@@ -255,68 +259,53 @@ export default function MunicipiosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Municípios</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{municipios.length} registrados</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: theme.primary }]}
-          onPress={() => setCriandoMunicipio(v => !v)}
-        >
-          <Feather name={criandoMunicipio ? 'x' : 'plus'} size={20} color="#FFF" />
-        </TouchableOpacity>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Rede municipal"
+          subtitle={`${municipios.length} municípios registrados`}
+          onBack={() => router.back()}
+          actionIcon={criandoMunicipio ? 'x' : 'plus'}
+          actionLabel={criandoMunicipio ? 'Fechar criação' : 'Novo município'}
+          onAction={() => setCriandoMunicipio(value => !value)}
+        />
       </View>
 
       {/* Formulário inline para novo município */}
       {criandoMunicipio && (
-        <View style={[styles.newMunForm, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-          <Text style={[styles.newMunLabel, { color: theme.textSecondary }]}>NOVO MUNICÍPIO</Text>
-          <View style={styles.newMunRow}>
-            <TextInput
-              style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.primary, color: theme.text }]}
+        <View style={[styles.newMunForm, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+          <Text style={[styles.newMunTitle, { color: theme.text }]}>Cadastrar município</Text>
+          <Text style={[styles.newMunDescription, { color: theme.textSecondary }]}>Nome, estado e UF são obrigatórios para identificar o território.</Text>
+          <FormField
+              label="Município"
+              required
               value={novoMunNome}
               onChangeText={setNovoMunNome}
               placeholder="Nome do município"
-              placeholderTextColor={theme.textSecondary}
               autoCapitalize="words"
               autoFocus
             />
-          </View>
-          <View style={[styles.newMunRow, { marginTop: 8 }]}>
-            <TextInput
-              style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, flex: 2 }]}
+          <View style={styles.newMunRow}>
+            <FormField
+              label="Estado"
+              required
+              containerStyle={{ flex: 2 }}
               value={novoMunEstado}
               onChangeText={setNovoMunEstado}
               placeholder="Estado (ex: São Paulo)"
-              placeholderTextColor={theme.textSecondary}
               autoCapitalize="words"
             />
-            <TextInput
-              style={[styles.newMunInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, flex: 0, width: 64 }]}
+            <FormField
+              label="UF"
+              required
+              containerStyle={{ width: 86 }}
               value={novoMunUF}
               onChangeText={t => setNovoMunUF(t.toUpperCase())}
               placeholder="UF"
-              placeholderTextColor={theme.textSecondary}
               autoCapitalize="characters"
               maxLength={2}
             />
-            <TouchableOpacity
-              style={[styles.newMunBtn, { backgroundColor: salvando ? theme.textSecondary : theme.primary }]}
-              onPress={criarMunicipio}
-              disabled={salvando}
-            >
-              {salvando
-                ? <ActivityIndicator size="small" color="#FFF" />
-                : <Feather name="check" size={20} color="#FFF" />}
-            </TouchableOpacity>
           </View>
+          <Button label="Cadastrar município" variant="primary" onPress={criarMunicipio} loading={salvando} disabled={salvando} fullWidth />
         </View>
       )}
 
@@ -337,23 +326,27 @@ export default function MunicipiosScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.metricsRow}>
+          <MetricCard value={municipios.length} label="Municípios" style={styles.metricCard} />
+          <MetricCard value={totalVistorias} label="Vistorias" style={styles.metricCard} />
+          <MetricCard value={totalAgentes} label="Agentes" tone="success" style={styles.metricCard} />
+          <MetricCard value={totalAltoRisco} label="Alto risco" tone="danger" style={styles.metricCard} />
+        </ScrollView>
         {filtrados.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhum município encontrado.</Text>
-          </View>
+          <EmptyState icon="map" title="Nenhum município" description="Ajuste a busca ou cadastre o primeiro território." />
         ) : (
           filtrados.map((m, i) => {
             const expanded = expandedMun === m.nome;
             return (
-              <View key={m.nome} style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+              <View key={m.nome} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
                 <TouchableOpacity onPress={() => setExpandedMun(expanded ? null : m.nome)}>
                   <View style={styles.cardHeader}>
                     <Text style={[styles.pos, { color: i < 3 ? theme.primary : theme.textSecondary }]}>#{i + 1}</Text>
                     <Text style={[styles.munNome, { color: theme.text }]}>{m.nome}</Text>
                     {m.altoRisco > 0 && (
-                      <View style={styles.alertBadge}>
-                        <Feather name="alert-triangle" size={12} color="#EF4444" />
-                        <Text style={styles.alertCount}>{m.altoRisco}</Text>
+                      <View style={[styles.alertBadge, { backgroundColor: theme.errorLight }]}>
+                        <Feather name="alert-triangle" size={12} color={theme.error} />
+                        <Text style={[styles.alertCount, { color: theme.error }]}>{m.altoRisco}</Text>
                       </View>
                     )}
                     <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textSecondary} />
@@ -365,12 +358,12 @@ export default function MunicipiosScreen() {
                       <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Vistorias</Text>
                     </View>
                     <View style={styles.stat}>
-                      <Feather name="alert-triangle" size={14} color="#EF4444" />
+                      <Feather name="alert-triangle" size={14} color={theme.error} />
                       <Text style={[styles.statValue, { color: theme.text }]}>{m.altoRisco}</Text>
                       <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Alto Risco</Text>
                     </View>
                     <View style={styles.stat}>
-                      <Feather name="users" size={14} color="#10B981" />
+                      <Feather name="users" size={14} color={theme.success} />
                       <Text style={[styles.statValue, { color: theme.text }]}>{m.agentes}</Text>
                       <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Agentes</Text>
                     </View>
@@ -381,6 +374,7 @@ export default function MunicipiosScreen() {
                         <View
                           style={[
                             styles.riskBarFill,
+                            { backgroundColor: theme.error },
                             { width: `${Math.round((m.altoRisco / m.totalVistorias) * 100)}%` },
                           ]}
                         />
@@ -412,7 +406,7 @@ export default function MunicipiosScreen() {
                       <View key={dom} style={[styles.domainChip, { backgroundColor: `${theme.primary}10`, borderColor: `${theme.primary}30` }]}>
                         <Text style={[styles.domainText, { color: theme.primary }]}>@{dom}</Text>
                         <TouchableOpacity onPress={() => removerDominio(m, dom)}>
-                          <Feather name="x" size={14} color="#EF4444" />
+                          <Feather name="x" size={14} color={theme.error} />
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -453,51 +447,30 @@ export default function MunicipiosScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  addButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12,
-  },
   newMunForm: {
-    paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1,
+    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, gap: 14,
   },
-  newMunLabel: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 10,
-  },
+  newMunTitle: { fontSize: 18, fontWeight: '800' },
+  newMunDescription: { fontSize: 13, lineHeight: 18, marginTop: -8 },
   newMunRow: { flexDirection: 'row', gap: 10 },
-  newMunInput: {
-    flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5,
-    paddingHorizontal: 14, fontSize: 15,
-  },
-  newMunBtn: {
-    width: 48, height: 48, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
   searchBar: { padding: 14, borderBottomWidth: 1 },
   searchInput: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, height: 44,
   },
   searchText: { flex: 1, fontSize: 15 },
-  scrollContent: { padding: 20, paddingBottom: 100 },
+  scrollContent: { padding: 20, paddingBottom: 100, gap: 12 },
+  metricsRow: { gap: 10, paddingBottom: 4 },
+  metricCard: { width: 112 },
   card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   pos: { fontSize: 13, fontWeight: '800', width: 28 },
   munNome: { flex: 1, fontSize: 16, fontWeight: '700' },
   alertBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
   },
-  alertCount: { color: '#EF4444', fontSize: 12, fontWeight: '800' },
+  alertCount: { fontSize: 12, fontWeight: '800' },
   statsRow: { flexDirection: 'row', gap: 0 },
   stat: { flex: 1, alignItems: 'center', gap: 4 },
   statValue: { fontSize: 18, fontWeight: '800' },
@@ -524,6 +497,6 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, fontWeight: '600' },
   riskBarWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
   riskBarBg: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
-  riskBarFill: { height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  riskBarFill: { height: 6, borderRadius: 3 },
   riskBarLabel: { fontSize: 11, fontWeight: '600', minWidth: 80, textAlign: 'right' },
 });

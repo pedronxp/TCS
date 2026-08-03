@@ -3,11 +3,13 @@ import { Text, StyleSheet, Animated, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useConnectivity } from '../context/ConnectivityContext';
+import { useTheme } from '../context/ThemeContext';
 
 const STRIP_HEIGHT = 34;
 const ANIM_DURATION = 280;
 
 export function ConnectivityBanner() {
+  const { theme } = useTheme();
   // isConnected = NetInfo (instantâneo), sem delay de HTTP check
   const { isConnected } = useConnectivity();
   const insets = useSafeAreaInsets();
@@ -68,18 +70,18 @@ export function ConnectivityBanner() {
         styles.strip,
         {
           bottom: bottomOffset,
-          backgroundColor: isOffline ? '#92400E' : '#065F46',
+          backgroundColor: isOffline ? theme.warning : theme.success,
           transform: [{ translateY }],
         },
       ]}
       pointerEvents="none"
     >
-      <Feather name={isOffline ? 'wifi-off' : 'wifi'} size={12} color="#fff" />
-      <Text style={styles.text}>
+      <Feather name={isOffline ? 'wifi-off' : 'wifi'} size={12} color={theme.onPrimary} />
+      <Text style={[styles.text, { color: theme.onPrimary }]}>
         {isOffline ? 'Modo offline · dados locais' : 'Conexão restaurada'}
       </Text>
       {isOffline && (
-        <View style={styles.dot} />
+        <View style={[styles.dot, { backgroundColor: theme.onPrimary }]} />
       )}
     </Animated.View>
   );
@@ -104,7 +106,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   text: {
-    color: '#fff',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.1,
@@ -113,6 +114,5 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FCA5A5',
   },
 });

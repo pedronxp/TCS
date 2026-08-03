@@ -18,6 +18,8 @@ import { tempoRelativo } from '../../../utils/htmlUtils';
 import { AtividadeItem } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { MetricCard, SectionHeader, StateBanner } from '../../../components/ui';
+import { TCSPalette } from '../../../constants/Colors';
 
 interface KPI {
   label: string;
@@ -60,10 +62,10 @@ export default function AdminDashboardScreen() {
         const k = kpisRes.data as any;
         setKpis([
           { label: 'Total', value: k.total || 0, icon: 'clipboard', color: theme.primary },
-          { label: 'Hoje', value: k.hoje || 0, icon: 'calendar', color: '#10B981' },
-          { label: 'Alto Risco', value: k.altoRisco || 0, icon: 'alert-triangle', color: '#EF4444' },
-          { label: 'Médio', value: k.medio || 0, icon: 'alert-circle', color: '#F59E0B' },
-          { label: 'Agentes', value: k.agentes || 0, icon: 'users', color: '#8B5CF6' },
+          { label: 'Hoje', value: k.hoje || 0, icon: 'calendar', color: theme.success },
+          { label: 'Alto Risco', value: k.altoRisco || 0, icon: 'alert-triangle', color: theme.error },
+          { label: 'Médio', value: k.medio || 0, icon: 'alert-circle', color: theme.warning },
+          { label: 'Agentes', value: k.agentes || 0, icon: 'users', color: theme.primary },
         ]);
       }
       if (vistoriasRes.error) {
@@ -129,14 +131,14 @@ export default function AdminDashboardScreen() {
               <Text style={[styles.chipText, { color: theme.primary }]}>Admin</Text>
             </View>
             {isConnected ? (
-              <View style={[styles.chipBadge, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.25)' }]}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
-                <Text style={[styles.chipText, { color: '#10B981' }]}>Conectado</Text>
+              <View style={[styles.chipBadge, { backgroundColor: theme.successLight, borderColor: theme.success }]}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.success }} />
+                <Text style={[styles.chipText, { color: theme.success }]}>Conectado</Text>
               </View>
             ) : (
               <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
-                <Feather name="wifi-off" size={10} color="#F59E0B" />
-                <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
+                <Feather name="wifi-off" size={10} color={theme.warning} />
+                <Text style={[styles.chipText, { color: theme.warning }]}>Offline</Text>
               </View>
             )}
           </View>
@@ -170,33 +172,27 @@ export default function AdminDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         <DashboardGuide role="admin" inline />
-        {!isConnected && (
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
-            <Feather name="wifi-off" size={15} color="#F59E0B" />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>Modo offline ativo</Text>
-              <Text style={{ color: '#F59E0B', fontSize: 12, marginTop: 2, opacity: 0.85 }}>Dados do painel indisponíveis. Conecte para atualizar estatísticas.</Text>
-            </View>
-          </View>
-        )}
+        {!isConnected ? (
+          <StateBanner
+            title="Modo offline ativo"
+            description="Os indicadores municipais serão atualizados quando a conexão retornar."
+            variant="warning"
+          />
+        ) : null}
 
         {/* Alerta alto risco */}
-        {(kpis[2]?.value || 0) > 0 && (
-          <TouchableOpacity
-            style={styles.alertBanner}
-            onPress={() => router.push('/(panel)/inspecoes')}
-          >
-            <Feather name="alert-triangle" size={20} color="#EF4444" />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.alertTitle}>{kpis[2].value} ALERTA{kpis[2].value > 1 ? 'S' : ''} CRÍTICO{kpis[2].value > 1 ? 'S' : ''}</Text>
-              <Text style={styles.alertDesc}>Vistorias de alto risco requerem atenção imediata.</Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#EF4444" />
-          </TouchableOpacity>
-        )}
+        {(kpis[2]?.value || 0) > 0 ? (
+          <StateBanner
+            title={`${kpis[2].value} ${kpis[2].value > 1 ? 'alertas críticos' : 'alerta crítico'}`}
+            description="Vistorias de alto risco requerem atenção imediata."
+            variant="danger"
+            actionLabel="Ver vistorias"
+            onAction={() => router.push('/(panel)/inspecoes')}
+          />
+        ) : null}
 
         {/* KPI Grid */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Métricas do Município</Text>
+        <SectionHeader title="Métricas do município" subtitle="Visão consolidada da operação local" />
         {erro && kpis.length === 0 ? (
           <ErrorState
             title="Erro ao carregar métricas"
@@ -204,31 +200,12 @@ export default function AdminDashboardScreen() {
             onRetry={() => carregar()}
           />
         ) : (
-        <View style={styles.kpiGrid}>
-          {[
-            { label: 'Total', value: kpis[0]?.value || 0, icon: 'clipboard', color: theme.primary, route: '/(panel)/inspecoes' },
-            { label: 'Hoje', value: kpis[1]?.value || 0, icon: 'calendar', color: '#10B981', route: '/(panel)/inspecoes' },
-            { label: 'Alto Risco', value: kpis[2]?.value || 0, icon: 'alert-triangle', color: '#EF4444', route: '/(panel)/inspecoes' },
-            { label: 'Médio', value: kpis[3]?.value || 0, icon: 'alert-circle', color: '#F59E0B', route: '/(panel)/inspecoes' },
-            { label: 'Agentes', value: kpis[4]?.value || 0, icon: 'users', color: '#8B5CF6', route: '/(panel)/admin/usuarios' },
-          ].map((k) => (
-            <TouchableOpacity 
-              key={k.label} 
-              style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push(k.route as any)}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start' }}>
-                <View style={[styles.kpiIcon, { backgroundColor: `${k.color}15` }]}>
-                  <Feather name={k.icon as any} size={20} color={k.color} />
-                </View>
-                <Feather name="arrow-up-right" size={14} color={theme.textSecondary} style={{ opacity: 0.5 }} />
-              </View>
-              <View style={{ width: '100%' }}>
-                <Text style={[styles.kpiValue, { color: theme.text }]}>{k.value}</Text>
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.metricGrid}>
+          <MetricCard value={kpis[0]?.value || 0} label="Total de vistorias" detail="Base municipal" tone="primary" style={styles.metricWide} />
+          <MetricCard value={kpis[1]?.value || 0} label="Realizadas hoje" tone="success" style={styles.metricHalf} />
+          <MetricCard value={kpis[2]?.value || 0} label="Alto risco" tone="danger" style={styles.metricHalf} />
+          <MetricCard value={kpis[3]?.value || 0} label="Risco médio" tone="warning" style={styles.metricHalf} />
+          <MetricCard value={kpis[4]?.value || 0} label="Agentes ativos" tone="primary" style={styles.metricHalf} />
         </View>
         )}
 
@@ -241,10 +218,10 @@ export default function AdminDashboardScreen() {
             </View>
             <View style={styles.riskBarContainer}>
               {kpis[2].value > 0 && (
-                <View style={[styles.riskSegment, { width: `${(kpis[2].value / kpis[0].value) * 100}%`, backgroundColor: '#EF4444' }]} />
+                <View style={[styles.riskSegment, { width: `${(kpis[2].value / kpis[0].value) * 100}%`, backgroundColor: theme.error }]} />
               )}
               {kpis[3].value > 0 && (
-                <View style={[styles.riskSegment, { width: `${(kpis[3].value / kpis[0].value) * 100}%`, backgroundColor: '#F59E0B' }]} />
+                <View style={[styles.riskSegment, { width: `${(kpis[3].value / kpis[0].value) * 100}%`, backgroundColor: theme.warning }]} />
               )}
               {kpis[0].value - kpis[2].value - kpis[3].value > 0 && (
                 <View style={[styles.riskSegment, { width: `${((kpis[0].value - kpis[2].value - kpis[3].value) / kpis[0].value) * 100}%`, backgroundColor: theme.border }]} />
@@ -252,11 +229,11 @@ export default function AdminDashboardScreen() {
             </View>
             <View style={styles.riskLegend}>
               <View style={styles.riskLegendItem}>
-                <View style={[styles.riskDot, { backgroundColor: '#EF4444' }]} />
+                <View style={[styles.riskDot, { backgroundColor: theme.error }]} />
                 <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Alto ({kpis[2].value})</Text>
               </View>
               <View style={styles.riskLegendItem}>
-                <View style={[styles.riskDot, { backgroundColor: '#F59E0B' }]} />
+                <View style={[styles.riskDot, { backgroundColor: theme.warning }]} />
                 <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Médio ({kpis[3].value})</Text>
               </View>
               <View style={styles.riskLegendItem}>
@@ -279,7 +256,7 @@ export default function AdminDashboardScreen() {
             {ranking.map(({ nome, count }) => {
               const META = 10;
               const progresso = Math.min(count / META, 1);
-              const cor = count >= META ? '#10B981' : count >= META / 2 ? theme.primary : '#F59E0B';
+              const cor = count >= META ? theme.success : count >= META / 2 ? theme.primary : theme.warning;
               return (
                 <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
                   <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
@@ -386,11 +363,14 @@ const styles = StyleSheet.create({
   badge: {
     position: 'absolute', top: -4, right: -4,
     minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: TCSPalette.danger, justifyContent: 'center', alignItems: 'center',
     paddingHorizontal: 3,
   },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 100 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
+  metricWide: { width: '100%', minHeight: 128 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 112 },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 14, marginTop: 4,
@@ -448,12 +428,11 @@ const styles = StyleSheet.create({
   riskLegendText: { fontSize: 12, fontWeight: '600' },
   alertBanner: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    borderRadius: 14, borderWidth: 1,
     padding: 14, marginBottom: 20,
   },
-  alertTitle: { color: '#EF4444', fontSize: 13, fontWeight: '800' },
-  alertDesc: { color: '#EF4444', fontSize: 12, opacity: 0.8, marginTop: 1 },
+  alertTitle: { color: TCSPalette.danger, fontSize: 13, fontWeight: '800' },
+  alertDesc: { color: TCSPalette.danger, fontSize: 12, opacity: 0.8, marginTop: 1 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, marginTop: 4 },
   seeAll: { fontSize: 12, fontWeight: '700' },
   rankCard: {

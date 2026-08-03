@@ -12,6 +12,7 @@ import { resolverApresentacaoRisco } from '../../utils/riscoUtils';
 import { formatarData } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
+import { AppHeader, EmptyState, MetricCard } from '../../components/ui';
 
 type FiltroRisco = 'todos' | 'alto' | 'medio' | 'baixo';
 
@@ -93,54 +94,49 @@ export default function AgenteVistoriasScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-            {agente?.name || 'Agente'}
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {agente?.municipio} · {total} vistorias
-          </Text>
-          {!!agente?.supervisores && (
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-              Supervisor: {agente.supervisores}
-            </Text>
-          )}
-        </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title={agente?.name || 'Agente'}
+          subtitle={`${agente?.municipio || 'Município não informado'} · ${total} vistorias`}
+          onBack={() => router.back()}
+          actionIcon="refresh-cw"
+          actionLabel="Atualizar agente"
+          onAction={() => void loadData()}
+        />
       </View>
 
       {/* Stats do agente */}
-      <View style={[styles.statsBar, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={styles.statsGrid}>
         {[
-          { label: 'Total', value: total, color: theme.primary },
-          { label: 'Alto', value: alto, color: '#EF4444' },
-          { label: 'Médio', value: medio, color: '#F59E0B' },
-          { label: 'Baixo', value: baixo, color: '#10B981' },
+          { label: 'Total', value: total, tone: 'primary' as const },
+          { label: 'Alto', value: alto, tone: 'danger' as const },
+          { label: 'Médio', value: medio, tone: 'warning' as const },
+          { label: 'Baixo', value: baixo, tone: 'success' as const },
         ].map(s => (
-          <View key={s.label} style={styles.statItem}>
-            <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{s.label}</Text>
-          </View>
+          <MetricCard key={s.label} {...s} style={styles.metricCard} />
         ))}
       </View>
 
+      {!!agente?.supervisores && (
+        <View style={[styles.supervisorBar, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+          <Feather name="shield" size={15} color={theme.primary} />
+          <Text style={[styles.supervisorText, { color: theme.textSecondary }]} numberOfLines={1}>Supervisor: {agente.supervisores}</Text>
+        </View>
+      )}
+
       {/* Filtros */}
-      <View style={[styles.filterBar, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.filterBar, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         {([
           { key: 'todos', label: 'Todos', color: theme.primary },
-          { key: 'alto', label: 'Alto', color: '#EF4444' },
-          { key: 'medio', label: 'Médio', color: '#F59E0B' },
-          { key: 'baixo', label: 'Baixo', color: '#10B981' },
+          { key: 'alto', label: 'Alto', color: theme.error },
+          { key: 'medio', label: 'Médio', color: theme.warning },
+          { key: 'baixo', label: 'Baixo', color: theme.success },
         ] as const).map(f => (
           <TouchableOpacity
             key={f.key}
+            accessibilityRole="button"
+            accessibilityLabel={`Filtrar por risco ${f.label}`}
+            accessibilityState={{ selected: filtro === f.key }}
             style={[
               styles.chip,
               filtro === f.key
@@ -149,7 +145,7 @@ export default function AgenteVistoriasScreen() {
             ]}
             onPress={() => setFiltro(f.key)}
           >
-            <Text style={{ color: filtro === f.key ? '#FFF' : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
+            <Text style={{ color: filtro === f.key ? theme.onPrimary : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
               {f.label}
             </Text>
           </TouchableOpacity>
@@ -158,24 +154,25 @@ export default function AgenteVistoriasScreen() {
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {filtradas.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma vistoria encontrada.</Text>
-          </View>
+          <EmptyState icon="clipboard" title="Nenhuma vistoria encontrada" description="Altere o filtro ou aguarde novos registros deste agente." />
         ) : (
           filtradas.map(v => {
             const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
-            const cor = apresentacao.cor;
+            const nivel = String(v.nivelRisco || '').toLowerCase();
+            const cor = ['r3', 'r4', 'alto', 'critico', 'iminente'].includes(nivel)
+              ? theme.error
+              : ['r2', 'medio', 'médio'].includes(nivel) ? theme.warning : theme.success;
+            const riskIcon = cor === theme.error ? 'alert-triangle' : cor === theme.warning ? 'alert-circle' : 'check-circle';
             return (
               <TouchableOpacity
                 key={v.id}
-                style={[styles.vistoriaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Abrir vistoria em ${v.endereco || 'endereço não informado'}, risco ${apresentacao.label}`}
+                style={[styles.vistoriaCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
                 onPress={() => router.push(`/(panel)/inspecoes/${v.id}`)}
               >
                 <View style={[styles.riscoBadge, { backgroundColor: `${cor}15`, borderColor: `${cor}30` }]}>
-                  <Feather
-                    name={cor === '#EF4444' ? 'alert-triangle' : cor === '#F59E0B' ? 'alert-circle' : 'check-circle'}
-                    size={18} color={cor}
-                  />
+                  <Feather name={riskIcon} size={18} color={cor} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 14 }}>
                   <Text style={[styles.endereco, { color: theme.text }]} numberOfLines={1}>
@@ -202,23 +199,10 @@ export default function AgenteVistoriasScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  title: { fontSize: 20, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  statsBar: {
-    flexDirection: 'row', paddingVertical: 16, paddingHorizontal: 24,
-    borderBottomWidth: 1,
-  },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 22, fontWeight: '900' },
-  statLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, padding: 16 },
+  metricCard: { flexGrow: 1, flexBasis: '46%' },
+  supervisorBar: { marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  supervisorText: { flex: 1, fontSize: 12, fontWeight: '600' },
   filterBar: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1,

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Alert
+  View, Text, StyleSheet, TextInput,
+  ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -13,6 +13,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sanitizarTexto, validarNome, validarMunicipio } from '../../../utils/validationUtils';
 import { safeBack } from '../../../utils/navigationUtils';
 import { normalizeCoordinatePair } from '../../../utils/coordinateUtils';
+import {
+  AppHeader,
+  Button,
+  Card,
+  FlowProgress,
+  FormField,
+  SectionHeader,
+  StateBanner,
+} from '../../../components/ui';
+import { FontSize, FontWeight } from '../../../constants/Typography';
+import { Spacing, SpacingAlias } from '../../../constants/Spacing';
 
 /** Estado interno do formulário de endereço */
 interface AddressForm {
@@ -238,157 +249,171 @@ export default function DadosIniciaisScreen() {
     });
   };
 
-  // ─── UI helpers ─────────────────────────────────────────────────────────────
-  const inputStyle = [styles.input, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }];
-
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeBack(backFallback)}>
-          <Feather name="x" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>PASSO 1 DE 3</Text>
-          <Text style={[styles.title, { color: theme.text }]}>Local e Identificação</Text>
-        </View>
-      </View>
-
-      {/* Progress bar (1/3) */}
-      <View style={[styles.progressTrack, { backgroundColor: theme.cardBorder }]}>
-        <View style={[styles.progressFill, { backgroundColor: theme.primary, width: '33%' }]} />
-      </View>
+      <AppHeader
+        title="Local e identificação"
+        subtitle="Nova vistoria"
+        onBack={() => safeBack(backFallback)}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <FlowProgress currentStep={1} totalSteps={3} label="Dados da ocorrência" />
 
-        {/* GPS SECTION */}
-        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>COORDENADAS ALVO</Text>
-        <View style={[styles.gpsCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-          <TouchableOpacity
-            style={[styles.gpsButton, { borderColor: theme.primary }]}
+        <SectionHeader
+          title="Localização da ocorrência"
+          subtitle="Use o GPS para registrar a posição e preencher o endereço"
+        />
+        <Card style={styles.locationCard}>
+          <View style={styles.locationIntro}>
+            <View style={[styles.locationIcon, { backgroundColor: theme.secondary }]}>
+              <Feather name="navigation" size={22} color={theme.primary} />
+            </View>
+            <View style={styles.locationCopy}>
+              <Text style={[styles.locationTitle, { color: theme.text }]}>Posição do aparelho</Text>
+              <Text style={[styles.locationDescription, { color: theme.textSecondary }]}>Quanto maior a precisão, melhor o registro técnico.</Text>
+            </View>
+          </View>
+
+          <Button
+            label={form.lat !== null ? 'Atualizar localização' : 'Obter localização'}
+            variant="secondary"
             onPress={detectarGps}
-            disabled={detectandoGps}
-          >
-            {detectandoGps
-              ? <ActivityIndicator size="small" color={theme.primary} />
-              : <Feather name="navigation" size={16} color={theme.primary} />}
-            <Text style={[styles.gpsButtonText, { color: theme.primary }]}>
-              {detectandoGps ? 'BUSCANDO SINAL...' : 'ATUALIZAR GPS'}
-            </Text>
-          </TouchableOpacity>
+            loading={detectandoGps}
+            iconLeft={<Feather name="crosshair" size={18} color={theme.primaryDark} />}
+            fullWidth
+          />
 
           {form.lat !== null && (
-            <View style={[styles.coordRow, { backgroundColor: theme.iconBackground }]}>
-              <View>
-                <Text style={[styles.coordLabel, { color: theme.textSecondary }]}>LATITUDE</Text>
-                <Text style={[styles.coordValue, { color: theme.text }]}>{form.lat.toFixed(6)}°</Text>
+            <View style={styles.coordinateGrid}>
+              <View style={[styles.coordinateCell, { backgroundColor: theme.secondary }]}>
+                <Text style={[styles.coordinateLabel, { color: theme.textSecondary }]}>Latitude</Text>
+                <Text style={[styles.coordinateValue, { color: theme.text }]}>{form.lat.toFixed(6)}°</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.coordLabel, { color: theme.textSecondary }]}>LONGITUDE</Text>
-                <Text style={[styles.coordValue, { color: theme.text }]}>{form.lng?.toFixed(6)}°</Text>
+              <View style={[styles.coordinateCell, { backgroundColor: theme.secondary }]}>
+                <Text style={[styles.coordinateLabel, { color: theme.textSecondary }]}>Longitude</Text>
+                <Text style={[styles.coordinateValue, { color: theme.text }]}>{form.lng?.toFixed(6)}°</Text>
               </View>
             </View>
           )}
           {form.gpsAcuracia !== null && (
-            <Text style={[styles.accuracy, { color: form.gpsAcuracia <= 20 ? '#10B981' : form.gpsAcuracia <= 50 ? '#F59E0B' : '#EF4444' }]}>
-              Precisão: ±{Math.round(form.gpsAcuracia)}m
-            </Text>
+            <StateBanner
+              variant={form.gpsAcuracia <= 20 ? 'success' : 'warning'}
+              title={`Precisão de ±${Math.round(form.gpsAcuracia)} m`}
+              description={form.gpsAcuracia <= 20 ? 'Sinal adequado para o registro.' : 'Se possível, aguarde em uma área aberta e atualize a localização.'}
+            />
           )}
           {gpsMessage && (
-            <Text style={[styles.gpsMessage, { color: theme.textSecondary }]}>
-              {gpsMessage}
-            </Text>
+            <StateBanner variant="warning" title="Localização não confirmada" description={gpsMessage} />
           )}
-        </View>
+        </Card>
 
-        {/* ADDRESS SECTION */}
-        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>ENDEREÇO DA OCORRÊNCIA</Text>
+        <SectionHeader
+          title="Endereço"
+          subtitle="Confira os dados preenchidos automaticamente antes de avançar"
+        />
 
-        {/* CEP row */}
-        <View style={styles.row}>
-          <View style={{ flex: 3 }}>
-            <TextInput
-              ref={cepRef}
-              style={[inputStyle, erroCep ? { borderColor: '#EF4444' } : null]}
-              placeholder="CEP (ex: 12345-678)"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              maxLength={9}
-              value={form.cep}
-              onChangeText={handleCepChange}
-            />
-            {erroCep !== null && erroCep.length > 0 && (
-              <View style={{
-                flexDirection: 'row', alignItems: 'center',
-                backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
-                borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12,
-                padding: 12, gap: 8, marginTop: 8,
-              }}>
-                <Feather name="alert-circle" size={16} color="#EF4444" />
-                <Text style={{ color: '#EF4444', fontSize: 14, flex: 1 }}>{erroCep}</Text>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity
-            style={[styles.cepButton, { backgroundColor: theme.iconBackground, borderColor: theme.primary }]}
+        <View style={styles.cepRow}>
+          <FormField
+            ref={cepRef}
+            label="CEP"
+            placeholder="00000-000"
+            keyboardType="numeric"
+            returnKeyType="search"
+            maxLength={9}
+            value={form.cep}
+            onChangeText={handleCepChange}
+            onSubmitEditing={() => buscarCep()}
+            error={erroCep ?? undefined}
+            helperText="Opcional, mas ajuda no preenchimento"
+            containerStyle={styles.cepField}
+          />
+          <Button
+            label="Buscar"
+            variant="secondary"
             onPress={() => buscarCep()}
-            disabled={buscandoCep}
-          >
-            {buscandoCep
-              ? <ActivityIndicator size="small" color={theme.primary} />
-              : <Text style={[styles.cepButtonText, { color: theme.primary }]}>BUSCAR</Text>}
-          </TouchableOpacity>
+            loading={buscandoCep}
+            style={styles.cepButton}
+          />
         </View>
 
-        <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Logradouro *</Text>
-        <TextInput style={inputStyle} placeholder="Rua, Avenida, Travessa..." placeholderTextColor={theme.textSecondary} value={form.rua} onChangeText={t => setForm(f => ({ ...f, rua: t }))} />
+        <FormField
+          label="Logradouro"
+          required
+          placeholder="Rua, avenida ou travessa"
+          value={form.rua}
+          onChangeText={t => setForm(f => ({ ...f, rua: t }))}
+          autoCapitalize="words"
+        />
 
-        <View style={[styles.row, { marginTop: 12 }]}>
-          <View style={{ flex: 2 }}>
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Número *</Text>
-            <TextInput style={inputStyle} placeholder="Nº" placeholderTextColor={theme.textSecondary} keyboardType="numeric" value={form.numero} onChangeText={t => setForm(f => ({ ...f, numero: t }))} />
-          </View>
-          <View style={{ flex: 3, marginLeft: 12 }}>
-            <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Bairro *</Text>
-            <TextInput style={inputStyle} placeholder="Bairro" placeholderTextColor={theme.textSecondary} value={form.bairro} onChangeText={t => setForm(f => ({ ...f, bairro: t }))} />
-          </View>
+        <View style={styles.fieldRow}>
+          <FormField
+            label="Número"
+            required
+            placeholder="Nº ou s/n"
+            value={form.numero}
+            onChangeText={t => setForm(f => ({ ...f, numero: t }))}
+            containerStyle={styles.numberField}
+          />
+          <FormField
+            label="Bairro"
+            required
+            placeholder="Bairro"
+            value={form.bairro}
+            onChangeText={t => setForm(f => ({ ...f, bairro: t }))}
+            autoCapitalize="words"
+            containerStyle={styles.neighborhoodField}
+          />
         </View>
 
-        <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-          Município {municipioOrigem === 'gps' ? '(detectado via GPS)' : municipioOrigem === 'cep' ? '(detectado via CEP)' : '(do seu perfil — editável)'}
-        </Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }]}
+        <FormField
+          label="Município"
+          required
           placeholder="Município da ocorrência"
-          placeholderTextColor={theme.textSecondary}
           value={form.municipio}
           onChangeText={t => { setForm(f => ({ ...f, municipio: t })); setMunicipioOrigem('manual'); }}
+          autoCapitalize="words"
+          helperText={municipioOrigem === 'gps'
+            ? 'Detectado pelo GPS — você pode corrigir'
+            : municipioOrigem === 'cep'
+              ? 'Preenchido pelo CEP — você pode corrigir'
+              : municipioOrigem === 'perfil'
+                ? 'Preenchido com o município do seu perfil'
+                : 'Informado manualmente'}
         />
         {municipioOrigem !== 'manual' && form.municipio && profile?.municipio && form.municipio !== profile.municipio && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-            <Feather name="alert-circle" size={13} color="#F59E0B" />
-            <Text style={{ color: '#F59E0B', fontSize: 12, flex: 1 }}>
-              Diferente da sua cidade ({profile.municipio}). Os dados da vistoria serão registrados em {form.municipio}.
-            </Text>
-          </View>
+          <StateBanner
+            variant="warning"
+            title="Município diferente do perfil"
+            description={`Seu perfil está vinculado a ${profile.municipio}. Esta vistoria será registrada em ${form.municipio}.`}
+          />
         )}
 
-        {/* RESPONSIBLE */}
-        <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: 24 }]}>IDENTIFICAÇÃO (OPCIONAL)</Text>
-        <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Nome do Morador / Síndico</Text>
-        <TextInput style={inputStyle} placeholder="Sem CPF — somente nome" placeholderTextColor={theme.textSecondary} value={form.responsavelNome} onChangeText={t => setForm(f => ({ ...f, responsavelNome: t }))} />
+        <SectionHeader
+          title="Pessoa de referência"
+          subtitle="Informação opcional para identificar o atendimento"
+        />
+        <FormField
+          label="Nome do morador ou responsável"
+          placeholder="Informe somente o nome"
+          value={form.responsavelNome}
+          onChangeText={t => setForm(f => ({ ...f, responsavelNome: t }))}
+          autoCapitalize="words"
+          helperText="Não informe CPF ou outros documentos pessoais"
+        />
 
       </ScrollView>
 
-      {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => safeBack(backFallback)}>
-          <Text style={[styles.cancelText, { color: theme.textSecondary }]}>CANCELAR</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.primary, opacity: buscandoCep ? 0.72 : 1 }]} onPress={avancar} disabled={buscandoCep}>
-          <Text style={styles.nextBtnText}>AVANÇAR</Text>
-          <Feather name="arrow-right" size={18} color="#FFF" />
-        </TouchableOpacity>
+      <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, Spacing[4]) }]}>
+        <Button label="Cancelar" variant="ghost" onPress={() => safeBack(backFallback)} style={styles.cancelButton} />
+        <Button
+          label="Escolher formulário"
+          onPress={avancar}
+          disabled={buscandoCep}
+          iconRight={<Feather name="arrow-right" size={18} color={theme.onPrimary} />}
+          style={styles.nextButton}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -396,32 +421,30 @@ export default function DadosIniciaisScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
-  closeBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' },
-  title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  progressTrack: { height: 3 },
-  progressFill: { height: 3 },
-  scrollContent: { padding: 20, paddingBottom: 120 },
-  sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 24, marginBottom: 12 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', marginBottom: 6, marginTop: 12 },
-  gpsCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
-  gpsButton: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 10, paddingVertical: 12, justifyContent: 'center' },
-  gpsButtonText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.8 },
-  coordRow: { flexDirection: 'row', justifyContent: 'space-between', borderRadius: 10, padding: 12 },
-  coordLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
-  coordValue: { fontSize: 15, fontWeight: '700', marginTop: 2 },
-  accuracy: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
-  gpsMessage: { fontSize: 12, lineHeight: 17, textAlign: 'center' },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'flex-end' },
-  input: { height: 60, borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, fontSize: 15, fontWeight: '500' },
-  readonlyField: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
-  cepButton: { flex: 2, height: 60, borderRadius: 16, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-  cepButtonText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.8 },
-  errorText: { color: '#EF4444', fontSize: 12, marginTop: 4 },
-  footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'row', gap: 12 },
-  cancelBtn: { flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-  cancelText: { fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  nextBtn: { flex: 2, height: 56, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  nextBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  scrollContent: { padding: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[4] },
+  locationCard: { gap: Spacing[4] },
+  locationIntro: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  locationIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: SpacingAlias.radiusMd,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationCopy: { flex: 1 },
+  locationTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold },
+  locationDescription: { marginTop: 3, fontSize: FontSize.sm, lineHeight: 17 },
+  coordinateGrid: { flexDirection: 'row', gap: Spacing[2] },
+  coordinateCell: { flex: 1, borderRadius: SpacingAlias.radiusMd, padding: Spacing[3] },
+  coordinateLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  coordinateValue: { marginTop: Spacing[1], fontSize: FontSize.base, fontWeight: FontWeight.bold },
+  cepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[2] },
+  cepField: { flex: 1 },
+  cepButton: { marginTop: 24 },
+  fieldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
+  numberField: { flex: 2 },
+  neighborhoodField: { flex: 3 },
+  footer: { borderTopWidth: 1, padding: Spacing[4], flexDirection: 'row', gap: Spacing[2] },
+  cancelButton: { flex: 1 },
+  nextButton: { flex: 2 },
 });

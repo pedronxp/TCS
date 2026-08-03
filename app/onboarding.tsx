@@ -1,243 +1,190 @@
 import React, { useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  FlatList,
-  Platform,
-  SafeAreaView,
-  TouchableOpacity,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button, Card } from '../components/ui';
+import { ProductIdentity, RiskBar } from '../components/brand';
 import { useTheme } from '../context/ThemeContext';
-import { Button } from '../components/ui';
-import { Typography } from '../constants/Typography';
+import { FontSize, FontWeight } from '../constants/Typography';
 import { Spacing, SpacingAlias } from '../constants/Spacing';
-import { ProductIdentity } from '../components/brand';
 
-const { width, height: screenHeight } = Dimensions.get('window');
+type Tone = 'primary' | 'success' | 'warning' | 'danger';
+
+interface Tile {
+  icon: keyof typeof Feather.glyphMap;
+  title: string;
+  caption: string;
+  tone: Tone;
+  wide?: boolean;
+}
 
 interface SlideData {
   id: string;
-  icon: keyof typeof Feather.glyphMap;
-  color: string;
+  eyebrow: string;
   title: string;
-  subtitle: string;
-  features?: { icon: keyof typeof Feather.glyphMap; text: string }[];
-  isHero?: boolean;
+  description: string;
+  hero?: boolean;
+  tiles: Tile[];
 }
 
 const SLIDES: SlideData[] = [
   {
-    id: '1',
-    icon: 'shield',
-    color: '#3B82F6',
-    title: 'TCS',
-    subtitle: 'Sistema de Vistoria Técnica da Defesa Civil — versão mobile completa.',
-    isHero: true,
-    features: [
-      { icon: 'check-circle', text: '10 elementos estruturais avaliados' },
-      { icon: 'check-circle', text: 'Classificação R1 a R4 conforme norma' },
-      { icon: 'check-circle', text: 'Laudo PDF gerado em campo' },
+    id: 'welcome',
+    eyebrow: 'BEM-VINDO AO TCS',
+    title: 'A operação de campo, organizada.',
+    description: 'Uma experiência única para vistoria, classificação de risco e gestão técnica.',
+    hero: true,
+    tiles: [
+      { icon: 'clipboard', title: 'Vistoria', caption: 'Fluxo técnico guiado', tone: 'primary', wide: true },
+      { icon: 'map-pin', title: 'GPS', caption: 'Localização confiável', tone: 'warning' },
+      { icon: 'file-text', title: 'Laudo', caption: 'PDF em campo', tone: 'success' },
     ],
   },
   {
-    id: '2',
-    icon: 'clipboard',
-    color: '#F59E0B',
-    title: 'Vistoria\nDireta',
-    subtitle: 'Formulários técnicos com fotos, GPS automático e preenchimento offline. Tudo salvo no dispositivo.',
-    features: [
-      { icon: 'map-pin', text: 'GPS automático por vistoria' },
-      { icon: 'camera', text: 'Fotos como evidência' },
-      { icon: 'wifi-off', text: 'Funciona sem internet' },
+    id: 'field',
+    eyebrow: 'TRABALHO EM CAMPO',
+    title: 'Registre com contexto, mesmo offline.',
+    description: 'O TCS mantém a vistoria disponível e organiza cada evidência até a sincronização.',
+    tiles: [
+      { icon: 'wifi-off', title: 'Modo offline', caption: 'Continue trabalhando sem sinal', tone: 'warning', wide: true },
+      { icon: 'camera', title: 'Evidências', caption: 'Fotos vinculadas', tone: 'primary' },
+      { icon: 'navigation', title: 'Território', caption: 'GPS e endereço', tone: 'success' },
+      { icon: 'refresh-cw', title: 'Sincronização', caption: 'Retomada automática', tone: 'primary', wide: true },
     ],
   },
   {
-    id: '3',
-    icon: 'alert-triangle',
-    color: '#EF4444',
-    title: 'Risco\nPreciso',
-    subtitle: 'Avaliação de 10 elementos estruturais com classificação automática R1 (seguro) a R4 (crítico).',
-    features: [
-      { icon: 'check-circle', text: 'R1 · Sem Dano Aparente' },
-      { icon: 'alert-circle', text: 'R3 · Alto Risco' },
-      { icon: 'x-octagon', text: 'R4 · Interdição Imediata' },
+    id: 'risk',
+    eyebrow: 'DECISÃO TÉCNICA',
+    title: 'Risco legível em cada etapa.',
+    description: 'Classificação R1 a R4 com rótulo, cor semântica e histórico para auditoria.',
+    tiles: [
+      { icon: 'check-circle', title: 'R1 · Baixo', caption: 'Acompanhamento', tone: 'success' },
+      { icon: 'alert-circle', title: 'R2 · Médio', caption: 'Atenção técnica', tone: 'warning' },
+      { icon: 'alert-triangle', title: 'R3 · Alto', caption: 'Ação prioritária', tone: 'warning' },
+      { icon: 'x-octagon', title: 'R4 · Crítico', caption: 'Resposta imediata', tone: 'danger' },
     ],
   },
   {
-    id: '4',
-    icon: 'file-text',
-    color: '#8B5CF6',
-    title: 'Laudos\nInstantâneos',
-    subtitle: 'Relatório técnico completo com fotos, localização e classificação. Pronto para impressão e envio.',
-    features: [
-      { icon: 'printer', text: 'PDF pronto para impressão' },
-      { icon: 'share-2', text: 'Compartilhe em um toque' },
-      { icon: 'file-minus', text: 'Termo de interdição incluso' },
-    ],
-  },
-  {
-    id: '5',
-    icon: 'users',
-    color: '#06B6D4',
-    title: 'Gestão\nde Equipes',
-    subtitle: 'Supervisores organizam agentes em grupos, criam agendamentos e acompanham vistorias em tempo real.',
-    features: [
-      { icon: 'grid', text: 'Grupos por área ou turno' },
-      { icon: 'calendar', text: 'Agendamento de vistorias' },
-      { icon: 'map', text: 'Mapa de cobertura municipal' },
+    id: 'profiles',
+    eyebrow: 'UMA PLATAFORMA, VÁRIOS PERFIS',
+    title: 'Cada equipe vê o que precisa.',
+    description: 'Módulos e ações são adaptados ao papel e ao contexto da conta.',
+    tiles: [
+      { icon: 'user', title: 'Agente', caption: 'Campo e laudos', tone: 'primary' },
+      { icon: 'users', title: 'Supervisor', caption: 'Equipe e agenda', tone: 'success' },
+      { icon: 'shield', title: 'Municipal', caption: 'Gestão e auditoria', tone: 'warning' },
+      { icon: 'activity', title: 'Gestão TCS', caption: 'Visão da operação', tone: 'primary' },
     ],
   },
 ];
 
 export default function OnboardingScreen() {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
+  const { width } = useWindowDimensions();
   const [current, setCurrent] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
+  const listRef = useRef<FlatList<SlideData>>(null);
+  const isLast = current === SLIDES.length - 1;
 
-  const handleFinalizar = async () => {
+  const complete = async () => {
     await AsyncStorage.setItem('@onboarding_done', '1');
     router.replace('/(auth)');
   };
 
-  const handleNext = () => {
-    if (current < SLIDES.length - 1) {
-      const next = current + 1;
-      flatListRef.current?.scrollToIndex({ index: next, animated: true });
-      setCurrent(next);
+  const next = () => {
+    if (isLast) {
+      complete();
+      return;
     }
+    const target = current + 1;
+    listRef.current?.scrollToIndex({ index: target, animated: true });
+    setCurrent(target);
   };
 
-  const isLast = current === SLIDES.length - 1;
-  const slideColor = SLIDES[current].color;
+  const tone = (value: Tone) => {
+    if (value === 'success') return { color: theme.success, background: theme.successLight };
+    if (value === 'warning') return { color: theme.warning, background: theme.warningLight };
+    if (value === 'danger') return { color: theme.error, background: theme.errorLight };
+    return { color: theme.primary, background: theme.secondary };
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      <View style={styles.container}>
-
-        {/* ── Top bar ── */}
-        <View style={styles.topBar}>
-          <View style={{ width: 60 }} />
-          <Text style={[styles.topLabel, { color: theme.textSecondary }]}>
-            {current + 1} / {SLIDES.length}
-          </Text>
-          {!isLast ? (
-            <TouchableOpacity
-              onPress={handleFinalizar}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text style={[styles.skipText, { color: theme.textSecondary }]}>Pular</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 60 }} />
-          )}
+      <StatusBar style="dark" />
+      <View style={styles.topBar}>
+        <View style={[styles.stepChip, { backgroundColor: theme.secondary }]}>
+          <Text style={[styles.stepText, { color: theme.primary }]}>{current + 1} de {SLIDES.length}</Text>
         </View>
+        {!isLast ? (
+          <Pressable onPress={complete} hitSlop={10} accessibilityRole="button">
+            <Text style={[styles.skipText, { color: theme.textSecondary }]}>Pular apresentação</Text>
+          </Pressable>
+        ) : <View />}
+      </View>
 
-        {/* ── Slides ── */}
-        <FlatList
-          ref={flatListRef}
-          data={SLIDES}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled
-          keyExtractor={item => item.id}
-          onMomentumScrollEnd={({ nativeEvent }) => {
-            const index = Math.round(nativeEvent.contentOffset.x / width);
-            setCurrent(index);
-          }}
-          renderItem={({ item }) => (
-            <View style={[styles.slide, { width }]}>
-
-              {/* ── Visual ── */}
-              {item.isHero ? (
-                <ProductIdentity variant="hero" />
-              ) : (
-                <View style={[styles.iconRing, { borderColor: `${item.color}30` }]}>
-                  <View style={[styles.iconDisk, { backgroundColor: `${item.color}15` }]}>
-                    <Feather name={item.icon} size={48} color={item.color} />
-                  </View>
-                </View>
-              )}
-
-              {/* ── Barra de risco (só no hero) ── */}
-              {/* ── Text ── */}
-              {!item.isHero && (
-                <>
-                  <Text style={[styles.slideTitle, { color: theme.text }]}>{item.title}</Text>
-                  <Text style={[styles.slideSubtitle, { color: theme.textSecondary }]}>{item.subtitle}</Text>
-                </>
-              )}
-
-              {/* ── Feature chips ── */}
-              {item.features && (
-                <View style={styles.featureList}>
-                  {item.features.map((f: { icon: keyof typeof Feather.glyphMap; text: string }, i: number) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.featureChip,
-                        {
-                          backgroundColor: isDark
-                            ? 'rgba(255,255,255,0.04)'
-                            : 'rgba(0,0,0,0.03)',
-                          borderColor: isDark
-                            ? 'rgba(255,255,255,0.06)'
-                            : 'rgba(0,0,0,0.06)',
-                        },
-                      ]}
-                    >
-                      <Feather
-                        name={f.icon}
-                        size={14}
-                        color={item.color}
-                      />
-                      <Text style={[styles.featureText, { color: theme.text }]}>
-                        {f.text}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+      <FlatList
+        ref={listRef}
+        data={SLIDES}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={item => item.id}
+        onMomentumScrollEnd={({ nativeEvent }) => setCurrent(Math.round(nativeEvent.contentOffset.x / width))}
+        renderItem={({ item }) => (
+          <View style={[styles.slide, { width }]}>
+            <View style={styles.copy}>
+              {item.hero ? <ProductIdentity variant="compact" /> : null}
+              <Text style={[styles.eyebrow, { color: theme.primary }]}>{item.eyebrow}</Text>
+              <Text style={[styles.title, { color: theme.text }]}>{item.title}</Text>
+              <Text style={[styles.description, { color: theme.textSecondary }]}>{item.description}</Text>
+              {item.id === 'risk' ? <RiskBar labelled width={240} /> : null}
             </View>
-          )}
-        />
 
-        {/* ── Bottom controls ── */}
-        <View style={styles.bottom}>
-          {/* Dots */}
-          <View style={styles.dots}>
-            {SLIDES.map((s, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor: i === current ? slideColor : (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'),
-                    width: i === current ? 28 : 8,
-                  },
-                ]}
-              />
-            ))}
+            <View style={styles.grid}>
+              {item.tiles.map(tile => {
+                const colors = tone(tile.tone);
+                return (
+                  <Card
+                    key={`${item.id}-${tile.title}`}
+                    variant="outlined"
+                    style={tile.wide ? { ...styles.tile, ...styles.tileWide } : styles.tile}
+                  >
+                    <View style={[styles.tileIcon, { backgroundColor: colors.background }]}>
+                      <Feather name={tile.icon} size={21} color={colors.color} />
+                    </View>
+                    <Text style={[styles.tileTitle, { color: theme.text }]}>{tile.title}</Text>
+                    <Text style={[styles.tileCaption, { color: theme.textSecondary }]}>{tile.caption}</Text>
+                  </Card>
+                );
+              })}
+            </View>
           </View>
+        )}
+      />
 
-          {/* CTA */}
-          <View style={styles.ctaRow}>
-            <Button
-              variant="primary"
-              onPress={isLast ? handleFinalizar : handleNext}
-            >
-              {isLast ? 'Começar Agora' : 'Próximo'}
-            </Button>
-          </View>
+      <View style={styles.bottomBar}>
+        <View style={styles.progressRow}>
+          {SLIDES.map((slide, index) => (
+            <View
+              key={slide.id}
+              style={[
+                styles.progressSegment,
+                { backgroundColor: index <= current ? theme.primary : theme.border },
+              ]}
+            />
+          ))}
         </View>
-
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          onPress={next}
+          iconRight={<Feather name={isLast ? 'check' : 'arrow-right'} size={19} color={theme.onPrimary} />}
+        >
+          {isLast ? 'Entrar no TCS' : 'Continuar'}
+        </Button>
       </View>
     </SafeAreaView>
   );
@@ -245,112 +192,22 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  container: { flex: 1 },
-
-  /* ── Top bar ── */
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing[6],
-    paddingTop: Platform.OS === 'ios' ? Spacing[2] : Spacing[4],
-    height: 48,
-  },
-  topLabel: {
-    fontSize: Typography.caption.size,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
-  skipText: {
-    fontSize: Typography.body.size,
-    fontWeight: '500',
-    width: 60,
-    textAlign: 'right',
-  },
-
-  /* ── Slide ── */
-  slide: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing[8],
-    paddingBottom: 160,
-  },
-
-  /* Icon ring */
-  iconRing: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing[8],
-  },
-  iconDisk: {
-    width: 114,
-    height: 114,
-    borderRadius: 57,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  /* Text */
-  slideTitle: {
-    fontSize: Typography.h1.size,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: Spacing[3],
-    letterSpacing: -0.5,
-    lineHeight: Typography.h1.size * 1.2,
-  },
-  slideSubtitle: {
-    fontSize: Typography.body.size,
-    textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 300,
-    marginBottom: Spacing[6],
-  },
-
-  /* Feature chips */
-  featureList: {
-    gap: Spacing[2],
-    width: '100%',
-    maxWidth: 300,
-  },
-  featureChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[3],
-    paddingVertical: Spacing[3],
-    paddingHorizontal: Spacing[4],
-    borderRadius: SpacingAlias.radiusMd,
-    borderWidth: 1,
-  },
-  featureText: {
-    fontSize: Typography.bodySmall.size,
-    fontWeight: '500',
-  },
-
-  /* ── Bottom ── */
-  bottom: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? Spacing[8] : Spacing[6],
-    left: 0,
-    right: 0,
-  },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: Spacing[6],
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  ctaRow: {
-    paddingHorizontal: Spacing[8],
-  },
+  topBar: { minHeight: 52, paddingHorizontal: Spacing[5], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  stepChip: { minHeight: 32, borderRadius: SpacingAlias.radiusFull, paddingHorizontal: Spacing[3], justifyContent: 'center' },
+  stepText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  skipText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  slide: { paddingHorizontal: Spacing[5], paddingTop: Spacing[5], paddingBottom: 150, gap: Spacing[6] },
+  copy: { gap: Spacing[3], alignItems: 'flex-start' },
+  eyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.extrabold, letterSpacing: 1.2 },
+  title: { fontSize: 30, lineHeight: 36, fontWeight: FontWeight.extrabold, letterSpacing: -1 },
+  description: { fontSize: FontSize.base, lineHeight: 21, maxWidth: 340 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[3] },
+  tile: { width: '48%', flexGrow: 1, minWidth: 142, minHeight: 132, padding: Spacing[4] },
+  tileWide: { width: '100%', minHeight: 116 },
+  tileIcon: { width: 42, height: 42, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[3] },
+  tileTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold },
+  tileCaption: { fontSize: FontSize.xs, lineHeight: 16, marginTop: 3 },
+  bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: Spacing[5], paddingTop: Spacing[4], paddingBottom: Spacing[5], gap: Spacing[4] },
+  progressRow: { flexDirection: 'row', gap: Spacing[2] },
+  progressSegment: { flex: 1, height: 4, borderRadius: SpacingAlias.radiusFull },
 });

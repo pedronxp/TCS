@@ -8,7 +8,6 @@ import { useTheme } from '../context/ThemeContext';
 
 interface GuideItem {
   icon: React.ComponentProps<typeof Feather>['name'];
-  color: string;
   title: string;
   description: string;
 }
@@ -24,22 +23,22 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Vistorias & Campo',
       items: [
         {
-          icon: 'plus-circle', color: '#3B82F6',
+          icon: 'plus-circle',
           title: 'Nova Vistoria',
           description: 'Inicia uma inspeção técnica. Preencha endereço, responda o formulário de riscos e salve. Funciona sem internet — sincroniza ao reconectar.',
         },
         {
-          icon: 'clipboard', color: '#F59E0B',
+          icon: 'clipboard',
           title: 'Inspeções',
           description: 'Histórico das suas vistorias. Acesse laudos, relatórios e status de sincronização. Vistorias pendentes têm badge amarelo.',
         },
         {
-          icon: 'map', color: '#10B981',
+          icon: 'map',
           title: 'Mapa Tático',
           description: 'Visualize suas vistorias georeferenciadas. Filtre por nível de risco (R1–R4) e período. Disponível offline com dados já carregados.',
         },
         {
-          icon: 'calendar', color: '#8B5CF6',
+          icon: 'calendar',
           title: 'Agendamentos',
           description: 'Vistorias agendadas para você por supervisores. Quando há agendamento pendente, um número aparece no ícone de calendário.',
         },
@@ -49,12 +48,12 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Documentos',
       items: [
         {
-          icon: 'file-text', color: '#EF4444',
+          icon: 'file-text',
           title: 'Laudo Técnico',
           description: 'Gerado ao concluir a avaliação de risco de uma vistoria. Contém protocolo único, endereço, pontuação e classificação (R1–R4).',
         },
         {
-          icon: 'bar-chart-2', color: '#06B6D4',
+          icon: 'bar-chart-2',
           title: 'Relatório',
           description: 'Documento detalhado com respostas do formulário, fotos e histórico. Acesse pelo módulo Relatórios ou dentro de uma vistoria.',
         },
@@ -64,7 +63,7 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Modo Offline',
       items: [
         {
-          icon: 'wifi-off', color: '#F59E0B',
+          icon: 'wifi-off',
           title: 'Sem conexão?',
           description: 'O app funciona normalmente offline. Vistorias são salvas localmente e sincronizadas automaticamente assim que a internet voltar. Procure o banner amarelo na tela.',
         },
@@ -77,17 +76,17 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Gestão de Equipe',
       items: [
         {
-          icon: 'users', color: '#10B981',
+          icon: 'users',
           title: 'Equipe',
           description: 'Veja todos os agentes do município, histórico de vistorias por agente, desempenho mensal e ranking.',
         },
         {
-          icon: 'send', color: '#8B5CF6',
+          icon: 'send',
           title: 'Atribuições',
           description: 'Delegue vistorias específicas para agentes. O agente recebe notificação automática com endereço e prioridade.',
         },
         {
-          icon: 'calendar', color: '#3B82F6',
+          icon: 'calendar',
           title: 'Agendamentos',
           description: 'Crie agendamentos vinculados a agentes específicos. O agente vê o agendamento e pode iniciar a vistoria diretamente da tela de detalhe.',
         },
@@ -97,17 +96,17 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Monitoramento',
       items: [
         {
-          icon: 'clipboard', color: '#F59E0B',
+          icon: 'clipboard',
           title: 'Inspeções',
           description: 'Suas vistorias pessoais de campo. Para ver vistorias de toda a equipe, use o painel de Equipe.',
         },
         {
-          icon: 'map', color: '#10B981',
+          icon: 'map',
           title: 'Mapa Tático',
           description: 'Todas as vistorias do município no mapa. Heatmap de risco, filtro por período e navegação para cada local.',
         },
         {
-          icon: 'alert-triangle', color: '#EF4444',
+          icon: 'alert-triangle',
           title: 'Alertas de Risco',
           description: 'O dashboard exibe automaticamente alertas quando há vistorias R3/R4 críticas no município.',
         },
@@ -117,7 +116,7 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Modo Offline',
       items: [
         {
-          icon: 'wifi-off', color: '#F59E0B',
+          icon: 'wifi-off',
           title: 'Sem conexão?',
           description: 'Vistorias e agendamentos são salvos localmente. Dados de equipe e mapas ficam indisponíveis sem internet — os dados locais continuam acessíveis.',
         },
@@ -130,17 +129,17 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Gestão de Acesso',
       items: [
         {
-          icon: 'users', color: '#10B981',
+          icon: 'users',
           title: 'Usuários',
           description: 'Aprove ou bloqueie contas de agentes, supervisores e admins do seu município. Usuários aguardando aprovação aparecem destacados.',
         },
         {
-          icon: 'key', color: '#8B5CF6',
+          icon: 'key',
           title: 'Tokens de Acesso',
           description: 'Gere códigos de convite para novos usuários. Você tem um limite mensal (exibido ao gerar). Cada token define a role e expira em até 30 dias.',
         },
         {
-          icon: 'user-plus', color: '#3B82F6',
+          icon: 'user-plus',
           title: 'Grupos',
           description: 'Organize agentes em grupos de trabalho. Útil para municípios com múltiplas regiões ou equipes especializadas.',
         },
@@ -150,17 +149,17 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Análise & Documentos',
       items: [
         {
-          icon: 'bar-chart-2', color: '#06B6D4',
+          icon: 'bar-chart-2',
           title: 'Relatórios',
           description: 'Exporte relatórios gerenciais de vistorias do município. Filtre por período, agente ou nível de risco. Gere CSV ou PDF.',
         },
         {
-          icon: 'clipboard', color: '#F59E0B',
+          icon: 'clipboard',
           title: 'Inspeções',
           description: 'Visualize todas as vistorias do município. Acesse detalhes, laudos e relatórios de qualquer agente.',
         },
         {
-          icon: 'hash', color: '#F97316',
+          icon: 'hash',
           title: 'Guia de Protocolo',
           description: 'Explica o formato dos números de laudo: TCS-CIDADE-AAAAMMDD-HASH. Acesse pelo dashboard para entender cada parte do protocolo.',
         },
@@ -170,7 +169,7 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Limites & Suporte',
       items: [
         {
-          icon: 'info', color: '#94A3B8',
+          icon: 'info',
           title: 'Limite de Tokens',
           description: 'Cada admin tem um limite mensal de tokens. Ao atingir o limite, solicite aumento ao Master Admin — ele receberá uma notificação automática.',
         },
@@ -183,17 +182,17 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Controle Global',
       items: [
         {
-          icon: 'map', color: '#8B5CF6',
+          icon: 'map',
           title: 'Municípios',
           description: 'Cadastre e gerencie todos os municípios do sistema. Cada município tem seus próprios administradores, equipes e vistorias.',
         },
         {
-          icon: 'users', color: '#10B981',
+          icon: 'users',
           title: 'Usuários',
           description: 'Visualize todos os usuários do sistema sem filtro de município. Aprovações, bloqueios e alterações de role de qualquer usuário.',
         },
         {
-          icon: 'key', color: '#8B5CF6',
+          icon: 'key',
           title: 'Tokens',
           description: 'Monitore todos os tokens gerados por qualquer admin. A seção "Por Administrador" mostra quantos tokens cada admin criou. Você é notificado quando um admin gera um token.',
         },
@@ -203,17 +202,17 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Análise de Dados',
       items: [
         {
-          icon: 'bar-chart-2', color: '#06B6D4',
+          icon: 'bar-chart-2',
           title: 'Relatórios',
           description: 'Acesso global a todos os relatórios. Dados de todos os municípios sem filtro.',
         },
         {
-          icon: 'clipboard', color: '#F59E0B',
+          icon: 'clipboard',
           title: 'Inspeções',
           description: 'Todas as vistorias do sistema, sem filtro de município. Use os filtros da tela para segmentar por cidade ou agente.',
         },
         {
-          icon: 'alert-triangle', color: '#EF4444',
+          icon: 'alert-triangle',
           title: 'Distribuição de Risco',
           description: 'Toque no card "Distribuição de Risco" do dashboard para ver um ranking de municípios com mais vistorias R3/R4. Identifique focos críticos rapidamente.',
         },
@@ -223,12 +222,12 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
       heading: 'Auditoria & Sistema',
       items: [
         {
-          icon: 'activity', color: '#F97316',
+          icon: 'activity',
           title: 'Logs do Sistema',
           description: 'Auditoria completa de ações administrativas: aprovações, tokens gerados, logins com falha, sincronizações. Acesse via Módulos → Logs.',
         },
         {
-          icon: 'hash', color: '#F97316',
+          icon: 'hash',
           title: 'Guia de Protocolo',
           description: 'Explica o formato TCS-CIDADE-AAAAMMDD-HASH para administradores que não conhecem o padrão de numeração dos laudos.',
         },
@@ -248,6 +247,12 @@ export function DashboardGuide({ role, inline }: DashboardGuideProps) {
   const [visible, setVisible] = useState(false);
 
   const sections = GUIDE_CONTENT[role] ?? GUIDE_CONTENT['agent'];
+  const moduleColor = (icon: GuideItem['icon']) => {
+    if (['alert-triangle', 'file-text'].includes(icon)) return theme.error;
+    if (['wifi-off', 'clipboard', 'activity', 'hash'].includes(icon)) return theme.warning;
+    if (['map', 'users'].includes(icon)) return theme.success;
+    return theme.primary;
+  };
 
   const trigger = inline ? (
     <TouchableOpacity
@@ -286,7 +291,7 @@ export function DashboardGuide({ role, inline }: DashboardGuideProps) {
         transparent
         onRequestClose={() => setVisible(false)}
       >
-        <View style={styles.overlay}>
+        <View style={[styles.overlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {/* Handle */}
             <View style={[styles.handle, { backgroundColor: theme.border }]} />
@@ -313,20 +318,20 @@ export function DashboardGuide({ role, inline }: DashboardGuideProps) {
                   <Text style={[styles.sectionHeading, { color: theme.textSecondary }]}>
                     {section.heading.toUpperCase()}
                   </Text>
-                  {section.items.map((item, ii) => (
-                    <View
-                      key={ii}
-                      style={[styles.guideCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-                    >
-                      <View style={[styles.guideIcon, { backgroundColor: `${item.color}15` }]}>
-                        <Feather name={item.icon} size={18} color={item.color} />
+                  {section.items.map((item, ii) => {
+                    const color = moduleColor(item.icon);
+                    return (
+                      <View key={ii} style={[styles.guideCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
+                        <View style={[styles.guideIcon, { backgroundColor: `${color}15` }]}>
+                          <Feather name={item.icon} size={18} color={color} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.guideTitle, { color: theme.text }]}>{item.title}</Text>
+                          <Text style={[styles.guideDesc, { color: theme.textSecondary }]}>{item.description}</Text>
+                        </View>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.guideTitle, { color: theme.text }]}>{item.title}</Text>
-                        <Text style={[styles.guideDesc, { color: theme.textSecondary }]}>{item.description}</Text>
-                      </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               ))}
 
@@ -360,11 +365,7 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12, borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',
   },
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
+  overlay: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     borderWidth: 1, maxHeight: '90%',

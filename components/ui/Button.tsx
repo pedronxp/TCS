@@ -1,23 +1,22 @@
-// components/ui/Button.tsx
 import React from 'react';
 import {
-  TouchableOpacity,
-  Text,
   ActivityIndicator,
+  Pressable,
   StyleSheet,
-  ViewStyle,
+  Text,
   TextStyle,
   View,
+  ViewStyle,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { FontSize, FontWeight } from '../../constants/Typography';
-import { Spacing, SpacingAlias } from '../../constants/Spacing';
+import { ComponentSize, Spacing, SpacingAlias } from '../../constants/Spacing';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
-interface ButtonProps {
+export interface ButtonProps {
   onPress: () => void;
   label?: string;
   children?: string;
@@ -25,15 +24,14 @@ interface ButtonProps {
   size?: ButtonSize;
   loading?: boolean;
   disabled?: boolean;
-  /** Ícone à esquerda do label — elemento React (ex: <Feather name="plus" />) */
   iconLeft?: React.ReactNode;
-  /** Ícone à direita do label */
   iconRight?: React.ReactNode;
   style?: ViewStyle;
   labelStyle?: TextStyle;
   testID?: string;
-  /** Habilita feedback haptico no press (padrão: true para primary) */
   haptic?: boolean;
+  fullWidth?: boolean;
+  accessibilityLabel?: string;
 }
 
 export const Button = React.memo(function Button({
@@ -50,31 +48,29 @@ export const Button = React.memo(function Button({
   labelStyle,
   testID,
   haptic,
+  fullWidth = false,
+  accessibilityLabel,
 }: ButtonProps) {
-  const { theme, isDark } = useTheme();
-
+  const { theme } = useTheme();
   const isDisabled = disabled || loading;
-  const shouldHaptic = haptic ?? (variant === 'primary');
+  const shouldHaptic = haptic ?? variant === 'primary';
+  const variantStyles = getVariantStyles(variant, theme);
+  const sizeStyles = getSizeStyles(size);
 
   const handlePress = () => {
     if (isDisabled) return;
     if (shouldHaptic) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     }
     onPress();
   };
-
-  // ── Cores por variante ──
-  const variantStyles = getVariantStyles(variant, theme, isDark);
-
-  // ── Tamanhos ──
-  const sizeStyles = getSizeStyles(size);
 
   const containerStyle: ViewStyle = {
     ...styles.base,
     ...sizeStyles.container,
     ...variantStyles.container,
-    opacity: isDisabled ? 0.5 : 1,
+    opacity: isDisabled ? theme.disabledOpacity : 1,
+    ...(fullWidth ? { width: '100%' } : {}),
   };
 
   const textStyle: TextStyle = {
@@ -84,18 +80,22 @@ export const Button = React.memo(function Button({
   };
 
   return (
-    <TouchableOpacity
-      style={[containerStyle, style]}
+    <Pressable
+      style={({ pressed }) => [
+        containerStyle,
+        pressed && !isDisabled && styles.pressed,
+        style,
+      ]}
       onPress={handlePress}
       disabled={isDisabled}
-      activeOpacity={0.75}
       testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label ?? children}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      android_ripple={{ color: theme.pressedOverlay, borderless: false }}
     >
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={variantStyles.label.color}
-        />
+        <ActivityIndicator size="small" color={variantStyles.label.color} />
       ) : (
         <View style={styles.content}>
           {iconLeft ? <View style={styles.iconLeft}>{iconLeft}</View> : null}
@@ -103,31 +103,28 @@ export const Button = React.memo(function Button({
           {iconRight ? <View style={styles.iconRight}>{iconRight}</View> : null}
         </View>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 });
-
-// ── Helpers de estilo ──
 
 function getVariantStyles(
   variant: ButtonVariant,
   theme: ReturnType<typeof useTheme>['theme'],
-  isDark: boolean
 ): { container: ViewStyle; label: TextStyle } {
   switch (variant) {
     case 'primary':
       return {
         container: { backgroundColor: theme.primary },
-        label: { color: '#FFFFFF' },
+        label: { color: theme.onPrimary },
       };
     case 'secondary':
       return {
         container: {
-          backgroundColor: theme.primaryLight,
+          backgroundColor: theme.secondary,
           borderWidth: 1,
-          borderColor: isDark ? 'rgba(59,130,246,0.3)' : '#BFDBFE',
+          borderColor: theme.accent,
         },
-        label: { color: theme.primary },
+        label: { color: theme.primaryDark },
       };
     case 'ghost':
       return {
@@ -141,7 +138,7 @@ function getVariantStyles(
     case 'danger':
       return {
         container: { backgroundColor: theme.error },
-        label: { color: '#FFFFFF' },
+        label: { color: theme.onPrimary },
       };
   }
 }
@@ -154,32 +151,32 @@ function getSizeStyles(size: ButtonSize): {
     case 'sm':
       return {
         container: {
-          paddingHorizontal: Spacing[3],  // 12
-          paddingVertical: Spacing[2],    // 8
-          borderRadius: SpacingAlias.radiusSm, // 6
-          minHeight: 36,
+          paddingHorizontal: Spacing[3],
+          paddingVertical: Spacing[2],
+          borderRadius: SpacingAlias.radiusSm,
+          minHeight: ComponentSize.buttonSm,
         },
-        label: { fontSize: FontSize.sm },  // 12
+        label: { fontSize: FontSize.sm },
       };
     case 'md':
       return {
         container: {
-          paddingHorizontal: SpacingAlias.buttonPaddingH,  // 16
-          paddingVertical: SpacingAlias.buttonPaddingV,    // 12
-          borderRadius: SpacingAlias.radiusMd,             // 12
-          minHeight: 48,
+          paddingHorizontal: SpacingAlias.buttonPaddingH,
+          paddingVertical: SpacingAlias.buttonPaddingV,
+          borderRadius: SpacingAlias.radiusMd,
+          minHeight: ComponentSize.buttonMd,
         },
-        label: { fontSize: FontSize.base },  // 14
+        label: { fontSize: FontSize.base },
       };
     case 'lg':
       return {
         container: {
-          paddingHorizontal: Spacing[6],   // 24
-          paddingVertical: Spacing[4],     // 16
+          paddingHorizontal: Spacing[6],
+          paddingVertical: Spacing[4],
           borderRadius: SpacingAlias.radiusMd,
-          minHeight: 56,
+          minHeight: ComponentSize.buttonLg,
         },
-        label: { fontSize: FontSize.md },  // 16
+        label: { fontSize: FontSize.md },
       };
   }
 }
@@ -189,6 +186,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  pressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.99 }],
   },
   content: {
     flexDirection: 'row',
@@ -199,9 +201,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   iconLeft: {
-    marginRight: Spacing[2],  // 8
+    marginRight: Spacing[2],
   },
   iconRight: {
-    marginLeft: Spacing[2],  // 8
+    marginLeft: Spacing[2],
   },
 });

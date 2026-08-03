@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { navSystemBottom } from '../utils/useBottomTabPadding';
+import { FontSize, FontWeight } from '../constants/Typography';
+import { Spacing, SpacingAlias } from '../constants/Spacing';
 
 interface NavTab {
   key: string;
@@ -16,37 +18,36 @@ interface NavTab {
 }
 
 const TABS_AGENT: NavTab[] = [
-  { key: 'home',     label: 'Início',   icon: 'home',      route: '/(panel)/dashboard',  matchPaths: ['/dashboard'] },
-  { key: 'inspecoes',label: 'Vistorias',icon: 'clipboard', route: '/(panel)/inspecoes',  matchPaths: ['/inspecoes'] },
-  { key: 'mapas',    label: 'Mapa',     icon: 'map',       route: '/(panel)/mapas',      matchPaths: ['/mapas'] },
-  { key: 'modulos',  label: 'Módulos',  icon: 'grid',      route: '/(panel)/modulos',    matchPaths: ['/modulos'] },
+  { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/dashboard', matchPaths: ['/dashboard'] },
+  { key: 'inspecoes', label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
+  { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const TABS_SUPERVISOR: NavTab[] = [
-  { key: 'home',     label: 'Início',   icon: 'home',      route: '/(panel)/supervisor', matchPaths: ['/supervisor'] },
-  { key: 'inspecoes',label: 'Vistorias',icon: 'clipboard', route: '/(panel)/inspecoes',  matchPaths: ['/inspecoes'] },
-  { key: 'mapas',    label: 'Mapa',     icon: 'map',       route: '/(panel)/mapas',      matchPaths: ['/mapas'] },
-  { key: 'modulos',  label: 'Módulos',  icon: 'grid',      route: '/(panel)/modulos',    matchPaths: ['/modulos'] },
+  { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/supervisor', matchPaths: ['/supervisor'] },
+  { key: 'inspecoes', label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
+  { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const TABS_ADMIN: NavTab[] = [
-  { key: 'home',      label: 'Início',    icon: 'home',        route: '/(panel)/admin',           matchPaths: ['/admin'] },
-  { key: 'mapas',     label: 'Mapa',      icon: 'map',         route: '/(panel)/mapas',           matchPaths: ['/mapas'] },
-  { key: 'relatorios',label: 'Relatórios',icon: 'bar-chart-2', route: '/(panel)/admin/relatorios', matchPaths: ['/admin/relatorios'] },
-  { key: 'modulos',   label: 'Módulos',   icon: 'grid',        route: '/(panel)/modulos',         matchPaths: ['/modulos'] },
+  { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/admin', matchPaths: ['/admin'] },
+  { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'relatorios', label: 'Relatórios', icon: 'bar-chart-2', route: '/(panel)/admin/relatorios', matchPaths: ['/admin/relatorios'] },
+  { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const TABS_MASTER: NavTab[] = [
-  { key: 'home',     label: 'Início',   icon: 'home',      route: '/(panel)/master',    matchPaths: ['/master'] },
-  { key: 'inspecoes',label: 'Vistorias',icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
-  { key: 'mapas',    label: 'Mapa',     icon: 'map',       route: '/(panel)/mapas',     matchPaths: ['/mapas'] },
-  { key: 'modulos',  label: 'Módulos',  icon: 'grid',      route: '/(panel)/modulos',   matchPaths: ['/modulos'] },
+  { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/master', matchPaths: ['/master'] },
+  { key: 'inspecoes', label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
+  { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const NAVBAR_VISIBLE_PATHS = [
   '/dashboard', '/inspecoes', '/perfil', '/modulos', '/mapas',
-  '/admin', '/supervisor', '/master',
-  '/admin/relatorios', '/admin/estatisticas',
+  '/admin', '/supervisor', '/master', '/admin/relatorios', '/admin/estatisticas',
 ];
 
 interface BottomNavBarInnerProps {
@@ -57,125 +58,86 @@ interface BottomNavBarInnerProps {
 export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname }: BottomNavBarInnerProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-
-  const shouldShow = NAVBAR_VISIBLE_PATHS.some(p => {
-    const norm = pathname.replace(/\/+$/, '');
-    return norm === p || norm.endsWith(p);
-  });
+  const normalizedPath = pathname.replace(/\/+$/, '');
+  const shouldShow = NAVBAR_VISIBLE_PATHS.some(path => normalizedPath === path || normalizedPath.endsWith(path));
 
   if (!shouldShow) return null;
 
-  let tabs: NavTab[];
-  switch (role) {
-    case 'master_admin': tabs = TABS_MASTER; break;
-    case 'admin':        tabs = TABS_ADMIN; break;
-    case 'supervisor':   tabs = TABS_SUPERVISOR; break;
-    default:             tabs = TABS_AGENT;
-  }
+  const tabs = role === 'master_admin'
+    ? TABS_MASTER
+    : role === 'admin'
+      ? TABS_ADMIN
+      : role === 'supervisor'
+        ? TABS_SUPERVISOR
+        : TABS_AGENT;
 
-  const isActive = (tab: NavTab) => {
-    const norm = pathname.replace(/\/+$/, '');
-    return (tab.matchPaths ?? [tab.route]).some(p => norm === p || norm.endsWith(p));
-  };
+  const isActive = (tab: NavTab) => (
+    (tab.matchPaths ?? [tab.route]).some(path => normalizedPath === path || normalizedPath.endsWith(path))
+  );
 
   return (
-    <View style={[styles.container, {
-      backgroundColor: theme.surfaceHighlight,
-      borderTopColor: theme.border,
-      paddingBottom: navSystemBottom(insets),
-    }]}>
-      {tabs.map(tab => {
-        const active = isActive(tab);
-        return (
-          <TouchableOpacity
-            key={tab.key}
-            style={styles.tab}
-            onPress={() => router.push(tab.route as any)}
-            activeOpacity={0.7}
-          >
-            {/* Indicador topo */}
-            <View style={[styles.topBar, active && { backgroundColor: theme.primary }]} />
-
-            {/* Ícone com fundo ao ativar */}
-            <View style={[
-              styles.iconPill,
-              active && { backgroundColor: `${theme.primary}18` },
-            ]}>
-              <Feather
-                name={tab.icon}
-                size={active ? 23 : 21}
-                color={active ? theme.primary : theme.textSecondary}
-              />
-            </View>
-
-            {/* Label */}
-            <Text style={[
-              styles.label,
-              { color: active ? theme.primary : theme.textSecondary },
-              active && styles.labelActive,
-            ]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View style={styles.wrapper} pointerEvents="box-none">
+      <View
+        style={[
+          styles.dock,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            paddingBottom: Math.max(navSystemBottom(insets), Spacing[2]),
+          },
+        ]}
+      >
+        {tabs.map(tab => {
+          const active = isActive(tab);
+          return (
+            <Pressable
+              key={tab.key}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: active }}
+              onPress={() => router.push(tab.route as any)}
+              style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+            >
+              <View style={[styles.iconTile, active && { backgroundColor: theme.secondary }]}>
+                <Feather name={tab.icon} size={21} color={active ? theme.primary : theme.textSecondary} />
+              </View>
+              <Text style={[styles.label, { color: active ? theme.primary : theme.textSecondary }, active && styles.labelActive]}>
+                {tab.label}
+              </Text>
+              <View style={[styles.dot, { backgroundColor: active ? theme.primary : 'transparent' }]} />
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingTop: 0,
-    paddingHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 12,
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 0,
-  },
-  topBar: {
-    width: 28,
-    height: 3,
-    borderRadius: 0,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-    marginBottom: 6,
-    backgroundColor: 'transparent',
-  },
-  iconPill: {
-    width: 46,
-    height: 34,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 3,
-  },
-  label: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  labelActive: {
-    fontWeight: '700',
-  },
 });
 
 export function BottomNavBar() {
   const { profile } = useAuth();
   const pathname = usePathname();
-
   if (!profile) return null;
-
   return <BottomNavBarInner role={profile.role} pathname={pathname} />;
 }
+
+const styles = StyleSheet.create({
+  wrapper: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: Spacing[3], paddingBottom: Spacing[2] },
+  dock: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: SpacingAlias.radiusXl,
+    paddingHorizontal: Spacing[2],
+    paddingTop: Spacing[2],
+    shadowColor: '#171A18',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  tab: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  pressed: { opacity: 0.72 },
+  iconTile: { width: 40, height: 30, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
+  labelActive: { fontWeight: FontWeight.bold },
+  dot: { width: 4, height: 4, borderRadius: 2 },
+});

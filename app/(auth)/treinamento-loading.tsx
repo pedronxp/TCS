@@ -7,11 +7,12 @@ import { useTraining } from '../../context/TrainingContext';
 import { trainingEntryMessage, TrainingEntryResult } from '../../services/TrainingService';
 import { supabase } from '../../utils/supabase';
 import { ProductIdentity } from '../../components/brand';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SUCCESS_VISIBLE_MS = 5000;
 
 export default function TreinamentoLoadingScreen() {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { nome, token } = useLocalSearchParams<{ nome?: string; token?: string }>();
   const { enter } = useTraining();
   const [result, setResult] = useState<TrainingEntryResult | null>(null);
@@ -49,7 +50,7 @@ export default function TreinamentoLoadingScreen() {
   const pendingAccess = loading || (ok && redirecting);
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#080C14' : '#F0F4FF' }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ProductIdentity variant="compact" />
       <Text style={[styles.title, { color: theme.text }]}>
         {loading ? 'Validando treinamento' : ok ? 'Entrada confirmada' : 'Acesso indisponível'}
@@ -62,13 +63,13 @@ export default function TreinamentoLoadingScreen() {
             : trainingEntryMessage(result || { status: 'error' })}
       </Text>
 
-      <View style={[styles.statusCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+      <View style={[styles.statusCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         {pendingAccess ? (
           <ActivityIndicator size="large" color={theme.primary} />
         ) : ok ? (
-          <Feather name="check-circle" size={42} color="#10B981" />
+          <Feather name="check-circle" size={42} color={theme.success} />
         ) : (
-          <Feather name="alert-circle" size={42} color="#EF4444" />
+          <Feather name="alert-circle" size={42} color={theme.error} />
         )}
         {ok && (
           <Text style={[styles.countText, { color: theme.text }]}>
@@ -78,12 +79,12 @@ export default function TreinamentoLoadingScreen() {
       </View>
 
       {!loading && !ok && (
-        <TouchableOpacity style={[styles.backBtn, { borderColor: theme.border }]} onPress={() => router.replace('/(auth)/treinamento')}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Voltar ao acesso de treinamento" style={[styles.backBtn, { borderColor: theme.border }]} onPress={() => router.replace('/(auth)/treinamento')}>
           <Feather name="arrow-left" size={16} color={theme.textSecondary} />
           <Text style={[styles.backText, { color: theme.textSecondary }]}>Voltar</Text>
         </TouchableOpacity>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -13,7 +13,7 @@ import { logger } from '../../../utils/logger';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Badge } from '../../../components/ui/Badge';
+import { AppHeader, Badge, ConfirmSheet, MetricCard, StateBanner } from '../../../components/ui';
 import { formatarDataHora } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
@@ -23,9 +23,9 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 function getTempoRestante(expiresAt: string | null) {
-  if (!expiresAt) return { texto: 'Sem prazo', cor: '#10B981', expirado: false };
+  if (!expiresAt) return { texto: 'Sem prazo', tone: 'success' as const, expirado: false };
   const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return { texto: 'Expirado', cor: '#EF4444', expirado: true };
+  if (diff <= 0) return { texto: 'Expirado', tone: 'error' as const, expirado: true };
   const horas = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
   const dias = Math.floor(horas / 24);
@@ -33,8 +33,8 @@ function getTempoRestante(expiresAt: string | null) {
   if (dias > 0) texto = `${dias}d ${horas % 24}h`;
   else if (horas > 0) texto = `${horas}h ${mins}min`;
   else texto = `${mins}min`;
-  const cor = diff < 2 * 3600000 ? '#EF4444' : diff < 24 * 3600000 ? '#F59E0B' : '#10B981';
-  return { texto, cor, expirado: false };
+  const tone = diff < 2 * 3600000 ? 'error' as const : diff < 24 * 3600000 ? 'warning' as const : 'success' as const;
+  return { texto, tone, expirado: false };
 }
 
 export default function TokensScreen() {
@@ -49,6 +49,7 @@ export default function TokensScreen() {
   const [erro, setErro] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [limpando, setLimpando] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<{ lista: any[]; titulo: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [tick, setTick] = useState(0);
 
@@ -175,55 +176,32 @@ export default function TokensScreen() {
   };
 
   const cancelarToken = (token: any) => {
-    Alert.alert(
-      'Cancelar token?',
-      `O código "${token.codigo}" será invalidado e não poderá mais ser usado.`,
-      [
-        { text: 'Manter', style: 'cancel' },
-        {
-          text: 'Cancelar Token', style: 'destructive', onPress: async () => {
-            setCancelando(token.codigo);
-            try {
-              await supabase.from('invite_tokens').delete().eq('codigo', token.codigo);
-              setTokens(prev => prev.filter(t => t.codigo !== token.codigo));
-              logger.info('token', `Token cancelado manualmente: ${token.codigo}`);
-            } catch (e) {
-              Alert.alert('Erro', 'Não foi possível cancelar o token.');
-              logger.error('token', 'Erro ao cancelar token', { codigo: token.codigo, erro: String(e) });
-            } finally {
-              setCancelando(null);
-            }
-          }
-        }
-      ]
-    );
+    setPendingRemoval({ lista: [token], titulo: 'Token ativo' });
   };
 
   const limparSecao = (lista: any[], titulo: string) => {
     if (lista.length === 0) return;
-    Alert.alert(
-      `Limpar ${titulo.toLowerCase()}?`,
-      `${lista.length} token${lista.length > 1 ? 's' : ''} ${titulo.toLowerCase()} será${lista.length > 1 ? 'ão' : ''} removido${lista.length > 1 ? 's' : ''}.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Limpar', style: 'destructive', onPress: async () => {
-            setLimpando(true);
-            try {
-              const codigos = lista.map(t => t.codigo);
-              await supabase.from('invite_tokens').delete().in('codigo', codigos);
-              setTokens(prev => prev.filter(t => !codigos.includes(t.codigo)));
-              logger.info('token', `${codigos.length} tokens ${titulo.toLowerCase()} removidos`);
-            } catch (e) {
-              Alert.alert('Erro', `Não foi possível limpar os tokens ${titulo.toLowerCase()}.`);
-              logger.error('token', `Erro ao limpar tokens ${titulo.toLowerCase()}`, { erro: String(e) });
-            } finally {
-              setLimpando(false);
-            }
-          }
-        }
-      ]
-    );
+    setPendingRemoval({ lista, titulo });
+  };
+
+  const confirmarRemocao = async () => {
+    const pending = pendingRemoval;
+    if (!pending) return;
+    setPendingRemoval(null);
+    const codigos = pending.lista.map(t => t.codigo);
+    const unica = codigos.length === 1;
+    if (unica) setCancelando(codigos[0]); else setLimpando(true);
+    try {
+      await supabase.from('invite_tokens').delete().in('codigo', codigos);
+      setTokens(prev => prev.filter(t => !codigos.includes(t.codigo)));
+      logger.info('token', `${codigos.length} token(s) removido(s): ${pending.titulo}`);
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível remover os tokens selecionados.');
+      logger.error('token', 'Erro ao remover tokens', { erro: String(e) });
+    } finally {
+      setCancelando(null);
+      setLimpando(false);
+    }
   };
 
   if (loading) {
@@ -249,7 +227,7 @@ export default function TokensScreen() {
   }
 
   const renderToken = (t: any, variante: 'ativo' | 'expirado' | 'usado') => {
-    const { texto: tempoTexto, cor: tempoCor } = getTempoRestante(t.expiraEm);
+    const { texto: tempoTexto, tone: tempoTone } = getTempoRestante(t.expiraEm);
     const role = ROLE_LABELS[t.role] || t.role;
     const isExpirado = variante === 'expirado';
     const isUsado = variante === 'usado';
@@ -260,7 +238,7 @@ export default function TokensScreen() {
         key={t.codigo}
         style={[
           styles.tokenCard,
-          { backgroundColor: theme.surfaceHighlight, borderColor: isUsado ? 'rgba(16,185,129,0.25)' : isExpirado ? 'rgba(239,68,68,0.25)' : theme.cardBorder },
+          { backgroundColor: theme.surface, borderColor: isUsado ? theme.successLight : isExpirado ? theme.errorLight : theme.cardBorder },
           dimmed && { opacity: 0.65 },
         ]}
       >
@@ -268,13 +246,13 @@ export default function TokensScreen() {
         <View style={styles.tokenHeader}>
           <View style={[styles.keyIcon, {
             backgroundColor: isUsado
-              ? 'rgba(16,185,129,0.08)'
-              : isExpirado ? 'rgba(239,68,68,0.08)' : theme.iconBackground
+              ? theme.successLight
+              : isExpirado ? theme.errorLight : theme.iconBackground
           }]}>
             <Feather
               name={isUsado ? 'check-circle' : 'key'}
               size={20}
-              color={isUsado ? '#10B981' : isExpirado ? '#EF4444' : theme.primary}
+              color={isUsado ? theme.success : isExpirado ? theme.error : theme.primary}
             />
           </View>
           <Text style={[styles.tokenCode, { color: dimmed ? theme.textSecondary : theme.text }]}>
@@ -301,7 +279,7 @@ export default function TokensScreen() {
           ) : (
             <Badge
               label={tempoTexto}
-              variant={isExpirado ? 'error' : (tempoCor === '#F59E0B' ? 'warning' : 'success')}
+              variant={tempoTone}
               size="sm"
             />
           )}
@@ -312,8 +290,8 @@ export default function TokensScreen() {
           <>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <View style={styles.usedBySection}>
-              <View style={[styles.usedByIcon, { backgroundColor: 'rgba(16,185,129,0.08)' }]}>
-                <Feather name="user-check" size={16} color="#10B981" />
+              <View style={[styles.usedByIcon, { backgroundColor: theme.successLight }]}>
+                <Feather name="user-check" size={16} color={theme.success} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.usedByTitle, { color: theme.text }]}>
@@ -348,11 +326,11 @@ export default function TokensScreen() {
                 <Text style={[styles.actionText, { color: theme.primary }]}>Compartilhar</Text>
               </TouchableOpacity>
               {cancelando === t.codigo ? (
-                <ActivityIndicator size="small" color="#EF4444" />
+                <ActivityIndicator size="small" color={theme.error} />
               ) : (
                 <TouchableOpacity style={styles.actionBtn} onPress={() => cancelarToken(t)}>
-                  <Feather name="trash-2" size={16} color="#EF4444" />
-                  <Text style={[styles.actionText, { color: '#EF4444' }]}>Cancelar</Text>
+                  <Feather name="trash-2" size={16} color={theme.error} />
+                  <Text style={[styles.actionText, { color: theme.error }]}>Cancelar</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -364,31 +342,28 @@ export default function TokensScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Tokens de Acesso</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {ativos.length} ativo{ativos.length !== 1 ? 's' : ''}
-            {expirados.length > 0 ? ` · ${expirados.length} expirado${expirados.length !== 1 ? 's' : ''}` : ''}
-            {usados.length > 0 ? ` · ${usados.length} utilizado${usados.length !== 1 ? 's' : ''}` : ''}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: theme.primary }]}
-          onPress={() => router.push('/(panel)/admin/gerar-token')}
-        >
-          <Feather name="plus" size={20} color="#FFF" />
-        </TouchableOpacity>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Convites de acesso"
+          subtitle={`${tokens.length} ${tokens.length === 1 ? 'convite emitido' : 'convites emitidos'}`}
+          onBack={() => router.back()}
+          actionIcon="plus"
+          actionLabel="Gerar convite"
+          onAction={() => router.push('/(panel)/admin/gerar-token')}
+        />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
+        <View style={styles.metricsRow}>
+          <MetricCard value={ativos.length} label="Ativos" tone="primary" style={styles.metric} />
+          <MetricCard value={usados.length} label="Utilizados" tone="success" style={styles.metric} />
+          <MetricCard value={expirados.length} label="Expirados" tone="danger" style={styles.metric} />
+        </View>
+        <StateBanner
+          title="Convites são pessoais e de uso único"
+          description="Confirme perfil, município e validade antes de compartilhar o código."
+          variant="info"
+        />
         {/* Resumo por admin — apenas para master_admin */}
         {isMasterAdmin && Object.keys(tokensPorAdmin).length > 0 && (
           <>
@@ -398,13 +373,13 @@ export default function TokensScreen() {
             {Object.entries(tokensPorAdmin).map(([uid, stats]) => {
               const totalGerado = stats.ativos + stats.usados + stats.expirados;
               const pct = stats.limite > 0 ? Math.min(totalGerado / stats.limite, 1) : 0;
-              const corBarra = pct >= 1 ? '#EF4444' : pct >= 0.8 ? '#F59E0B' : '#10B981';
+              const corBarra = pct >= 1 ? theme.error : pct >= 0.8 ? theme.warning : theme.success;
               return (
                 <View
                   key={uid}
                   style={[styles.adminSummaryCard, {
                     backgroundColor: theme.surfaceHighlight,
-                    borderColor: pct >= 1 ? 'rgba(239,68,68,0.3)' : theme.cardBorder,
+                    borderColor: pct >= 1 ? theme.errorLight : theme.cardBorder,
                   }]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
@@ -421,7 +396,7 @@ export default function TokensScreen() {
                     </View>
                     {/* Quota numérica */}
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[styles.adminQuotaNum, { color: pct >= 1 ? '#EF4444' : theme.text }]}>
+                      <Text style={[styles.adminQuotaNum, { color: pct >= 1 ? theme.error : theme.text }]}>
                         {totalGerado}/{stats.limite}
                       </Text>
                       <Text style={[styles.adminQuotaLabel, { color: theme.textSecondary }]}>este mês</Text>
@@ -445,21 +420,21 @@ export default function TokensScreen() {
                       </View>
                     )}
                     {stats.usados > 0 && (
-                      <View style={[styles.adminStat, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                        <Text style={[styles.adminStatNum, { color: '#10B981' }]}>{stats.usados}</Text>
-                        <Text style={[styles.adminStatLabel, { color: '#10B981' }]}>usados</Text>
+                      <View style={[styles.adminStat, { backgroundColor: theme.successLight }]}>
+                        <Text style={[styles.adminStatNum, { color: theme.success }]}>{stats.usados}</Text>
+                        <Text style={[styles.adminStatLabel, { color: theme.success }]}>usados</Text>
                       </View>
                     )}
                     {stats.expirados > 0 && (
-                      <View style={[styles.adminStat, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                        <Text style={[styles.adminStatNum, { color: '#EF4444' }]}>{stats.expirados}</Text>
-                        <Text style={[styles.adminStatLabel, { color: '#EF4444' }]}>expirados</Text>
+                      <View style={[styles.adminStat, { backgroundColor: theme.errorLight }]}>
+                        <Text style={[styles.adminStatNum, { color: theme.error }]}>{stats.expirados}</Text>
+                        <Text style={[styles.adminStatLabel, { color: theme.error }]}>expirados</Text>
                       </View>
                     )}
                     {pct >= 1 && (
-                      <View style={[styles.adminStat, { backgroundColor: 'rgba(239,68,68,0.1)', marginLeft: 'auto' }]}>
-                        <Feather name="alert-circle" size={11} color="#EF4444" />
-                        <Text style={[styles.adminStatLabel, { color: '#EF4444' }]}>limite atingido</Text>
+                      <View style={[styles.adminStat, { backgroundColor: theme.errorLight, marginLeft: 'auto' }]}>
+                        <Feather name="alert-circle" size={11} color={theme.error} />
+                        <Text style={[styles.adminStatLabel, { color: theme.error }]}>limite atingido</Text>
                       </View>
                     )}
                   </View>
@@ -494,7 +469,7 @@ export default function TokensScreen() {
             {expirados.length > 0 && (
               <>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={[styles.sectionLabel, { color: '#EF4444' }]}>
+                  <Text style={[styles.sectionLabel, { color: theme.error }]}>
                     EXPIRADOS — {expirados.length}
                   </Text>
                   <TouchableOpacity
@@ -503,11 +478,11 @@ export default function TokensScreen() {
                     disabled={limpando}
                   >
                     {limpando
-                      ? <ActivityIndicator size="small" color="#EF4444" />
+                      ? <ActivityIndicator size="small" color={theme.error} />
                       : (
                         <>
-                          <Feather name="trash-2" size={13} color="#EF4444" />
-                          <Text style={[styles.limparBtnText, { color: '#EF4444' }]}>Limpar todos</Text>
+                          <Feather name="trash-2" size={13} color={theme.error} />
+                          <Text style={[styles.limparBtnText, { color: theme.error }]}>Limpar todos</Text>
                         </>
                       )
                     }
@@ -521,7 +496,7 @@ export default function TokensScreen() {
             {usados.length > 0 && (
               <>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={[styles.sectionLabel, { color: '#10B981' }]}>
+                  <Text style={[styles.sectionLabel, { color: theme.success }]}>
                     UTILIZADOS — {usados.length}
                   </Text>
                   <TouchableOpacity
@@ -530,11 +505,11 @@ export default function TokensScreen() {
                     disabled={limpando}
                   >
                     {limpando
-                      ? <ActivityIndicator size="small" color="#10B981" />
+                      ? <ActivityIndicator size="small" color={theme.success} />
                       : (
                         <>
-                          <Feather name="trash-2" size={13} color="#10B981" />
-                          <Text style={[styles.limparBtnText, { color: '#10B981' }]}>Limpar todos</Text>
+                          <Feather name="trash-2" size={13} color={theme.success} />
+                          <Text style={[styles.limparBtnText, { color: theme.success }]}>Limpar todos</Text>
                         </>
                       )
                     }
@@ -546,26 +521,27 @@ export default function TokensScreen() {
           </>
         )}
       </ScrollView>
+      <ConfirmSheet
+        visible={Boolean(pendingRemoval)}
+        title={pendingRemoval?.lista.length === 1 ? 'Cancelar convite?' : `Limpar ${pendingRemoval?.titulo.toLowerCase()}?`}
+        description={pendingRemoval?.lista.length === 1
+          ? `O código ${pendingRemoval?.lista[0]?.codigo} será invalidado e não poderá mais ser usado.`
+          : `${pendingRemoval?.lista.length ?? 0} convites serão removidos permanentemente.`}
+        onDismiss={() => setPendingRemoval(null)}
+        actions={[
+          { label: pendingRemoval?.lista.length === 1 ? 'Cancelar convite' : 'Remover convites', variant: 'danger', onPress: confirmarRemocao },
+          { label: 'Manter', variant: 'ghost', onPress: () => setPendingRemoval(null) },
+        ]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  addBtn: {
-    width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center',
-  },
-  scrollContent: { padding: 20, paddingBottom: 60 },
+  scrollContent: { padding: 20, paddingBottom: 60, gap: 18 },
+  metricsRow: { flexDirection: 'row', gap: 8 },
+  metric: { flex: 1, minWidth: 0 },
   adminSummaryCard: {
     borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10,
   },

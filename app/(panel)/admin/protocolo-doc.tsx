@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { AppHeader, StateBanner } from '../../../components/ui';
 
 interface FaqItem {
   q: string;
@@ -25,7 +26,7 @@ const FAQS: FaqItem[] = [
     a: 'Sim. Na lista de inspeções e no Laudo Técnico, o número de protocolo completo é exibido. Em versões futuras, haverá campo de busca por protocolo.',
   },
   {
-    q: 'Por que as letras I, O, 0 e 1 não aparecem no hashá',
+    q: 'Por que as letras I, O, 0 e 1 não aparecem no hash?',
     a: 'Para evitar confusão visual entre "I" (i maiúsculo) e "l" (l minúsculo), e entre "O" (letra) e "0" (zero). Todos os caracteres usados são visualmente distintos.',
   },
   {
@@ -34,7 +35,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: 'Posso ter dois protocolos iguais?',
-    a: 'Praticamente impossível. O hash de 4 caracteres tem 32⁴ = 1.048.576 combinações possíveis por cidade/data. Como o hash é derivado do UUID único da vistoria, colisões são eliminadas.',
+    a: 'É muito improvável, mas um hash curto não elimina matematicamente a possibilidade de colisão. O sistema combina cidade, data e 4 caracteres derivados do UUID para reduzir esse risco; a unicidade definitiva deve ser validada no armazenamento.',
   },
 ];
 
@@ -43,7 +44,7 @@ function FaqCard({ item }: { item: FaqItem }) {
   const [open, setOpen] = useState(false);
   return (
     <TouchableOpacity
-      style={[styles.faqCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+      style={[styles.faqCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
       onPress={() => setOpen(o => !o)}
       activeOpacity={0.8}
     >
@@ -65,27 +66,23 @@ export default function ProtocoloDocScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Guia de Protocolo</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Regras e identificação de documentos</Text>
-        </View>
-        <View style={[styles.iconWrap, { backgroundColor: `${theme.primary}15` }]}>
-          <Feather name="hash" size={20} color={theme.primary} />
-        </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Protocolo documental"
+          subtitle="Identificação oficial das vistorias"
+          onBack={() => router.back()}
+        />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
 
-        {/* O que é o protocolo */}
-        <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <StateBanner
+          title="Identificador permanente"
+          description="O protocolo é criado ao concluir a vistoria e não muda quando o conteúdo do documento é editado."
+          variant="info"
+        />
+
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.cardTitleRow}>
             <Feather name="file-text" size={16} color={theme.primary} />
             <Text style={[styles.cardTitle, { color: theme.text }]}>O que é o Protocolo?</Text>
@@ -97,33 +94,33 @@ export default function ProtocoloDocScreen() {
         </View>
 
         {/* Anatomia do protocolo */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Anatomia do Protocolo</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Anatomia do protocolo</Text>
 
-        <View style={[styles.protoBox, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <View style={[styles.protoBox, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.protoPartes}>
             <View style={[styles.protoParte, { backgroundColor: theme.primary }]}>
               <Text style={styles.protoParteText}>TCS</Text>
             </View>
             <Text style={[styles.protoDivider, { color: theme.textSecondary }]}>—</Text>
-            <View style={[styles.protoParte, { backgroundColor: '#10B98120', borderWidth: 1, borderColor: '#10B98140' }]}>
-              <Text style={[styles.protoParteText, { color: '#10B981' }]}>CAMPINAS</Text>
+            <View style={[styles.protoParte, { backgroundColor: theme.secondary, borderWidth: 1, borderColor: theme.border }]}>
+              <Text style={[styles.protoParteText, { color: theme.primary }]}>CAMPINAS</Text>
             </View>
             <Text style={[styles.protoDivider, { color: theme.textSecondary }]}>—</Text>
-            <View style={[styles.protoParte, { backgroundColor: '#F59E0B20', borderWidth: 1, borderColor: '#F59E0B40' }]}>
-              <Text style={[styles.protoParteText, { color: '#F59E0B' }]}>20260402</Text>
+            <View style={[styles.protoParte, { backgroundColor: theme.secondary, borderWidth: 1, borderColor: theme.border }]}>
+              <Text style={[styles.protoParteText, { color: theme.primary }]}>20260402</Text>
             </View>
             <Text style={[styles.protoDivider, { color: theme.textSecondary }]}>—</Text>
-            <View style={[styles.protoParte, { backgroundColor: '#8B5CF620', borderWidth: 1, borderColor: '#8B5CF640' }]}>
-              <Text style={[styles.protoParteText, { color: '#8B5CF6' }]}>K7MP</Text>
+            <View style={[styles.protoParte, { backgroundColor: theme.secondary, borderWidth: 1, borderColor: theme.border }]}>
+              <Text style={[styles.protoParteText, { color: theme.primary }]}>K7MP</Text>
             </View>
           </View>
 
           {/* Legenda */}
           {[
             { cor: theme.primary, label: 'TCS', desc: 'Prefixo fixo do sistema (Technical Civil Survey)' },
-            { cor: '#10B981', label: 'CIDADE', desc: 'Município da vistoria — sem acentos, espaços ou caracteres especiais' },
-            { cor: '#F59E0B', label: 'DATA', desc: 'Data da vistoria no formato AAAAMMDD (ordenável cronologicamente)' },
-            { cor: '#8B5CF6', label: 'HASH', desc: '4 caracteres únicos derivados do ID interno. Sem letras I, O nem dígitos 0, 1 (evita confusão visual)' },
+            { cor: theme.primary, label: 'CIDADE', desc: 'Município da vistoria — sem acentos, espaços ou caracteres especiais' },
+            { cor: theme.primary, label: 'DATA', desc: 'Data da vistoria no formato AAAAMMDD (ordenável cronologicamente)' },
+            { cor: theme.primary, label: 'HASH', desc: '4 caracteres derivados do ID interno. Sem letras I, O nem dígitos 0 e 1' },
           ].map(({ cor, label, desc }) => (
             <View key={label} style={[styles.legendRow, { borderTopColor: theme.border }]}>
               <View style={[styles.legendDot, { backgroundColor: cor }]} />
@@ -142,17 +139,19 @@ export default function ProtocoloDocScreen() {
           { proto: 'TCS-SAOPAULO-20260315-X3NR', desc: 'Vistoria em São Paulo, dia 15/03/2026' },
           { proto: 'TCS-RIOJANEIRO-20260101-B9QA', desc: 'Vistoria no Rio de Janeiro, dia 01/01/2026' },
           { proto: 'TCS-SEMCIDADE-20260210-M4LF', desc: '⚠ Município não informado — verifique os dados da vistoria' },
-        ].map(({ proto, desc }) => (
-          <View key={proto} style={[styles.exampleCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.exampleProto, { color: theme.primary }]}>{proto}</Text>
+        ].map(({ proto, desc }) => {
+          const warning = proto.includes('SEMCIDADE');
+          return (
+          <View key={proto} style={[styles.exampleCard, { backgroundColor: warning ? theme.warningLight : theme.surface, borderColor: warning ? theme.warning : theme.cardBorder }]}>
+            <Text style={[styles.exampleProto, { color: warning ? theme.warning : theme.primary }]}>{proto}</Text>
             <Text style={[styles.exampleDesc, { color: theme.textSecondary }]}>{desc}</Text>
           </View>
-        ))}
+        );})}
 
         {/* Caracteres permitidos no hash */}
-        <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.cardTitleRow}>
-            <Feather name="key" size={16} color="#8B5CF6" />
+            <Feather name="key" size={16} color={theme.primary} />
             <Text style={[styles.cardTitle, { color: theme.text }]}>Caracteres do Hash (HASH)</Text>
           </View>
           <Text style={[styles.body, { color: theme.textSecondary }]}>
@@ -181,15 +180,7 @@ export default function ProtocoloDocScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 16, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
-  },
-  backBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, borderWidth: 1 },
-  title: { fontSize: 18, fontWeight: '800' },
-  subtitle: { fontSize: 12, marginTop: 2 },
-  iconWrap: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 20, paddingBottom: 60 },
+  scroll: { padding: 20, paddingBottom: 60, gap: 4 },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1.2, marginBottom: 12, marginTop: 24,

@@ -17,6 +17,8 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { DashboardGuide } from '../../../components/DashboardGuide';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { MetricCard, SectionHeader, StateBanner } from '../../../components/ui';
+import { TCSPalette } from '../../../constants/Colors';
 
 export default function SupervisorDashboardScreen() {
   const { theme } = useTheme();
@@ -114,14 +116,14 @@ export default function SupervisorDashboardScreen() {
               <Text style={[styles.chipText, { color: theme.primary }]}>Supervisor</Text>
             </View>
             {isConnected ? (
-              <View style={[styles.chipBadge, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.25)' }]}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
-                <Text style={[styles.chipText, { color: '#10B981' }]}>Conectado</Text>
+              <View style={[styles.chipBadge, { backgroundColor: theme.successLight, borderColor: theme.success }]}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.success }} />
+                <Text style={[styles.chipText, { color: theme.success }]}>Conectado</Text>
               </View>
             ) : (
               <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
-                <Feather name="wifi-off" size={10} color="#F59E0B" />
-                <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
+                <Feather name="wifi-off" size={10} color={theme.warning} />
+                <Text style={[styles.chipText, { color: theme.warning }]}>Offline</Text>
               </View>
             )}
           </View>
@@ -155,64 +157,31 @@ export default function SupervisorDashboardScreen() {
       >
         <DashboardGuide role="supervisor" inline />
 
-        {/* Banner offline */}
-        {!isConnected && (
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
-            <Feather name="wifi-off" size={15} color="#F59E0B" />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>Modo offline ativo</Text>
-              <Text style={{ color: '#F59E0B', fontSize: 12, marginTop: 2, opacity: 0.85 }}>Dados de equipe indisponíveis. Vistorias locais acessíveis.</Text>
-            </View>
-          </View>
-        )}
+        {!isConnected ? (
+          <StateBanner
+            title="Modo offline ativo"
+            description="Dados da equipe estão temporariamente indisponíveis. As vistorias locais continuam acessíveis."
+            variant="warning"
+          />
+        ) : null}
 
         {/* Alerta alto risco */}
-        {altoRisco > 0 && (
-          <TouchableOpacity
-            style={styles.alertBanner}
-            onPress={() => router.push('/(panel)/mapas')}
-          >
-            <Feather name="alert-triangle" size={20} color="#EF4444" />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.alertTitle}>{altoRisco} ALERTA{altoRisco > 1 ? 'S' : ''} CRÍTICO{altoRisco > 1 ? 'S' : ''}</Text>
-              <Text style={styles.alertDesc}>Vistorias de alto risco requerem atenção imediata.</Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#EF4444" />
-          </TouchableOpacity>
-        )}
+        {altoRisco > 0 ? (
+          <StateBanner
+            title={`${altoRisco} ${altoRisco > 1 ? 'alertas críticos' : 'alerta crítico'}`}
+            description="Vistorias de alto risco requerem atenção imediata."
+            variant="danger"
+            actionLabel="Ver mapa"
+            onAction={() => router.push('/(panel)/mapas')}
+          />
+        ) : null}
 
         {/* KPIs */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Visão Geral</Text>
-        <View style={styles.kpiRow}>
-          <TouchableOpacity 
-            style={[styles.kpiBig, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-            onPress={() => router.push('/(panel)/inspecoes')}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingRight: 10 }}>
-              <View style={[styles.kpiIcon, { backgroundColor: theme.iconBackground }]}>
-                <Feather name="clipboard" size={24} color={theme.primary} />
-              </View>
-              <Feather name="arrow-up-right" size={18} color={theme.primary} style={{ opacity: 0.5, marginTop: 10 }} />
-            </View>
-            <Text style={[styles.kpiValue, { color: theme.primary }]}>{totalVistorias}</Text>
-            <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Total Vistorias</Text>
-          </TouchableOpacity>
-          <View style={styles.kpiSmallCol}>
-            <TouchableOpacity 
-              style={[styles.kpiSmall, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push('/(panel)/inspecoes')}
-            >
-              <Text style={[styles.kpiValueSm, { color: '#EF4444' }]}>{altoRisco}</Text>
-              <Text style={[styles.kpiLabelSm, { color: theme.textSecondary }]}>Críticos</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.kpiSmall, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push('/(panel)/equipe')}
-            >
-              <Text style={[styles.kpiValueSm, { color: '#F59E0B' }]}>{agentesAtivos}</Text>
-              <Text style={[styles.kpiLabelSm, { color: theme.textSecondary }]}>Agentes</Text>
-            </TouchableOpacity>
-          </View>
+        <SectionHeader title="Visão geral" subtitle="Operação municipal acompanhada pela supervisão" />
+        <View style={styles.metricGrid}>
+          <MetricCard value={totalVistorias} label="Vistorias recentes" detail="Últimos registros" tone="primary" style={styles.metricWide} />
+          <MetricCard value={altoRisco} label="Alertas críticos" tone="danger" style={styles.metricHalf} />
+          <MetricCard value={agentesAtivos} label="Agentes ativos" tone="success" style={styles.metricHalf} />
         </View>
 
         {/* Ranking da equipe */}
@@ -226,7 +195,7 @@ export default function SupervisorDashboardScreen() {
             </View>
             {ranking.map(([nome, count]) => {
               const progresso = Math.min(count / META_MENSAL, 1);
-              const cor = count >= META_MENSAL ? '#10B981' : count >= META_MENSAL / 2 ? theme.primary : '#F59E0B';
+              const cor = count >= META_MENSAL ? theme.success : count >= META_MENSAL / 2 ? theme.primary : theme.warning;
               return (
                 <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
                   <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
@@ -254,7 +223,10 @@ export default function SupervisorDashboardScreen() {
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Registro de Operações</Text>
         {vistorias.slice(0, 8).map(v => {
           const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
-          const cor = apresentacao.cor;
+          const nivel = String(v.nivelRisco || '').toLowerCase();
+          const cor = ['r3', 'r4', 'alto', 'critico', 'iminente'].includes(nivel)
+            ? theme.error
+            : ['r2', 'medio', 'médio'].includes(nivel) ? theme.warning : theme.success;
           return (
             <TouchableOpacity
               key={v.id}
@@ -263,7 +235,7 @@ export default function SupervisorDashboardScreen() {
             >
               <View style={[styles.riscoDot, { backgroundColor: `${cor}20`, borderColor: `${cor}40` }]}>
                 <Feather
-                  name={cor === '#EF4444' ? 'alert-triangle' : cor === '#F59E0B' ? 'alert-circle' : 'check-circle'}
+                  name={cor === theme.error ? 'alert-triangle' : cor === theme.warning ? 'alert-circle' : 'check-circle'}
                   size={20} color={cor}
                 />
               </View>
@@ -308,15 +280,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   scrollContent: { padding: 20, paddingBottom: 100 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
+  metricWide: { width: '100%', minHeight: 128 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 112 },
 
   alertBanner: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 16,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',
+    borderRadius: 16, borderWidth: 1,
     padding: 16, marginBottom: 24,
   },
-  alertTitle: { color: '#EF4444', fontSize: 14, fontWeight: '900' },
-  alertDesc: { color: '#EF4444', fontSize: 12, fontWeight: '600', opacity: 0.8 },
+  alertTitle: { color: TCSPalette.danger, fontSize: 14, fontWeight: '900' },
+  alertDesc: { color: TCSPalette.danger, fontSize: 12, fontWeight: '600', opacity: 0.8 },
 
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
@@ -377,7 +351,7 @@ const styles = StyleSheet.create({
   badge: {
     position: 'absolute', top: -4, right: -4,
     minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: TCSPalette.danger, justifyContent: 'center', alignItems: 'center',
     paddingHorizontal: 3,
   },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },

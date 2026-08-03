@@ -16,6 +16,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui/Button';
 import { formatTrainingToken } from '../../services/TrainingService';
 import { ProductIdentity } from '../../components/brand';
+import { TCSPalette } from '../../constants/Colors';
 
 export default function TreinamentoEntryScreen() {
   const { theme } = useTheme();
@@ -62,9 +63,9 @@ export default function TreinamentoEntryScreen() {
 
           <View style={styles.hero}>
             <ProductIdentity variant="compact" />
-            <View style={styles.heroBadge}>
-              <Feather name="book-open" size={13} color="#10B981" />
-              <Text style={styles.heroBadgeText}>Modo treinamento</Text>
+            <View style={[styles.heroBadge, { backgroundColor: theme.successLight }]}>
+              <Feather name="book-open" size={13} color={theme.success} />
+              <Text style={[styles.heroBadgeText, { color: theme.success }]}>Modo treinamento</Text>
             </View>
             <Text style={[styles.title, { color: theme.text }]}>Treinamento</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -108,9 +109,9 @@ export default function TreinamentoEntryScreen() {
             </View>
 
             {error ? (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={16} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: theme.errorLight, borderColor: theme.error }]}>
+                <Feather name="alert-circle" size={16} color={theme.error} />
+                <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
               </View>
             ) : null}
 
@@ -151,10 +152,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    backgroundColor: 'rgba(16,185,129,0.10)',
     marginBottom: 12,
   },
-  heroBadgeText: { color: '#10B981', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8 },
+  heroBadgeText: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8 },
   title: { fontSize: 34, fontWeight: '900' },
   subtitle: { fontSize: 15, lineHeight: 22, marginTop: 10, textAlign: 'center', maxWidth: 310 },
   form: { gap: 22 },
@@ -167,12 +167,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.22)',
     borderRadius: 12,
     padding: 12,
   },
-  errorText: { color: '#EF4444', fontSize: 13, flex: 1, lineHeight: 18 },
+  errorText: { fontSize: 13, flex: 1, lineHeight: 18 },
   footnote: { fontSize: 12, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
 });

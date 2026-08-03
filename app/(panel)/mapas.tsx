@@ -20,6 +20,8 @@ import type { ValidCoordinates } from '../../utils/coordinateUtils';
 import { navSystemBottom } from '../../utils/useBottomTabPadding';
 import { safeBack } from '../../utils/navigationUtils';
 import { resolverApresentacaoRisco } from '../../utils/riscoUtils';
+import { EmptyState, LoadingState } from '../../components/ui';
+import { TCSTheme } from '../../constants/Colors';
 
 interface VistoriaMarker {
   id: string;
@@ -63,21 +65,21 @@ const MAP_STYLES: { key: MapStyle; label: string; icon: string; desc: string; ma
 ];
 
 const DARK_MAP_STYLE = [
-  { elementType: 'geometry',            stylers: [{ color: '#0B0F19' }] },
-  { elementType: 'labels.text.fill',    stylers: [{ color: '#8B949E' }] },
-  { elementType: 'labels.text.stroke',  stylers: [{ color: '#0B0F19' }] },
-  { featureType: 'road',  elementType: 'geometry',        stylers: [{ color: '#1C2333' }] },
-  { featureType: 'road',  elementType: 'geometry.stroke', stylers: [{ color: '#212A37' }] },
-  { featureType: 'water', elementType: 'geometry',        stylers: [{ color: '#0D1B2A' }] },
-  { featureType: 'poi',   elementType: 'geometry',        stylers: [{ color: '#0F1923' }] },
-  { featureType: 'transit', elementType: 'geometry',      stylers: [{ color: '#0F1923' }] },
+  { elementType: 'geometry',            stylers: [{ color: '#111713' }] },
+  { elementType: 'labels.text.fill',    stylers: [{ color: '#A7B2AC' }] },
+  { elementType: 'labels.text.stroke',  stylers: [{ color: '#111713' }] },
+  { featureType: 'road',  elementType: 'geometry',        stylers: [{ color: '#243129' }] },
+  { featureType: 'road',  elementType: 'geometry.stroke', stylers: [{ color: '#2C3A33' }] },
+  { featureType: 'water', elementType: 'geometry',        stylers: [{ color: '#10241C' }] },
+  { featureType: 'poi',   elementType: 'geometry',        stylers: [{ color: '#16231C' }] },
+  { featureType: 'transit', elementType: 'geometry',      stylers: [{ color: '#16231C' }] },
 ];
 
-const FILTERS: { key: FilterKey; label: string; color: string }[] = [
-  { key: 'todos', label: 'Todos', color: '#3B82F6' },
-  { key: 'alto',  label: 'Alto',  color: '#EF4444' },
-  { key: 'medio', label: 'Médio', color: '#F59E0B' },
-  { key: 'baixo', label: 'Baixo', color: '#10B981' },
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'todos', label: 'Todos' },
+  { key: 'alto',  label: 'Alto' },
+  { key: 'medio', label: 'Médio' },
+  { key: 'baixo', label: 'Baixo' },
 ];
 
 // Normaliza níveis legados (alto/medio/baixo → r3/r2/r1)
@@ -88,12 +90,11 @@ function normalizeNivel(nivel: string): string {
   return nivel;
 }
 
-function getRiscoColor(nivel: string): string {
+function getRiscoColor(nivel: string, theme: TCSTheme): string {
   const n = normalizeNivel(nivel);
-  if (n === 'r4') return '#EF4444';
-  if (n === 'r3') return '#F97316';
-  if (n === 'r2') return '#F59E0B';
-  return '#10B981';
+  if (n === 'r4' || n === 'r3') return theme.error;
+  if (n === 'r2') return theme.warning;
+  return theme.success;
 }
 
 function getRiscoLabel(nivel: string): string {
@@ -140,34 +141,36 @@ const USE_NATIVE_ANDROID_MARKERS = Platform.OS === 'android';
 
 // Marcador customizado sem pinColor para manter renderização consistente no mapa nativo.
 function MarkerPin({ color, label }: { color: string; label: string }) {
+  const { theme } = useTheme();
   return (
     <View style={markerStyles.markerWrap}>
-      <View style={markerStyles.pinShadow}>
-        <View style={[markerStyles.pinHead, { borderColor: color }]}>
-          <View style={[markerStyles.pinCenter, { backgroundColor: color }]} />
-          <View style={[markerStyles.riskAccent, { backgroundColor: color }]} />
+      <View style={[markerStyles.pinShadow, { shadowColor: theme.foreground }]}>
+        <View style={[markerStyles.pinHead, { borderColor: color, backgroundColor: theme.surface }]}>
+          <View style={[markerStyles.pinCenter, { backgroundColor: color, borderColor: theme.surface }]} />
+          <View style={[markerStyles.riskAccent, { backgroundColor: color, borderColor: theme.surface }]} />
         </View>
-        <View style={[markerStyles.pinTip, { borderColor: color }]} />
+        <View style={[markerStyles.pinTip, { borderColor: color, backgroundColor: theme.surface }]} />
       </View>
-      <View style={markerStyles.labelBadge}>
+      <View style={[markerStyles.labelBadge, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.foreground }]}>
         <Text style={[markerStyles.labelBadgeText, { color }]}>{label}</Text>
       </View>
     </View>
   );
 }
 
-function AgendamentoPin() {
+function AgendamentoPin({ color }: { color: string }) {
+  const { theme } = useTheme();
   return (
     <View style={markerStyles.markerWrap}>
-      <View style={markerStyles.pinShadow}>
-        <View style={[markerStyles.pinHead, { borderColor: '#3B82F6' }]}>
-          <Feather name="calendar" size={ICON_SIZE} color="#475569" />
-          <View style={[markerStyles.riskAccent, { backgroundColor: '#3B82F6' }]} />
+      <View style={[markerStyles.pinShadow, { shadowColor: theme.foreground }]}>
+        <View style={[markerStyles.pinHead, { borderColor: color, backgroundColor: theme.surface }]}>
+          <Feather name="calendar" size={ICON_SIZE} color={theme.text} />
+          <View style={[markerStyles.riskAccent, { backgroundColor: color, borderColor: theme.surface }]} />
         </View>
-        <View style={[markerStyles.pinTip, { borderColor: '#3B82F6' }]} />
+        <View style={[markerStyles.pinTip, { borderColor: color, backgroundColor: theme.surface }]} />
       </View>
-      <View style={markerStyles.labelBadge}>
-        <Text style={[markerStyles.labelBadgeText, { color: '#3B82F6' }]}>AG</Text>
+      <View style={[markerStyles.labelBadge, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.foreground }]}>
+        <Text style={[markerStyles.labelBadgeText, { color }]}>AG</Text>
       </View>
     </View>
   );
@@ -182,7 +185,6 @@ const markerStyles = StyleSheet.create({
   },
   pinShadow: {
     alignItems: 'center',
-    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -195,16 +197,12 @@ const markerStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#F8FAFC',
   },
   pinCenter: {
     width: PIN_CENTER,
     height: PIN_CENTER,
     borderRadius: PIN_CENTER / 2,
-    backgroundColor: '#475569',
     borderWidth: 3,
-    borderColor: '#FFFFFF',
   },
   riskAccent: {
     position: 'absolute',
@@ -214,7 +212,6 @@ const markerStyles = StyleSheet.create({
     height: PIN_ACCENT,
     borderRadius: PIN_ACCENT / 2,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
   },
   pinTip: {
     width: PIN_TIP,
@@ -222,8 +219,6 @@ const markerStyles = StyleSheet.create({
     marginTop: -5,
     borderRightWidth: 2,
     borderBottomWidth: 2,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#F8FAFC',
     transform: [{ rotate: '45deg' }],
   },
   labelBadge: {
@@ -234,10 +229,7 @@ const markerStyles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 3,
@@ -251,7 +243,7 @@ const markerStyles = StyleSheet.create({
 });
 
 export default function MapasScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { isOnlineReal } = useConnectivity();
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
@@ -589,8 +581,7 @@ export default function MapasScreen() {
   if (loading) {
     return (
       <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Carregando mapa...</Text>
+        <LoadingState message="Carregando mapa operacional..." />
       </View>
     );
   }
@@ -598,10 +589,13 @@ export default function MapasScreen() {
   if (!isOnlineReal && filteredMarkers.length === 0 && agendamentos.length === 0) {
     return (
       <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
-        <Feather name="wifi-off" size={48} color={theme.border} />
-        <Text style={[styles.loadingText, { color: theme.textSecondary, textAlign: 'center' }]}>
-          Sem conexão e nenhuma vistoria local.{'\n'}Reconecte para carregar.
-        </Text>
+        <EmptyState
+          icon="wifi-off"
+          title="Mapa indisponível offline"
+          description="Nenhuma vistoria ou tarefa com coordenadas está salva neste aparelho."
+          actionLabel="Voltar ao painel"
+          onAction={() => safeBack('/(panel)/dashboard')}
+        />
       </View>
     );
   }
@@ -614,7 +608,7 @@ export default function MapasScreen() {
           style={StyleSheet.absoluteFillObject}
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
           mapType={currentStyleConfig.mapType}
-          customMapStyle={mapStyle === 'escuro' ? DARK_MAP_STYLE : undefined}
+          customMapStyle={mapStyle === 'escuro' || (isDark && mapStyle === 'padrao') ? DARK_MAP_STYLE : undefined}
           initialRegion={initialRegion}
           showsUserLocation
           showsMyLocationButton={false}
@@ -630,7 +624,7 @@ export default function MapasScreen() {
                 key={m.id}
                 coordinate={{ latitude: m.lat, longitude: m.lng }}
                 onPress={() => { setSelectedAgendamento(null); setSelectedMarker(m); }}
-                pinColor={getRiscoColor(m.nivelRisco)}
+                pinColor={getRiscoColor(m.nivelRisco, theme)}
                 title={getMarkerRiscoLabel(m)}
                 description={m.endereco}
               />
@@ -643,7 +637,7 @@ export default function MapasScreen() {
                 centerOffset={MARKER_CENTER_OFFSET}
                 tracksViewChanges={tracksMarkerChanges}
               >
-                <MarkerPin color={getRiscoColor(m.nivelRisco)} label={getMarkerRiscoShortLabel(m)} />
+                <MarkerPin color={getRiscoColor(m.nivelRisco, theme)} label={getMarkerRiscoShortLabel(m)} />
               </Marker>
             )
           ))}
@@ -654,7 +648,7 @@ export default function MapasScreen() {
                 key={`agend-${a.id}`}
                 coordinate={{ latitude: a.lat, longitude: a.lng }}
                 onPress={() => { setSelectedMarker(null); setSelectedAgendamento(a); }}
-                pinColor="#3B82F6"
+                pinColor={theme.primary}
                 title="Agendamento"
                 description={a.titulo}
               />
@@ -667,7 +661,7 @@ export default function MapasScreen() {
                 centerOffset={MARKER_CENTER_OFFSET}
                 tracksViewChanges={tracksMarkerChanges}
               >
-                <AgendamentoPin />
+                <AgendamentoPin color={theme.primary} />
               </Marker>
             )
           ))}
@@ -678,7 +672,7 @@ export default function MapasScreen() {
               radius={40}
               opacity={0.7}
               gradient={{
-                colors: ['#10B981', '#F59E0B', '#EF4444'],
+                colors: [theme.success, theme.warning, theme.error],
                 startPoints: [0.2, 0.5, 1.0],
                 colorMapSize: 256,
               }}
@@ -690,13 +684,13 @@ export default function MapasScreen() {
       {/* Header flutuante */}
       <View style={[styles.headerOverlay, { paddingTop: topInset + 8 }]}>
         <TouchableOpacity
-          style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
+          style={[styles.floatBtn, { backgroundColor: theme.surface }]}
           onPress={() => safeBack('/(panel)/dashboard')}
         >
           <Feather name="arrow-left" color={theme.text} size={20} />
         </TouchableOpacity>
 
-        <View style={[styles.headerInfo, { backgroundColor: theme.surfaceHighlight }]}>
+        <View style={[styles.headerInfo, { backgroundColor: theme.surface }]}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Mapa Tático</Text>
           <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
             {filteredMarkers.length} vistoria{filteredMarkers.length !== 1 ? 's' : ''}
@@ -706,14 +700,14 @@ export default function MapasScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
+          style={[styles.floatBtn, { backgroundColor: theme.surface }]}
           onPress={goToUserLocation}
         >
           <Feather name="navigation" color={theme.primary} size={18} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.floatBtn, { backgroundColor: theme.surfaceHighlight }]}
+          style={[styles.floatBtn, { backgroundColor: theme.surface }]}
           onPress={loadMarkers}
         >
           <Feather name="refresh-cw" color={theme.text} size={18} />
@@ -722,15 +716,17 @@ export default function MapasScreen() {
 
       {/* Filtros */}
       <View style={[styles.filtersOverlay, { top: filtersTop }]}>
-        <View style={[styles.filterRail, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+        <View style={[styles.filterRail, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
-            {FILTERS.map(f => (
+            {FILTERS.map(f => {
+              const filterColor = f.key === 'alto' ? theme.error : f.key === 'medio' ? theme.warning : f.key === 'baixo' ? theme.success : theme.primary;
+              return (
               <TouchableOpacity
                 key={f.key}
                 style={[
                   styles.chip,
                   filter === f.key
-                    ? { backgroundColor: f.color }
+                    ? { backgroundColor: filterColor }
                     : { backgroundColor: 'transparent' },
                 ]}
                 onPress={() => setFilter(f.key)}
@@ -739,15 +735,16 @@ export default function MapasScreen() {
                   {f.key !== 'todos' && (
                     <View style={{
                       width: 6, height: 6, borderRadius: 3,
-                      backgroundColor: filter === f.key ? '#FFF' : f.color,
+                      backgroundColor: filter === f.key ? theme.onPrimary : filterColor,
                     }} />
                   )}
-                  <Text style={[styles.chipText, { color: filter === f.key ? '#FFF' : theme.text }]}>
+                  <Text style={[styles.chipText, { color: filter === f.key ? theme.onPrimary : theme.text }]}>
                     {f.label}
                   </Text>
                 </View>
               </TouchableOpacity>
-            ))}
+              );
+            })}
 
             <View style={[styles.filterDivider, { backgroundColor: theme.border }]} />
 
@@ -762,7 +759,7 @@ export default function MapasScreen() {
                 ]}
                 onPress={() => setFiltroPeriodo(p.key)}
               >
-                <Text style={[styles.chipText, { color: filtroPeriodo === p.key ? '#FFF' : theme.text }]}>
+                <Text style={[styles.chipText, { color: filtroPeriodo === p.key ? theme.onPrimary : theme.text }]}>
                   {p.label}
                 </Text>
               </TouchableOpacity>
@@ -786,7 +783,7 @@ export default function MapasScreen() {
             style={[styles.fab, { backgroundColor: showHeatmap ? theme.primary : theme.surfaceHighlight }]}
             onPress={() => setShowHeatmap(h => !h)}
           >
-            <Feather name="zap" size={20} color={showHeatmap ? '#FFF' : theme.textSecondary} />
+            <Feather name="zap" size={20} color={showHeatmap ? theme.onPrimary : theme.textSecondary} />
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -799,10 +796,10 @@ export default function MapasScreen() {
 
       {/* Popup de agendamento selecionado */}
       {selectedAgendamento && (
-        <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight, bottom: bottomNavH + 8 }]}>
+        <View style={[styles.markerPopup, { backgroundColor: theme.surface, bottom: bottomNavH + 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <View style={[styles.riscoBadge, { backgroundColor: '#3B82F6' }]}>
-              <Text style={styles.riscoBadgeText}>AGENDADO</Text>
+            <View style={[styles.riscoBadge, { backgroundColor: theme.primary }]}>
+              <Text style={[styles.riscoBadgeText, { color: theme.onPrimary }]}>AGENDADO</Text>
             </View>
             <TouchableOpacity onPress={() => setSelectedAgendamento(null)} style={{ marginLeft: 'auto' }}>
               <Feather name="x" size={16} color={theme.textSecondary} />
@@ -816,10 +813,10 @@ export default function MapasScreen() {
           </Text>
           <View style={styles.popupActions}>
             <TouchableOpacity
-              style={[styles.popupBtn, { backgroundColor: '#EFF6FF', flex: 1 }]}
+              style={[styles.popupBtn, { backgroundColor: theme.secondary, flex: 1 }]}
               onPress={() => { setSelectedAgendamento(null); router.push(`/(panel)/agendamentos/${selectedAgendamento.id}`); }}
             >
-              <Text style={{ color: '#3B82F6', fontSize: 13, fontWeight: '700' }}>Ver agendamento →</Text>
+              <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '700' }}>Ver agendamento →</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.popupBtn, styles.popupRotaBtn, { backgroundColor: `${theme.primary}15`, flex: 1 }]}
@@ -836,7 +833,7 @@ export default function MapasScreen() {
       {selectedMarker && (
         <View style={[styles.markerPopup, { backgroundColor: theme.surfaceHighlight, bottom: bottomNavH + 8 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <View style={[styles.riscoBadge, { backgroundColor: getRiscoColor(selectedMarker.nivelRisco) }]}>
+            <View style={[styles.riscoBadge, { backgroundColor: getRiscoColor(selectedMarker.nivelRisco, theme) }]}>
               <Text style={styles.riscoBadgeText}>{getMarkerRiscoLabel(selectedMarker)}</Text>
             </View>
             {selectedMarker.pontuacaoTotal != null && (
@@ -856,10 +853,10 @@ export default function MapasScreen() {
           </Text>
           <View style={styles.popupActions}>
             <TouchableOpacity
-              style={[styles.popupBtn, { backgroundColor: '#EFF6FF', flex: 1 }]}
+              style={[styles.popupBtn, { backgroundColor: theme.secondary, flex: 1 }]}
               onPress={() => { setSelectedMarker(null); router.push(`/(panel)/inspecoes/${selectedMarker.id}`); }}
             >
-              <Text style={{ color: '#3B82F6', fontSize: 13, fontWeight: '700' }}>Ver detalhes →</Text>
+              <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '700' }}>Ver detalhes →</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.popupBtn, styles.popupRotaBtn, { backgroundColor: `${theme.primary}15`, flex: 1 }]}

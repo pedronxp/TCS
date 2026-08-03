@@ -31,6 +31,16 @@ import { logger } from '../../../utils/logger';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
 import { listAcknowledgementEventsForDocument, listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
+import {
+  AppHeader,
+  Badge,
+  Button,
+  ListRow,
+  LoadingState,
+  SectionHeader,
+} from '../../../components/ui';
+import { FontSize, FontWeight } from '../../../constants/Typography';
+import { Spacing, SpacingAlias } from '../../../constants/Spacing';
 
 /** Normaliza dados de qualquer fonte (Supabase camelCase ou SQLite snake_case) */
 function normalizar(v: any): any {
@@ -601,8 +611,8 @@ export default function ResultadoScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Preparando o resultado da vistoria..." />
       </View>
     );
   }
@@ -616,6 +626,7 @@ export default function ResultadoScreen() {
   });
   const cor = apresentacao.cor;
   const label = apresentacao.label;
+  const riskVariant = nivel.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4';
   const isAvaliacaoArvore = (vistoria?.formularioId || formularioIdParam) === 'avaliacao_arvore_cbmmg_v1';
   const isAltoRisco = nivel === 'r3' || nivel === 'r4';
   const currentAcknowledgements = acknowledgementHistory.filter(item => item.document.status !== 'superseded');
@@ -648,30 +659,20 @@ export default function ResultadoScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => safeBack(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: theme.text }]}>Resultado Final</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {vistoria?.protocolo || generateProtocolo(id?.toString() || '', vistoria?.dataVistoria, vistoria?.municipio)}
-          </Text>
-        </View>
-      </View>
+      <AppHeader
+        title="Resultado da vistoria"
+        subtitle={vistoria?.protocolo || generateProtocolo(id?.toString() || '', vistoria?.dataVistoria, vistoria?.municipio)}
+        onBack={() => safeBack(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {/* Status Card */}
-        <View style={[styles.statusCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <View style={[styles.statusCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={[styles.statusIcon, { backgroundColor: `${cor}15` }]}>
             <Feather name="file-text" size={32} color={cor} />
           </View>
-          <View style={[styles.nivelBadge, { backgroundColor: cor }]}>
-            <Text style={styles.nivelText}>{isAvaliacaoArvore ? label : `RISCO ${label}`}</Text>
-          </View>
+          <Badge label={isAvaliacaoArvore ? label : `Risco ${label}`} variant={riskVariant} showDot />
           <Text style={[styles.statusTitle, { color: theme.text }]}>Vistoria Concluída</Text>
           <Text style={[styles.statusDesc, { color: theme.textSecondary }]}>
             {vistoria?.endereco
@@ -693,7 +694,7 @@ export default function ResultadoScreen() {
         {/* Botão Termo de Interdição — SÓ R3/R4 */}
         {isAltoRisco && !isAvaliacaoArvore && (
           <TouchableOpacity
-            style={[styles.termoBtn]}
+            style={[styles.termoBtn, { backgroundColor: theme.error }]}
             onPress={() => setShowTermoModal(true)}
             disabled={gerando}
           >
@@ -712,34 +713,24 @@ export default function ResultadoScreen() {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={[styles.reportBtn, { backgroundColor: theme.primary }]}
+        <SectionHeader title="Próximas ações" subtitle="Complete o registro técnico e os documentos" />
+        <ListRow
+          title="Relatório técnico"
+          subtitle="Revisar, editar e personalizar o documento"
+          icon="edit-3"
           onPress={() => router.push('/(panel)/inspecoes/relatorio')}
-        >
-          <Feather name="edit-3" size={20} color="#FFF" />
-          <View style={styles.reportBtnText}>
-            <Text style={styles.reportBtnTitle}>Ver Relatório Técnico</Text>
-            <Text style={styles.reportBtnDesc}>Editar e personalizar o laudo</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
-        </TouchableOpacity>
+        />
 
         {!formalTrainingMode && (
-          <TouchableOpacity
-            style={[styles.reportBtn, { backgroundColor: theme.surfaceHighlight, borderWidth: 1, borderColor: theme.border }]}
+          <ListRow
+            title="Evidências fotográficas"
+            subtitle={displayedEvidence.length > 0
+              ? `${displayedEvidence.length} de 3 fotos registradas`
+              : 'Adicionar fotos que sustentem a avaliação'}
+            icon="camera"
+            badge={displayedEvidence.length ? String(displayedEvidence.length) : undefined}
             onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
-          >
-            <Feather name="camera" size={20} color={theme.primary} />
-            <View style={styles.reportBtnText}>
-              <Text style={[styles.reportBtnTitle, { color: theme.text }]}>Registrar Evidências</Text>
-              <Text style={[styles.reportBtnDesc, { color: theme.textSecondary }]}>
-                {displayedEvidence.length > 0
-                  ? `${displayedEvidence.length}/3 foto${displayedEvidence.length !== 1 ? 's' : ''} salva${displayedEvidence.length !== 1 ? 's' : ''} · toque para visualizar`
-                  : 'Adicionar fotos da vistoria'}
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-          </TouchableOpacity>
+          />
         )}
 
         {!formalTrainingMode && displayedEvidence.length > 0 && (
@@ -757,7 +748,7 @@ export default function ResultadoScreen() {
 
         {currentAcknowledgements.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Ciência eletrônica</Text>
+            <SectionHeader title="Ciência eletrônica" subtitle="Acompanhamento por versão do documento" />
             {currentAcknowledgements.map(({ document, historyStatus }) => {
               const statusLabel = {
                 not_collected: 'Pronta para coletar',
@@ -772,39 +763,38 @@ export default function ResultadoScreen() {
                 technical_report: 'Relatório técnico',
                 interdiction_term: 'Termo de interdição',
               }[document.documentType];
+              const statusVariant = historyStatus === 'confirmed' ? 'success'
+                : historyStatus === 'sync_failed' ? 'error'
+                  : historyStatus === 'pending_sync' ? 'warning'
+                    : 'info';
               return (
-                <TouchableOpacity
+                <ListRow
                   key={document.id}
-                  style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: '#8B5CF6' }]}
+                  title={`${documentLabel} · versão ${document.documentVersion}`}
+                  subtitle={statusLabel}
+                  icon="edit-3"
+                  badge={historyStatus === 'confirmed' ? 'Confirmada' : historyStatus === 'pending_sync' ? 'Pendente' : undefined}
+                  badgeVariant={statusVariant}
                   onPress={() => router.push(`/(panel)/inspecoes/ciencia?documentId=${document.id}`)}
-                >
-                  <View style={[styles.exportIcon, { backgroundColor: '#8B5CF6' }]}>
-                    <Feather name="edit-3" size={22} color="#FFF" />
-                  </View>
-                  <View style={styles.exportTextWrap}>
-                    <Text style={[styles.exportTitle, { color: theme.text }]}>{documentLabel} · versão {document.documentVersion}</Text>
-                    <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>{statusLabel}</Text>
-                  </View>
-                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-                </TouchableOpacity>
+                />
               );
             })}
           </>
         )}
 
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Documento</Text>
+        <SectionHeader title="Documento" subtitle="Gerar, abrir, imprimir ou compartilhar" />
 
         {/* Botão Baixar do Storage (se laudo válido) ou Regenerar (se expirado) */}
         {vistoria?.laudo_url && !laudoExpirado() && (
           <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: '#10B981' }]}
+            style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.success }]}
             onPress={() => {
               const { Linking } = require('react-native');
               Linking.openURL(vistoria.laudo_url);
             }}
           >
-            <View style={[styles.exportIcon, { backgroundColor: '#10B981' }]}>
-              <Feather name="download" size={22} color="#FFF" />
+            <View style={[styles.exportIcon, { backgroundColor: theme.success }]}>
+              <Feather name="download" size={22} color={theme.onPrimary} />
             </View>
             <View style={styles.exportTextWrap}>
               <Text style={[styles.exportTitle, { color: theme.text }]}>Abrir última cópia salva</Text>
@@ -817,12 +807,12 @@ export default function ResultadoScreen() {
 
         {vistoria?.laudo_url && laudoExpirado() && (
           <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: '#F59E0B' }]}
+            style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.warning }]}
             onPress={gerarPdf}
             disabled={gerando}
           >
-            <View style={[styles.exportIcon, { backgroundColor: '#F59E0B' }]}>
-              {gerando ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="refresh-cw" size={22} color="#FFF" />}
+            <View style={[styles.exportIcon, { backgroundColor: theme.warning }]}>
+              {gerando ? <ActivityIndicator size="small" color={theme.onPrimary} /> : <Feather name="refresh-cw" size={22} color={theme.onPrimary} />}
             </View>
             <View style={styles.exportTextWrap}>
               <Text style={[styles.exportTitle, { color: theme.text }]}>
@@ -836,7 +826,7 @@ export default function ResultadoScreen() {
         )}
 
         <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.primary }]}
+          style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.primary }]}
           onPress={activeReportNeedsAttention
             ? () => router.push(`/(panel)/inspecoes/ciencia?documentId=${activeReportAcknowledgement.document.id}`)
             : gerarPdf}
@@ -844,8 +834,8 @@ export default function ResultadoScreen() {
         >
           <View style={[styles.exportIcon, { backgroundColor: theme.primary }]}>
             {gerando
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <Feather name="download" size={22} color="#FFF" />
+              ? <ActivityIndicator size="small" color={theme.onPrimary} />
+              : <Feather name="download" size={22} color={theme.onPrimary} />
             }
           </View>
           <View style={styles.exportTextWrap}>
@@ -871,7 +861,7 @@ export default function ResultadoScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
+          style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={imprimir}
           disabled={gerando}
         >
@@ -885,7 +875,7 @@ export default function ResultadoScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
+          style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={compartilhar}
           disabled={gerando}
         >
@@ -901,13 +891,13 @@ export default function ResultadoScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+      <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, Spacing[4]) }]}>
+        <Button
+          label="Voltar ao painel"
           onPress={() => router.replace(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/dashboard')}
-        >
-          <Text style={styles.primaryBtnText}>Voltar ao Início</Text>
-        </TouchableOpacity>
+          iconLeft={<Feather name="home" size={18} color={theme.onPrimary} />}
+          fullWidth
+        />
       </View>
 
       {/* ═══════════════ MODAL TERMO DE INTERDIÇÃO ═══════════════ */}
@@ -921,7 +911,7 @@ export default function ResultadoScreen() {
               {/* Header do Modal */}
               <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
                 <View style={styles.modalHeaderIcon}>
-                  <Feather name="alert-triangle" size={20} color="#DC2626" />
+                  <Feather name="alert-triangle" size={20} color={theme.error} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.modalTitle, { color: theme.text }]}>Termo de Interdição</Text>
@@ -937,14 +927,14 @@ export default function ResultadoScreen() {
               <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? theme.error : theme.border, color: theme.text }]}
                   placeholder="Nome completo"
                   placeholderTextColor={theme.textSecondary}
                   value={termoForm.nomeNotificado}
                   onChangeText={t => { setTermoForm(f => ({ ...f, nomeNotificado: t })); setTermoNomeErro(false); }}
                 />
                 {termoNomeErro && (
-                  <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 }}>
+                  <Text style={{ color: theme.error, fontSize: 12, fontWeight: '600', marginTop: 4 }}>
                     Campo obrigatório
                   </Text>
                 )}
@@ -1042,7 +1032,7 @@ export default function ResultadoScreen() {
                   <Text style={[styles.modalCancelText, { color: theme.textSecondary }]}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.modalGerarBtn}
+                  style={[styles.modalGerarBtn, { backgroundColor: theme.error }]}
                   onPress={gerarTermoInterdicao}
                 >
                   <Feather name="file-text" size={18} color="#FFF" />
@@ -1092,7 +1082,6 @@ const styles = StyleSheet.create({
   // Termo de Interdição button
   termoBtn: {
     borderRadius: 18, marginBottom: 16, overflow: 'hidden',
-    backgroundColor: '#DC2626',
   },
   termoBtnInner: {
     flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18,
@@ -1175,7 +1164,6 @@ const styles = StyleSheet.create({
   modalCancelText: { fontSize: 14, fontWeight: '700' },
   modalGerarBtn: {
     flex: 2, height: 52, borderRadius: 14,
-    backgroundColor: '#DC2626',
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
   modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },

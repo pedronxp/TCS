@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
+import { TCSPalette } from '../../constants/Colors';
 
 const RESEND_TIMEOUT = 60;
 
@@ -98,8 +99,8 @@ export default function VerifyOtpScreen() {
 
           {/* Ícone + Título */}
           <View style={styles.titleSection}>
-            <View style={[styles.iconWrap, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-              <Feather name="shield" size={28} color={(theme as any).primary || '#3B82F6'} />
+            <View style={[styles.iconWrap, { backgroundColor: theme.secondary }]}>
+              <Feather name="shield" size={28} color={theme.primary} />
             </View>
             <Text style={[styles.title, { color: theme.text }]}>Verificação</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -132,9 +133,9 @@ export default function VerifyOtpScreen() {
             </View>
 
             {error !== null && (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={16} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: theme.errorLight, borderColor: theme.error }]}>
+                <Feather name="alert-circle" size={16} color={theme.error} />
+                <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
               </View>
             )}
 
@@ -156,7 +157,7 @@ export default function VerifyOtpScreen() {
                 </Text>
               ) : (
                 <TouchableOpacity onPress={handleReenviar} disabled={reenviando}>
-                  <Text style={[styles.reenviarBtn, { color: (theme as any).primary || '#3B82F6' }]}>
+                  <Text style={[styles.reenviarBtn, { color: theme.primary }]}>
                     {reenviando ? 'Enviando...' : 'Reenviar código'}
                   </Text>
                 </TouchableOpacity>
@@ -199,10 +200,9 @@ const styles = StyleSheet.create({
   input: { flex: 1 },
   errorBox: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12, padding: 12, gap: 8,
+    borderWidth: 1, borderRadius: 12, padding: 12, gap: 8,
   },
-  errorText: { color: '#EF4444', fontSize: 14, flex: 1 },
+  errorText: { fontSize: 14, flex: 1 },
   reenviarRow: { alignItems: 'center' },
   reenviarInfo: { fontSize: 14 },
   reenviarBtn: { fontSize: 14, fontWeight: '600' },

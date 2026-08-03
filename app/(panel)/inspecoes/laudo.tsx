@@ -26,6 +26,8 @@ import {
   getPerguntaIdFromObservacaoCondicionalRiscoKey,
   opcaoAcionaObservacaoCondicionalRisco,
 } from '../../../utils/formulariosAssets';
+import { AppHeader, Badge, Button, LoadingState, SectionHeader, StateBanner } from '../../../components/ui';
+import { Spacing } from '../../../constants/Spacing';
 
 // ─── Form JSONs ──────────────────────────────────────────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -356,73 +358,56 @@ export default function LaudoScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Carregando laudo técnico..." />
       </View>
     );
   }
 
   if (!vistoria) return null;
   const apresentacao = resolverApresentacaoRisco({ formularioId: vistoria.formularioId, pontuacao: vistoria.pontuacaoTotal, nivelRisco: vistoria.nivelRisco, calculoRisco: vistoria.calculoRisco });
-  const cor = apresentacao.cor;
+  const riskCode = apresentacao.nivelCompatibilidade.toLowerCase();
+  const cor = ['r3', 'r4'].includes(riskCode) ? theme.error : riskCode === 'r2' ? theme.warning : theme.success;
   const nivel = apresentacao.label;
+  const riskVariant = apresentacao.nivelCompatibilidade.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4';
   const isAvaliacaoArvore = vistoria.formularioId === 'avaliacao_arvore_cbmmg_v1';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Laudo Técnico</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Relatório de vistoria</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.pdfBtn, { backgroundColor: gerando ? theme.textSecondary : theme.primary }]}
-          onPress={gerarPDF}
-          disabled={gerando}
-        >
-          {gerando
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <Feather name="download" size={18} color="#FFF" />
-          }
-          <Text style={styles.pdfBtnText}>{gerando ? '...' : 'PDF'}</Text>
-        </TouchableOpacity>
-      </View>
+      <AppHeader
+        title="Laudo técnico"
+        subtitle="Relatório oficial da vistoria"
+        onBack={() => router.back()}
+        actionIcon="download"
+        actionLabel="Gerar PDF"
+        onAction={gerando ? undefined : gerarPDF}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Nível badge */}
         <View style={[styles.nivelCard, { backgroundColor: `${cor}12`, borderColor: `${cor}30` }]}>
           <View style={[styles.nivelIcon, { backgroundColor: `${cor}20` }]}>
-            <Feather name={cor === '#EF4444' ? 'alert-triangle' : cor === '#F59E0B' ? 'alert-circle' : 'check-circle'} size={32} color={cor} />
+            <Feather name={['r3', 'r4'].includes(riskCode) ? 'alert-triangle' : riskCode === 'r2' ? 'alert-circle' : 'check-circle'} size={32} color={cor} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.nivelLabel, { color: theme.textSecondary }]}>{isAvaliacaoArvore ? 'RESULTADO CBMMG' : 'NÍVEL DE RISCO'}</Text>
-            <Text style={[styles.nivelText, { color: cor }]}>{nivel}</Text>
+            <Badge label={isAvaliacaoArvore ? nivel : `Risco ${nivel}`} variant={riskVariant} size="sm" showDot />
           </View>
           <Text style={[styles.pontuacao, { color: cor }]}>{formatarPontuacaoRisco(vistoria.pontuacaoTotal ?? 0)}<Text style={{ fontSize: 14 }}>pts</Text></Text>
         </View>
 
         {/* Banner — laudo já gerado */}
         {vistoria.laudo_gerado_em && (
-          <View style={[styles.docBanner, { backgroundColor: '#10B98112', borderColor: '#10B98130' }]}>
-            <Feather name="check-circle" size={15} color="#10B981" />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.docBannerTitle, { color: '#10B981' }]}>Laudo já gerado</Text>
-              <Text style={[styles.docBannerSub, { color: theme.textSecondary }]}>
-                {formatarData(vistoria.laudo_gerado_em)} · arquivo no seu dispositivo
-              </Text>
-            </View>
-          </View>
+          <StateBanner
+            variant="success"
+            title="Laudo já gerado"
+            description={`${formatarData(vistoria.laudo_gerado_em)} · arquivo disponível neste dispositivo`}
+          />
         )}
 
-        {/* Identificação */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Identificação</Text>
-        <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <SectionHeader title="Identificação" subtitle="Dados vinculados ao documento" />
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           {[
             { icon: 'map-pin', label: 'Endereço', value: vistoria.endereco || `${vistoria.enderecoRua || ''}, ${vistoria.enderecoNumero || ''} — ${vistoria.enderecoBairro || ''}` },
             { icon: 'map', label: 'Município', value: vistoria.municipio || '—' },
@@ -445,13 +430,13 @@ export default function LaudoScreen() {
           const grupos = resolverItensVistoriados(vistoria.formularioId || '', vistoria.respostasJson, vistoria.calculoRisco);
           if (grupos.length === 0) return null;
           const riscoColors: Record<string, string> = {
-            r1: '#10B981', r2: '#F59E0B', r3: '#F97316', r4: '#EF4444',
-            baixo: '#10B981', médio: '#F59E0B', alto: '#EF4444', iminente: '#EF4444',
+            r1: theme.success, r2: theme.warning, r3: theme.error, r4: theme.error,
+            baixo: theme.success, médio: theme.warning, alto: theme.error, iminente: theme.error,
           };
           let itemIndex = 0;
           return (
             <>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Itens Vistoriados</Text>
+              <SectionHeader title="Itens vistoriados" subtitle="Respostas e observações registradas" />
               {grupos.map((grupo, gi) => (
                 <View key={gi}>
                   {grupos.length > 1 && (
@@ -464,7 +449,7 @@ export default function LaudoScreen() {
                     return (
                       <View
                         key={ii}
-                        style={[styles.respostaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                        style={[styles.respostaCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
                       >
                         <View style={styles.respostaNumero}>
                           <Text style={[styles.respostaNumeroText, { color: theme.textSecondary }]}>{idx}</Text>
@@ -496,36 +481,31 @@ export default function LaudoScreen() {
 
         {/* Banner — termo já gerado */}
         {vistoria.termo_gerado_em && (
-          <View style={[styles.docBanner, { backgroundColor: '#F9731612', borderColor: '#F9731630' }]}>
-            <Feather name="check-circle" size={15} color="#F97316" />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.docBannerTitle, { color: '#F97316' }]}>Termo já gerado</Text>
-              <Text style={[styles.docBannerSub, { color: theme.textSecondary }]}>
-                {formatarData(vistoria.termo_gerado_em)} · arquivo no seu dispositivo
-              </Text>
-            </View>
-          </View>
+          <StateBanner
+            variant="warning"
+            title="Termo de interdição já gerado"
+            description={`${formatarData(vistoria.termo_gerado_em)} · arquivo disponível neste dispositivo`}
+          />
         )}
 
         {!isAvaliacaoArvore && (vistoria.nivelRisco === 'r3' || vistoria.nivelRisco === 'r4') && (
-          <TouchableOpacity
-            style={[styles.shareBtn, { backgroundColor: '#EF4444', marginBottom: 12 }]}
+          <Button
+            label="Gerar termo de interdição"
+            variant="danger"
             onPress={abrirModalTermo}
             disabled={gerando}
-          >
-            <Feather name="alert-octagon" size={20} color="#FFF" />
-            <Text style={styles.shareBtnText}>Gerar Termo de Interdição</Text>
-          </TouchableOpacity>
+            iconLeft={<Feather name="alert-octagon" size={20} color={theme.onPrimary} />}
+            fullWidth
+          />
         )}
 
-        <TouchableOpacity
-          style={[styles.shareBtn, { backgroundColor: theme.primary }]}
+        <Button
+          label="Gerar relatório de vistoria"
           onPress={gerarPDF}
-          disabled={gerando}
-        >
-          <Feather name="file-text" size={20} color="#FFF" />
-          <Text style={styles.shareBtnText}>Gerar Relatório de Vistoria</Text>
-        </TouchableOpacity>
+          loading={gerando}
+          iconLeft={<Feather name="file-text" size={20} color={theme.onPrimary} />}
+          fullWidth
+        />
       </ScrollView>
 
       {/* ═══════════════ MODAL TERMO DE INTERDIÇÃO ═══════════════ */}
@@ -538,7 +518,7 @@ export default function LaudoScreen() {
             <View style={[styles.modalCard, { backgroundColor: theme.surfaceHighlight }]}>
               <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
                 <View style={styles.modalHeaderIcon}>
-                  <Feather name="alert-triangle" size={20} color="#DC2626" />
+                  <Feather name="alert-triangle" size={20} color={theme.error} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.modalTitle, { color: theme.text }]}>Termo de Interdição</Text>
@@ -554,14 +534,14 @@ export default function LaudoScreen() {
               <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Nome do Notificado *</Text>
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  style={[styles.modalInput, { backgroundColor: theme.background, borderColor: termoNomeErro ? theme.error : theme.border, color: theme.text }]}
                   placeholder="Nome completo"
                   placeholderTextColor={theme.textSecondary}
                   value={termoForm.nomeNotificado}
                   onChangeText={t => { setTermoForm(f => ({ ...f, nomeNotificado: t })); setTermoNomeErro(false); }}
                 />
                 {termoNomeErro && (
-                  <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 }}>
+                  <Text style={{ color: theme.error, fontSize: 12, fontWeight: '600', marginTop: 4 }}>
                     Campo obrigatório
                   </Text>
                 )}
@@ -658,7 +638,7 @@ export default function LaudoScreen() {
                   <Text style={[styles.modalCancelText, { color: theme.textSecondary }]}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.modalGerarBtn}
+                  style={[styles.modalGerarBtn, { backgroundColor: theme.error }]}
                   onPress={gerarTermoInterdicao}
                 >
                   <Feather name="file-text" size={18} color="#FFF" />
@@ -768,7 +748,6 @@ const styles = StyleSheet.create({
   modalCancelText: { fontSize: 14, fontWeight: '700' },
   modalGerarBtn: {
     flex: 2, height: 52, borderRadius: 14,
-    backgroundColor: '#DC2626',
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
   modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, RefreshControl, Modal, TextInput,
+  RefreshControl, Modal,
   Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -15,6 +15,8 @@ import {
   deleteGrupo, getGrupoMemberCount,
 } from '../../../utils/database';
 import { generateUUID } from '../../../utils/uuid';
+import { AppHeader, Button, ConfirmSheet, EmptyState, FormField, ListRow, LoadingState } from '../../../components/ui';
+import { Spacing } from '../../../constants/Spacing';
 
 export default function GruposScreen() {
   const { theme } = useTheme();
@@ -29,6 +31,7 @@ export default function GruposScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [nomeGrupo, setNomeGrupo] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<GrupoLocal | null>(null);
 
   const carregar = (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -67,97 +70,70 @@ export default function GruposScreen() {
   };
 
   const confirmarExcluir = (g: GrupoLocal) => {
-    Alert.alert(
-      'Excluir grupo',
-      `Tem certeza que deseja excluir "${g.nome}"? Os membros serão removidos.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir', style: 'destructive',
-          onPress: () => { deleteGrupo(g.id); carregar(); },
-        },
-      ]
-    );
+    setDeleteCandidate(g);
+  };
+
+  const excluirGrupo = () => {
+    if (!deleteCandidate) return;
+    deleteGrupo(deleteCandidate.id);
+    setDeleteCandidate(null);
+    carregar();
   };
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Carregando grupos de campo..." />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Grupos de Campo</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {profile?.municipio} · {grupos.length} grupo{grupos.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: theme.primary }]}
-          onPress={() => { setNomeGrupo(''); setModalVisible(true); }}
-        >
-          <Feather name="plus" size={20} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+      <AppHeader
+        title="Grupos de campo"
+        subtitle={`${profile?.municipio || 'Município'} · ${grupos.length} grupo${grupos.length !== 1 ? 's' : ''}`}
+        onBack={() => router.back()}
+        actionIcon="plus"
+        actionLabel="Criar grupo"
+        onAction={() => { setNomeGrupo(''); setModalVisible(true); }}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         {grupos.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-            <Feather name="users" size={40} color={theme.border} style={{ marginBottom: 16 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Sem grupos cadastrados</Text>
-            <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
-              Crie grupos para organizar agentes por área, turno ou zona de atuação.
-            </Text>
-            <TouchableOpacity
-              style={[styles.emptyBtn, { backgroundColor: theme.primary }]}
-              onPress={() => { setNomeGrupo(''); setModalVisible(true); }}
-            >
-              <Feather name="plus" size={16} color="#FFF" />
-              <Text style={styles.emptyBtnText}>Criar Primeiro Grupo</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="users"
+            title="Sem grupos cadastrados"
+            description="Crie grupos para organizar agentes por área, turno ou zona de atuação."
+            actionLabel="Criar primeiro grupo"
+            onAction={() => { setNomeGrupo(''); setModalVisible(true); }}
+          />
         ) : (
           grupos.map(g => (
-            <TouchableOpacity
+            <View
               key={g.id}
-              style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push(`/(panel)/grupos/${g.id}` as any)}
-              activeOpacity={0.8}
+              style={styles.groupRow}
             >
-              <View style={[styles.cardIcon, { backgroundColor: `${theme.primary}15` }]}>
-                <Feather name="users" size={22} color={theme.primary} />
+              <View style={styles.groupMain}>
+                <ListRow
+                  title={g.nome}
+                  subtitle={`${g.membros} membro${g.membros !== 1 ? 's' : ''}`}
+                  icon="users"
+                  onPress={() => router.push(`/(panel)/grupos/${g.id}` as any)}
+                />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.cardNome, { color: theme.text }]}>{g.nome}</Text>
-                <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>
-                  {g.membros} membro{g.membros !== 1 ? 's' : ''}
-                </Text>
-              </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity
-                  onPress={() => confirmarExcluir(g)}
-                  style={[styles.deleteBtn, { backgroundColor: 'rgba(239,68,68,0.1)' }]}
-                >
-                  <Feather name="trash-2" size={16} color="#EF4444" />
-                </TouchableOpacity>
-                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-              </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => confirmarExcluir(g)}
+                style={[styles.deleteBtn, { backgroundColor: theme.errorLight }]}
+                accessibilityLabel={`Excluir ${g.nome}`}
+              >
+                <Feather name="trash-2" size={16} color={theme.error} />
+              </TouchableOpacity>
+            </View>
           ))
         )}
       </ScrollView>
@@ -173,29 +149,35 @@ export default function GruposScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.modalContent}>
-              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Nome do grupo</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              <FormField
+                label="Nome do grupo"
+                required
                 placeholder="Ex: Equipe Norte, Plantão A..."
-                placeholderTextColor={theme.textSecondary}
                 value={nomeGrupo}
                 onChangeText={setNomeGrupo}
                 autoFocus
               />
-              <TouchableOpacity
-                style={[styles.saveBtn, { backgroundColor: saving || !nomeGrupo.trim() ? theme.border : theme.primary }]}
+              <Button
+                label="Criar grupo"
                 onPress={criarGrupo}
                 disabled={saving || !nomeGrupo.trim()}
-              >
-                {saving
-                  ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={styles.saveBtnText}>Criar Grupo</Text>
-                }
-              </TouchableOpacity>
+                loading={saving}
+                fullWidth
+              />
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <ConfirmSheet
+        visible={Boolean(deleteCandidate)}
+        title="Excluir grupo?"
+        description={`Os membros serão removidos de “${deleteCandidate?.nome || ''}”.`}
+        onDismiss={() => setDeleteCandidate(null)}
+        actions={[
+          { label: 'Excluir grupo', variant: 'danger', onPress: excluirGrupo },
+          { label: 'Cancelar', variant: 'ghost', onPress: () => setDeleteCandidate(null) },
+        ]}
+      />
     </View>
   );
 }
@@ -216,7 +198,9 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center',
   },
-  scrollContent: { padding: 20, paddingBottom: 100 },
+  scrollContent: { padding: Spacing[4], paddingBottom: 100 },
+  groupRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], marginBottom: Spacing[2] },
+  groupMain: { flex: 1 },
   emptyCard: {
     borderRadius: 20, borderWidth: 1, padding: 40,
     alignItems: 'center', marginTop: 40,
@@ -244,7 +228,7 @@ const styles = StyleSheet.create({
     padding: 20, borderBottomWidth: 1,
   },
   modalTitle: { fontSize: 18, fontWeight: '800' },
-  modalContent: { padding: 20, paddingBottom: 40 },
+  modalContent: { padding: 20, paddingBottom: 40, gap: Spacing[4] },
   fieldLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 15, fontWeight: '500' },
   saveBtn: {
