@@ -23,19 +23,14 @@ import {
 } from '../../../utils/database';
 import { generateUUID } from '../../../utils/uuid';
 import { AgendamentoLocal } from '../../../types/agendamento';
+import { AppHeader, Badge, Button, EmptyState, FormField, LoadingState, MetricCard, SectionHeader } from '../../../components/ui';
+import { Spacing } from '../../../constants/Spacing';
 
 interface AgentUser {
   uid: string;
   name: string;
   municipio?: string;
 }
-
-const STATUS_COLORS = {
-  pendente: { bg: 'rgba(59,130,246,0.12)', text: '#3B82F6' },
-  concluido: { bg: 'rgba(16,185,129,0.12)', text: '#10B981' },
-  cancelado: { bg: 'rgba(239,68,68,0.12)', text: '#EF4444' },
-  deletado: { bg: 'rgba(100,116,139,0.12)', text: '#64748B' },
-};
 
 function formatDataAgendada(iso: string): string {
   try {
@@ -352,22 +347,25 @@ export default function AgendamentosScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Carregando agenda operacional..." />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Agendamentos</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <AppHeader
+        title="Agenda operacional"
+        subtitle={`${agendamentos.length} tarefa${agendamentos.length !== 1 ? 's' : ''}`}
+        onBack={() => router.back()}
+        {...(canCreate ? {
+          actionIcon: 'plus' as const,
+          actionLabel: 'Novo agendamento',
+          onAction: abrirModal,
+        } : {})}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
@@ -375,21 +373,36 @@ export default function AgendamentosScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />
         }
       >
+        <View style={styles.metrics}>
+          <MetricCard
+            value={agendamentos.filter(item => item.status === 'pendente').length}
+            label="Pendentes"
+            tone="warning"
+            style={styles.metricCard}
+          />
+          <MetricCard
+            value={agendamentos.filter(item => item.status === 'concluido').length}
+            label="Concluídas"
+            tone="success"
+            style={styles.metricCard}
+          />
+        </View>
+        <SectionHeader title="Próximas tarefas" subtitle="Toque em um agendamento para abrir os detalhes" />
         {agendamentos.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-            <Feather name="calendar" size={36} color={theme.textSecondary} style={{ marginBottom: 12, opacity: 0.5 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhum agendamento</Text>
-            <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
-              {canCreate ? 'Toque em "+" para criar um novo agendamento.' : 'Nenhum agendamento atribuído a você.'}
-            </Text>
-          </View>
+          <EmptyState
+            icon="calendar"
+            title="Nenhum agendamento"
+            description={canCreate ? 'Crie a primeira tarefa para organizar a operação.' : 'Nenhuma tarefa foi atribuída a você.'}
+            actionLabel={canCreate ? 'Novo agendamento' : undefined}
+            onAction={canCreate ? abrirModal : undefined}
+          />
         ) : (
           agendamentos.map(a => {
-            const colors = STATUS_COLORS[a.status] ?? STATUS_COLORS.pendente;
+            const statusVariant = a.status === 'concluido' ? 'success' : a.status === 'cancelado' ? 'error' : a.status === 'pendente' ? 'warning' : 'neutral';
             return (
               <TouchableOpacity
                 key={a.id}
-                style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
+                style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
                 onPress={() => router.push(`/(panel)/agendamentos/${a.id}`)}
                 activeOpacity={0.8}
               >
@@ -404,17 +417,13 @@ export default function AgendamentosScreen() {
                         <Text style={[styles.originText, { color: theme.primary }]}>FEITO NA WEB</Text>
                       </View>
                     )}
-                    <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-                      <Text style={[styles.statusText, { color: colors.text }]}>
-                        {a.status.toUpperCase()}
-                      </Text>
-                    </View>
+                    <Badge label={a.status === 'concluido' ? 'Concluída' : a.status === 'cancelado' ? 'Cancelada' : a.status === 'pendente' ? 'Pendente' : a.status} variant={statusVariant} size="sm" />
                     {canCreate && (
                       <TouchableOpacity
                         onPress={() => handleDelete(a)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Feather name="trash-2" size={15} color="#EF4444" />
+                        <Feather name="trash-2" size={15} color={theme.error} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -454,17 +463,6 @@ export default function AgendamentosScreen() {
         )}
       </ScrollView>
 
-      {/* FAB */}
-      {canCreate && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.primary, bottom: bottomPad + 16 }]}
-          onPress={abrirModal}
-          activeOpacity={0.85}
-        >
-          <Feather name="plus" size={24} color="#FFF" />
-        </TouchableOpacity>
-      )}
-
       {/* Modal de criação */}
       <Modal
         visible={modalVisible}
@@ -486,22 +484,17 @@ export default function AgendamentosScreen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-              {/* Título */}
-              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Título *</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              <FormField
+                label="Título"
+                required
                 placeholder="Ex: Vistoria Rua das Flores, 42"
-                placeholderTextColor={theme.textSecondary}
                 value={titulo}
                 onChangeText={setTitulo}
               />
 
-              {/* Endereço */}
-              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Endereço</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              <FormField
+                label="Endereço"
                 placeholder="Rua, número, bairro"
-                placeholderTextColor={theme.textSecondary}
                 value={endereco}
                 onChangeText={setEndereco}
               />
@@ -510,7 +503,7 @@ export default function AgendamentosScreen() {
               <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Data e hora *</Text>
               <View style={styles.dataHoraRow}>
                 <TextInput
-                  style={[styles.input, styles.dataInput, { backgroundColor: theme.background, borderColor: dataErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  style={[styles.input, styles.dataInput, { backgroundColor: theme.background, borderColor: dataErro ? theme.error : theme.border, color: theme.text }]}
                   placeholder="DD/MM/AAAA"
                   placeholderTextColor={theme.textSecondary}
                   value={dataInput}
@@ -519,7 +512,7 @@ export default function AgendamentosScreen() {
                   maxLength={10}
                 />
                 <TextInput
-                  style={[styles.input, styles.horaInput, { backgroundColor: theme.background, borderColor: dataErro ? '#EF4444' : theme.border, color: theme.text }]}
+                  style={[styles.input, styles.horaInput, { backgroundColor: theme.background, borderColor: dataErro ? theme.error : theme.border, color: theme.text }]}
                   placeholder="HH:MM"
                   placeholderTextColor={theme.textSecondary}
                   value={horaInput}
@@ -529,7 +522,7 @@ export default function AgendamentosScreen() {
                 />
               </View>
               {dataErro ? (
-                <Text style={styles.fieldError}>{dataErro}</Text>
+                <Text style={[styles.fieldError, { color: theme.error }]}>{dataErro}</Text>
               ) : null}
 
               {/* Agente atribuído */}
@@ -576,32 +569,21 @@ export default function AgendamentosScreen() {
                 </View>
               )}
 
-              {/* Observações */}
-              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Observações</Text>
-              <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              <FormField
+                label="Observações"
                 placeholder="Informações adicionais..."
-                placeholderTextColor={theme.textSecondary}
                 value={observacoes}
                 onChangeText={setObservacoes}
                 multiline
                 numberOfLines={4}
-                textAlignVertical="top"
               />
 
-              {/* Botão salvar */}
-              <TouchableOpacity
-                style={[styles.saveBtn, { backgroundColor: saving ? theme.border : theme.primary }]}
+              <Button
+                label="Salvar agendamento"
                 onPress={salvarAgendamento}
-                disabled={saving}
-                activeOpacity={0.85}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.saveBtnText}>Salvar Agendamento</Text>
-                )}
-              </TouchableOpacity>
+                loading={saving}
+                fullWidth
+              />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -618,7 +600,9 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800' },
-  scrollContent: { padding: 20, paddingBottom: 100 },
+  scrollContent: { padding: Spacing[4], paddingBottom: 100 },
+  metrics: { flexDirection: 'row', gap: Spacing[3], marginBottom: Spacing[5] },
+  metricCard: { flex: 1, minHeight: 112 },
 
   emptyCard: {
     borderRadius: 20, borderWidth: 1, padding: 40,
@@ -662,7 +646,7 @@ const styles = StyleSheet.create({
     padding: 20, paddingBottom: 16, borderBottomWidth: 1,
   },
   modalTitle: { fontSize: 18, fontWeight: '800' },
-  modalContent: { padding: 20, paddingBottom: 40 },
+  modalContent: { padding: 20, paddingBottom: 40, gap: Spacing[4] },
 
   fieldLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 14 },
   input: {
@@ -673,7 +657,7 @@ const styles = StyleSheet.create({
   dataHoraRow: { flexDirection: 'row', gap: 10 },
   dataInput: { flex: 2 },
   horaInput: { flex: 1 },
-  fieldError: { color: '#EF4444', fontSize: 12, fontWeight: '600', marginTop: 4 },
+  fieldError: { fontSize: 12, fontWeight: '600', marginTop: 4 },
   pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pickerList: {
     borderWidth: 1, borderRadius: 12, marginTop: 4, overflow: 'hidden',

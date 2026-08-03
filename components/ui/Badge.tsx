@@ -1,20 +1,28 @@
-// components/ui/Badge.tsx
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { Spacing, SpacingAlias } from '../../constants/Spacing';
 
-// ── Tipos de risco (de acordo com o projeto) ──
 export type RiscoLevel = 'R1' | 'R2' | 'R3' | 'R4';
-export type UserRole = 'agente' | 'supervisor' | 'admin' | 'master_admin';
+export type UserRole =
+  | 'individual'
+  | 'agent'
+  | 'agente'
+  | 'owner'
+  | 'coordinator'
+  | 'supervisor'
+  | 'admin'
+  | 'master_admin'
+  | 'developer';
 export type BadgeVariant = RiscoLevel | UserRole | 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
-interface BadgeProps {
+export interface BadgeProps {
   label: string;
   variant?: BadgeVariant;
   size?: 'sm' | 'md';
   style?: ViewStyle;
+  showDot?: boolean;
 }
 
 export const RISCO_LABELS: Record<RiscoLevel, string> = {
@@ -29,74 +37,90 @@ export const Badge = React.memo(function Badge({
   variant = 'neutral',
   size = 'md',
   style,
+  showDot = false,
 }: BadgeProps) {
   const { theme } = useTheme();
-
-  const { bg, text } = getBadgeColors(variant, theme);
-  const sizeStyle = size === 'sm' ? styles.sm : styles.md;
+  const colors = getBadgeColors(variant, theme);
 
   return (
-    <View style={[styles.base, sizeStyle, { backgroundColor: bg }, style]}>
-      <Text style={[
-        styles.label,
-        size === 'sm' ? styles.labelSm : styles.labelMd,
-        { color: text },
-      ]}>
+    <View
+      style={[
+        styles.base,
+        size === 'sm' ? styles.sm : styles.md,
+        { backgroundColor: colors.bg },
+        style,
+      ]}
+      accessibilityLabel={`${label}, ${variant}`}
+    >
+      {showDot ? <View style={[styles.dot, { backgroundColor: colors.text }]} /> : null}
+      <Text
+        style={[
+          styles.label,
+          size === 'sm' ? styles.labelSm : styles.labelMd,
+          { color: colors.text },
+        ]}
+      >
         {label}
       </Text>
     </View>
   );
 });
 
-// ── Helper: retorna bg e text color para cada variante ──
 function getBadgeColors(
   variant: BadgeVariant,
-  theme: ReturnType<typeof useTheme>['theme']
+  theme: ReturnType<typeof useTheme>['theme'],
 ): { bg: string; text: string } {
   switch (variant) {
-    // Risco — use *Text tokens for WCAG AA compliance
     case 'R1': return { bg: theme.riscoR1Light, text: theme.riscoR1Text };
     case 'R2': return { bg: theme.riscoR2Light, text: theme.riscoR2Text };
     case 'R3': return { bg: theme.riscoR3Light, text: theme.riscoR3Text };
     case 'R4': return { bg: theme.riscoR4Light, text: theme.riscoR4Text };
-    // Estados
     case 'success': return { bg: theme.successLight, text: theme.successText };
     case 'warning': return { bg: theme.warningLight, text: theme.warningText };
-    case 'error':   return { bg: theme.errorLight,   text: theme.errorText   };
-    case 'info':    return { bg: theme.primaryLight,  text: theme.primaryText };
-    // Roles
-    case 'agente':       return { bg: theme.primaryLight,  text: theme.primaryText };
-    case 'supervisor':   return { bg: theme.warningLight,  text: theme.warningText };
-    case 'admin':        return { bg: theme.errorLight,    text: theme.errorText   };
-    case 'master_admin': return { bg: theme.successLight,  text: theme.successText };
-    // Default
-    default:
-      return { bg: theme.surfaceVariant, text: theme.textSecondary };
+    case 'error': return { bg: theme.errorLight, text: theme.errorText };
+    case 'info': return { bg: theme.primaryLight, text: theme.primaryText };
+    case 'admin': return { bg: theme.warningLight, text: theme.warningText };
+    case 'master_admin':
+    case 'developer': return { bg: theme.errorLight, text: theme.errorText };
+    case 'individual':
+    case 'agent':
+    case 'agente':
+    case 'owner':
+    case 'coordinator':
+    case 'supervisor': return { bg: theme.primaryLight, text: theme.primaryText };
+    default: return { bg: theme.surfaceVariant, text: theme.textSecondary };
   }
 }
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: SpacingAlias.radiusFull,  // pill shape
+    borderRadius: SpacingAlias.radiusFull,
     alignSelf: 'flex-start',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing[1],
   },
   md: {
-    paddingHorizontal: Spacing[3],   // 12
-    paddingVertical: Spacing[1],     // 4
-    minHeight: 26,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[1],
+    minHeight: 28,
   },
   sm: {
-    paddingHorizontal: Spacing[2],   // 8
+    paddingHorizontal: Spacing[2],
     paddingVertical: 2,
-    minHeight: 20,
+    minHeight: 22,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   label: {
     fontWeight: FontWeight.semibold,
   },
   labelMd: {
-    fontSize: FontSize.xs,   // 11
+    fontSize: FontSize.xs,
   },
   labelSm: {
     fontSize: 10,

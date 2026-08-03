@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Svg, { Polyline } from 'react-native-svg';
 import { SignatureStroke } from '../types/documentAcknowledgement';
+import { useTheme } from '../context/ThemeContext';
 
 interface SignaturePadProps {
   value: SignatureStroke[];
@@ -24,13 +25,18 @@ interface SignaturePadProps {
 export function SignaturePad({
   value,
   onChange,
-  color = '#0F172A',
-  borderColor = '#CBD5E1',
-  backgroundColor = '#FFFFFF',
-  textColor = '#475569',
+  color,
+  borderColor,
+  backgroundColor,
+  textColor,
   disabled = false,
   onInteractionChange,
 }: SignaturePadProps) {
+  const { theme } = useTheme();
+  const resolvedColor = color ?? theme.text;
+  const resolvedBorderColor = borderColor ?? theme.border;
+  const resolvedBackgroundColor = backgroundColor ?? theme.surface;
+  const resolvedTextColor = textColor ?? theme.textSecondary;
   const [size, setSize] = useState({ width: 1, height: 1 });
   const strokesRef = useRef(value);
   strokesRef.current = value;
@@ -78,7 +84,7 @@ export function SignaturePad({
           width: Math.max(1, event.nativeEvent.layout.width),
           height: Math.max(1, event.nativeEvent.layout.height),
         })}
-        style={[styles.canvas, { borderColor, backgroundColor }]}
+        style={[styles.canvas, { borderColor: resolvedBorderColor, backgroundColor: resolvedBackgroundColor }]}
         {...responder.panHandlers}
       >
         <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${size.width} ${size.height}`}>
@@ -87,7 +93,7 @@ export function SignaturePad({
               key={index}
               points={stroke.points.map(point => `${point.x * size.width},${point.y * size.height}`).join(' ')}
               fill="none"
-              stroke={color}
+              stroke={resolvedColor}
               strokeWidth={2.4}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -95,7 +101,7 @@ export function SignaturePad({
           ))}
         </Svg>
         {value.length === 0 && (
-          <Text pointerEvents="none" style={[styles.placeholder, { color: textColor }]}>Assine dentro da área</Text>
+          <Text pointerEvents="none" style={[styles.placeholder, { color: resolvedTextColor }]}>Assine dentro da área</Text>
         )}
       </View>
       <TouchableOpacity
@@ -105,7 +111,7 @@ export function SignaturePad({
         onPress={() => onChange([])}
         style={styles.clearButton}
       >
-        <Text style={[styles.clearText, { color: value.length ? '#DC2626' : textColor }]}>Limpar e refazer</Text>
+        <Text style={[styles.clearText, { color: value.length ? theme.error : resolvedTextColor }]}>Limpar e refazer</Text>
       </TouchableOpacity>
     </View>
   );

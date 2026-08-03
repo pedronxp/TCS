@@ -13,7 +13,6 @@ describe('LaudoService', () => {
     mockInvoke = jest.requireMock('../../utils/supabase').supabase.functions.invoke as jest.Mock;
     mockInvoke.mockReset();
   });
-
   it('solicita a geração idempotente da vistoria concluída', async () => {
     mockInvoke.mockResolvedValue({
       data: {

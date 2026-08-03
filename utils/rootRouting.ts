@@ -3,6 +3,7 @@ export type RootRedirectTarget =
   | '/(auth)/treinamento'
   | '/(panel)/treinamento'
   | '/(panel)/dashboard'
+  | '/(auth)/customer-onboarding'
   | '/(auth)';
 
 const TRAINING_ALLOWED_INSPECTION_ROUTES = new Set([
@@ -17,10 +18,18 @@ export function resolveRootRedirect(input: {
   segments: readonly string[];
   onboardingDone: boolean;
   isAuthenticated: boolean;
+  hasPendingCustomerSession?: boolean;
   hasTrainingSession: boolean;
   hasExpiredTrainingSession: boolean;
 }): RootRedirectTarget | null {
-  const { segments, onboardingDone, isAuthenticated, hasTrainingSession, hasExpiredTrainingSession } = input;
+  const {
+    segments,
+    onboardingDone,
+    isAuthenticated,
+    hasPendingCustomerSession = false,
+    hasTrainingSession,
+    hasExpiredTrainingSession,
+  } = input;
   const inPanel = segments[0] === '(panel)';
   const inAuth = segments[0] === '(auth)';
   const inOnboarding = segments[0] === 'onboarding';
@@ -42,6 +51,12 @@ export function resolveRootRedirect(input: {
 
   if (hasTrainingSession) {
     return inTrainingAllowedPanel ? null : '/(panel)/treinamento';
+  }
+
+  if (hasPendingCustomerSession) {
+    return inAuth && segments[1] === 'customer-onboarding'
+      ? null
+      : '/(auth)/customer-onboarding';
   }
 
   if (isAuthenticated && !inPanel) return '/(panel)/dashboard';

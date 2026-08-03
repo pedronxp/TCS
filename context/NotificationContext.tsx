@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import * as Notifications from 'expo-notifications';
 import { logger } from '../utils/logger';
 import {
-  requestNotificationPermissions,
+  hasNotificationPermission,
   registrarPushToken,
   addNotificationReceivedListener,
   addNotificationResponseListener,
@@ -39,8 +39,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const responseRef = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
-    // Solicitar permissão e registrar token
-    requestNotificationPermissions().then(granted => {
+    // No boot apenas observa a permissão existente. A solicitação deve partir
+    // de uma ação contextual do usuário, nunca do cadastro ou da abertura.
+    hasNotificationPermission().then(granted => {
       setHasPermission(granted);
       if (granted) {
         registrarPushToken();

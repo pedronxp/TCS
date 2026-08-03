@@ -9,7 +9,10 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { safePortalDestination } from '@/lib/portal';
 
 export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
-  const { access, session, loading, signIn, signUp, signInWithGoogle, signOut } = usePortalAuth();
+  const {
+    access, entryContext, session, loading, signIn, signUp, signInWithGoogle,
+    bootstrapIndividual, bootstrapMunicipal, signOut,
+  } = usePortalAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [name, setName] = useState('');
@@ -19,6 +22,12 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [accountKind, setAccountKind] = useState<'individual' | 'organization'>('individual');
+  const [organizationName, setOrganizationName] = useState('');
+  const [municipalityName, setMunicipalityName] = useState('');
+  const [stateCode, setStateCode] = useState('');
+  const [responsibleName, setResponsibleName] = useState('');
   const query = new URLSearchParams(location.search);
   const status = query.get('status');
   const returnTo = query.get('returnTo');
@@ -90,19 +99,95 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     if (error) setMessage(error);
   }
 
+  async function activateCustomer() {
+    if (!termsAccepted) return;
+    if (accountKind === 'organization' && (
+      !organizationName.trim() || !municipalityName.trim()
+      || stateCode.trim().length !== 2 || !responsibleName.trim()
+    )) {
+      setMessage('Preencha organização, município, UF e responsável.');
+      return;
+    }
+    setSubmitting(true);
+    setMessage(null);
+    const bootstrapError = accountKind === 'individual'
+      ? await bootstrapIndividual()
+      : await bootstrapMunicipal({
+        displayName: organizationName,
+        municipalityName,
+        stateCode,
+        responsibleName,
+      });
+    setSubmitting(false);
+    if (bootstrapError) setMessage(bootstrapError);
+  }
+
   if (!loading && session && !access) {
     return (
       <AuthFrame>
-        <Card className="w-full max-w-[460px]">
+        <Card className="w-full max-w-[620px]">
           <CardHeader>
-            <h1 className="min-w-0 text-[22px] font-semibold leading-[1.4]">Acesso em preparação</h1>
-            <CardDescription>Sua identidade foi confirmada, mas não encontramos uma conta individual ou vínculo municipal ativo.</CardDescription>
+            <h1 className="min-w-0 text-[22px] font-semibold leading-[1.4]">Configure seu acesso</h1>
+            <CardDescription>Sua identidade foi confirmada. Escolha como você utilizará o TCS; o portal complementa a operação do aplicativo.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="rounded-md bg-secondary p-4 text-sm text-muted-foreground">
-              Se você recebeu um convite municipal, abra novamente o link do convite. Para uma conta individual, escolha um plano para concluir a ativação.
+              {lifecycleMessage(entryContext?.lifecycleState)} Se você recebeu convite municipal, abra novamente o link recebido.
             </p>
-            <Button asChild className="w-full"><Link to="/#planos">Escolher um plano</Link></Button>
+            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Tipo de cliente">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={accountKind === 'individual'}
+                disabled={entryContext?.individualBootstrapEnabled === false}
+                onClick={() => setAccountKind('individual')}
+                className={`rounded-md border p-4 text-left transition ${accountKind === 'individual' ? 'border-primary bg-secondary' : 'border-border'} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <span className="block font-semibold">Profissional individual</span>
+                <span className="mt-1 block text-xs text-muted-foreground">Trial individual, sem criar prefeitura.</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={accountKind === 'organization'}
+                disabled={entryContext?.municipalBootstrapEnabled === false}
+                onClick={() => setAccountKind('organization')}
+                className={`rounded-md border p-4 text-left transition ${accountKind === 'organization' ? 'border-primary bg-secondary' : 'border-border'} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <span className="block font-semibold">Prefeitura ou município</span>
+                <span className="mt-1 block text-xs text-muted-foreground">Cria implantação provisória e o primeiro administrador.</span>
+              </button>
+            </div>
+            {accountKind === 'organization' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-medium">Nome da organização<Input className="mt-2" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} required /></label>
+                <label className="text-sm font-medium">Município<Input className="mt-2" value={municipalityName} onChange={(event) => setMunicipalityName(event.target.value)} required /></label>
+                <label className="text-sm font-medium">UF<Input className="mt-2" value={stateCode} maxLength={2} onChange={(event) => setStateCode(event.target.value.toUpperCase())} required /></label>
+                <label className="text-sm font-medium">Responsável<Input className="mt-2" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} required /></label>
+              </div>
+            )}
+            <label className="flex items-start gap-3 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                checked={termsAccepted}
+                onChange={(event) => setTermsAccepted(event.target.checked)}
+              />
+              Aceito os termos de uso e privacidade (customer-terms-2026-08).
+            </label>
+            {message && <p className="rounded-md border border-destructive/20 bg-status-danger p-3 text-sm" role="alert">{message}</p>}
+            <Button
+              className="w-full"
+              disabled={!termsAccepted || submitting || (
+                accountKind === 'individual'
+                  ? entryContext?.individualBootstrapEnabled === false
+                  : entryContext?.municipalBootstrapEnabled === false
+              )}
+              onClick={() => void activateCustomer()}
+            >
+              {submitting ? 'Preparando…' : accountKind === 'individual' ? 'Iniciar acesso individual' : 'Iniciar implantação municipal'}
+            </Button>
+            <Button asChild variant="outline" className="w-full"><Link to="/#planos">Ver planos</Link></Button>
           </CardContent>
         </Card>
       </AuthFrame>
@@ -114,7 +199,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       <Card className="w-full max-w-[460px]">
         <CardHeader>
           <h1 className="min-w-0 text-[22px] font-semibold leading-[1.4]">
-            {mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta individual'}
+            {mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta'}
           </h1>
           <CardDescription>
             {mode === 'sign-in'
@@ -154,6 +239,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             <Button type="submit" className="w-full" disabled={submitting || success}>
               {submitting ? 'Aguarde…' : mode === 'sign-in' ? 'Entrar' : 'Criar conta'}
             </Button>
+            {mode === 'sign-in' && <Link className="block text-center text-sm font-semibold text-primary hover:underline" to="/recuperar-senha">Esqueci minha senha</Link>}
           </form>
           <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
           <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting}>
@@ -169,6 +255,18 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       </Card>
     </AuthFrame>
   );
+}
+
+function lifecycleMessage(state?: string) {
+  const messages: Record<string, string> = {
+    creating: 'Finalize os dados iniciais para criar seu acesso.',
+    under_review: 'Seu cadastro está em análise e pode ser retomado aqui.',
+    trial: 'Seu período de avaliação está ativo; a contratação definitiva é uma etapa separada.',
+    contracting_pending: 'A operação aguarda formalização comercial.',
+    active: 'Seu cliente está ativo.',
+    blocked: 'O cadastro está bloqueado para novas alterações.',
+  };
+  return messages[state ?? 'creating'] ?? messages.creating;
 }
 
 function AuthFrame({ children }: { children: React.ReactNode }) {

@@ -12,7 +12,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 import { notificarMasterTokenGerado, notificarMasterSolicitaTokens } from '../../../services/NotificationService';
-import { Button } from '../../../components/ui/Button';
+import { AppHeader, Button, FormField, StateBanner } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
@@ -237,34 +237,28 @@ export default function GerarTokenScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Gerar Token</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Convite de acesso ao sistema</Text>
-        </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Novo convite"
+          subtitle="Defina acesso, território e validade"
+          onBack={() => router.back()}
+        />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
               {/* Banner de quota — apenas para admin (não master) */}
               {!isMasterAdmin && (
                 <View style={[styles.quotaBanner, {
-                  backgroundColor: usadoMes >= limiteTotal
-                    ? 'rgba(239,68,68,0.08)'
-                    : usadoMes >= limiteTotal * 0.8
-                      ? 'rgba(245,158,11,0.08)'
-                      : `${theme.primary}0D`,
-                  borderColor: usadoMes >= limiteTotal
-                    ? 'rgba(239,68,68,0.35)'
-                    : usadoMes >= limiteTotal * 0.8
-                      ? 'rgba(245,158,11,0.35)'
-                      : `${theme.primary}35`,
+                   backgroundColor: usadoMes >= limiteTotal
+                     ? theme.errorLight
+                     : usadoMes >= limiteTotal * 0.8
+                       ? theme.warningLight
+                       : theme.secondary,
+                   borderColor: usadoMes >= limiteTotal
+                     ? theme.error
+                     : usadoMes >= limiteTotal * 0.8
+                       ? theme.warning
+                       : theme.border,
                 }]}>
                   <View style={{ flex: 1 }}>
                     {/* Linha de título */}
@@ -272,10 +266,10 @@ export default function GerarTokenScreen() {
                       <Feather
                         name={usadoMes >= limiteTotal ? 'alert-circle' : 'key'}
                         size={14}
-                        color={usadoMes >= limiteTotal ? '#EF4444' : usadoMes >= limiteTotal * 0.8 ? '#F59E0B' : theme.primary}
+                        color={usadoMes >= limiteTotal ? theme.error : usadoMes >= limiteTotal * 0.8 ? theme.warning : theme.primary}
                       />
                       <Text style={[styles.quotaTitle, {
-                        color: usadoMes >= limiteTotal ? '#EF4444' : usadoMes >= limiteTotal * 0.8 ? '#F59E0B' : theme.text
+                        color: usadoMes >= limiteTotal ? theme.error : usadoMes >= limiteTotal * 0.8 ? theme.warning : theme.text
                       }]}>
                         {usadoMes >= limiteTotal
                           ? 'Limite mensal atingido'
@@ -287,7 +281,7 @@ export default function GerarTokenScreen() {
                     <View style={[styles.quotaProgressBg, { backgroundColor: `${theme.border}` }]}>
                       <View style={[styles.quotaProgressFill, {
                         width: `${Math.min((usadoMes / limiteTotal) * 100, 100)}%`,
-                        backgroundColor: usadoMes >= limiteTotal ? '#EF4444' : usadoMes >= limiteTotal * 0.8 ? '#F59E0B' : theme.primary,
+                        backgroundColor: usadoMes >= limiteTotal ? theme.error : usadoMes >= limiteTotal * 0.8 ? theme.warning : theme.primary,
                       }]} />
                     </View>
 
@@ -295,7 +289,7 @@ export default function GerarTokenScreen() {
                     {usadoMes >= limiteTotal * 0.8 && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                         <Text style={[styles.quotaSub, {
-                          color: usadoMes >= limiteTotal ? '#EF4444' : '#F59E0B', flex: 1
+                           color: usadoMes >= limiteTotal ? theme.error : theme.warning, flex: 1
                         }]}>
                           {usadoMes >= limiteTotal
                             ? 'Nenhum token disponível neste mês.'
@@ -304,11 +298,11 @@ export default function GerarTokenScreen() {
                         <TouchableOpacity
                           style={[styles.solicitarBtn, {
                             backgroundColor: solicitacaoEnviada
-                              ? 'rgba(16,185,129,0.15)'
+                              ? theme.successLight
                               : usadoMes >= limiteTotal
-                                ? 'rgba(239,68,68,0.12)'
-                                : 'rgba(245,158,11,0.12)',
-                            borderColor: solicitacaoEnviada ? 'rgba(16,185,129,0.4)' : usadoMes >= limiteTotal ? 'rgba(239,68,68,0.4)' : 'rgba(245,158,11,0.4)',
+                                ? theme.errorLight
+                                : theme.warningLight,
+                            borderColor: solicitacaoEnviada ? theme.success : usadoMes >= limiteTotal ? theme.error : theme.warning,
                             opacity: solicitando ? 0.6 : 1,
                           }]}
                           onPress={solicitarAumento}
@@ -318,10 +312,10 @@ export default function GerarTokenScreen() {
                           <Feather
                             name={solicitacaoEnviada ? 'check' : 'send'}
                             size={11}
-                            color={solicitacaoEnviada ? '#10B981' : usadoMes >= limiteTotal ? '#EF4444' : '#F59E0B'}
+                            color={solicitacaoEnviada ? theme.success : usadoMes >= limiteTotal ? theme.error : theme.warning}
                           />
                           <Text style={[styles.solicitarBtnText, {
-                            color: solicitacaoEnviada ? '#10B981' : usadoMes >= limiteTotal ? '#EF4444' : '#F59E0B'
+                            color: solicitacaoEnviada ? theme.success : usadoMes >= limiteTotal ? theme.error : theme.warning
                           }]}>
                             {solicitacaoEnviada ? 'Enviado' : 'Solicitar aumento'}
                           </Text>
@@ -331,24 +325,28 @@ export default function GerarTokenScreen() {
                   </View>
                 </View>
               )}
-        {/* Seleção de role */}
-        <Text style={[styles.label, { color: theme.textSecondary }]}>PERFIL DE ACESSO</Text>
+        <View style={styles.sectionIntro}>
+          <Text style={[styles.sectionNumber, { color: theme.primary }]}>01</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Perfil de acesso</Text>
+            <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>Escolha o que esta pessoa poderá fazer no TCS.</Text>
+          </View>
+        </View>
+        <View style={styles.roleGrid}>
         {roles.map(r => (
           <TouchableOpacity
             key={r.key}
             style={[
               styles.roleCard,
-              { backgroundColor: theme.surfaceHighlight, borderColor: role === r.key ? theme.primary : theme.cardBorder },
+              { backgroundColor: role === r.key ? theme.secondary : theme.surface, borderColor: role === r.key ? theme.primary : theme.cardBorder },
               role === r.key && { borderWidth: 2 },
             ]}
             onPress={() => setRole(r.key)}
           >
-            <View style={[styles.roleIcon, {
-              backgroundColor: role === r.key ? `${theme.primary}20` : theme.iconBackground
-            }]}>
+            <View style={[styles.roleIcon, { backgroundColor: theme.iconBackground }]}>
               <Feather name={r.icon} size={22} color={role === r.key ? theme.primary : theme.textSecondary} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={styles.roleCopy}>
               <Text style={[styles.roleName, { color: theme.text }]}>{r.label}</Text>
               <Text style={[styles.roleDesc, { color: theme.textSecondary }]}>{r.desc}</Text>
             </View>
@@ -357,11 +355,15 @@ export default function GerarTokenScreen() {
             )}
           </TouchableOpacity>
         ))}
+        </View>
 
-        {/* Seleção de município */}
-        <Text style={[styles.label, { color: theme.textSecondary, marginTop: 8 }]}>
-          MUNICÍPIO <Text style={{ color: '#EF4444' }}>*</Text>
-        </Text>
+        <View style={styles.sectionIntro}>
+          <Text style={[styles.sectionNumber, { color: theme.primary }]}>02</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Território obrigatório</Text>
+            <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>O convite funcionará somente no município selecionado.</Text>
+          </View>
+        </View>
         {isMasterAdmin ? (
           loadingMunicipios ? (
             <ActivityIndicator color={theme.primary} style={{ marginBottom: 24 }} />
@@ -394,7 +396,7 @@ export default function GerarTokenScreen() {
                       style={[
                         styles.municipioChip,
                         { borderColor: municipio === m ? theme.primary : theme.cardBorder,
-                          backgroundColor: municipio === m ? `${theme.primary}15` : theme.surfaceHighlight },
+                          backgroundColor: municipio === m ? theme.secondary : theme.surface },
                       ]}
                       onPress={() => { setMunicipio(m); setMunicipioSearch(''); }}
                     >
@@ -406,9 +408,7 @@ export default function GerarTokenScreen() {
                   ))}
               </View>
               {!municipio && (
-                <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 6 }}>
-                  Selecione um município para continuar.
-                </Text>
+                <StateBanner title="Selecione um município" description="Este campo é obrigatório para gerar o convite." variant="warning" />
               )}
             </View>
           )
@@ -419,8 +419,13 @@ export default function GerarTokenScreen() {
           </View>
         )}
 
-        {/* Seleção de prazo */}
-        <Text style={[styles.label, { color: theme.textSecondary, marginTop: 8 }]}>VALIDADE DO TOKEN</Text>
+        <View style={styles.sectionIntro}>
+          <Text style={[styles.sectionNumber, { color: theme.primary }]}>03</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Validade do convite</Text>
+            <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>Escolha por quanto tempo o código ficará disponível.</Text>
+          </View>
+        </View>
         <View style={styles.duracaoRow}>
           {DURACOES.map(d => (
             <TouchableOpacity
@@ -428,7 +433,7 @@ export default function GerarTokenScreen() {
               style={[
                 styles.duracaoChip,
                 { borderColor: duracao === d.key ? theme.primary : theme.cardBorder,
-                  backgroundColor: duracao === d.key ? `${theme.primary}15` : theme.surfaceHighlight },
+                  backgroundColor: duracao === d.key ? theme.secondary : theme.surface },
               ]}
               onPress={() => setDuracao(d.key)}
             >
@@ -443,10 +448,11 @@ export default function GerarTokenScreen() {
         {duracao === 'custom' && (
           <View style={{ marginBottom: 24 }}>
             <View style={styles.customRow}>
-              <View style={{ flex: 1.4 }}>
-                <Text style={[styles.customLabel, { color: theme.textSecondary }]}>DATA (dd/mm/aaaa)</Text>
-                <TextInput
-                  style={[styles.customInput, { backgroundColor: theme.surfaceHighlight, borderColor: customErro ? '#EF4444' : theme.border, color: theme.text }]}
+              <FormField
+                  label="Data"
+                  required
+                  containerStyle={{ flex: 1.4 }}
+                  error={customErro ?? undefined}
                   value={customData}
                   onChangeText={t => {
                     // Formata automaticamente dd/mm/aaaa
@@ -459,14 +465,13 @@ export default function GerarTokenScreen() {
                   }}
                   keyboardType="numeric"
                   placeholder="dd/mm/aaaa"
-                  placeholderTextColor={theme.textSecondary}
                   maxLength={10}
                 />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.customLabel, { color: theme.textSecondary }]}>HORA (hh:mm)</Text>
-                <TextInput
-                  style={[styles.customInput, { backgroundColor: theme.surfaceHighlight, borderColor: customErro ? '#EF4444' : theme.border, color: theme.text }]}
+              <FormField
+                  label="Hora"
+                  required
+                  containerStyle={{ flex: 1 }}
+                  error={customErro ?? undefined}
                   value={customHora}
                   onChangeText={t => {
                     const digits = t.replace(/\D/g, '').substring(0, 4);
@@ -477,38 +482,25 @@ export default function GerarTokenScreen() {
                   }}
                   keyboardType="numeric"
                   placeholder="hh:mm"
-                  placeholderTextColor={theme.textSecondary}
                   maxLength={5}
                 />
-              </View>
             </View>
-            {customErro && (
-              <View style={styles.customErroBox}>
-                <Feather name="alert-circle" size={14} color="#EF4444" />
-                <Text style={styles.customErroText}>{customErro}</Text>
-              </View>
-            )}
           </View>
         )}
 
-        {/* Info do token */}
-        <View style={[styles.infoCard, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
-          <Feather name="info" size={16} color={theme.primary} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[styles.infoTitle, { color: theme.text }]}>Sobre este token</Text>
-            <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-              {`• Válido por ${labelDuracao}\n• Expira em: ${formatarExpiracao(horasSelecionadas)}\n• Uso único — expira após o primeiro cadastro\n• Perfil: ${selectedRole?.label}\n• Município: ${municipio}`}
-            </Text>
-          </View>
-        </View>
+        <StateBanner
+          title="Revise antes de gerar"
+          description={`${selectedRole?.label} · ${municipio || 'Município pendente'} · ${labelDuracao}\nExpira em ${formatarExpiracao(horasSelecionadas)} e só pode ser usado uma vez.`}
+          variant={municipio ? 'info' : 'warning'}
+        />
 
         <Button
-          label={gerando ? 'Gerando...' : 'Gerar Token de Acesso'}
+          label={gerando ? 'Gerando...' : 'Gerar convite de acesso'}
           variant="primary"
           size="lg"
           onPress={gerarToken}
           loading={gerando}
-          disabled={gerando}
+          disabled={gerando || !municipio}
           iconLeft={!gerando ? <Feather name="key" size={20} color="#FFF" /> : undefined}
           style={{ marginTop: 4 }}
         />
@@ -516,12 +508,12 @@ export default function GerarTokenScreen() {
 
       {/* Modal: Token gerado */}
       <Modal visible={showModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.surfaceHighlight }]}>
-            <View style={[styles.modalIcon, { backgroundColor: `${theme.primary}15` }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
+            <View style={[styles.modalIcon, { backgroundColor: theme.successLight }]}>
               <Feather name="check-circle" size={40} color={theme.primary} />
             </View>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Token Gerado!</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Convite pronto</Text>
             <Text style={[styles.modalDesc, { color: theme.textSecondary }]}>
               Compartilhe este código com o novo usuário.
             </Text>
@@ -561,37 +553,24 @@ export default function GerarTokenScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  scrollContent: { padding: 24, paddingBottom: 60 },
-  label: {
-    fontSize: 11, fontWeight: '700', letterSpacing: 1,
-    textTransform: 'uppercase', marginBottom: 12,
-  },
+  scrollContent: { padding: 20, paddingBottom: 60, gap: 18 },
+  sectionIntro: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 8 },
+  sectionNumber: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
+  sectionTitle: { fontSize: 18, fontWeight: '800' },
+  sectionDescription: { fontSize: 13, lineHeight: 18, marginTop: 3 },
+  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   roleCard: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: 16,
-    borderWidth: 1, padding: 16, marginBottom: 12, gap: 14,
+    width: '48%', minHeight: 150, borderRadius: 18,
+    borderWidth: 1, padding: 14, gap: 10,
   },
   roleIcon: {
-    width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center',
+    width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center',
   },
-  roleName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
-  roleDesc: { fontSize: 13 },
-  infoCard: {
-    flexDirection: 'row', borderRadius: 14, borderWidth: 1, padding: 16, marginTop: 8, marginBottom: 32,
-  },
-  infoTitle: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  infoText: { fontSize: 13, lineHeight: 20 },
+  roleCopy: { flex: 1 },
+  roleName: { fontSize: 15, fontWeight: '700', marginBottom: 3 },
+  roleDesc: { fontSize: 12, lineHeight: 16 },
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1,
     justifyContent: 'center', alignItems: 'center', padding: 24,
   },
   modalCard: {
@@ -611,9 +590,9 @@ const styles = StyleSheet.create({
   tokenCode: { fontSize: 22, fontWeight: '900', letterSpacing: 3, fontVariant: ['tabular-nums'] },
   tokenInfo: { fontSize: 12, marginBottom: 4, textAlign: 'center' },
   tokenExpira: { fontSize: 12, marginBottom: 28, textAlign: 'center' },
-  duracaoRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  duracaoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   duracaoChip: {
-    flex: 1, height: 44, borderRadius: 12, borderWidth: 1.5,
+    minWidth: '30%', flexGrow: 1, height: 48, borderRadius: 12, borderWidth: 1.5,
     justifyContent: 'center', alignItems: 'center',
   },
   duracaoText: { fontSize: 14, fontWeight: '700' },
@@ -648,16 +627,4 @@ const styles = StyleSheet.create({
   },
   solicitarBtnText: { fontSize: 11, fontWeight: '700' },
   customRow: { flexDirection: 'row', gap: 12 },
-  customLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 },
-  customInput: {
-    height: 52, borderRadius: 14, borderWidth: 1.5,
-    paddingHorizontal: 14, fontSize: 16, fontWeight: '600',
-  },
-  customErroBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)', borderRadius: 10,
-    padding: 10, marginTop: 8,
-  },
-  customErroText: { color: '#EF4444', fontSize: 13, flex: 1 },
 });

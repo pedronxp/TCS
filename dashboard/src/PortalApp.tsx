@@ -18,6 +18,7 @@ import { PortalProfilePage } from '@/pages/portal/PortalProfilePage';
 import { PortalAgendaPage } from '@/pages/portal/PortalAgendaPage';
 import { PortalTeamPage } from '@/pages/portal/PortalTeamPage';
 import { PortalSettingsPage } from '@/pages/portal/PortalSettingsPage';
+import { PortalPasswordRecoveryPage } from '@/pages/portal/PortalPasswordRecoveryPage';
 import type { PortalAccountKind } from '@/types/portal';
 
 const portalQueryClient = new QueryClient({
@@ -49,6 +50,8 @@ export default function PortalApp() {
       <Route element={<Providers />}>
         <Route path="/entrar" element={<PortalAuthPage mode="sign-in" />} />
         <Route path="/criar-conta" element={<PortalAuthPage mode="sign-up" />} />
+        <Route path="/recuperar-senha" element={<PortalPasswordRecoveryPage mode="request" />} />
+        <Route path="/redefinir-senha" element={<PortalPasswordRecoveryPage mode="reset" />} />
         <Route path="/convite/:token" element={<InviteAcceptancePage />} />
         <Route path="/checkout/retorno" element={<CheckoutReturnPage />} />
 

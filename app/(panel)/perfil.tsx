@@ -6,16 +6,21 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Network from 'expo-network';
-import { useTheme } from '../../context/ThemeContext';
+import { ThemeMode, useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
-import { Badge, Card, ErrorState } from '../../components/ui';
+import { AppHeader, Badge, Card, ErrorState, MetricCard, StateBanner } from '../../components/ui';
 import { formatarData, formatarDataHora } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { getTrainingVistoriasByAgente } from '../../utils/database';
+import {
+  linkCustomerGoogleIdentity,
+  requestCustomerPasswordRecovery,
+  translateCustomerIdentityError,
+} from '../../services/CustomerAuthService';
 
 const ROLE_LABELS: Record<string, string> = {
   agent:        'Agente de Campo',
@@ -23,6 +28,12 @@ const ROLE_LABELS: Record<string, string> = {
   admin:        'Administrador',
   master_admin: 'Master Admin',
 };
+
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: React.ComponentProps<typeof Feather>['name'] }[] = [
+  { value: 'system', label: 'Sistema', icon: 'smartphone' },
+  { value: 'light', label: 'Claro', icon: 'sun' },
+  { value: 'dark', label: 'Escuro', icon: 'moon' },
+];
 
 // Formata número BR para exibição: +5511987654321 → (11) 98765-4321
 function formatarTelefone(phone: string): string {
@@ -71,6 +82,7 @@ export default function PerfilScreen() {
   const [lgpdExpanded, setLgpdExpanded] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [googleLinking, setGoogleLinking] = useState(false);
 
   useEffect(() => {
     if (authProfile) {
@@ -193,15 +205,27 @@ export default function PerfilScreen() {
     if (!authProfile?.email || resetLoading) return;
     setResetLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(authProfile.email, {
-        redirectTo: 'tcs://reset-password',
-      });
-      if (error) throw error;
+      await requestCustomerPasswordRecovery(authProfile.email);
       setResetSent(true);
     } catch {
       Alert.alert('Erro', 'Não foi possível enviar o e-mail de redefinição. Tente novamente.');
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  const linkGoogle = async () => {
+    if (googleLinking) return;
+    setGoogleLinking(true);
+    try {
+      const result = await linkCustomerGoogleIdentity();
+      if (result === 'completed' || result === 'already-linked') {
+        Alert.alert('Google vinculado', 'Sua conta Google foi vinculada sem alterar seu papel ou seus acessos.');
+      }
+    } catch (cause) {
+      Alert.alert('Vínculo não concluído', translateCustomerIdentityError(cause));
+    } finally {
+      setGoogleLinking(false);
     }
   };
 
@@ -238,65 +262,74 @@ export default function PerfilScreen() {
 
   const hasPhone = !!authProfile?.phone;
   const phoneDisplay = hasPhone ? formatarTelefone(authProfile!.phone!) : null;
+  const googleLinked = session?.user.identities?.some(identity => identity.provider === 'google') ?? false;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Meu Perfil</Text>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Minha conta"
+          subtitle="Perfil, segurança e privacidade"
+          onBack={() => router.back()}
+          actionIcon="help-circle"
+          actionLabel="Abrir suporte"
+          onAction={() => router.push('/(panel)/suporte')}
+        />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
 
-        {/* Card principal — avatar + nome */}
+        {/* Identidade da conta */}
         <Card style={styles.heroCard}>
-          <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-
-          {editingName ? (
-            <View style={styles.editRow}>
-              <TextInput
-                style={[styles.nameInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
-                value={newName}
-                onChangeText={setNewName}
-                autoFocus
-                placeholder="Seu nome completo"
-                placeholderTextColor={theme.textSecondary}
-              />
-              <TouchableOpacity style={[styles.iconBtnSm, { backgroundColor: theme.primary }]} onPress={saveName} disabled={saving}>
-                {saving ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="check" size={18} color="#FFF" />}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.iconBtnSm, { borderColor: theme.border, borderWidth: 1 }]}
-                onPress={() => { setEditingName(false); setNewName(authProfile?.name || ''); }}
-              >
-                <Feather name="x" size={18} color={theme.textSecondary} />
-              </TouchableOpacity>
+          <View style={styles.heroIdentity}>
+            <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+              <Text style={[styles.avatarText, { color: theme.onPrimary }]}>{initial}</Text>
             </View>
-          ) : (
-            <TouchableOpacity style={styles.nameRow} onPress={() => setEditingName(true)}>
-              <Text style={[styles.name, { color: theme.text }]}>{authProfile?.name || 'Nome não definido'}</Text>
-              <Feather name="edit-2" size={15} color={theme.textSecondary} style={{ marginLeft: 8 }} />
-            </TouchableOpacity>
-          )}
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Badge variant={roleBadgeVariant} label={roleLabel} />
-            {authProfile?.municipio ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Feather name="map-pin" size={11} color={theme.textSecondary} />
-                <Text style={{ fontSize: 12, color: theme.textSecondary, fontWeight: '500' }}>
-                  {authProfile.municipio}
-                </Text>
+            <View style={styles.heroCopy}>
+              {editingName ? (
+                <View style={styles.editRow}>
+                  <TextInput
+                    style={[styles.nameInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+                    value={newName}
+                    onChangeText={setNewName}
+                    autoFocus
+                    placeholder="Seu nome completo"
+                    placeholderTextColor={theme.textSecondary}
+                  />
+                  <TouchableOpacity style={[styles.iconBtnSm, { backgroundColor: theme.primary }]} onPress={saveName} disabled={saving}>
+                    {saving ? <ActivityIndicator size="small" color={theme.onPrimary} /> : <Feather name="check" size={18} color={theme.onPrimary} />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.iconBtnSm, { borderColor: theme.border, borderWidth: 1 }]}
+                    onPress={() => { setEditingName(false); setNewName(authProfile?.name || ''); }}
+                  >
+                    <Feather name="x" size={18} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.nameRow} onPress={() => setEditingName(true)}>
+                  <Text style={[styles.name, { color: theme.text }]} numberOfLines={2}>{authProfile?.name || 'Nome não definido'}</Text>
+                  <Feather name="edit-2" size={15} color={theme.textSecondary} style={{ marginLeft: 8 }} />
+                </TouchableOpacity>
+              )}
+              <View style={styles.identityMeta}>
+                <Badge variant={roleBadgeVariant} label={roleLabel} />
+                {authProfile?.municipio ? (
+                  <View style={styles.municipalityMeta}>
+                    <Feather name="map-pin" size={12} color={theme.textSecondary} />
+                    <Text style={[styles.municipalityText, { color: theme.textSecondary }]} numberOfLines={1}>
+                      {authProfile.municipio}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-            ) : null}
+            </View>
+          </View>
+          <View style={[styles.accountState, { backgroundColor: authProfile?.isApproved ? theme.successLight : theme.warningLight }]}>
+            <Feather name={authProfile?.isApproved ? 'check-circle' : 'clock'} size={15} color={authProfile?.isApproved ? theme.success : theme.warning} />
+            <Text style={[styles.accountStateText, { color: authProfile?.isApproved ? theme.success : theme.warning }]}>
+              {authProfile?.isApproved ? 'Conta ativa e aprovada' : 'Conta aguardando aprovação'}
+            </Text>
           </View>
         </Card>
 
@@ -323,7 +356,7 @@ export default function PerfilScreen() {
                   maxLength={16}
                 />
                 <TouchableOpacity style={[styles.iconBtnSm, { backgroundColor: theme.primary }]} onPress={savePhone} disabled={savingPhone}>
-                  {savingPhone ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="check" size={18} color="#FFF" />}
+                  {savingPhone ? <ActivityIndicator size="small" color={theme.onPrimary} /> : <Feather name="check" size={18} color={theme.onPrimary} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.iconBtnSm, { borderColor: theme.border, borderWidth: 1 }]}
@@ -371,7 +404,7 @@ export default function PerfilScreen() {
             icon="check-circle"
             label="Status da conta"
             value={authProfile?.isApproved ? 'Aprovada' : 'Aguardando aprovação'}
-            valueColor={authProfile?.isApproved ? '#10B981' : '#F59E0B'}
+            valueColor={authProfile?.isApproved ? theme.success : theme.warning}
             theme={theme}
           />
           <Divider theme={theme} />
@@ -389,7 +422,7 @@ export default function PerfilScreen() {
             icon={isOnlineReal ? 'globe' : 'wifi-off'}
             label="Conexão"
             value={isOnlineReal ? 'Online' : 'Sem internet'}
-            valueColor={isOnlineReal ? '#10B981' : '#EF4444'}
+            valueColor={isOnlineReal ? theme.success : theme.error}
             theme={theme}
           />
         </Card>
@@ -404,39 +437,11 @@ export default function PerfilScreen() {
               <ErrorState message={statsError} onRetry={loadStats} />
             ) : (
               <View style={styles.statsGrid}>
-                <StatCard
-                  icon="clipboard"
-                  label={isAgent ? 'Total' : 'Vistorias'}
-                  value={stats.total}
-                  color={theme.primary}
-                  loading={statsLoading}
-                  theme={theme}
-                />
-                <StatCard
-                  icon="alert-triangle"
-                  label="Alto Risco"
-                  value={stats.altoRisco}
-                  color="#EF4444"
-                  loading={statsLoading}
-                  theme={theme}
-                />
-                <StatCard
-                  icon="trending-up"
-                  label="Esta semana"
-                  value={stats.semana}
-                  color="#8B5CF6"
-                  loading={statsLoading}
-                  theme={theme}
-                />
+                <MetricCard value={statsLoading ? '—' : stats.total} label={isAgent ? 'Total' : 'Vistorias'} tone="primary" style={styles.metricCard} />
+                <MetricCard value={statsLoading ? '—' : stats.altoRisco} label="Alto risco" tone="danger" style={styles.metricCard} />
+                <MetricCard value={statsLoading ? '—' : stats.semana} label="Esta semana" tone="primary" style={styles.metricCard} />
                 {isAgent && (
-                  <StatCard
-                    icon="sun"
-                    label="Hoje"
-                    value={stats.hoje}
-                    color="#10B981"
-                    loading={statsLoading}
-                    theme={theme}
-                  />
+                  <MetricCard value={statsLoading ? '—' : stats.hoje} label="Hoje" tone="success" style={styles.metricCard} />
                 )}
               </View>
             )}
@@ -446,42 +451,33 @@ export default function PerfilScreen() {
         {/* Configurações */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Configurações</Text>
 
-        <View style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder, flexDirection: 'column', alignItems: 'stretch' }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-            <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}15` }]}>
-              <Feather name={themeMode === 'light' ? 'sun' : themeMode === 'dark' ? 'moon' : 'smartphone'} size={20} color={theme.primary} />
+        <View style={[styles.themeCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
+          <View style={styles.themeHeader}>
+            <View style={[styles.actionIcon, { backgroundColor: theme.secondary }]}>
+              <Feather name="moon" size={20} color={theme.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.actionTitle, { color: theme.text }]}>Aparência</Text>
               <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Escolha o tema do aplicativo</Text>
             </View>
           </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(['system', 'light', 'dark'] as const).map((mode) => {
-              const isSelected = themeMode === mode;
-              const labels = { system: 'Sistema', light: 'Claro', dark: 'Escuro' };
-              const icons = { system: 'smartphone', light: 'sun', dark: 'moon' } as const;
+          <View accessibilityRole="radiogroup" style={[styles.themeOptions, { backgroundColor: theme.background }]}>
+            {THEME_OPTIONS.map(option => {
+              const selected = themeMode === option.value;
               return (
                 <TouchableOpacity
-                  key={mode}
-                  onPress={() => setThemeMode(mode)}
-                  style={{
-                    flex: 1,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    paddingVertical: 10,
-                    borderRadius: 10,
-                    backgroundColor: isSelected ? theme.primary : theme.background,
-                    borderWidth: 1,
-                    borderColor: isSelected ? theme.primary : theme.border,
-                    gap: 6,
-                  }}
+                  key={option.value}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Tema ${option.label}`}
+                  accessibilityState={{ selected }}
+                  onPress={() => setThemeMode(option.value)}
+                  style={[
+                    styles.themeOption,
+                    selected && { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
                 >
-                  <Feather name={icons[mode]} size={16} color={isSelected ? '#FFF' : theme.textSecondary} />
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: isSelected ? '#FFF' : theme.textSecondary }}>
-                    {labels[mode]}
-                  </Text>
+                  <Feather name={option.icon} size={16} color={selected ? theme.primary : theme.textSecondary} />
+                  <Text style={[styles.themeOptionText, { color: selected ? theme.primary : theme.textSecondary }]}>{option.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -489,27 +485,14 @@ export default function PerfilScreen() {
         </View>
 
         {resetSent ? (
-          <View style={[styles.actionRow, { backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.25)' }]}>
-            <View style={[styles.actionIcon, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
-              <Feather name="check-circle" size={20} color="#10B981" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.actionTitle, { color: '#10B981' }]}>E-mail enviado!</Text>
-              <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>
-                Verifique {authProfile?.email} e clique no link.
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setResetSent(false)}
-              style={{ padding: 4 }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Feather name="x" size={16} color={theme.textSecondary} />
-            </TouchableOpacity>
-          </View>
+          <StateBanner
+            variant="success"
+            title="E-mail enviado"
+            description={`Verifique ${authProfile?.email} e abra o link de redefinição.`}
+          />
         ) : (
           <TouchableOpacity
-            style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+            style={[styles.actionRow, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
             onPress={resetPassword}
             disabled={resetLoading}
             activeOpacity={0.8}
@@ -529,16 +512,36 @@ export default function PerfilScreen() {
           </TouchableOpacity>
         )}
 
+        <TouchableOpacity
+          style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+          onPress={linkGoogle}
+          disabled={googleLinked || googleLinking || !isOnlineReal || localTestMode}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: `${theme.primary}15` }]}>
+            {googleLinking
+              ? <ActivityIndicator size="small" color={theme.primary} />
+              : <Feather name={googleLinked ? 'check-circle' : 'link'} size={20} color={googleLinked ? '#10B981' : theme.primary} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.actionTitle, { color: googleLinked ? '#10B981' : theme.text }]}>Conta Google</Text>
+            <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>
+              {googleLinked ? 'Vinculada a este acesso' : !isOnlineReal ? 'Conecte-se para vincular' : 'Vincular com sessão autenticada'}
+            </Text>
+          </View>
+          {!googleLinked && !googleLinking && <Feather name="chevron-right" size={20} color={theme.textSecondary} />}
+        </TouchableOpacity>
+
         {/* Privacidade e Permissões */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Privacidade e Permissões</Text>
 
         <TouchableOpacity
-          style={[styles.actionRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+          style={[styles.actionRow, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
           onPress={() => setLgpdExpanded(v => !v)}
           activeOpacity={0.8}
         >
-          <View style={[styles.actionIcon, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-            <Feather name="shield" size={20} color="#10B981" />
+          <View style={[styles.actionIcon, { backgroundColor: theme.successLight }]}>
+            <Feather name="shield" size={20} color={theme.success} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.actionTitle, { color: theme.text }]}>LGPD — Proteção de Dados</Text>
@@ -564,14 +567,14 @@ export default function PerfilScreen() {
         </Card>
 
         <TouchableOpacity
-          style={[styles.actionRow, { backgroundColor: 'rgba(239,68,68,0.05)', borderColor: 'rgba(239,68,68,0.15)', marginTop: 8 }]}
+          style={[styles.actionRow, { backgroundColor: theme.errorLight, borderColor: theme.error, marginTop: 8 }]}
           onPress={handleLogout}
         >
-          <View style={[styles.actionIcon, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-            <Feather name="log-out" size={20} color="#EF4444" />
+          <View style={[styles.actionIcon, { backgroundColor: theme.surface }]}>
+            <Feather name="log-out" size={20} color={theme.error} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.actionTitle, { color: '#EF4444' }]}>Encerrar Sessão</Text>
+            <Text style={[styles.actionTitle, { color: theme.error }]}>Encerrar sessão</Text>
             <Text style={[styles.actionDesc, { color: theme.textSecondary }]}>Fazer logout do aplicativo</Text>
           </View>
         </TouchableOpacity>
@@ -651,7 +654,7 @@ function LgpdSection({ theme }: { theme: any }) {
   return (
     <View style={{ gap: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <Feather name="shield" size={18} color="#10B981" />
+        <Feather name="shield" size={18} color={theme.success} />
         <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text }}>Política de Privacidade</Text>
       </View>
       {items.map((item, i) => (
@@ -662,33 +665,12 @@ function LgpdSection({ theme }: { theme: any }) {
           <Text style={{ fontSize: 13, color: theme.text, lineHeight: 20 }}>{item.text}</Text>
         </View>
       ))}
-      <View style={{ marginTop: 4, padding: 12, borderRadius: 10, backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)' }}>
-        <Text style={{ fontSize: 12, color: '#10B981', lineHeight: 18, fontWeight: '500' }}>
+      <View style={{ marginTop: 4, padding: 12, borderRadius: 10, backgroundColor: theme.successLight, borderWidth: 1, borderColor: theme.success }}>
+        <Text style={{ fontSize: 12, color: theme.success, lineHeight: 18, fontWeight: '500' }}>
           Este aplicativo opera em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018). O tratamento dos dados tem base legal no exercício de função pública e no legítimo interesse da Defesa Civil.
         </Text>
       </View>
     </View>
-  );
-}
-
-function StatCard({ icon, label, value, color, loading, theme }: {
-  icon: React.ComponentProps<typeof Feather>['name'];
-  label: string;
-  value: number;
-  color: string;
-  loading: boolean;
-  theme: any;
-}) {
-  return (
-    <Card style={statStyles.card}>
-      <View style={[statStyles.iconWrap, { backgroundColor: `${color}15` }]}>
-        <Feather name={icon} size={18} color={color} />
-      </View>
-      {loading
-        ? <ActivityIndicator size="small" color={color} style={{ marginVertical: 4 }} />
-        : <Text style={[statStyles.value, { color }]}>{value}</Text>}
-      <Text style={[statStyles.label, { color: theme.textSecondary }]}>{label}</Text>
-    </Card>
   );
 }
 
@@ -700,34 +682,25 @@ const infoStyles = StyleSheet.create({
   divider: { height: 1, marginHorizontal: 16 },
 });
 
-const statStyles = StyleSheet.create({
-  card: { flex: 1, minWidth: 90, alignItems: 'center', gap: 6 },
-  iconWrap: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  value: { fontSize: 26, fontWeight: '800' },
-  label: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
-});
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '700' },
   scrollContent: { padding: 20, paddingBottom: 100 },
 
-  heroCard: { alignItems: 'center', marginBottom: 24 },
+  heroCard: { marginBottom: 24 },
+  heroIdentity: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  heroCopy: { flex: 1, minWidth: 0 },
   avatar: {
-    width: 80, height: 80, borderRadius: 24,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+    width: 64, height: 64, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
   },
-  avatarText: { fontSize: 32, fontWeight: '800', color: '#FFF' },
+  avatarText: { fontSize: 28, fontWeight: '800' },
   nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  name: { fontSize: 22, fontWeight: '700' },
+  name: { flexShrink: 1, fontSize: 21, fontWeight: '700' },
+  identityMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  municipalityMeta: { flex: 1, minWidth: 90, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  municipalityText: { flexShrink: 1, fontSize: 12, fontWeight: '500' },
+  accountState: { marginTop: 16, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  accountStateText: { fontSize: 12, fontWeight: '700' },
 
   editRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8, width: '100%' },
   nameInput: {
@@ -755,12 +728,21 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2, marginBottom: 12,
   },
 
-  statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 24, flexWrap: 'wrap' },
+  statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 24, flexWrap: 'wrap' },
+  metricCard: { flexGrow: 1, flexBasis: '46%' },
 
   actionRow: {
     flexDirection: 'row', alignItems: 'center', padding: 16,
     borderRadius: 16, borderWidth: 1, marginBottom: 12,
   },
+  themeCard: { borderRadius: 16, borderWidth: 1, marginBottom: 12, padding: 16, gap: 14 },
+  themeHeader: { flexDirection: 'row', alignItems: 'center' },
+  themeOptions: { flexDirection: 'row', borderRadius: 12, padding: 4, gap: 4 },
+  themeOption: {
+    flex: 1, minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: 'transparent',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  },
+  themeOptionText: { fontSize: 12, fontWeight: '700' },
   actionIcon: {
     width: 44, height: 44, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center', marginRight: 16,

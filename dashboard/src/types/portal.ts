@@ -1,4 +1,6 @@
 export type PortalAccountKind = 'individual' | 'organization';
+export type CustomerLifecycleState = 'creating' | 'under_review' | 'trial' | 'contracting_pending' | 'active' | 'blocked';
+export type CustomerOnboardingItem = 'identity' | 'organization' | 'plan' | 'team' | 'configuration' | 'first_operation';
 export type MunicipalRole = 'coordinator' | 'supervisor' | 'agent';
 export type PortalMembershipStatus = 'invited' | 'active' | 'suspended' | 'removed';
 export type PortalSubscriptionStatus =
@@ -51,6 +53,24 @@ export interface PortalAccessContext {
   permissions: PortalPermission[];
   creationAllowed: boolean;
   restrictionCause: string | null;
+}
+
+export interface PortalCustomerEntryContext {
+  accountKind: PortalAccountKind | 'internal' | null;
+  entryState: string | null;
+  lifecycleState: CustomerLifecycleState;
+  individualBootstrapEnabled: boolean;
+  municipalBootstrapEnabled: boolean;
+  organizationName: string | null;
+  subscriptionStatus: string | null;
+  onboarding: {
+    status: string;
+    currentStep: CustomerOnboardingItem | 'completed' | null;
+    checklist: Partial<Record<CustomerOnboardingItem, boolean>>;
+    completedItems: number;
+    totalItems: number;
+    progressPercent: number;
+  } | null;
 }
 
 export interface PortalDashboardData {

@@ -13,6 +13,7 @@ import { resolverApresentacaoRisco, riscoLabel, riscoColor } from '../../../util
 import { formatarData } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { AppHeader, EmptyState, MetricCard } from '../../../components/ui';
 
 const PAGE_SIZE = 50;
 
@@ -30,16 +31,17 @@ interface CardProps {
 
 const VistoriaCard = React.memo(({ item: v, theme }: CardProps) => {
   const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
-  const cor = apresentacao.cor;
+  const cor = v.nivelRisco === 'r1' ? theme.riscoR1 : v.nivelRisco === 'r2' ? theme.riscoR2 : v.nivelRisco === 'r3' ? theme.riscoR3 : theme.riscoR4;
+  const fundoRisco = v.nivelRisco === 'r1' ? theme.riscoR1Light : v.nivelRisco === 'r2' ? theme.riscoR2Light : v.nivelRisco === 'r3' ? theme.riscoR3Light : theme.riscoR4Light;
   const addr = v.endereco || `${v.enderecoRua || ''}, ${v.enderecoNumero || ''} — ${v.enderecoBairro || ''}`;
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+      style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
       onPress={() => router.push(`/(panel)/inspecoes/laudo?id=${v.id}`)}
     >
-      <View style={[styles.riscoBadge, { backgroundColor: `${cor}15`, borderColor: `${cor}30` }]}>
+      <View style={[styles.riscoBadge, { backgroundColor: fundoRisco, borderColor: fundoRisco }]}>
         <Feather
-          name={cor === '#EF4444' ? 'alert-triangle' : cor === '#F59E0B' ? 'alert-circle' : 'check-circle'}
+          name={v.nivelRisco === 'r4' || v.nivelRisco === 'r3' ? 'alert-triangle' : v.nivelRisco === 'r2' ? 'alert-circle' : 'check-circle'}
           size={18} color={cor}
         />
       </View>
@@ -57,7 +59,7 @@ const VistoriaCard = React.memo(({ item: v, theme }: CardProps) => {
         )}
       </View>
       <View style={{ alignItems: 'flex-end', gap: 4 }}>
-        <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
+        <View style={[styles.nivelBadge, { backgroundColor: fundoRisco }]}>
           <Text style={[styles.nivelText, { color: cor }]}>{apresentacao.label}</Text>
         </View>
         <Feather name="file-text" size={14} color={theme.primary} />
@@ -156,37 +158,24 @@ export default function RelatoriosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Relatórios</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{filtradas.length} vistoria{filtradas.length !== 1 ? 's' : ''}</Text>
-        </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader title="Relatórios técnicos" subtitle={`${filtradas.length} ${filtradas.length === 1 ? 'vistoria' : 'vistorias'}`} onBack={() => router.back()} />
       </View>
 
-      {/* Stats bar */}
-      <View style={[styles.statsBar, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsBar}>
         {[
-          { label: 'Total', value: stats.total, color: theme.primary },
-          { label: 'Crítico', value: stats.r4, color: '#7C3AED' },
-          { label: 'Alto', value: stats.r3, color: '#EF4444' },
-          { label: 'Médio', value: stats.r2, color: '#F59E0B' },
-          { label: 'Baixo', value: stats.r1, color: '#10B981' },
+          { label: 'Total', value: stats.total, tone: 'primary' as const },
+          { label: 'Crítico', value: stats.r4, tone: 'danger' as const },
+          { label: 'Alto', value: stats.r3, tone: 'danger' as const },
+          { label: 'Médio', value: stats.r2, tone: 'warning' as const },
+          { label: 'Baixo', value: stats.r1, tone: 'success' as const },
         ].map(s => (
-          <View key={s.label} style={styles.statItem}>
-            <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{s.label}</Text>
-          </View>
+          <MetricCard key={s.label} value={s.value} label={s.label} tone={s.tone} style={styles.metricCard} />
         ))}
-      </View>
+      </ScrollView>
 
       {/* Search */}
-      <View style={[styles.searchRow, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.searchRow, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         <View style={[styles.searchBox, { backgroundColor: theme.background, borderColor: theme.border, marginBottom: 8 }]}>
           <Feather name="search" size={15} color={theme.textSecondary} />
           <TextInput
@@ -212,7 +201,7 @@ export default function RelatoriosScreen() {
       </View>
 
       {/* Filters */}
-      <View style={[styles.filters, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.filters, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {(['7d', '30d', '90d', 'todos'] as FiltroPeriodo[]).map(p => (
             <TouchableOpacity
@@ -220,7 +209,7 @@ export default function RelatoriosScreen() {
               style={[styles.chip, periodo === p ? { backgroundColor: theme.primary } : { backgroundColor: theme.iconBackground, borderColor: theme.border, borderWidth: 1 }]}
               onPress={() => setPeriodo(p)}
             >
-              <Text style={{ color: periodo === p ? '#FFF' : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
+              <Text style={{ color: periodo === p ? theme.onPrimary : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
                 {p === 'todos' ? 'Todos' : p}
               </Text>
             </TouchableOpacity>
@@ -234,7 +223,7 @@ export default function RelatoriosScreen() {
                 style={[styles.chip, risco === r ? { backgroundColor: cor } : { backgroundColor: theme.iconBackground, borderColor: theme.border, borderWidth: 1 }]}
                 onPress={() => setRisco(r)}
               >
-                <Text style={{ color: risco === r ? '#FFF' : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
+                <Text style={{ color: risco === r ? theme.onPrimary : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
                   {r === 'todos' ? 'Todos riscos' : riscoLabel(r)}
                 </Text>
               </TouchableOpacity>
@@ -250,11 +239,7 @@ export default function RelatoriosScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
         renderItem={({ item }) => <VistoriaCard item={item} theme={theme} />}
         ListEmptyComponent={
-          <View style={[styles.empty, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Feather name="file-text" size={40} color={theme.textSecondary} style={{ marginBottom: 12 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhuma vistoria</Text>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Ajuste os filtros para ver mais resultados.</Text>
-          </View>
+          <EmptyState icon="file-text" title="Nenhuma vistoria" description="Ajuste período, risco ou busca para consultar outros relatórios." />
         }
         ListFooterComponent={hasMore ? (
           <TouchableOpacity
@@ -278,17 +263,8 @@ export default function RelatoriosScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 16, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
-  },
-  backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: '700' },
-  subtitle: { fontSize: 12, marginTop: 2 },
-  statsBar: { flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1 },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 20, fontWeight: '900' },
-  statLabel: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+  statsBar: { gap: 10, paddingVertical: 12, paddingHorizontal: 16 },
+  metricCard: { width: 112 },
   searchRow: { padding: 12, borderBottomWidth: 1 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, height: 42 },
   searchInput: { flex: 1, fontSize: 14 },

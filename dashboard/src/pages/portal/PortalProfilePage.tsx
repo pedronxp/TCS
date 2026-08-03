@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { LogOut, MonitorSmartphone, ShieldCheck } from 'lucide-react';
+import { Link, LogOut, MonitorSmartphone, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
@@ -15,7 +16,9 @@ interface PortalSession {
 }
 
 export function PortalProfilePage() {
-  const { access, user, signOut } = usePortalAuth();
+  const { access, user, signOut, linkGoogleIdentity } = usePortalAuth();
+  const [googleMessage, setGoogleMessage] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const query = useQuery({
     queryKey: ['portal', 'sessions', access?.userId],
     queryFn: async () => {
@@ -31,12 +34,21 @@ export function PortalProfilePage() {
     void query.refetch();
   }
 
+  const googleLinked = user?.identities?.some((identity) => identity.provider === 'google') ?? false;
+  async function linkGoogle() {
+    setGoogleLoading(true);
+    setGoogleMessage(null);
+    const message = await linkGoogleIdentity();
+    setGoogleMessage(message ?? 'Conta Google vinculada. Seus papéis e permissões não foram alterados.');
+    setGoogleLoading(false);
+  }
+
   return (
     <div className="page-stack">
       <header><p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Conta</p><h1 className="mt-2 text-3xl font-semibold">Perfil e segurança</h1><p className="mt-2 text-sm text-muted-foreground">Identidade, vínculo e sessões da sua própria conta.</p></header>
       <section className="grid gap-4 lg:grid-cols-2">
         <Card><CardHeader><CardTitle>Dados da conta</CardTitle></CardHeader><CardContent className="space-y-4"><Info label="Nome" value={access.displayName} /><Info label="E-mail verificado" value={user?.email ?? '—'} /><Info label="Experiência" value={access.accountKind === 'organization' ? `Municipal · ${access.role}` : 'Individual'} /><Button variant="outline" onClick={() => void signOut()}><LogOut />Sair desta sessão</Button></CardContent></Card>
-        <Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck />Proteção</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-muted-foreground"><p>Permissões e escopo são recalculados no servidor a cada sessão.</p><p>Documentos usam links temporários e auditáveis.</p><p>Para alterar senha ou MFA, use o fluxo seguro enviado ao seu e-mail.</p></CardContent></Card>
+        <Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck />Proteção</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-muted-foreground"><p>Permissões e escopo são recalculados no servidor a cada sessão.</p><p>Documentos usam links temporários e auditáveis.</p><p>Para alterar senha ou MFA, use o fluxo seguro enviado ao seu e-mail.</p><Button variant="outline" disabled={googleLinked || googleLoading} onClick={() => void linkGoogle()}><Link />{googleLinked ? 'Google vinculado' : googleLoading ? 'Abrindo Google…' : 'Vincular conta Google'}</Button>{googleMessage && <p role="status">{googleMessage}</p>}</CardContent></Card>
       </section>
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><MonitorSmartphone />Sessões ativas</CardTitle></CardHeader><CardContent>{query.isLoading && <p className="text-sm text-muted-foreground">Carregando sessões…</p>}{query.isError && <p className="text-sm text-destructive" role="alert">Não foi possível carregar as sessões.</p>}<ul className="divide-y">{query.data?.map((session) => <li key={session.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold">{session.device_name}</p><p className="mt-1 text-xs text-muted-foreground">{session.platform} · atividade em {new Date(session.last_heartbeat_at).toLocaleString('pt-BR')}</p></div><Button variant="outline" size="sm" className="min-h-11" onClick={() => void endSession(session.id)}>Encerrar</Button></li>)}</ul>{query.data?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma sessão registrada.</p>}</CardContent></Card>
     </div>

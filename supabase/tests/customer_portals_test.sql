@@ -16,6 +16,20 @@ VALUES
   ('51000000-0000-4000-8000-000000000007', 'individual-b@example.test', now(), '{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
+-- The hardened Auth trigger now creates every identity as a neutral pending
+-- customer. This fixture replaces those neutral profiles with its explicit
+-- authorization scenarios.
+DELETE FROM public.users
+WHERE uid IN (
+  '51000000-0000-4000-8000-000000000001',
+  '51000000-0000-4000-8000-000000000002',
+  '51000000-0000-4000-8000-000000000003',
+  '51000000-0000-4000-8000-000000000004',
+  '51000000-0000-4000-8000-000000000005',
+  '51000000-0000-4000-8000-000000000006',
+  '51000000-0000-4000-8000-000000000007'
+);
+
 INSERT INTO public.users(uid, email, name, username, role, "isApproved")
 VALUES
   ('51000000-0000-4000-8000-000000000001', 'individual-a@example.test', 'Individual A', 'individual-a', 'agent', true),

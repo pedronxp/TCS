@@ -1,12 +1,14 @@
 import { Link, Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { TcsMark } from '@/components/brand/TcsMark';
+import { CookieConsent } from '@/components/public/CookieConsent';
 
 const publicLinks = [
   ['Produto', '/#produto'],
   ['Soluções', '/#solucoes'],
   ['Planos', '/planos'],
   ['Segurança', '/#seguranca'],
+  ['Contato', '/#contato'],
 ] as const;
 
 export function PublicLayout() {
@@ -26,7 +28,7 @@ export function PublicLayout() {
             <span className="leading-none">
               <span className="block text-[15px] font-bold tracking-[-0.02em]">TCS</span>
               <span className="mt-1.5 block text-[9px] font-bold uppercase tracking-[0.13em] text-muted-foreground">
-                Gestão Territorial
+                Relatório e Risco
               </span>
             </span>
           </Link>
@@ -67,6 +69,7 @@ export function PublicLayout() {
           </nav>
         </div>
       </footer>
+      <CookieConsent />
     </div>
   );
 }

@@ -3,23 +3,28 @@
     "name": "TCS - Relatório de Risco",
     "slug": "tcs-relatorio-de-risco",
     "scheme": "tcs",
-    "version": "1.3.23",
+    "version": "1.3.24",
     "orientation": "portrait",
-    "icon": "./assets/brand/tcs-icon.png",
+    "icon": "./assets/brand/tcs-icon-v5.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/brand/tcs-splash.png",
+      "image": "./assets/brand/tcs-mark-v5.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B0F19"
+      "backgroundColor": "#F7F8F7",
+      "dark": {
+        "image": "./assets/brand/tcs-mark-v5.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0F1411"
+      }
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.tcs.relatorioderisco",
+      "buildNumber": "28",
       "infoPlist": {
         "NSCameraUsageDescription": "O app precisa acessar a câmera para registrar evidências fotográficas das vistorias.",
         "NSPhotoLibraryUsageDescription": "O app precisa acessar a galeria para anexar fotos às vistorias.",
-        "NSLocationWhenInUseUsageDescription": "O app usa a localização para registrar o ponto exato de cada vistoria.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "O app usa a localização para registrar vistorias mesmo em segundo plano."
+        "NSLocationWhenInUseUsageDescription": "O app usa a localização para registrar o ponto exato de cada vistoria."
       }
     },
     "android": {
@@ -30,29 +35,21 @@
           "apiKey": "AIzaSyD9THUSNNwA0aQ54cacCs9o0-SloWA9hPY"
         }
       },
-      "versionCode": 29,
+      "versionCode": 30,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/brand/tcs-adaptive-foreground.png",
-        "monochromeImage": "./assets/brand/tcs-monochrome.png",
-        "backgroundColor": "#0B0F19"
+        "foregroundImage": "./assets/brand/tcs-adaptive-foreground-v5.png",
+        "backgroundColor": "#EDF3F0"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.ACCESS_WIFI_STATE",
         "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.FOREGROUND_SERVICE"
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -66,7 +63,7 @@
         "expo-notifications",
         {
           "icon": "./assets/brand/tcs-notification.png",
-          "color": "#3B82F6",
+          "color": "#2F6B5B",
           "sounds": [],
           "mode": "production"
         }
@@ -102,7 +99,8 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

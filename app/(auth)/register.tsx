@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Card, Button } from '../../components/ui';
 import { ProductIdentity } from '../../components/brand';
+import { TCSPalette } from '../../constants/Colors';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatarToken = (t: string) => {
@@ -89,6 +90,11 @@ interface TokenValidationResult {
   motivo?: string;
   municipio?: string;
   expiraEm?: string | null;
+}
+
+interface SignupInviteClaimResult {
+  signup_claim_nonce: string;
+  expires_at: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -205,9 +211,9 @@ export default function RegisterScreen() {
     }
   };
 
-  // ── Etapa 1: validar formulário e token ─────────────────────────────────
+  // ── Etapa 1: validar formulário e convite opcional ────────────────────────
   const handleValidarFormulario = async () => {
-    if (!token || !nome || !email || !senha || !confirmarSenha) {
+    if (!nome || !email || !senha || !confirmarSenha) {
       setError('Preencha todos os campos obrigatórios.');
       return;
     }
@@ -239,8 +245,10 @@ export default function RegisterScreen() {
       let tokenData = tokenDataRef.current;
       const codigoNorm = token.trim().toUpperCase().replace(/\s/g, ''); // mantém traços
 
-      // Reutiliza resultado cacheado da verificação inline, ou revalida
-      if (!tokenData) {
+      // Convites antigos permanecem opcionais durante a janela de
+      // compatibilidade. Sem convite, a identidade nasce neutra e segue para
+      // a escolha individual/organização no onboarding server-side.
+      if (codigoNorm && !tokenData) {
         const { data: rawData2, error: valError } = await supabase
           .rpc('validate_invite_token', { p_codigo: codigoNorm })
           .single();
@@ -252,7 +260,7 @@ export default function RegisterScreen() {
         codigoNormRef.current = codigoNorm;
       }
 
-      if (tokenData.municipio) {
+      if (tokenData?.municipio) {
         const { data: dominioOk } = await supabase.rpc('check_email_domain', {
           p_municipio: tokenData.municipio,
           p_email: email.trim().toLowerCase(),
@@ -272,7 +280,9 @@ export default function RegisterScreen() {
 
   // ── Etapa 2: aceitar termos ──────────────────────────────────────────────
   const handleAceitarTermos = () => {
-    setEtapa('permissoes');
+    // A criação da identidade não depende de câmera, localização ou
+    // notificações. Cada permissão será solicitada na funcionalidade de uso.
+    void handleRegistrar();
   };
 
   // ── Etapa 3: solicitar permissões ────────────────────────────────────────
@@ -314,6 +324,23 @@ export default function RegisterScreen() {
         throw new Error('Este e-mail já está cadastrado. Utilize a opção de login.');
       }
 
+      let claim: SignupInviteClaimResult | null = null;
+      if (codigoNorm) {
+        // Troca o código legado por um claim opaco e curto. Papel, município,
+        // organização e aprovação permanecem exclusivamente no servidor.
+        const { data: rawClaim, error: claimError } = await supabase.rpc(
+          'prepare_legacy_invite_signup',
+          {
+            p_codigo: codigoNorm,
+            p_email: email.trim().toLowerCase(),
+          },
+        );
+        claim = rawClaim as SignupInviteClaimResult | null;
+        if (claimError || !claim?.signup_claim_nonce) {
+          throw new Error('Token de convite inválido, expirado ou incompatível com este e-mail. Solicite um novo convite.');
+        }
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: senha,
@@ -322,8 +349,9 @@ export default function RegisterScreen() {
             name: nome,
             username: email.split('@')[0],
             phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
-            role: tokenData.role,
-            municipio: tokenData.municipio,
+            ...(claim?.signup_claim_nonce
+              ? { signup_claim_nonce: claim.signup_claim_nonce }
+              : {}),
           },
         },
       });
@@ -346,37 +374,9 @@ export default function RegisterScreen() {
       const uid = authData.user?.id;
       if (!uid) throw new Error('Falha ao criar conta. Tente novamente.');
 
-      // ── public.users criado via trigger on_auth_user_created ─────────────
-      // O trigger usa raw_user_meta_data passado no signUp acima.
-      // Não há insert manual aqui — se o trigger falhar, o signUp também falha
-      // e nenhum registro é criado em nenhuma tabela (atomicidade real no BD).
-
-      // ── Validação do token com retorno boolean real ───────────────────────
-      // mark_token_used foi atualizada para retornar boolean:
-      //   TRUE  → token existia, estava livre, e foi marcado como usado
-      //   FALSE → token não existe, já foi usado, ou outra condição inválida
-      let deviceIp = '';
-      try {
-        const ipRes = await fetch('https://api.ipify.org?format=json');
-        deviceIp = (await ipRes.json()).ip || '';
-      } catch { /* silencioso */ }
-
-      const { data: tokenConsumed, error: tokenError } = await supabase.rpc('mark_token_used', {
-        p_codigo: codigoNorm,
-        p_uid: uid,
-        p_nome: nome,
-        p_ip: deviceIp,
-      });
-      if (tokenError || tokenConsumed !== true) {
-        // Token inválido: desfaz o registro criado pelo trigger e encerra sessão.
-        // O auth.user permanece em auth.users (sem service_role não é possível
-        // deletá-lo do cliente), mas sem registro em public.users o app o trata
-        // como não-cadastrado. A próxima tentativa de cadastro com mesmo e-mail
-        // será bloqueada pelo Supabase Auth ("user already registered").
-        try { await supabase.from('users').delete().eq('uid', uid); } catch { /* silencioso */ }
-        try { await supabase.auth.signOut(); } catch { /* silencioso */ }
-        throw new Error('Token de convite inválido ou já utilizado. Cadastro cancelado. Solicite um novo token ao administrador.');
-      }
+      // O trigger valida e consome o claim, cria o perfil e, quando aplicável,
+      // cria o membership na mesma transação do auth.users. Uma falha reverte
+      // todo o signup, sem identidade órfã e sem compensação no cliente.
 
       try {
         if (tokenData.criadoPor) {
@@ -406,7 +406,7 @@ export default function RegisterScreen() {
         <View style={styles.sucessoContainer}>
           <Card>
             <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-              <Feather name="check-circle" size={56} color="#10B981" />
+              <Feather name="check-circle" size={56} color={theme.success} />
               <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 16, color: theme.text }}>
                 Conta criada com sucesso!
               </Text>
@@ -430,7 +430,7 @@ export default function RegisterScreen() {
     const perms = [
       {
         icon: 'camera' as const,
-        color: '#8B5CF6',
+        color: theme.primary,
         titulo: 'Câmera',
         desc: 'Fotografar evidências e edificações durante vistorias.',
         status: permCamera,
@@ -438,7 +438,7 @@ export default function RegisterScreen() {
       },
       {
         icon: 'map-pin' as const,
-        color: '#3B82F6',
+        color: theme.primaryDark,
         titulo: 'Localização',
         desc: 'Georreferenciar as edificações inspecionadas no mapa.',
         status: permLocalizacao,
@@ -446,7 +446,7 @@ export default function RegisterScreen() {
       },
       {
         icon: 'bell' as const,
-        color: '#F59E0B',
+        color: theme.warning,
         titulo: 'Notificações',
         desc: 'Receber alertas operacionais e agendamentos de vistorias.',
         status: permNotificacoes,
@@ -492,14 +492,14 @@ export default function RegisterScreen() {
                     style={[styles.permBtn, { backgroundColor: theme.primary }]}
                     onPress={p.solicitar}
                   >
-                    <Text style={styles.permBtnText}>Permitir</Text>
+                    <Text style={[styles.permBtnText, { color: theme.onPrimary }]}>Permitir</Text>
                   </TouchableOpacity>
                 ) : (
-                  <View style={[styles.permStatus, { backgroundColor: p.status === 'concedida' ? '#10B98115' : '#EF444415' }]}>
+                  <View style={[styles.permStatus, { backgroundColor: p.status === 'concedida' ? theme.successLight : theme.errorLight }]}>
                     <Feather
                       name={p.status === 'concedida' ? 'check' : 'x'}
                       size={14}
-                      color={p.status === 'concedida' ? '#10B981' : '#EF4444'}
+                      color={p.status === 'concedida' ? theme.success : theme.error}
                     />
                   </View>
                 )}
@@ -571,7 +571,7 @@ export default function RegisterScreen() {
             </View>
           ))}
           <View style={[styles.termosFim, { borderTopColor: theme.border }]}>
-            <Feather name="check-circle" size={16} color="#10B981" />
+            <Feather name="check-circle" size={16} color={theme.success} />
             <Text style={[styles.termosFimText, { color: theme.textSecondary }]}>
               Fim do documento · Versão 1.0 · Abril/2026
             </Text>
@@ -596,7 +596,7 @@ export default function RegisterScreen() {
                 backgroundColor: termosAceitos ? theme.primary : 'transparent',
               },
             ]}>
-              {termosAceitos && <Feather name="check" size={13} color="#FFF" />}
+              {termosAceitos && <Feather name="check" size={13} color={theme.onPrimary} />}
             </View>
             <Text style={[styles.checkLabel, { color: termosScrollado ? theme.text : theme.textSecondary }]}>
               Li e concordo com a Política de Privacidade e os Termos de Uso
@@ -611,10 +611,10 @@ export default function RegisterScreen() {
             onPress={handleAceitarTermos}
             disabled={!termosAceitos}
           >
-            <Text style={[styles.btnAceitarText, { color: termosAceitos ? '#FFF' : theme.textSecondary }]}>
+            <Text style={[styles.btnAceitarText, { color: termosAceitos ? theme.onPrimary : theme.textSecondary }]}>
               Aceitar e Continuar
             </Text>
-            <Feather name="arrow-right" size={17} color={termosAceitos ? '#FFF' : theme.textSecondary} />
+            <Feather name="arrow-right" size={17} color={termosAceitos ? theme.onPrimary : theme.textSecondary} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -642,22 +642,22 @@ export default function RegisterScreen() {
             <ProductIdentity variant="compact" />
             <Text style={[styles.title, { color: theme.text }]}>Validação Segura</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Insira o token recebido pelo seu administrador para configurar sua conta.
+              Crie sua conta para iniciar o onboarding. Se recebeu um convite antigo, informe-o abaixo.
             </Text>
           </View>
 
           <View style={styles.form}>
             {/* Token */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Token de Acesso</Text>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Token de Acesso (opcional)</Text>
               <View style={[
                 styles.inputContainer,
                 {
                   backgroundColor: theme.surfaceHighlight,
                   borderColor:
                     tokenStatus === 'checking' ? theme.border
-                    : tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido ? '#10B981'
-                    : tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido ? '#EF4444'
+                    : tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido ? theme.success
+                    : tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido ? theme.error
                     : theme.border,
                 },
               ]}>
@@ -682,24 +682,24 @@ export default function RegisterScreen() {
                   <Feather name="loader" size={16} color={theme.textSecondary} style={{ marginRight: 12 }} />
                 )}
                 {tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido && (
-                  <Feather name="check-circle" size={16} color="#10B981" style={{ marginRight: 12 }} />
+                  <Feather name="check-circle" size={16} color={theme.success} style={{ marginRight: 12 }} />
                 )}
                 {tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido && (
-                  <Feather name="x-circle" size={16} color="#EF4444" style={{ marginRight: 12 }} />
+                  <Feather name="x-circle" size={16} color={theme.error} style={{ marginRight: 12 }} />
                 )}
               </View>
 
               {/* Card de confirmação do token */}
               {tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido && (
-                <View style={[styles.tokenCard, { backgroundColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.25)' }]}>
+                <View style={[styles.tokenCard, { backgroundColor: theme.successLight, borderColor: theme.success }]}>
                   <View style={styles.tokenCardRow}>
-                    <Feather name="map-pin" size={13} color="#10B981" />
-                    <Text style={[styles.tokenCardLabel, { color: '#10B981' }]}>Município</Text>
+                    <Feather name="map-pin" size={13} color={theme.success} />
+                    <Text style={[styles.tokenCardLabel, { color: theme.success }]}>Município</Text>
                     <Text style={[styles.tokenCardValue, { color: theme.text }]}>{tokenStatus.municipio || '—'}</Text>
                   </View>
                   <View style={styles.tokenCardRow}>
-                    <Feather name="clock" size={13} color="#10B981" />
-                    <Text style={[styles.tokenCardLabel, { color: '#10B981' }]}>Válido até</Text>
+                    <Feather name="clock" size={13} color={theme.success} />
+                    <Text style={[styles.tokenCardLabel, { color: theme.success }]}>Válido até</Text>
                     <Text style={[styles.tokenCardValue, { color: theme.text }]}>
                       {tokenStatus.expiraEm
                         ? new Date(tokenStatus.expiraEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -711,7 +711,7 @@ export default function RegisterScreen() {
 
               {/* Erro de token inválido */}
               {tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido && (
-                <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 6, marginLeft: 2 }}>
+                <Text style={{ fontSize: 12, color: theme.error, marginTop: 6, marginLeft: 2 }}>
                   {tokenStatus.motivo}
                 </Text>
               )}
@@ -739,8 +739,8 @@ export default function RegisterScreen() {
                 styles.inputContainer,
                 {
                   backgroundColor: theme.surfaceHighlight,
-                  borderColor: emailJaCadastrado === true ? '#EF4444'
-                    : emailJaCadastrado === false ? '#10B981'
+                  borderColor: emailJaCadastrado === true ? theme.error
+                    : emailJaCadastrado === false ? theme.success
                     : theme.border,
                 },
               ]}>
@@ -759,14 +759,14 @@ export default function RegisterScreen() {
                   <Feather name="loader" size={16} color={theme.textSecondary} style={{ marginRight: 12 }} />
                 )}
                 {!checkingEmail && emailJaCadastrado === true && (
-                  <Feather name="x-circle" size={16} color="#EF4444" style={{ marginRight: 12 }} />
+                  <Feather name="x-circle" size={16} color={theme.error} style={{ marginRight: 12 }} />
                 )}
                 {!checkingEmail && emailJaCadastrado === false && (
-                  <Feather name="check-circle" size={16} color="#10B981" style={{ marginRight: 12 }} />
+                  <Feather name="check-circle" size={16} color={theme.success} style={{ marginRight: 12 }} />
                 )}
               </View>
               {emailJaCadastrado === true && (
-                <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 6, marginLeft: 2 }}>
+                <Text style={{ fontSize: 12, color: theme.error, marginTop: 6, marginLeft: 2 }}>
                   Este e-mail já está cadastrado. Utilize outro endereço.
                 </Text>
               )}
@@ -824,7 +824,7 @@ export default function RegisterScreen() {
                     <View key={i} style={{
                       flex: 1, height: 4, borderRadius: 2,
                       backgroundColor: i < senhaForca + 1
-                        ? (senhaForca === 0 ? '#EF4444' : senhaForca === 1 ? '#D97706' : '#16A34A')
+                        ? (senhaForca === 0 ? theme.error : senhaForca === 1 ? theme.warning : theme.success)
                         : theme.border,
                     }} />
                   ))}
@@ -838,7 +838,7 @@ export default function RegisterScreen() {
               <View style={[styles.inputContainer, {
                 backgroundColor: theme.surfaceHighlight,
                 borderColor: confirmarSenha.length > 0
-                  ? confirmarSenha !== senha ? '#EF4444' : '#10B981'
+                  ? confirmarSenha !== senha ? theme.error : theme.success
                   : theme.border,
               }]}>
                 <Feather name="lock" color={theme.textSecondary} size={20} style={styles.inputIcon} />
@@ -855,10 +855,10 @@ export default function RegisterScreen() {
                 </TouchableOpacity>
               </View>
               {confirmarSenha.length > 0 && confirmarSenha !== senha && (
-                <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>As senhas não coincidem</Text>
+                <Text style={{ color: theme.error, fontSize: 12, marginTop: 4 }}>As senhas não coincidem</Text>
               )}
               {confirmarSenha.length > 0 && confirmarSenha === senha && (
-                <Text style={{ color: '#10B981', fontSize: 12, marginTop: 4 }}>Senhas conferem ✓</Text>
+                <Text style={{ color: theme.success, fontSize: 12, marginTop: 4 }}>Senhas conferem ✓</Text>
               )}
             </View>
 
@@ -899,10 +899,11 @@ function StepIndicator({ etapa, theme }: { etapa: number; theme: any }) {
 }
 
 function ErrorBox({ msg }: { msg: string }) {
+  const { theme } = useTheme();
   return (
-    <View style={errStyles.wrap}>
-      <Feather name="alert-circle" size={16} color="#EF4444" />
-      <Text style={errStyles.text}>{msg}</Text>
+    <View style={[errStyles.wrap, { backgroundColor: theme.errorLight, borderColor: theme.error }]}>
+      <Feather name="alert-circle" size={16} color={theme.error} />
+      <Text style={[errStyles.text, { color: theme.error }]}>{msg}</Text>
     </View>
   );
 }
@@ -910,11 +911,10 @@ function ErrorBox({ msg }: { msg: string }) {
 const errStyles = StyleSheet.create({
   wrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12,
+    borderWidth: 1, borderRadius: 12,
     padding: 12, gap: 8,
   },
-  text: { color: '#EF4444', fontSize: 14, flex: 1 },
+  text: { fontSize: 14, flex: 1 },
 });
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
@@ -988,7 +988,7 @@ const styles = StyleSheet.create({
   permTitulo: { fontSize: 15, fontWeight: '700' },
   permDesc: { fontSize: 12, marginTop: 2, lineHeight: 17 },
   permBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  permBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  permBtnText: { fontSize: 12, fontWeight: '700' },
   permStatus: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   solicitarTodasBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

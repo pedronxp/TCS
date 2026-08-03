@@ -1,10 +1,20 @@
-import React, { useState, useCallback } from 'react';
-import { Alert, View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput } from 'react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useTraining } from '../../../context/TrainingContext';
-import { Card, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
+import {
+  AppHeader,
+  Badge,
+  Button,
+  Card,
+  ConfirmSheet,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  StateBanner,
+} from '../../../components/ui';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
@@ -15,13 +25,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { safeBack } from '../../../utils/navigationUtils';
 import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
+import { FontSize, FontWeight } from '../../../constants/Typography';
+import { ComponentSize, Spacing, SpacingAlias } from '../../../constants/Spacing';
 
-const RISCO_COLORS: Record<string, string> = {
-  r1: '#10B981',
-  r2: '#F59E0B',
-  r3: '#F97316',
-  r4: '#EF4444',
-};
+type ListFilter = 'todas' | 'pendentes' | 'alto_risco';
 
 // ─── Card memoizado ────────────────────────────────────────────────────────
 interface InspecaoCardProps {
@@ -39,84 +46,80 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
     nivelRisco: item.nivel_risco,
     calculoRisco: item.calculo_json,
   });
-  const cor = apresentacao.cor || RISCO_COLORS[item.nivel_risco] || '#94A3B8';
   const isPendente = item.sincronizado === 0;
   const hasErro = isPendente && !!item.erro_sync;
   const maxTentativas = (item.tentativas_sync ?? 0) >= 5;
   const feitoOffline = item.origem === 'offline';
+  const riskVariant = apresentacao.nivelCompatibilidade.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4';
+  const syncLabel = maxTentativas ? 'Falhou' : hasErro ? 'Erro no envio' : isPendente ? 'Pendente' : feitoOffline ? 'Feita offline' : 'Sincronizada';
+  const syncVariant = maxTentativas || hasErro ? 'error' : isPendente ? 'warning' : 'success';
+  const dateLabel = item.data_vistoria
+    ? new Date(item.data_vistoria).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'Data não informada';
+  const address = item.endereco_rua
+    ? `${item.endereco_rua}, ${item.endereco_numero || 's/n'}${item.endereco_bairro ? ` · ${item.endereco_bairro}` : ''}`
+    : 'Endereço não informado';
+
+  const openInspection = () => trainingMode
+    ? router.push({
+        pathname: '/(panel)/inspecoes/resultado',
+        params: {
+          id: item.id,
+          nivelRisco: item.nivel_risco,
+          formularioId: item.formulario_id,
+          pontuacao: String(item.pontuacao_total ?? 0),
+          municipio: item.municipio,
+          treinamento: localTestMode ? '0' : '1',
+          testeLocal: localTestMode ? '1' : '0',
+        },
+      })
+    : router.push(`/(panel)/inspecoes/${item.id}`);
+
   return (
-    <Card
-      style={{ marginBottom: 12 }}
-      onPress={() => trainingMode
-        ? router.push({
-            pathname: '/(panel)/inspecoes/resultado',
-            params: {
-              id: item.id,
-              nivelRisco: item.nivel_risco,
-              formularioId: item.formulario_id,
-              pontuacao: String(item.pontuacao_total ?? 0),
-              municipio: item.municipio,
-              treinamento: localTestMode ? '0' : '1',
-              testeLocal: localTestMode ? '1' : '0',
-            },
-          })
-        : router.push(`/(panel)/inspecoes/${item.id}`)}
-    >
-      <View style={[styles.cardInner, { borderColor: hasErro ? 'rgba(239,68,68,0.3)' : theme.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.badge, { backgroundColor: cor }]}>
-            <Text style={styles.badgeText}>{item.formulario_id === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (item.nivel_risco?.toUpperCase() || 'N/A')}</Text>
-          </View>
-          <View style={styles.cardHeaderRight}>
-            {isPendente && !hasErro && !maxTentativas && (
-              <View style={styles.pendenteBadge}>
-                <Feather name="cloud-off" size={10} color="#F59E0B" />
-                <Text style={styles.pendenteText}>Pendente de sync</Text>
-              </View>
-            )}
-            {hasErro && !maxTentativas && (
-              <View style={styles.erroBadge}>
-                <Feather name="alert-triangle" size={10} color="#EF4444" />
-                <Text style={styles.erroText}>Erro sync</Text>
-              </View>
-            )}
-            {maxTentativas && (
-              <View style={styles.erroBadge}>
-                <Feather name="x-circle" size={10} color="#EF4444" />
-                <Text style={styles.erroText}>Falhou</Text>
-              </View>
-            )}
-            {!isPendente && feitoOffline && (
-              <View style={styles.offlineBadge}>
-                <Feather name="wifi-off" size={10} color="#8B5CF6" />
-                <Text style={styles.offlineBadgeText}>Feito offline</Text>
-              </View>
-            )}
-            {isPendente && (
-              <TouchableOpacity
-                style={styles.deleteLocalBtn}
-                onPress={(event) => {
-                  event.stopPropagation();
-                  onDeleteLocal(item);
-                }}
-              >
-                <Feather name="trash-2" size={13} color="#EF4444" />
-              </TouchableOpacity>
-            )}
-            {/* Sem badge para vistorias feitas online — não precisa de marcação */}
-            <Text style={[styles.dateText, { color: theme.textSecondary }]}>
-              {item.data_vistoria ? new Date(item.data_vistoria).toLocaleDateString('pt-BR') : '---'}
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.address, { color: theme.text }]} numberOfLines={2}>
-          {item.endereco_rua ? `${item.endereco_rua}, ${item.endereco_numero} - ${item.endereco_bairro}` : 'Endereço não informado'}
-        </Text>
-        <Text style={[styles.agente, { color: theme.textSecondary }]}>
-          {item.agente_nome} • {item.pontuacao_total} pts
-          {hasErro && item.erro_sync ? ` • ⚠ ${item.erro_sync.substring(0, 40)}` : ''}
-        </Text>
+    <Card style={styles.inspectionCard} onPress={openInspection}>
+      <View style={styles.cardHeader}>
+        <Badge label={apresentacao.label} variant={riskVariant} size="sm" showDot />
+        <Badge label={syncLabel} variant={syncVariant} size="sm" />
       </View>
+
+      <View style={styles.addressRow}>
+        <View style={[styles.addressIcon, { backgroundColor: theme.secondary }]}>
+          <Feather name="map-pin" size={19} color={theme.primary} />
+        </View>
+        <View style={styles.cardCopy}>
+          <Text style={[styles.address, { color: theme.text }]} numberOfLines={2}>{address}</Text>
+          <Text style={[styles.municipality, { color: theme.textSecondary }]} numberOfLines={1}>
+            {item.municipio || 'Município não informado'}
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+      </View>
+
+      <View style={[styles.cardFooter, { borderTopColor: theme.border }]}>
+        <Text style={[styles.metadata, { color: theme.textSecondary }]} numberOfLines={1}>
+          {item.agente_nome || 'Agente não informado'} · {dateLabel}
+        </Text>
+        <Text style={[styles.points, { color: theme.text }]}>{item.pontuacao_total ?? 0} pts</Text>
+        {isPendente ? (
+          <Pressable
+            style={({ pressed }) => [styles.deleteLocalBtn, { backgroundColor: theme.errorLight }, pressed && styles.pressed]}
+            onPress={(event) => {
+              event.stopPropagation();
+              onDeleteLocal(item);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Excluir vistoria local"
+          >
+            <Feather name="trash-2" size={16} color={theme.error} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {hasErro && item.erro_sync ? (
+        <Text style={[styles.syncError, { color: theme.error }]} numberOfLines={2}>
+          {item.erro_sync}
+        </Text>
+      ) : null}
     </Card>
   );
 });
@@ -136,6 +139,9 @@ export default function InspecoesListScreen() {
   const [pendentesCount, setPendentesCount] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<ListFilter>('todas');
+  const [deleteCandidate, setDeleteCandidate] = useState<VistoriaLocal | null>(null);
 
   // Recarregar ao voltar para esta tela (ex: após criar nova vistoria)
   useFocusEffect(
@@ -249,22 +255,40 @@ export default function InspecoesListScreen() {
   };
 
   const handleDeleteLocal = useCallback((item: VistoriaLocal) => {
-    Alert.alert(
-      'Excluir vistoria local?',
-      'Esta vistoria ainda está pendente de sincronização. A exclusão remove apenas o registro salvo neste aparelho.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            deleteVistoriaOffline(item.id);
-            if (activeProfile) await fetchVistorias(activeProfile);
-          },
-        },
-      ]
-    );
-  }, [activeProfile?.uid]);
+    setDeleteCandidate(item);
+  }, []);
+
+  const confirmDeleteLocal = async () => {
+    if (!deleteCandidate) return;
+    deleteVistoriaOffline(deleteCandidate.id);
+    setDeleteCandidate(null);
+    if (activeProfile) await fetchVistorias(activeProfile);
+  };
+
+  const filteredVistorias = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
+    return vistorias.filter((item) => {
+      const apresentacao = resolverApresentacaoRisco({
+        formularioId: item.formulario_id,
+        pontuacao: item.pontuacao_total,
+        nivelRisco: item.nivel_risco,
+        calculoRisco: item.calculo_json,
+      });
+      const matchesFilter = filter === 'todas'
+        || (filter === 'pendentes' && item.sincronizado === 0)
+        || (filter === 'alto_risco' && ['r3', 'r4'].includes(apresentacao.nivelCompatibilidade));
+      if (!matchesFilter) return false;
+      if (!normalizedQuery) return true;
+
+      return [
+        item.endereco_rua,
+        item.endereco_bairro,
+        item.municipio,
+        item.agente_nome,
+        item.responsavel_nome,
+      ].some((value) => value?.toLocaleLowerCase('pt-BR').includes(normalizedQuery));
+    });
+  }, [filter, query, vistorias]);
 
   const renderItem = useCallback(({ item }: { item: VistoriaLocal }) => (
     <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={isolatedMode} localTestMode={localTestMode} />
@@ -272,44 +296,23 @@ export default function InspecoesListScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => safeBack('/(panel)')}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: theme.text }]}>Inspeções</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {isolatedMode
-              ? localTestMode ? 'Histórico local de testes' : 'Histórico local do treinamento'
-              : pendentesCount > 0
-              ? `${pendentesCount} pendente${pendentesCount > 1 ? 's' : ''} de sync`
-              : 'Todos os laudos sincronizados'}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: theme.primary }]}
-          onPress={() => router.push('/(panel)/inspecoes/dados-iniciais')}
-        >
-          <Feather name="plus" color="#FFF" size={24} />
-        </TouchableOpacity>
-        {pendentesCount > 0 && isConnected && !isolatedMode && (
-          <TouchableOpacity
-            style={[styles.syncButton, { backgroundColor: syncing ? theme.border : '#F59E0B' }]}
-            onPress={handleSync}
-            disabled={syncing}
-          >
-            <Feather name={syncing ? 'loader' : 'upload-cloud'} color="#FFF" size={18} />
-          </TouchableOpacity>
-        )}
-      </View>
+      <AppHeader
+        title="Vistorias"
+        subtitle={isolatedMode
+          ? localTestMode ? 'Histórico local de testes' : 'Histórico do treinamento'
+          : `${vistorias.length} registro${vistorias.length === 1 ? '' : 's'} na operação`}
+        onBack={() => safeBack('/(panel)')}
+        actionIcon="plus"
+        actionLabel="Nova vistoria"
+        onAction={() => router.push('/(panel)/inspecoes/dados-iniciais')}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
-      {loading && <LoadingState />}
+      {loading ? <LoadingState /> : null}
 
       {fetchError !== null && !loading && (
         <ErrorState
+          title="Não foi possível carregar as vistorias"
           message={fetchError}
           onRetry={() => activeProfile && fetchVistorias(activeProfile)}
         />
@@ -317,62 +320,204 @@ export default function InspecoesListScreen() {
 
       {!loading && fetchError === null && (
         <FlatList
-          data={vistorias}
+          data={filteredVistorias}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad }]}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
+              {!isConnected && !isolatedMode ? (
+                <StateBanner
+                  variant="warning"
+                  title="Consulta offline"
+                  description="Você está vendo os registros salvos neste aparelho. Novas vistorias continuam disponíveis."
+                />
+              ) : null}
+
+              <View style={styles.summaryGrid}>
+                <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <View style={[styles.summaryIcon, { backgroundColor: theme.secondary }]}>
+                    <Feather name="clipboard" size={20} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.summaryValue, { color: theme.text }]}>{vistorias.length}</Text>
+                  <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Total</Text>
+                </View>
+                <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <View style={[styles.summaryIcon, { backgroundColor: pendentesCount > 0 ? theme.warningLight : theme.successLight }]}>
+                    <Feather name={pendentesCount > 0 ? 'upload-cloud' : 'check'} size={20} color={pendentesCount > 0 ? theme.warning : theme.success} />
+                  </View>
+                  <Text style={[styles.summaryValue, { color: theme.text }]}>{pendentesCount}</Text>
+                  <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Pendentes</Text>
+                </View>
+              </View>
+
+              {pendentesCount > 0 && isConnected && !isolatedMode ? (
+                <Button
+                  label={`Sincronizar ${pendentesCount} ${pendentesCount === 1 ? 'vistoria' : 'vistorias'}`}
+                  variant="secondary"
+                  onPress={handleSync}
+                  loading={syncing}
+                  iconLeft={<Feather name="upload-cloud" size={18} color={theme.primaryDark} />}
+                  fullWidth
+                />
+              ) : null}
+
+              <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Feather name="search" size={20} color={theme.textSecondary} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Buscar endereço, município ou agente"
+                  placeholderTextColor={theme.muted}
+                  style={[styles.searchInput, { color: theme.text }]}
+                  returnKeyType="search"
+                  accessibilityLabel="Buscar vistorias"
+                />
+                {query ? (
+                  <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Limpar busca">
+                    <Feather name="x-circle" size={18} color={theme.textSecondary} />
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <View style={styles.filterRow}>
+                {([
+                  ['todas', 'Todas'],
+                  ['pendentes', 'Pendentes'],
+                  ['alto_risco', 'Risco alto'],
+                ] as const).map(([value, label]) => {
+                  const selected = filter === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => setFilter(value)}
+                      style={({ pressed }) => [
+                        styles.filterChip,
+                        {
+                          backgroundColor: selected ? theme.primary : theme.surface,
+                          borderColor: selected ? theme.primary : theme.border,
+                        },
+                        pressed && styles.pressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text style={[styles.filterLabel, { color: selected ? theme.onPrimary : theme.textSecondary }]}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={[styles.resultsLabel, { color: theme.textSecondary }]}>
+                {filteredVistorias.length} {filteredVistorias.length === 1 ? 'resultado' : 'resultados'}
+              </Text>
+            </View>
+          }
           removeClippedSubviews
           maxToRenderPerBatch={10}
           windowSize={10}
           initialNumToRender={10}
           ListEmptyComponent={
             <EmptyState
-              icon="clipboard"
-              title="Nenhuma vistoria encontrada"
-              description="Toque no botão + para registrar a primeira vistoria."
-              actionLabel="Nova Vistoria"
-              onAction={() => router.push('/(panel)/inspecoes/dados-iniciais')}
+              icon={query || filter !== 'todas' ? 'search' : 'clipboard'}
+              title={query || filter !== 'todas' ? 'Nenhum resultado' : 'Nenhuma vistoria registrada'}
+              description={query || filter !== 'todas'
+                ? 'Tente ajustar a busca ou selecionar outro filtro.'
+                : 'Registre a primeira vistoria para iniciar o histórico técnico.'}
+              actionLabel={query || filter !== 'todas' ? 'Limpar filtros' : 'Nova vistoria'}
+              onAction={() => {
+                if (query || filter !== 'todas') {
+                  setQuery('');
+                  setFilter('todas');
+                } else {
+                  router.push('/(panel)/inspecoes/dados-iniciais');
+                }
+              }}
             />
           }
         />
       )}
+
+      <ConfirmSheet
+        visible={Boolean(deleteCandidate)}
+        title="Excluir vistoria local?"
+        description="Esta vistoria ainda não foi sincronizada. A exclusão remove definitivamente o registro salvo neste aparelho."
+        onDismiss={() => setDeleteCandidate(null)}
+        actions={[
+          { label: 'Excluir registro', variant: 'danger', onPress: confirmDeleteLocal },
+          { label: 'Cancelar', variant: 'ghost', onPress: () => setDeleteCandidate(null) },
+        ]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingBottom: 20, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
-  backButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, borderWidth: 1, marginRight: 16 },
-  titleSection: { flex: 1 },
-  title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
-  subtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
-  addButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
-  syncButton: {
-    width: 42, height: 42, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center', marginLeft: 8,
+  listContent: { paddingHorizontal: Spacing[4], paddingTop: Spacing[4], gap: Spacing[3] },
+  listHeader: { gap: Spacing[4], marginBottom: Spacing[2] },
+  summaryGrid: { flexDirection: 'row', gap: Spacing[3] },
+  summaryCard: {
+    flex: 1,
+    minHeight: 112,
+    borderWidth: 1,
+    borderRadius: SpacingAlias.radiusLg,
+    padding: Spacing[3],
   },
-  listContent: { padding: 24, paddingBottom: 100, gap: 16 },
-  cardInner: { borderWidth: 0 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  badgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  pendenteBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(245,158,11,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  pendenteText: { color: '#F59E0B', fontSize: 10, fontWeight: '700' },
-  erroBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  erroText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
-  offlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(139,92,246,0.1)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  offlineBadgeText: { color: '#8B5CF6', fontSize: 10, fontWeight: '700' },
-  deleteLocalBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  summaryIcon: {
+    width: ComponentSize.buttonSm,
+    height: ComponentSize.buttonSm,
+    borderRadius: SpacingAlias.radiusMd,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239,68,68,0.12)',
+    marginBottom: Spacing[2],
   },
-  dateText: { fontSize: 12, fontWeight: '500' },
-  address: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
-  agente: { fontSize: 12, fontWeight: '400' },
+  summaryValue: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold },
+  summaryLabel: { marginTop: 2, fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  searchBox: {
+    minHeight: ComponentSize.input,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    borderWidth: 1,
+    borderRadius: SpacingAlias.radiusMd,
+    paddingHorizontal: Spacing[3],
+  },
+  searchInput: { flex: 1, minHeight: ComponentSize.input, fontSize: FontSize.base },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[2] },
+  filterChip: {
+    minHeight: 38,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: SpacingAlias.radiusFull,
+    paddingHorizontal: Spacing[4],
+  },
+  filterLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  resultsLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, textTransform: 'uppercase', letterSpacing: 0.6 },
+  inspectionCard: { marginBottom: 0 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing[2], marginBottom: Spacing[4] },
+  addressRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  addressIcon: {
+    width: ComponentSize.buttonMd,
+    height: ComponentSize.buttonMd,
+    borderRadius: SpacingAlias.radiusMd,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardCopy: { flex: 1, minWidth: 0 },
+  address: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, lineHeight: 21 },
+  municipality: { marginTop: 3, fontSize: FontSize.sm },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], borderTopWidth: 1, marginTop: Spacing[4], paddingTop: Spacing[3] },
+  metadata: { flex: 1, fontSize: FontSize.xs },
+  points: { fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+  deleteLocalBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: SpacingAlias.radiusFull,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  syncError: { marginTop: Spacing[2], fontSize: FontSize.xs, lineHeight: 16 },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
 });

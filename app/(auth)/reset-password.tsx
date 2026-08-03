@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../utils/supabase';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
 import { validarSenha, calcularForcaSenha, FORCA_LABELS, FORCA_CORES } from '../../utils/passwordValidation';
+import {
+  completeCustomerPasswordRecovery,
+  hasValidPasswordRecoverySession,
+} from '../../services/CustomerAuthService';
+import { TCSPalette } from '../../constants/Colors';
 
 export default function ResetPasswordScreen() {
   const { theme } = useTheme();
@@ -19,10 +23,19 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
+  const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
+  const [recoverySessionValid, setRecoverySessionValid] = useState<boolean | null>(null);
 
   const forca = calcularForcaSenha(novaSenha);
   const forcaLabel = FORCA_LABELS;
   const forcaCor = FORCA_CORES;
+
+  useEffect(() => {
+    hasValidPasswordRecoverySession().then((valid) => {
+      setRecoverySessionValid(valid);
+      if (!valid) setError('Este link de recuperação é inválido, expirou ou já foi utilizado.');
+    });
+  }, []);
 
   const handleRedefinir = async () => {
     const validacao = validarSenha(novaSenha);
@@ -39,11 +52,8 @@ export default function ResetPasswordScreen() {
     setError(null);
 
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password: novaSenha });
-      if (updateError) throw updateError;
-
+      await completeCustomerPasswordRecovery(novaSenha, revokeOtherSessions);
       setSucesso(true);
-      await supabase.auth.signOut();
     } catch {
       setError('Erro ao redefinir a senha. Tente novamente.');
     } finally {
@@ -55,7 +65,7 @@ export default function ResetPasswordScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
         <View style={styles.centeredContainer}>
-          <View style={[styles.iconWrap, { backgroundColor: (theme as any).successLight || '#F0FDF4' }]}>
+          <View style={[styles.iconWrap, { backgroundColor: theme.successLight }]}>
             <Feather name="check-circle" size={36} color={theme.success} />
           </View>
           <Text style={[styles.titulo, { color: theme.text }]}>Senha redefinida!</Text>
@@ -158,17 +168,33 @@ export default function ResetPasswordScreen() {
             </View>
 
             {error !== null && (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={16} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: theme.errorLight, borderColor: theme.error }]}>
+                <Feather name="alert-circle" size={16} color={theme.error} />
+                <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
               </View>
             )}
+
+            <TouchableOpacity
+              style={styles.revokeRow}
+              onPress={() => setRevokeOtherSessions(value => !value)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: revokeOtherSessions }}
+            >
+              <Feather
+                name={revokeOtherSessions ? 'check-square' : 'square'}
+                size={20}
+                color={theme.primary}
+              />
+              <Text style={[styles.revokeText, { color: theme.textSecondary }]}>
+                Encerrar minhas outras sessões após redefinir a senha
+              </Text>
+            </TouchableOpacity>
 
             <Button
               variant="primary"
               loading={loading}
               onPress={handleRedefinir}
-              disabled={loading}
+              disabled={loading || recoverySessionValid !== true}
             >
               {loading ? 'Alterando senha...' : 'Redefinir Senha'}
             </Button>
@@ -180,6 +206,8 @@ export default function ResetPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  revokeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  revokeText: { flex: 1, fontSize: 13, lineHeight: 18 },
   centeredContainer: {
     flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40,
   },
@@ -210,8 +238,7 @@ const styles = StyleSheet.create({
   forcaLabel: { fontSize: 12, fontWeight: '600', minWidth: 36 },
   errorBox: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12, padding: 12, gap: 8,
+    borderWidth: 1, borderRadius: 12, padding: 12, gap: 8,
   },
-  errorText: { color: '#EF4444', fontSize: 14, flex: 1 },
+  errorText: { fontSize: 14, flex: 1 },
 });

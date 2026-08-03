@@ -15,6 +15,8 @@ import { tempoRelativo, formatarDataHora } from '../../../utils/htmlUtils';
 import type { AuditAction } from '../../../utils/auditLogger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { TCSTheme } from '../../../constants/Colors';
+import { AppHeader, EmptyState } from '../../../components/ui';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -35,20 +37,23 @@ interface AuditLogRow {
 type RoleFiltro = 'todos' | 'admin' | 'agente' | 'supervisor' | 'master_admin';
 type FiltroPeriodo = 'todos' | 'hoje' | '7d' | '30d';
 
-const ACAO_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
-  usuario_aprovado:       { icon: 'user-check',   color: '#10B981', label: 'APROVAÇÃO' },
-  usuario_bloqueado:      { icon: 'user-x',       color: '#EF4444', label: 'BLOQUEIO' },
-  token_gerado:           { icon: 'key',           color: '#3B82F6', label: 'TOKEN' },
-  token_revogado:         { icon: 'slash',         color: '#F59E0B', label: 'TOKEN' },
-  formulario_publicado:   { icon: 'check-square',  color: '#10B981', label: 'FORMULÁRIO' },
-  formulario_despublicado:{ icon: 'square',        color: '#6B7280', label: 'FORMULÁRIO' },
-  formulario_excluido:    { icon: 'trash-2',       color: '#EF4444', label: 'FORMULÁRIO' },
-  formulario_criado:      { icon: 'file-plus',     color: '#8B5CF6', label: 'FORMULÁRIO' },
-  formulario_duplicado:   { icon: 'copy',          color: '#6366F1', label: 'FORMULÁRIO' },
+type ActionTone = 'primary' | 'success' | 'warning' | 'danger' | 'muted';
+const ACAO_CONFIG: Record<string, { icon: string; tone: ActionTone; label: string }> = {
+  usuario_aprovado:       { icon: 'user-check',   tone: 'success', label: 'APROVAÇÃO' },
+  usuario_bloqueado:      { icon: 'user-x',       tone: 'danger', label: 'BLOQUEIO' },
+  token_gerado:           { icon: 'key',           tone: 'primary', label: 'TOKEN' },
+  token_revogado:         { icon: 'slash',         tone: 'warning', label: 'TOKEN' },
+  formulario_publicado:   { icon: 'check-square',  tone: 'primary', label: 'FORMULÁRIO' },
+  formulario_despublicado:{ icon: 'square',        tone: 'muted', label: 'FORMULÁRIO' },
+  formulario_excluido:    { icon: 'trash-2',       tone: 'danger', label: 'FORMULÁRIO' },
+  formulario_criado:      { icon: 'file-plus',     tone: 'success', label: 'FORMULÁRIO' },
+  formulario_duplicado:   { icon: 'copy',          tone: 'primary', label: 'FORMULÁRIO' },
 };
 
-function getAcaoConfig(acao: string) {
-  return ACAO_CONFIG[acao] ?? { icon: 'activity', color: '#6B7280', label: 'AÇÃO' };
+function getAcaoConfig(acao: string, theme: TCSTheme) {
+  const config = ACAO_CONFIG[acao] ?? { icon: 'activity', tone: 'muted' as const, label: 'AÇÃO' };
+  const color = config.tone === 'success' ? theme.success : config.tone === 'warning' ? theme.warning : config.tone === 'danger' ? theme.error : config.tone === 'muted' ? theme.muted : theme.primary;
+  return { ...config, color };
 }
 
 export default function MasterLogsScreen() {
@@ -149,41 +154,24 @@ export default function MasterLogsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Auditoria Global</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Todos os municípios · {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.headerBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={exportarCSV}
-        >
-          <Feather name="download" size={18} color={theme.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.headerBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border, marginLeft: 8 }]}
-          onPress={() => carregar(true)}
-        >
-          <Feather name="refresh-cw" size={18} color={theme.textSecondary} />
-        </TouchableOpacity>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Auditoria global"
+          subtitle={`Todos os municípios · ${filtrados.length} registro${filtrados.length !== 1 ? 's' : ''}`}
+          onBack={() => router.back()}
+          actionIcon="download"
+          actionLabel="Exportar CSV"
+          onAction={exportarCSV}
+        />
       </View>
 
       {/* KPIs */}
-      <View style={[styles.kpiRow, { borderBottomColor: theme.border, backgroundColor: theme.surfaceHighlight }]}>
+      <View style={[styles.kpiRow, { borderBottomColor: theme.border, backgroundColor: theme.background }]}>
         {([
           { key: 'total',        label: 'Total',      count: logs.length,           cor: theme.primary, icon: 'database' },
-          { key: 'admin',        label: 'Admins',     count: countByRole('admin'),  cor: '#8B5CF6',    icon: 'shield' },
-          { key: 'agente',       label: 'Agentes',    count: countByRole('agente'), cor: '#3B82F6',    icon: 'user' },
-          { key: 'supervisor',   label: 'Superv.',    count: countByRole('supervisor'), cor: '#10B981', icon: 'users' },
+          { key: 'admin',        label: 'Admins',     count: countByRole('admin'),  cor: theme.primaryDark, icon: 'shield' },
+          { key: 'agente',       label: 'Agentes',    count: countByRole('agente'), cor: theme.primary,     icon: 'user' },
+          { key: 'supervisor',   label: 'Superv.',    count: countByRole('supervisor'), cor: theme.success, icon: 'users' },
         ] as const).map(kpi => (
           <TouchableOpacity
             key={kpi.key}
@@ -205,7 +193,7 @@ export default function MasterLogsScreen() {
       </View>
 
       {/* Filtros */}
-      <View style={[styles.filterSection, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.filterSection, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBar}>
           {([
             { key: 'todos' as FiltroPeriodo, label: 'Tudo' },
@@ -223,7 +211,7 @@ export default function MasterLogsScreen() {
               ]}
               onPress={() => setFiltroPeriodo(f.key)}
             >
-              <Text style={{ color: filtroPeriodo === f.key ? '#FFF' : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
+              <Text style={{ color: filtroPeriodo === f.key ? theme.onPrimary : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
                 {f.label}
               </Text>
             </TouchableOpacity>
@@ -238,23 +226,19 @@ export default function MasterLogsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
         ListEmptyComponent={
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <View style={[styles.emptyIconWrap, { backgroundColor: `${theme.primary}10` }]}>
-              <Feather name="shield" size={40} color={theme.textSecondary} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Sem registros</Text>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              Nenhuma ação auditável encontrada para os filtros selecionados.
-            </Text>
-          </View>
+          <EmptyState
+            icon="shield"
+            title="Sem registros"
+            description="Nenhuma ação auditável encontrada para os filtros selecionados."
+          />
         }
         renderItem={({ item: log }) => {
           const isExpanded = expandedId === log.id;
-          const config = getAcaoConfig(log.acao);
+          const config = getAcaoConfig(log.acao, theme);
 
           return (
             <TouchableOpacity
-              style={[styles.logCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              style={[styles.logCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
               activeOpacity={0.8}
               onPress={() => toggleExpand(log.id)}
             >
@@ -345,20 +329,6 @@ function DetailRow({ icon, label, value, theme }: { icon: string; label: string;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  headerBtn: {
-    width: 40, height: 40, borderRadius: 10, borderWidth: 1,
-    justifyContent: 'center', alignItems: 'center',
-  },
   kpiRow: {
     flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 14, borderBottomWidth: 1,
   },

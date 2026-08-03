@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
@@ -8,9 +8,21 @@ import { useTraining } from '../../../context/TrainingContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
 import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
-import { Card, EmptyState, LoadingState, ErrorState } from '../../../components/ui';
+import {
+  AppHeader,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  FlowProgress,
+  LoadingState,
+  SectionHeader,
+  StateBanner,
+} from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscription } from '../../../context/SubscriptionContext';
+import { FontSize, FontWeight } from '../../../constants/Typography';
+import { Spacing, SpacingAlias } from '../../../constants/Spacing';
 
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
@@ -60,7 +72,6 @@ const FORMULARIOS_BUILTIN = [
     descricao: 'Árvores ou galhos com risco de queda.',
     asset: require('../../../assets/formularios/avaliacao_arvore_cbmmg_v1.json'),
     icon: 'tree-outline' as const,
-    iconColor: '#22C55E',
     featureCode: 'inspection_arv',
     isBuiltin: true,
   },
@@ -70,7 +81,6 @@ const FORMULARIOS_BUILTIN = [
     descricao: 'Encostas, barrancos e movimentação do solo.',
     asset: require('../../../assets/formularios/vistoria_deslizamento_v3.json'),
     icon: 'image-filter-hdr' as const,
-    iconColor: '#F59E0B',
     featureCode: 'inspection_standard',
     isBuiltin: true,
   },
@@ -80,7 +90,6 @@ const FORMULARIOS_BUILTIN = [
     descricao: 'Rachaduras, danos e segurança do imóvel.',
     asset: require('../../../assets/formularios/risco_estrutural_novo_v2.json'),
     icon: 'home-city-outline' as const,
-    iconColor: '#3B82F6',
     featureCode: 'inspection_standard',
     isBuiltin: true,
   },
@@ -258,51 +267,49 @@ export default function SelecaoFormularioScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={voltar}>
-          <Feather name="arrow-left" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>PASSO 2 DE 3</Text>
-          <Text style={[styles.title, { color: theme.text }]}>Escolha a Vistoria</Text>
-        </View>
-      </View>
-
-      {/* Progress */}
-      <View style={[styles.progressTrack, { backgroundColor: theme.cardBorder }]}>
-        <View style={[styles.progressFill, { backgroundColor: theme.primary, width: '66%' }]} />
-      </View>
+      <AppHeader
+        title="Tipo de vistoria"
+        subtitle="Nova vistoria"
+        onBack={voltar}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Built-in forms */}
-        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-          <Feather name="clipboard" size={12} /> {isTrainingActive ? 'ESCOLHA A ATIVIDADE' : 'ESCOLHA O TIPO DE VISTORIA'}
-        </Text>
+        <FlowProgress currentStep={2} totalSteps={3} label="Modelo técnico" />
+
         {!isTrainingActive && (
-          <Text style={[styles.sectionHint, { color: theme.textSecondary }]}>Todos os tipos abaixo funcionam sem internet.</Text>
+          <StateBanner
+            variant="info"
+            title="Disponível também offline"
+            description="Os modelos técnicos do TCS permanecem acessíveis mesmo sem conexão."
+          />
         )}
+
+        <SectionHeader
+          title={isTrainingActive ? 'Escolha a atividade' : 'Modelos técnicos TCS'}
+          subtitle="Selecione o modelo adequado ao tipo de ocorrência"
+        />
 
         {builtinForms.map(f => {
           const sel = selected === f.id;
           return (
-            <TouchableOpacity key={f.id} onPress={() => setSelected(f.id)}>
-              <Card style={{ marginBottom: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? theme.primary : theme.cardBorder }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: `${f.iconColor}18`, alignItems: 'center', justifyContent: 'center' }}>
-                    <MaterialCommunityIcons name={f.icon as any} size={27} color={f.iconColor} />
+            <Pressable key={f.id} onPress={() => setSelected(f.id)} accessibilityRole="radio" accessibilityState={{ checked: sel }}>
+              <Card style={{ ...styles.formCard, borderColor: sel ? theme.primary : theme.cardBorder, backgroundColor: sel ? theme.secondary : theme.surface }}>
+                <View style={styles.formRow}>
+                  <View style={[styles.formIcon, { backgroundColor: sel ? theme.primary : theme.secondary }]}>
+                    <MaterialCommunityIcons name={f.icon as any} size={25} color={sel ? theme.onPrimary : theme.primary} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
-                    <Text style={{ fontSize: 13, lineHeight: 18, color: theme.textSecondary, marginTop: 4 }}>{f.descricao}</Text>
+                  <View style={styles.formCopy}>
+                    <Text style={[styles.formTitle, { color: theme.text }]}>{f.titulo}</Text>
+                    <Text style={[styles.formDescription, { color: theme.textSecondary }]}>{f.descricao}</Text>
                   </View>
                   {sel
-                    ? <Feather name="check-circle" size={21} color={theme.primary} />
-                    : <Feather name="circle" size={21} color={theme.muted} />
+                    ? <View style={[styles.selectedMark, { backgroundColor: theme.primary }]}><Feather name="check" size={16} color={theme.onPrimary} /></View>
+                    : <View style={[styles.unselectedMark, { borderColor: theme.border }]} />
                   }
                 </View>
               </Card>
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
 
@@ -322,49 +329,43 @@ export default function SelecaoFormularioScreen() {
         {/* Supabase custom forms */}
         {!loading && !formError && dynamicForms.length > 0 && (
           <>
-            <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: 24 }]}>
-              <Feather name="users" size={12} /> MODELOS DA SUA EQUIPE
-            </Text>
+            <SectionHeader title="Modelos da sua equipe" subtitle="Formulários publicados para esta operação" />
             {dynamicForms.map(f => {
               const sel = selected === f.id;
               return (
-                <TouchableOpacity key={f.id} onPress={() => setSelected(f.id)}>
-                  <Card style={{ marginBottom: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? theme.primary : theme.cardBorder }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                      <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: theme.iconBackground, alignItems: 'center', justifyContent: 'center' }}>
-                        <Feather name={getFormIcon(f) as any} size={22} color={theme.primary} />
+                <Pressable key={f.id} onPress={() => setSelected(f.id)} accessibilityRole="radio" accessibilityState={{ checked: sel }}>
+                  <Card style={{ ...styles.formCard, borderColor: sel ? theme.primary : theme.cardBorder, backgroundColor: sel ? theme.secondary : theme.surface }}>
+                    <View style={styles.formRow}>
+                      <View style={[styles.formIcon, { backgroundColor: sel ? theme.primary : theme.secondary }]}>
+                        <Feather name={getFormIcon(f) as any} size={22} color={sel ? theme.onPrimary : theme.primary} />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{f.titulo}</Text>
-                        <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>{f.descricao || ''}</Text>
-                        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 7 }}>Disponível para sua equipe</Text>
+                      <View style={styles.formCopy}>
+                        <Text style={[styles.formTitle, { color: theme.text }]}>{f.titulo}</Text>
+                        <Text style={[styles.formDescription, { color: theme.textSecondary }]}>{f.descricao || 'Modelo técnico personalizado'}</Text>
+                        <Text style={[styles.teamLabel, { color: theme.primary }]}>Disponível para sua equipe</Text>
                       </View>
                       {sel
-                        ? <Feather name="check-circle" size={21} color={theme.primary} />
-                        : <Feather name="circle" size={21} color={theme.muted} />
+                        ? <View style={[styles.selectedMark, { backgroundColor: theme.primary }]}><Feather name="check" size={16} color={theme.onPrimary} /></View>
+                        : <View style={[styles.unselectedMark, { borderColor: theme.border }]} />
                       }
                     </View>
                   </Card>
-                </TouchableOpacity>
+                </Pressable>
               );
             })}
           </>
         )}
       </ScrollView>
 
-      {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
-        <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={voltar}>
-          <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.nextBtn, { backgroundColor: selected ? theme.primary : theme.cardBorder }]}
+      <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, Spacing[4]) }]}>
+        <Button label="Voltar" variant="ghost" onPress={voltar} style={styles.backButton} />
+        <Button
+          label="Iniciar avaliação"
           onPress={avancar}
           disabled={!selected}
-        >
-          <Text style={styles.nextBtnText}>CONTINUAR</Text>
-          <Feather name="arrow-right" size={18} color="#FFF" />
-        </TouchableOpacity>
+          iconRight={<Feather name="arrow-right" size={18} color={theme.onPrimary} />}
+          style={styles.nextButton}
+        />
       </View>
     </View>
   );
@@ -372,18 +373,23 @@ export default function SelecaoFormularioScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
-  backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
-  title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  progressTrack: { height: 3 },
-  progressFill: { height: 3 },
-  scroll: { padding: 20, paddingBottom: 120 },
-  sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
-  sectionHint: { fontSize: 12, lineHeight: 17, marginTop: -5, marginBottom: 14 },
-  footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'row', gap: 12 },
-  cancelBtn: { flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-  cancelText: { fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  nextBtn: { flex: 2, height: 56, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  nextBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  scroll: { padding: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[4] },
+  formCard: { marginBottom: Spacing[3], borderWidth: 1.5 },
+  formRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  formIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: SpacingAlias.radiusMd,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formCopy: { flex: 1, minWidth: 0 },
+  formTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold },
+  formDescription: { marginTop: Spacing[1], fontSize: FontSize.sm, lineHeight: 18 },
+  teamLabel: { marginTop: Spacing[2], fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  selectedMark: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  unselectedMark: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5 },
+  footer: { padding: Spacing[4], borderTopWidth: 1, flexDirection: 'row', gap: Spacing[2] },
+  backButton: { flex: 1 },
+  nextButton: { flex: 2 },
 });

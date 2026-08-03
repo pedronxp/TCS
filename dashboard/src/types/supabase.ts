@@ -1652,6 +1652,7 @@ export type Database = {
       subscription_audit_events: {
         Row: {
           actor_id: string | null
+          actor_role: string | null
           created_at: string
           entity_id: string | null
           entity_type: string
@@ -1659,9 +1660,14 @@ export type Database = {
           id: number
           metadata: Json
           organization_id: string | null
+          outcome: string
+          reason: string | null
+          request_id: string | null
+          source: string
         }
         Insert: {
           actor_id?: string | null
+          actor_role?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type: string
@@ -1669,9 +1675,14 @@ export type Database = {
           id?: number
           metadata?: Json
           organization_id?: string | null
+          outcome?: string
+          reason?: string | null
+          request_id?: string | null
+          source?: string
         }
         Update: {
           actor_id?: string | null
+          actor_role?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string
@@ -1679,6 +1690,10 @@ export type Database = {
           id?: number
           metadata?: Json
           organization_id?: string | null
+          outcome?: string
+          reason?: string | null
+          request_id?: string | null
+          source?: string
         }
         Relationships: [
           {
@@ -1692,24 +1707,42 @@ export type Database = {
       }
       subscription_settings: {
         Row: {
+          authoritative_audit_enabled: boolean
           default_warning_percent: number
           entitlement_enforcement_enabled: boolean
+          google_customer_auth_enabled: boolean
+          hardened_auth_enabled: boolean
+          individual_bootstrap_enabled: boolean
+          municipal_bootstrap_enabled: boolean
+          password_recovery_enabled: boolean
           session_enforcement_enabled: boolean
           singleton: boolean
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          authoritative_audit_enabled?: boolean
           default_warning_percent?: number
           entitlement_enforcement_enabled?: boolean
+          google_customer_auth_enabled?: boolean
+          hardened_auth_enabled?: boolean
+          individual_bootstrap_enabled?: boolean
+          municipal_bootstrap_enabled?: boolean
+          password_recovery_enabled?: boolean
           session_enforcement_enabled?: boolean
           singleton?: boolean
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          authoritative_audit_enabled?: boolean
           default_warning_percent?: number
           entitlement_enforcement_enabled?: boolean
+          google_customer_auth_enabled?: boolean
+          hardened_auth_enabled?: boolean
+          individual_bootstrap_enabled?: boolean
+          municipal_bootstrap_enabled?: boolean
+          password_recovery_enabled?: boolean
           session_enforcement_enabled?: boolean
           singleton?: boolean
           updated_at?: string
@@ -2440,6 +2473,14 @@ export type Database = {
       }
     }
     Functions: {
+      bootstrap_individual_customer: {
+        Args: { p_idempotency_key: string; p_terms_version: string }
+        Returns: Json
+      }
+      bootstrap_municipal_customer: {
+        Args: { p_idempotency_key: string; p_payload: Json }
+        Returns: Json
+      }
       claim_internal_archive_restore: {
         Args: { p_request_id: string }
         Returns: Json
@@ -2461,10 +2502,36 @@ export type Database = {
         Returns: Json
       }
       accept_organization_invite: { Args: { p_token: string }; Returns: Json }
+      get_customer_entry_context: { Args: never; Returns: Json }
+      get_customer_onboarding_timeline: { Args: never; Returns: Json }
+      get_public_auth_capabilities: { Args: never; Returns: Json }
       get_portal_access_context: { Args: never; Returns: Json }
+      prepare_legacy_invite_signup: {
+        Args: { p_codigo: string; p_email: string }
+        Returns: Json
+      }
       portal_ensure_individual_profile: { Args: never; Returns: Json }
       portal_get_dashboard: { Args: never; Returns: Json }
       portal_get_workspace: { Args: { p_section: string }; Returns: Json }
+      reconcile_customer_identity: { Args: never; Returns: Json }
+      record_google_identity_reconciled: { Args: never; Returns: boolean }
+      record_password_recovery_completed: {
+        Args: { p_other_sessions_revoked?: boolean }
+        Returns: boolean
+      }
+      record_customer_onboarding_funnel: {
+        Args: { p_event: string; p_request_id?: string; p_source?: string }
+        Returns: boolean
+      }
+      update_customer_onboarding_checklist: {
+        Args: {
+          p_completed?: boolean
+          p_item: string
+          p_request_id?: string
+          p_source?: string
+        }
+        Returns: Json
+      }
       portal_create_appointment: {
         Args: {
           p_inspection_id: string | null

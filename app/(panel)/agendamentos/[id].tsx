@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert
+  Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -17,13 +17,9 @@ import {
   deleteAgendamentoWithTombstone,
 } from '../../../utils/database';
 import { AgendamentoLocal } from '../../../types/agendamento';
-
-const STATUS_COLORS = {
-  pendente: { bg: 'rgba(59,130,246,0.12)', text: '#3B82F6' },
-  concluido: { bg: 'rgba(16,185,129,0.12)', text: '#10B981' },
-  cancelado: { bg: 'rgba(239,68,68,0.12)', text: '#EF4444' },
-  deletado: { bg: 'rgba(100,116,139,0.12)', text: '#64748B' },
-};
+import { AppHeader, Badge, Button, EmptyState, LoadingState, StateBanner } from '../../../components/ui';
+import { Spacing } from '../../../constants/Spacing';
+import { TCSPalette } from '../../../constants/Colors';
 
 const STATUS_LABELS = {
   pendente: 'Pendente',
@@ -202,8 +198,8 @@ export default function AgendamentoDetalheScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Carregando agendamento..." />
       </View>
     );
   }
@@ -211,47 +207,30 @@ export default function AgendamentoDetalheScreen() {
   if (!agendamento) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={20} color={theme.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Agendamento</Text>
-          <View style={{ width: 36 }} />
-        </View>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Feather name="alert-circle" size={48} color={theme.textSecondary} style={{ opacity: 0.4, marginBottom: 16 }} />
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>Agendamento não encontrado</Text>
-          <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
-            Este agendamento pode ter sido removido ou não está disponível offline.
-          </Text>
-        </View>
+        <AppHeader title="Agendamento" onBack={() => router.back()} style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }} />
+        <EmptyState
+          icon="calendar"
+          title="Agendamento não encontrado"
+          description="A tarefa pode ter sido removida ou ainda não estar disponível offline."
+          actionLabel="Voltar"
+          onAction={() => router.back()}
+        />
       </View>
     );
   }
 
-  const statusColors = STATUS_COLORS[agendamento.status] ?? STATUS_COLORS.pendente;
+  const statusVariant = agendamento.status === 'concluido' ? 'success' : agendamento.status === 'cancelado' ? 'error' : agendamento.status === 'pendente' ? 'warning' : 'neutral';
   const isPendente = agendamento.status === 'pendente';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>Detalhe</Text>
-        {canAct ? (
-          <TouchableOpacity
-            onPress={excluirAgendamento}
-            style={styles.deleteBtn}
-            disabled={actionLoading}
-          >
-            <Feather name="trash-2" size={18} color="#EF4444" />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 36 }} />
-        )}
-      </View>
+      <AppHeader
+        title="Detalhe da tarefa"
+        subtitle={formatDataSimples(agendamento.data_agendada)}
+        onBack={() => router.back()}
+        {...(canAct ? { actionIcon: 'trash-2' as const, actionLabel: 'Excluir agendamento', onAction: excluirAgendamento } : {})}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Título + badge de status */}
@@ -259,11 +238,7 @@ export default function AgendamentoDetalheScreen() {
           <Text style={[styles.titulo, { color: theme.text }]} selectable>
             {agendamento.titulo}
           </Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
-            <Text style={[styles.statusText, { color: statusColors.text }]}>
-              {STATUS_LABELS[agendamento.status]?.toUpperCase() ?? agendamento.status.toUpperCase()}
-            </Text>
-          </View>
+          <Badge label={STATUS_LABELS[agendamento.status] ?? agendamento.status} variant={statusVariant} showDot />
           {agendamento.origem === 'web' && (
             <View style={[styles.webBadge, { backgroundColor: `${theme.primary}18` }]}>
               <Feather name="globe" size={12} color={theme.primary} />
@@ -273,7 +248,7 @@ export default function AgendamentoDetalheScreen() {
         </View>
 
         {/* Data e hora */}
-        <View style={[styles.infoCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoRow}>
             <View style={[styles.infoIcon, { backgroundColor: `${theme.primary}15` }]}>
               <Feather name="clock" size={16} color={theme.primary} />
@@ -288,10 +263,10 @@ export default function AgendamentoDetalheScreen() {
         </View>
 
         {/* Endereço + município */}
-        <View style={[styles.infoCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoRow}>
-            <View style={[styles.infoIcon, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
-              <Feather name="map-pin" size={16} color="#F59E0B" />
+            <View style={[styles.infoIcon, { backgroundColor: theme.secondary }]}>
+              <Feather name="map-pin" size={16} color={theme.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Localização</Text>
@@ -306,10 +281,10 @@ export default function AgendamentoDetalheScreen() {
         </View>
 
         {/* Agente atribuído */}
-        <View style={[styles.infoCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoRow}>
-            <View style={[styles.infoIcon, { backgroundColor: 'rgba(139,92,246,0.12)' }]}>
-              <Feather name="user" size={16} color="#8B5CF6" />
+            <View style={[styles.infoIcon, { backgroundColor: theme.secondary }]}>
+              <Feather name="user" size={16} color={theme.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Agente atribuído</Text>
@@ -324,7 +299,7 @@ export default function AgendamentoDetalheScreen() {
 
         {/* Observações */}
         {agendamento.observacoes ? (
-          <View style={[styles.infoCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.infoRow}>
               <View style={[styles.infoIcon, { backgroundColor: `${theme.primary}10` }]}>
                 <Feather name="file-text" size={16} color={theme.primary} />
@@ -338,10 +313,10 @@ export default function AgendamentoDetalheScreen() {
         ) : null}
 
         {/* Criado por + data */}
-        <View style={[styles.infoCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoRow}>
-            <View style={[styles.infoIcon, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
-              <Feather name="edit-3" size={16} color="#10B981" />
+            <View style={[styles.infoIcon, { backgroundColor: theme.successLight }]}>
+              <Feather name="edit-3" size={16} color={theme.success} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Criado por</Text>
@@ -359,49 +334,38 @@ export default function AgendamentoDetalheScreen() {
 
         {/* Indicador offline */}
         {!agendamento.sincronizado && (
-          <View style={[styles.offlineBadge, { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)' }]}>
-            <Feather name="wifi-off" size={14} color="#F59E0B" />
-            <Text style={{ color: '#F59E0B', fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
-              Pendente de sincronização
-            </Text>
-          </View>
+          <StateBanner
+            variant="warning"
+            title="Pendente de sincronização"
+            description="As alterações estão salvas neste aparelho e serão enviadas quando houver conexão."
+          />
         )}
 
         {/* Botões de ação — apenas para supervisor/admin/master */}
         {canAct && isPendente && (
           <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSuccess]}
+            <Button
+              label="Concluir"
               onPress={() => executarAcao('concluido')}
-              disabled={actionLoading}
-              activeOpacity={0.85}
-            >
-              {actionLoading ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <>
-                  <Feather name="check-circle" size={18} color="#FFF" />
-                  <Text style={styles.actionBtnText}>Marcar como Concluído</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnDanger]}
+              loading={actionLoading}
+              iconLeft={<Feather name="check-circle" size={18} color={theme.onPrimary} />}
+              style={styles.actionButton}
+            />
+            <Button
+              label="Cancelar"
+              variant="danger"
               onPress={() => executarAcao('cancelado')}
               disabled={actionLoading}
-              activeOpacity={0.85}
-            >
-              <Feather name="x-circle" size={18} color="#FFF" />
-              <Text style={styles.actionBtnText}>Cancelar Agendamento</Text>
-            </TouchableOpacity>
+              iconLeft={<Feather name="x-circle" size={18} color={theme.onPrimary} />}
+              style={styles.actionButton}
+            />
           </View>
         )}
 
         {/* Iniciar Vistoria — para o agente atribuído */}
         {profile?.role === 'agent' && agendamento.agente_uid === profile.uid && isPendente && (
-          <TouchableOpacity
-            style={[styles.iniciarBtn, { backgroundColor: theme.primary }]}
+          <Button
+            label="Iniciar vistoria"
             onPress={() => router.push({
               pathname: '/(panel)/inspecoes/dados-iniciais',
               params: {
@@ -412,25 +376,18 @@ export default function AgendamentoDetalheScreen() {
                 municipioPreenchido: agendamento.municipio ?? '',
               },
             })}
-            activeOpacity={0.85}
-          >
-            <Feather name="clipboard" size={18} color="#FFF" />
-            <Text style={styles.iniciarBtnText}>Iniciar Vistoria</Text>
-          </TouchableOpacity>
+            iconLeft={<Feather name="clipboard" size={18} color={theme.onPrimary} />}
+            fullWidth
+          />
         )}
 
         {/* Status final */}
         {!isPendente && (
-          <View style={[styles.finalStatus, { backgroundColor: statusColors.bg, borderColor: statusColors.text + '40' }]}>
-            <Feather
-              name={agendamento.status === 'concluido' ? 'check-circle' : 'x-circle'}
-              size={20}
-              color={statusColors.text}
-            />
-            <Text style={[styles.finalStatusText, { color: statusColors.text }]}>
-              Agendamento {STATUS_LABELS[agendamento.status]?.toLowerCase()}
-            </Text>
-          </View>
+          <StateBanner
+            variant={agendamento.status === 'concluido' ? 'success' : 'danger'}
+            title={`Agendamento ${STATUS_LABELS[agendamento.status]?.toLowerCase()}`}
+            description="Este status está registrado no histórico operacional."
+          />
         )}
       </ScrollView>
     </View>
@@ -446,7 +403,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   deleteBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800' },
-  scrollContent: { padding: 20, paddingBottom: 60 },
+  scrollContent: { padding: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[3] },
 
   titleRow: { marginBottom: 20, gap: 10 },
   titulo: { fontSize: 22, fontWeight: '800', lineHeight: 30 },
@@ -474,12 +431,11 @@ const styles = StyleSheet.create({
   },
 
   actionsRow: { gap: 10, marginTop: 8 },
+  actionButton: { width: '100%' },
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, borderRadius: 16, padding: 18,
   },
-  actionBtnSuccess: { backgroundColor: '#10B981' },
-  actionBtnDanger: { backgroundColor: '#EF4444' },
   actionBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
 
   finalStatus: {

@@ -20,6 +20,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
 import { COMMERCIAL_PLANS, formatPlanPrice } from '../../../constants/CommercialPlans';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { AppHeader, Button, EmptyState, FormField, MetricCard } from '../../../components/ui';
 
 type RequestStatus = 'pending' | 'contacted' | 'awaiting_account' | 'approved' | 'rejected' | 'canceled';
 type ReviewAction = 'contacted' | 'approve' | 'reject';
@@ -41,13 +42,13 @@ interface PurchaseRequest {
   plans: { code: string; name: string; audience: string } | { code: string; name: string; audience: string }[];
 }
 
-const STATUS_CONFIG: Record<RequestStatus, { label: string; color: string; icon: keyof typeof Feather.glyphMap }> = {
-  pending: { label: 'Pendente', color: '#F59E0B', icon: 'clock' },
-  contacted: { label: 'Em contato', color: '#3B82F6', icon: 'phone-call' },
-  awaiting_account: { label: 'Aguardando conta', color: '#8B5CF6', icon: 'user-plus' },
-  approved: { label: 'Ativado', color: '#10B981', icon: 'check-circle' },
-  rejected: { label: 'Recusado', color: '#EF4444', icon: 'x-circle' },
-  canceled: { label: 'Cancelado', color: '#64748B', icon: 'slash' },
+const STATUS_CONFIG: Record<RequestStatus, { label: string; tone: 'primary' | 'success' | 'warning' | 'danger' | 'muted'; icon: keyof typeof Feather.glyphMap }> = {
+  pending: { label: 'Pendente', tone: 'warning', icon: 'clock' },
+  contacted: { label: 'Em contato', tone: 'primary', icon: 'phone-call' },
+  awaiting_account: { label: 'Aguardando conta', tone: 'primary', icon: 'user-plus' },
+  approved: { label: 'Ativado', tone: 'success', icon: 'check-circle' },
+  rejected: { label: 'Recusado', tone: 'danger', icon: 'x-circle' },
+  canceled: { label: 'Cancelado', tone: 'muted', icon: 'slash' },
 };
 
 const ACTION_LABEL: Record<ReviewAction, string> = {
@@ -145,21 +146,21 @@ export default function ContractRequestsScreen() {
     { key: 'rejected', label: 'Encerradas' },
     { key: 'all', label: 'Todas' },
   ];
+  const abertas = requests.filter(request => ['pending', 'contacted', 'awaiting_account'].includes(request.status)).length;
+  const aprovadas = requests.filter(request => request.status === 'approved').length;
+  const encerradas = requests.filter(request => ['rejected', 'canceled'].includes(request.status)).length;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={[styles.back, { backgroundColor: theme.iconBackground }]} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={theme.text} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Contratações</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Análise e ativação manual de planos</Text>
-        </View>
-        <View style={[styles.counter, { backgroundColor: theme.primaryLight }]}>
-          <Text style={[styles.counterText, { color: theme.primaryText }]}>{requests.filter(r => ['pending', 'contacted', 'awaiting_account'].includes(r.status)).length}</Text>
-        </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader title="Contratações" subtitle="Análise e ativação manual de planos" onBack={() => router.back()} />
       </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.metricsRow}>
+        <MetricCard value={abertas} label="Em aberto" tone="warning" style={styles.metricCard} />
+        <MetricCard value={aprovadas} label="Ativadas" tone="success" style={styles.metricCard} />
+        <MetricCard value={encerradas} label="Encerradas" tone="danger" style={styles.metricCard} />
+      </ScrollView>
 
       <View style={[styles.filters, { borderBottomColor: theme.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
@@ -183,17 +184,17 @@ export default function ContractRequestsScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
         >
           {filtered.length === 0 && (
-            <View style={styles.empty}>
-              <Feather name="inbox" size={42} color={theme.muted} />
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhuma solicitação</Text>
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Os pedidos enviados pela vitrine de planos aparecerão aqui.</Text>
-            </View>
+            <EmptyState icon="inbox" title="Nenhuma solicitação" description="Os pedidos enviados pela vitrine de planos aparecerão aqui." />
           )}
 
           {filtered.map(request => {
             const planRelation = Array.isArray(request.plans) ? request.plans[0] : request.plans;
             const plan = COMMERCIAL_PLANS.find(item => item.code === planRelation?.code);
-            const status = STATUS_CONFIG[request.status];
+            const baseStatus = STATUS_CONFIG[request.status];
+            const status = {
+              ...baseStatus,
+              color: baseStatus.tone === 'success' ? theme.success : baseStatus.tone === 'warning' ? theme.warning : baseStatus.tone === 'danger' ? theme.error : baseStatus.tone === 'muted' ? theme.muted : theme.primary,
+            };
             const price = plan
               ? request.billing_cycle === 'annual' ? plan.annualPriceCents : plan.monthlyPriceCents
               : null;
@@ -265,7 +266,7 @@ export default function ContractRequestsScreen() {
       )}
 
       <Modal visible={!!reviewTarget} transparent animationType="fade" onRequestClose={closeReview}>
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.modal, { backgroundColor: theme.surface }]}>
             <View style={[styles.modalIcon, { backgroundColor: reviewAction === 'reject' ? theme.errorLight : theme.primaryLight }]}>
               <Feather name={reviewAction === 'approve' ? 'check-circle' : reviewAction === 'reject' ? 'x-circle' : 'phone-call'} size={26} color={reviewAction === 'reject' ? theme.error : theme.primary} />
@@ -276,21 +277,17 @@ export default function ContractRequestsScreen() {
                 ? 'A assinatura será ativada manualmente. Para uma prefeitura nova, a organização será criada automaticamente.'
                 : 'Registre uma observação interna para manter o histórico comercial.'}
             </Text>
-            <TextInput
+            <FormField
+              label="Observação interna"
               value={reviewNote}
               onChangeText={value => setReviewNote(value.slice(0, 1000))}
               placeholder="Observação interna (opcional)"
-              placeholderTextColor={theme.muted}
               multiline
-              style={[styles.noteInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              helperText="Opcional · máximo de 1.000 caracteres"
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.modalButton, { borderColor: theme.border }]} onPress={closeReview} disabled={reviewing}>
-                <Text style={[styles.modalButtonText, { color: theme.text }]}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, { backgroundColor: reviewAction === 'reject' ? theme.error : theme.primary }]} onPress={performReview} disabled={reviewing}>
-                {reviewing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>Confirmar</Text>}
-              </TouchableOpacity>
+              <Button label="Cancelar" variant="ghost" onPress={closeReview} disabled={reviewing} style={styles.modalButton} />
+              <Button label="Confirmar" variant={reviewAction === 'reject' ? 'danger' : 'primary'} onPress={performReview} disabled={reviewing} loading={reviewing} style={styles.modalButton} />
             </View>
           </View>
         </View>
@@ -301,19 +298,12 @@ export default function ContractRequestsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingBottom: 14, borderBottomWidth: 1 },
-  back: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: '900' },
-  subtitle: { fontSize: 12, marginTop: 2 },
-  counter: { minWidth: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  counterText: { fontSize: 14, fontWeight: '900' },
+  metricsRow: { gap: 10, padding: 16 },
+  metricCard: { width: 120 },
   filters: { paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1 },
   filter: { borderWidth: 1, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8 },
   filterText: { fontSize: 11, fontWeight: '800' },
   content: { padding: 16, gap: 13 },
-  empty: { alignItems: 'center', paddingVertical: 70, paddingHorizontal: 30 },
-  emptyTitle: { fontSize: 18, fontWeight: '900', marginTop: 14 },
-  emptyText: { fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 5 },
   card: { borderWidth: 1, borderRadius: 18, padding: 17 },
   cardTop: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   planName: { fontSize: 18, fontWeight: '900' },
@@ -334,13 +324,11 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, marginTop: 16 },
   action: { minHeight: 42, flex: 1, borderWidth: 1, borderRadius: 11, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   actionLabel: { fontSize: 11, fontWeight: '900' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  modalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
   modal: { width: '100%', maxWidth: 500, borderRadius: 20, padding: 20 },
   modalIcon: { width: 50, height: 50, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 19, fontWeight: '900', marginTop: 14 },
   modalText: { fontSize: 12, lineHeight: 18, marginTop: 5 },
-  noteInput: { minHeight: 90, borderWidth: 1, borderRadius: 12, padding: 12, textAlignVertical: 'top', marginTop: 15 },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  modalButton: { flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  modalButtonText: { fontSize: 13, fontWeight: '900' },
+  modalButton: { flex: 1 },
 });

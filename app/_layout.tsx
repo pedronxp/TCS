@@ -2,11 +2,9 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import { supabase } from '../utils/supabase';
-import { ThemeProvider } from '../context/ThemeContext';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { ConnectivityProvider } from '../context/ConnectivityContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { TrainingProvider, useTraining } from '../context/TrainingContext';
@@ -19,6 +17,10 @@ import { resolveRootRedirect } from '../utils/rootRouting';
 import { SubscriptionProvider } from '../context/SubscriptionContext';
 import { SessionLifecycle } from '../services/SessionService';
 import { OpeningBoot } from '../components/brand';
+import {
+  completeCustomerAuthCallback,
+  markPasswordRecoverySession,
+} from '../services/CustomerAuthService';
 
 // Silencia erros internos do Expo Go no Android
 LogBox.ignoreLogs(['Unable to activate keep awake']);
@@ -30,19 +32,8 @@ async function pingSupabase() {
   } catch { /* fire-and-forget */ }
 }
 
-async function requestPermissions() {
-  try {
-    await Location.requestForegroundPermissionsAsync();
-  } catch { }
-  try {
-    await ImagePicker.requestCameraPermissionsAsync();
-  } catch { }
-  try {
-    await ImagePicker.requestMediaLibraryPermissionsAsync();
-  } catch { }
-}
-
 function RootNavigator() {
+  const { isDark } = useTheme();
   const { session, profile, loading } = useAuth();
   const { session: trainingSession, loading: trainingLoading, isTrainingActive, isExpired, exit } = useTraining();
   const { lastResponse } = useNotifications();
@@ -51,6 +42,7 @@ function RootNavigator() {
   const [appReady, setAppReady] = useState(false);
   // Ref para segments — leitura sempre fresca dentro de efeitos async (sem loop)
   const segmentsRef = useRef(segments);
+  const processedAuthCallbacks = useRef(new Set<string>());
   segmentsRef.current = segments;
   const segmentsKey = segments.join('/');
 
@@ -63,36 +55,44 @@ function RootNavigator() {
     }
   }, [lastResponse]);
 
-  // Capturar chamadas de Deep Link com Token do Supabase (ex: Reset Password)
+  // Troca callback PKCE uma vez e mantém recuperação separada do login comum.
   useEffect(() => {
     const handleDeepLink = async (url: string | null) => {
-      if (!url) return;
-      if (url.includes('access_token=') && url.includes('refresh_token=')) {
-        const accessTokenMatch = url.match(/access_token=([^&]*)/);
-        const refreshTokenMatch = url.match(/refresh_token=([^&]*)/);
-        if (accessTokenMatch && refreshTokenMatch) {
-          await supabase.auth.setSession({
-            access_token: accessTokenMatch[1],
-            refresh_token: refreshTokenMatch[1],
-          });
+      if (!url || processedAuthCallbacks.current.has(url)) return;
+      if (!url.includes('auth/callback') && !url.includes('auth/reset-password')) return;
+      processedAuthCallbacks.current.add(url);
+      try {
+        const result = await completeCustomerAuthCallback(url);
+        if (result.recovery && result.session) {
+          router.replace('/(auth)/reset-password');
         }
+      } catch {
+        // Código expirado/reutilizado não cria sessão nem nova identidade.
       }
     };
 
     Linking.getInitialURL().then(handleDeepLink);
     const sub = Linking.addEventListener('url', (e) => handleDeepLink(e.url));
-    return () => sub.remove();
-  }, []);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, recoverySession) => {
+        if (event === 'PASSWORD_RECOVERY' && recoverySession) {
+          await markPasswordRecoverySession(recoverySession);
+          router.replace('/(auth)/reset-password');
+        }
+      },
+    );
+    return () => {
+      sub.remove();
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
-  // Lê o flag do onboarding uma vez no mount + solicita permissões + keep-alive Supabase
+  // Lê o flag de apresentação uma vez no mount e mantém o projeto ativo.
+  // Permissões sensíveis são solicitadas apenas no contexto da funcionalidade.
   useEffect(() => {
     pingSupabase();
-    AsyncStorage.getItem('@onboarding_done').then((val) => {
+    AsyncStorage.getItem('@onboarding_done').then(() => {
       setAppReady(true);
-      // Solicita permissões apenas após o onboarding (não na primeira tela)
-      if (val === '1') {
-        requestPermissions();
-      }
     });
   }, []);
 
@@ -104,13 +104,15 @@ function RootNavigator() {
     AsyncStorage.getItem('@onboarding_done').then(val => {
       const done = val === '1';
       const segs = segmentsRef.current;          // sempre atualizado via ref
-      const isAuthenticated = !!session && !!profile;
+      const isAuthenticated = !!session && profile?.isApproved === true;
+      const hasPendingCustomerSession = !!session && profile?.isApproved !== true;
       const hasExpiredTrainingSession = !!trainingSession && isExpired();
       const hasTrainingSession = !!trainingSession && isTrainingActive && !hasExpiredTrainingSession;
       const redirect = resolveRootRedirect({
         segments: segs as string[],
         onboardingDone: done,
         isAuthenticated,
+        hasPendingCustomerSession,
         hasTrainingSession,
         hasExpiredTrainingSession,
       });
@@ -130,7 +132,7 @@ function RootNavigator() {
 
   return (
     <>
-      <StatusBar style="auto" translucent={false} />
+      <StatusBar style={isDark ? 'light' : 'dark'} translucent={false} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(auth)" />

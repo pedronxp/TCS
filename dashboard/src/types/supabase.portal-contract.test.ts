@@ -5,7 +5,36 @@ type Functions = Database['public']['Functions'];
 type Tables = Database['public']['Tables'];
 
 type PortalFunctionContract = {
+  bootstrap_individual_customer: {
+    Args: { p_idempotency_key: string; p_terms_version: string };
+    Returns: Json;
+  };
+  bootstrap_municipal_customer: {
+    Args: { p_idempotency_key: string; p_payload: Json };
+    Returns: Json;
+  };
+  get_customer_entry_context: { Args: never; Returns: Json };
+  get_customer_onboarding_timeline: { Args: never; Returns: Json };
+  get_public_auth_capabilities: { Args: never; Returns: Json };
   get_portal_access_context: { Args: never; Returns: Json };
+  prepare_legacy_invite_signup: {
+    Args: { p_codigo: string; p_email: string };
+    Returns: Json;
+  };
+  reconcile_customer_identity: { Args: never; Returns: Json };
+  record_google_identity_reconciled: { Args: never; Returns: boolean };
+  record_password_recovery_completed: {
+    Args: { p_other_sessions_revoked?: boolean };
+    Returns: boolean;
+  };
+  record_customer_onboarding_funnel: {
+    Args: { p_event: string; p_request_id?: string; p_source?: string };
+    Returns: boolean;
+  };
+  update_customer_onboarding_checklist: {
+    Args: { p_completed?: boolean; p_item: string; p_request_id?: string; p_source?: string };
+    Returns: Json;
+  };
   portal_ensure_individual_profile: { Args: never; Returns: Json };
   portal_get_dashboard: { Args: never; Returns: Json };
   portal_get_workspace: { Args: { p_section: string }; Returns: Json };
@@ -132,6 +161,23 @@ describe('contrato Supabase do portal', () => {
         provider_event_time: string;
         payload_hash: string;
         status: string;
+      }>();
+    expectTypeOf<Tables['subscription_settings']['Row']>()
+      .toMatchTypeOf<{
+        authoritative_audit_enabled: boolean;
+        google_customer_auth_enabled: boolean;
+        hardened_auth_enabled: boolean;
+        individual_bootstrap_enabled: boolean;
+        municipal_bootstrap_enabled: boolean;
+        password_recovery_enabled: boolean;
+      }>();
+    expectTypeOf<Tables['subscription_audit_events']['Row']>()
+      .toMatchTypeOf<{
+        actor_role: string | null;
+        outcome: string;
+        reason: string | null;
+        request_id: string | null;
+        source: string;
       }>();
   });
 });
