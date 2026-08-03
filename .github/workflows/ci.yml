@@ -51,8 +51,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect dashboard changes
+        id: dashboard_changes
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -ne "pull_request") {
+            "changed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            exit 0
+          }
+
+          $baseCommit = "${{ github.event.pull_request.base.sha }}"
+          $headCommit = "${{ github.event.pull_request.head.sha }}"
+          $changedFiles = git diff --name-only $baseCommit $headCommit
+          $hasDashboardChanges = @(
+            $changedFiles | Where-Object { $_ -like "dashboard/*" }
+          ).Count -gt 0
+
+          "changed=$($hasDashboardChanges.ToString().ToLowerInvariant())" |
+            Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Setup Node.js
+        if: steps.dashboard_changes.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -60,17 +82,20 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
 
       - name: Install dashboard dependencies
+        if: steps.dashboard_changes.outputs.changed == 'true'
         run: npm ci
 
       - name: Install Playwright Chromium
+        if: steps.dashboard_changes.outputs.changed == 'true'
         run: npx playwright install chromium
 
       - name: Compare dashboard route snapshots
+        if: steps.dashboard_changes.outputs.changed == 'true'
         run: npm run test:visual
 
       - name: Upload visual regression diagnostics
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() && steps.dashboard_changes.outputs.changed == 'true'
         with:
           name: dashboard-visual-regression
           path: |
