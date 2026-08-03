@@ -11,27 +11,32 @@ import { useAuth } from '../../../context/AuthContext';
 import { tempoRelativo, formatarDataHora } from '../../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { TCSTheme } from '../../../constants/Colors';
+import { AppHeader, EmptyState, MetricCard } from '../../../components/ui';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const AUDIT_ACTION_LABELS: Record<string, { label: string; color: string; icon: string; desc: string }> = {
-  usuario_aprovado:        { label: 'Aprovação',  color: '#10B981', icon: 'user-check',    desc: 'Usuário aprovado no sistema' },
-  usuario_bloqueado:       { label: 'Bloqueio',   color: '#EF4444', icon: 'user-x',        desc: 'Usuário bloqueado' },
-  token_gerado:            { label: 'Token',      color: '#8B5CF6', icon: 'key',           desc: 'Token de convite gerado' },
-  token_revogado:          { label: 'Revogação',  color: '#F59E0B', icon: 'x-circle',      desc: 'Token revogado' },
-  formulario_publicado:    { label: 'Publicação', color: '#3B82F6', icon: 'upload',        desc: 'Formulário publicado' },
-  formulario_despublicado: { label: 'Rascunho',   color: '#94A3B8', icon: 'download',      desc: 'Formulário despublicado' },
-  formulario_excluido:     { label: 'Exclusão',   color: '#EF4444', icon: 'trash-2',       desc: 'Formulário excluído' },
-  formulario_criado:       { label: 'Criação',    color: '#10B981', icon: 'plus-circle',   desc: 'Formulário criado' },
-  formulario_duplicado:    { label: 'Duplicação', color: '#06B6D4', icon: 'copy',          desc: 'Formulário duplicado' },
-  sync_sucesso:            { label: 'Sync OK',    color: '#10B981', icon: 'upload-cloud',  desc: 'Dados sincronizados' },
-  sync_falha:              { label: 'Sync Falha', color: '#EF4444', icon: 'cloud-off',     desc: 'Falha na sincronização' },
-  vistoria_criada:         { label: 'Vistoria',   color: '#06B6D4', icon: 'clipboard',     desc: 'Vistoria registrada' },
-  role_alterado:           { label: 'Cargo',      color: '#8B5CF6', icon: 'shield',        desc: 'Cargo/permissão alterado' },
-  login:                   { label: 'Login',      color: '#3B82F6', icon: 'log-in',        desc: 'Login realizado' },
+type AuditTone = 'primary' | 'success' | 'warning' | 'danger' | 'muted';
+const AUDIT_ACTION_LABELS: Record<string, { label: string; tone: AuditTone; icon: string; desc: string }> = {
+  usuario_aprovado:        { label: 'Aprovação',  tone: 'success', icon: 'user-check',    desc: 'Usuário aprovado no sistema' },
+  usuario_bloqueado:       { label: 'Bloqueio',   tone: 'danger', icon: 'user-x',        desc: 'Usuário bloqueado' },
+  token_gerado:            { label: 'Token',      tone: 'primary', icon: 'key',           desc: 'Token de convite gerado' },
+  token_revogado:          { label: 'Revogação',  tone: 'warning', icon: 'x-circle',      desc: 'Token revogado' },
+  formulario_publicado:    { label: 'Publicação', tone: 'primary', icon: 'upload',        desc: 'Formulário publicado' },
+  formulario_despublicado: { label: 'Rascunho',   tone: 'muted', icon: 'download',      desc: 'Formulário despublicado' },
+  formulario_excluido:     { label: 'Exclusão',   tone: 'danger', icon: 'trash-2',       desc: 'Formulário excluído' },
+  formulario_criado:       { label: 'Criação',    tone: 'success', icon: 'plus-circle',   desc: 'Formulário criado' },
+  formulario_duplicado:    { label: 'Duplicação', tone: 'primary', icon: 'copy',          desc: 'Formulário duplicado' },
+  sync_sucesso:            { label: 'Sync OK',    tone: 'success', icon: 'upload-cloud',  desc: 'Dados sincronizados' },
+  sync_falha:              { label: 'Sync Falha', tone: 'danger', icon: 'cloud-off',     desc: 'Falha na sincronização' },
+  vistoria_criada:         { label: 'Vistoria',   tone: 'primary', icon: 'clipboard',     desc: 'Vistoria registrada' },
+  role_alterado:           { label: 'Cargo',      tone: 'primary', icon: 'shield',        desc: 'Cargo/permissão alterado' },
+  login:                   { label: 'Login',      tone: 'primary', icon: 'log-in',        desc: 'Login realizado' },
 };
+
+const toneColor = (tone: AuditTone, theme: TCSTheme) => tone === 'success' ? theme.success : tone === 'warning' ? theme.warning : tone === 'danger' ? theme.error : tone === 'muted' ? theme.muted : theme.primary;
 
 type FiltroAcao = 'todas' | string;
 type FiltroPeriodo = 'todos' | 'hoje' | '7d' | '30d';
@@ -100,24 +105,25 @@ export default function AdminLogsScreen() {
 
   // KPIs dinâmicos
   const kpis = [
-    { label: 'Total', value: filtrados.length, color: theme.primary, icon: 'activity' },
-    { label: 'Hoje', value: auditLogs.filter(l => new Date(l.criado_em).toDateString() === new Date().toDateString()).length, color: '#3B82F6', icon: 'clock' },
-    { label: 'Alertas', value: auditLogs.filter(l => ['usuario_bloqueado', 'sync_falha', 'formulario_excluido', 'token_revogado'].includes(l.acao)).length, color: '#EF4444', icon: 'alert-triangle' },
-    { label: 'Agentes', value: new Set(auditLogs.map(l => l.ator_uid).filter(Boolean)).size, color: '#8B5CF6', icon: 'users' },
+    { label: 'Total', value: filtrados.length, tone: 'primary' as const, detail: 'registros filtrados' },
+    { label: 'Hoje', value: auditLogs.filter(l => new Date(l.criado_em).toDateString() === new Date().toDateString()).length, tone: 'primary' as const, detail: 'eventos recentes' },
+    { label: 'Alertas', value: auditLogs.filter(l => ['usuario_bloqueado', 'sync_falha', 'formulario_excluido', 'token_revogado'].includes(l.acao)).length, tone: 'danger' as const, detail: 'pedem atenção' },
+    { label: 'Agentes', value: new Set(auditLogs.map(l => l.ator_uid).filter(Boolean)).size, tone: 'success' as const, detail: 'atores identificados' },
   ];
 
   // Ações únicas para filtro
   const acoesUnicas = ['todas', ...new Set(auditLogs.map(l => l.acao).filter(Boolean))];
 
   const renderAudit = ({ item }: { item: any }) => {
-    const cfg = AUDIT_ACTION_LABELS[item.acao] ?? { label: item.acao, color: theme.primary, icon: 'activity', desc: '' };
+    const baseCfg = AUDIT_ACTION_LABELS[item.acao] ?? { label: item.acao, tone: 'primary' as const, icon: 'activity', desc: '' };
+    const cfg = { ...baseCfg, color: toneColor(baseCfg.tone, theme) };
     const isExpanded = expandedId === String(item.id);
 
     return (
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => toggleExpand(String(item.id))}
-        style={[styles.auditCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+        style={[styles.auditCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
       >
         <View style={[styles.cardStripe, { backgroundColor: cfg.color }]} />
 
@@ -216,43 +222,26 @@ export default function AdminLogsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Auditoria</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            📍 {profile?.municipio || 'Geral'} · {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.headerBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => loadAuditLogs(true)}
-        >
-          <Feather name="refresh-cw" size={18} color={theme.textSecondary} />
-        </TouchableOpacity>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Auditoria municipal"
+          subtitle={`${profile?.municipio || 'Geral'} · ${filtrados.length} registro${filtrados.length !== 1 ? 's' : ''}`}
+          onBack={() => router.back()}
+          actionIcon="refresh-cw"
+          actionLabel="Atualizar auditoria"
+          onAction={() => loadAuditLogs(true)}
+        />
       </View>
 
       {/* KPIs */}
-      <View style={[styles.kpiRow, { borderBottomColor: theme.border, backgroundColor: theme.surfaceHighlight }]}>
+      <View style={styles.kpiGrid}>
         {kpis.map(kpi => (
-          <View key={kpi.label} style={styles.kpiItem}>
-            <View style={[styles.kpiIconWrap, { backgroundColor: `${kpi.color}12` }]}>
-              <Feather name={kpi.icon as any} size={16} color={kpi.color} />
-            </View>
-            <Text style={[styles.kpiValue, { color: kpi.color }]}>{kpi.value}</Text>
-            <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{kpi.label}</Text>
-          </View>
+          <MetricCard key={kpi.label} {...kpi} style={styles.kpiCard} />
         ))}
       </View>
 
       {/* Filtros: Período + Ação */}
-      <View style={[styles.filterSection, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.filterSection, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         {/* Período */}
         <FlatList
           horizontal
@@ -275,7 +264,7 @@ export default function AdminLogsScreen() {
               ]}
               onPress={() => setFiltroPeriodo(f.key)}
             >
-              <Text style={{ color: filtroPeriodo === f.key ? '#FFF' : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
+              <Text style={{ color: filtroPeriodo === f.key ? theme.onPrimary : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
                 {f.label}
               </Text>
             </TouchableOpacity>
@@ -290,6 +279,7 @@ export default function AdminLogsScreen() {
           showsHorizontalScrollIndicator={false}
           renderItem={({ item: acao }) => {
             const cfg = AUDIT_ACTION_LABELS[acao];
+            const cfgColor = cfg ? toneColor(cfg.tone, theme) : theme.primary;
             const label = acao === 'todas' ? 'Todas' : cfg?.label ?? acao;
             const active = filtroAcao === acao;
             return (
@@ -297,13 +287,13 @@ export default function AdminLogsScreen() {
                 style={[
                   styles.chip,
                   active
-                    ? { backgroundColor: cfg?.color ?? theme.primary }
+                    ? { backgroundColor: cfgColor }
                     : { backgroundColor: theme.iconBackground, borderColor: theme.border, borderWidth: 1 },
                 ]}
                 onPress={() => setFiltroAcao(acao)}
               >
-                {cfg && <Feather name={cfg.icon as any} size={12} color={active ? '#FFF' : theme.textSecondary} style={{ marginRight: 4 }} />}
-                <Text style={{ color: active ? '#FFF' : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
+                {cfg && <Feather name={cfg.icon as any} size={12} color={active ? theme.onPrimary : theme.textSecondary} style={{ marginRight: 4 }} />}
+                <Text style={{ color: active ? theme.onPrimary : theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
                   {label}
                 </Text>
               </TouchableOpacity>
@@ -331,15 +321,11 @@ export default function AdminLogsScreen() {
             />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={[styles.emptyIcon, { backgroundColor: `${theme.primary}10` }]}>
-                <Feather name="shield" size={40} color={theme.border} />
-              </View>
-              <Text style={[styles.emptyText, { color: theme.text }]}>Sem registros</Text>
-              <Text style={[styles.emptySubText, { color: theme.textSecondary }]}>
-                Ações administrativas da sua cidade aparecerão aqui automaticamente.
-              </Text>
-            </View>
+            <EmptyState
+              icon="shield"
+              title="Sem registros"
+              description="Ações administrativas da sua cidade aparecerão aqui automaticamente."
+            />
           }
         />
       )}
@@ -349,32 +335,9 @@ export default function AdminLogsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 16, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  headerBtn: {
-    width: 40, height: 40, borderRadius: 10, borderWidth: 1,
-    justifyContent: 'center', alignItems: 'center',
-  },
-
   // KPIs
-  kpiRow: {
-    flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
-  },
-  kpiItem: { flex: 1, alignItems: 'center', gap: 4 },
-  kpiIconWrap: {
-    width: 36, height: 36, borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  kpiValue: { fontSize: 20, fontWeight: '800' },
-  kpiLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, padding: 16 },
+  kpiCard: { flexGrow: 1, flexBasis: '46%' },
 
   // Filtros
   filterSection: { borderBottomWidth: 1 },

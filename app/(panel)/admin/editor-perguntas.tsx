@@ -11,7 +11,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  Switch,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,6 +21,9 @@ import { generateUUID } from '../../../utils/uuid';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { AppHeader, Badge, Button, StateBanner } from '../../../components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TCSPalette } from '../../../constants/Colors';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -81,6 +83,7 @@ const TIPO_ICONS: Record<TipoPergunta, string> = {
 
 export default function EditorPerguntasScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string; titulo: string }>();
   const formId = params.id as string;
   const formTitulo = params.titulo as string;
@@ -148,6 +151,18 @@ export default function EditorPerguntasScreen() {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   const salvar = async () => {
+    const invalidIdx = perguntas.findIndex(p => {
+      const precisaOpcoes = p.tipo === 'cards' || p.tipo === 'multipla_escolha';
+      return !p.texto.trim() || (precisaOpcoes && (p.opcoes.length === 0 || p.opcoes.some(o => !o.texto.trim())));
+    });
+    if (invalidIdx >= 0) {
+      setEditingIdx(invalidIdx);
+      Alert.alert(
+        'Pergunta incompleta',
+        `Revise a pergunta ${invalidIdx + 1}. Informe o texto${perguntas[invalidIdx].tipo === 'cards' || perguntas[invalidIdx].tipo === 'multipla_escolha' ? ' e todas as opções de resposta' : ''}.`,
+      );
+      return;
+    }
     setSalvando(true);
     try {
       const novaVersao =
@@ -280,13 +295,7 @@ export default function EditorPerguntasScreen() {
   // ─── Render helpers ───────────────────────────────────────────────────────
 
   const renderTipoBadge = (tipo: TipoPergunta, small?: boolean) => {
-    const colors: Record<TipoPergunta, string> = {
-      cards: '#3B82F6',
-      multipla_escolha: '#8B5CF6',
-      texto: '#10B981',
-      foto: '#F59E0B',
-    };
-    const cor = colors[tipo];
+    const cor = theme.primary;
     return (
       <View
         style={[
@@ -344,10 +353,10 @@ export default function EditorPerguntasScreen() {
         </TouchableOpacity>
       </View>
       <TouchableOpacity
-        style={[styles.opcaoDeleteBtn, { backgroundColor: 'rgba(239,68,68,0.1)' }]}
+        style={[styles.opcaoDeleteBtn, { backgroundColor: theme.errorLight }]}
         onPress={() => deletarOpcao(pergIdx, opcIdx)}
       >
-        <Feather name="trash-2" size={14} color="#EF4444" />
+        <Feather name="trash-2" size={14} color={theme.error} />
       </TouchableOpacity>
     </View>
   );
@@ -362,7 +371,7 @@ export default function EditorPerguntasScreen() {
         style={[
           styles.card,
           {
-            backgroundColor: theme.surfaceHighlight,
+            backgroundColor: theme.surface,
             borderColor: isEditing ? theme.primary : theme.cardBorder,
             borderWidth: isEditing ? 2 : 1,
             borderRadius: 14,
@@ -385,9 +394,7 @@ export default function EditorPerguntasScreen() {
             <View style={styles.cardHeaderMeta}>
               {renderTipoBadge(p.tipo, true)}
               {p.obrigatoria && (
-                <View style={[styles.obrigBadge, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-                  <Text style={styles.obrigText}>OBRIG.</Text>
-                </View>
+                <Badge label="Obrigatória" variant="warning" size="sm" />
               )}
               {p.grupo ? (
                 <Text style={[styles.grupoPreview, { color: theme.textSecondary }]}>
@@ -428,10 +435,10 @@ export default function EditorPerguntasScreen() {
               />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: 'rgba(239,68,68,0.08)' }]}
+              style={[styles.iconBtn, { backgroundColor: theme.errorLight }]}
               onPress={() => deletarPergunta(idx)}
             >
-              <Feather name="trash-2" size={16} color="#EF4444" />
+              <Feather name="trash-2" size={16} color={theme.error} />
             </TouchableOpacity>
           </View>
         </View>
@@ -460,13 +467,7 @@ export default function EditorPerguntasScreen() {
             <View style={styles.tipoRow}>
               {(['cards', 'multipla_escolha', 'texto', 'foto'] as TipoPergunta[]).map(t => {
                 const selected = p.tipo === t;
-                const colors: Record<TipoPergunta, string> = {
-                  cards: '#3B82F6',
-                  multipla_escolha: '#8B5CF6',
-                  texto: '#10B981',
-                  foto: '#F59E0B',
-                };
-                const cor = colors[t];
+                const cor = theme.primary;
                 return (
                   <TouchableOpacity
                     key={t}
@@ -500,20 +501,34 @@ export default function EditorPerguntasScreen() {
               })}
             </View>
 
-            {/* Obrigatória */}
-            <View style={[styles.toggleRow, { borderColor: theme.border }]}>
-              <View>
-                <Text style={[styles.toggleLabel, { color: theme.text }]}>Pergunta obrigatória</Text>
-                <Text style={[styles.toggleSub, { color: theme.textSecondary }]}>
-                  O agente deve responder antes de avançar
-                </Text>
-              </View>
-              <Switch
-                value={p.obrigatoria}
-                onValueChange={v => atualizarPergunta(idx, { obrigatoria: v })}
-                trackColor={{ false: theme.border, true: theme.primary + '88' }}
-                thumbColor={p.obrigatoria ? theme.primary : theme.textSecondary}
-              />
+            <Text style={[styles.label, { color: theme.textSecondary }]}>Regra de preenchimento</Text>
+            <View style={styles.requiredGrid}>
+              {[
+                { value: true, label: 'Obrigatória', description: 'Bloqueia o avanço sem resposta', icon: 'lock' as const },
+                { value: false, label: 'Opcional', description: 'Pode ser ignorada pelo agente', icon: 'unlock' as const },
+              ].map(option => {
+                const selected = p.obrigatoria === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.label}
+                    style={[
+                      styles.requiredCard,
+                      {
+                        backgroundColor: selected ? theme.secondary : theme.background,
+                        borderColor: selected ? theme.primary : theme.border,
+                      },
+                    ]}
+                    onPress={() => atualizarPergunta(idx, { obrigatoria: option.value })}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                  >
+                    <Feather name={option.icon} size={18} color={selected ? theme.primary : theme.textSecondary} />
+                    <Text style={[styles.requiredTitle, { color: theme.text }]}>{option.label}</Text>
+                    <Text style={[styles.requiredDescription, { color: theme.textSecondary }]}>{option.description}</Text>
+                    {selected ? <Feather name="check-circle" size={17} color={theme.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Grupo */}
@@ -616,11 +631,7 @@ export default function EditorPerguntasScreen() {
                   <Text style={[styles.previewTexto, { color: theme.text }]}>{p.texto || '(sem texto)'}</Text>
                   <View style={styles.previewMeta}>
                     {renderTipoBadge(p.tipo, true)}
-                    {p.obrigatoria && (
-                      <View style={[styles.obrigBadge, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-                        <Text style={styles.obrigText}>OBRIG.</Text>
-                      </View>
-                    )}
+                    {p.obrigatoria ? <Badge label="Obrigatória" variant="warning" size="sm" /> : null}
                     {p.grupo ? (
                       <Text style={[styles.grupoPreview, { color: theme.textSecondary }]}>{p.grupo}</Text>
                     ) : null}
@@ -668,56 +679,25 @@ export default function EditorPerguntasScreen() {
       style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* ── Header ── */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-        <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
-
-        <View style={styles.headerInfo}>
-          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-            {formTitulo}
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-            {perguntas.length} pergunta{perguntas.length !== 1 ? 's' : ''} · v{versaoAtual}
-            {statusForm === 'publicado' ? ' · Publicado' : ' · Rascunho'}
-          </Text>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title={formTitulo}
+          subtitle={`${perguntas.length} ${perguntas.length === 1 ? 'pergunta' : 'perguntas'} · versão ${versaoAtual}`}
+          onBack={() => router.back()}
+        />
+        <View style={[styles.toolbar, { borderBottomColor: theme.border, backgroundColor: theme.background }]}>
+          <Badge label={statusForm === 'publicado' ? 'Publicado' : 'Rascunho'} variant={statusForm === 'publicado' ? 'success' : 'neutral'} />
+          <View style={styles.toolbarActions}>
+            <Button label="Prévia" variant="secondary" size="sm" onPress={() => setPreviewVisible(true)} iconLeft={<Feather name="eye" size={16} color={theme.primary} />} />
+            <Button label="Salvar" variant="primary" size="sm" onPress={salvar} loading={salvando} disabled={salvando} />
+          </View>
         </View>
-
-        <TouchableOpacity
-          style={[styles.headerBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => setPreviewVisible(true)}
-        >
-          <Feather name="eye" size={18} color={theme.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.headerBtn,
-            styles.saveBtn,
-            { backgroundColor: salvando ? theme.textSecondary : theme.primary },
-          ]}
-          onPress={salvar}
-          disabled={salvando}
-        >
-          {salvando ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Feather name="save" size={18} color="#FFF" />
-          )}
-        </TouchableOpacity>
       </View>
 
       {/* ── Aviso versão ── */}
       {statusForm === 'publicado' && (
-        <View style={[styles.aviso, { backgroundColor: '#F59E0B' + '18', borderColor: '#F59E0B' + '44' }]}>
-          <Feather name="alert-circle" size={14} color="#F59E0B" />
-          <Text style={[styles.avisoText, { color: '#F59E0B' }]}>
-            Formulário publicado — salvar criará a v{versaoAtual + 1}
-          </Text>
+        <View style={styles.bannerWrap}>
+          <StateBanner title={`Nova versão ao salvar`} description={`Este formulário está publicado. A alteração será registrada como versão ${versaoAtual + 1}.`} variant="warning" />
         </View>
       )}
 
@@ -757,10 +737,10 @@ export default function EditorPerguntasScreen() {
 // ─── Helper: peso color ───────────────────────────────────────────────────────
 
 function getPesoColor(peso: number): string {
-  if (peso <= 25) return '#10B981';
-  if (peso <= 50) return '#F59E0B';
-  if (peso <= 75) return '#F97316';
-  return '#EF4444';
+  if (peso <= 25) return TCSPalette.success;
+  if (peso <= 50) return TCSPalette.warning;
+  if (peso <= 75) return '#C45F2A';
+  return TCSPalette.danger;
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -768,50 +748,9 @@ function getPesoColor(peso: number): string {
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  // Header
-  header: {
-    paddingTop: 60,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderBottomWidth: 1,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerInfo: { flex: 1 },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
-  headerSubtitle: { fontSize: 11, marginTop: 2 },
-  headerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveBtn: { borderWidth: 0 },
-
-  // Aviso
-  aviso: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 0,
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  avisoText: { fontSize: 12, fontWeight: '600', flex: 1 },
+  toolbar: { minHeight: 58, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottomWidth: 1 },
+  toolbarActions: { flexDirection: 'row', gap: 8 },
+  bannerWrap: { paddingHorizontal: 16, paddingTop: 12 },
 
   // Scroll
   scroll: { padding: 16, paddingBottom: 80 },
@@ -874,14 +813,6 @@ const styles = StyleSheet.create({
   },
   tipoBadgeText: { fontSize: 11, fontWeight: '700' },
 
-  // Obrigatória badge
-  obrigBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  obrigText: { fontSize: 9, fontWeight: '800', color: '#EF4444', letterSpacing: 0.4 },
-
   // Grupo preview
   grupoPreview: { fontSize: 11, fontStyle: 'italic' },
 
@@ -913,18 +844,10 @@ const styles = StyleSheet.create({
   },
   tipoChipText: { fontSize: 12, fontWeight: '700' },
 
-  // Toggle obrigatória
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 10,
-  },
-  toggleLabel: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
-  toggleSub: { fontSize: 12 },
+  requiredGrid: { flexDirection: 'row', gap: 10 },
+  requiredCard: { flex: 1, minHeight: 126, borderWidth: 1, borderRadius: 14, padding: 12, gap: 6 },
+  requiredTitle: { fontSize: 14, fontWeight: '700' },
+  requiredDescription: { flex: 1, fontSize: 11, lineHeight: 15 },
 
   // Opções section
   opcoesSection: { marginTop: 16 },

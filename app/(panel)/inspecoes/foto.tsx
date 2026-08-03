@@ -13,9 +13,11 @@ import { updateVistoriaMedia, getVistoriaById, isTrainingVistoria } from '../../
 import { syncPendentes } from '../../../services/SyncService';
 import { decodePath, getSignedUrl, uploadImageFromLocalUri } from '../../../services/StorageService';
 import { compressAndPersistImage, EVIDENCE_IMAGE_MAX_WIDTH } from '../../../utils/imageCompression';
-import { EmptyState, Button } from '../../../components/ui';
+import { AppHeader, Button, EmptyState, SectionHeader, StateBanner } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { safeBack } from '../../../utils/navigationUtils';
+import { FontSize, FontWeight } from '../../../constants/Typography';
+import { Spacing, SpacingAlias } from '../../../constants/Spacing';
 
 const MAX_FOTOS = 3;
 
@@ -309,28 +311,34 @@ export default function FotoScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: theme.text }]}>Evidências</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Vistoria #{id?.toString().slice(0, 6)} · {fotos.length}/{MAX_FOTOS} fotos
-            {!isOnlineReal && ' · offline'}
-          </Text>
-        </View>
-      </View>
+      <AppHeader
+        title="Evidências fotográficas"
+        subtitle={`Vistoria #${id?.toString().slice(0, 6)} · ${fotos.length} de ${MAX_FOTOS}`}
+        onBack={() => safeBack(trainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
+        {...(fotos.length < MAX_FOTOS ? {
+          actionIcon: 'camera' as const,
+          actionLabel: 'Adicionar foto',
+          onAction: mostrarOpcoes,
+        } : {})}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.instruction, { color: theme.textSecondary }]}>
-          Registre evidências fotográficas da edificação, pontos críticos e irregularidades estruturais.
-          {'\n'}Fotos comprimidas em JPEG 72% / 480p para otimização de armazenamento.
-        </Text>
+        {!isOnlineReal ? (
+          <StateBanner
+            variant="warning"
+            title="Captura offline"
+            description="As fotos ficam protegidas neste aparelho até a próxima sincronização."
+          />
+        ) : (
+          <StateBanner
+            variant="info"
+            title="Registro técnico"
+            description="Fotografe a visão geral, os pontos críticos e detalhes que sustentem a avaliação."
+          />
+        )}
+
+        <SectionHeader title="Galeria da vistoria" subtitle={`Você pode registrar até ${MAX_FOTOS} evidências`} />
 
         {fotos.length === 0 && (
           <EmptyState
@@ -347,7 +355,7 @@ export default function FotoScreen() {
           {fotos.map((foto) => (
             <View
               key={foto.localId}
-              style={[styles.fotoWrapper, { borderColor: foto.erro ? '#EF4444' : theme.border }]}
+              style={[styles.fotoWrapper, { borderColor: foto.erro ? theme.error : theme.border }]}
             >
               <Image source={{ uri: foto.uri }} style={styles.foto} />
 
@@ -364,28 +372,28 @@ export default function FotoScreen() {
                     <Feather name="alert-circle" size={20} color="#FFF" />
                     <Text style={styles.erroText}>Falha no upload</Text>
                     <TouchableOpacity style={styles.retryBtn} onPress={() => tentarNovamente(foto.localId)}>
-                      <Feather name="refresh-cw" size={12} color="#EF4444" />
-                      <Text style={styles.retryText}>Tentar novamente</Text>
+                      <Feather name="refresh-cw" size={12} color={theme.error} />
+                      <Text style={[styles.retryText, { color: theme.error }]}>Tentar novamente</Text>
                     </TouchableOpacity>
                   </View>
                 </>
               )}
 
               {foto.url && !foto.erro && (
-                <View style={styles.syncBadge}>
-                  <Feather name="cloud" size={12} color="#FFF" />
+                <View style={[styles.syncBadge, { backgroundColor: theme.success }]}>
+                  <Feather name="cloud" size={12} color={theme.onPrimary} />
                 </View>
               )}
 
               {!foto.url && !foto.uploading && !foto.erro && (
-                <View style={styles.localBadge}>
-                  <Feather name="smartphone" size={12} color="#FFF" />
+                <View style={[styles.localBadge, { backgroundColor: theme.primary }]}>
+                  <Feather name="smartphone" size={12} color={theme.onPrimary} />
                 </View>
               )}
 
               {!foto.uploading && (
-                <TouchableOpacity style={styles.removeBtn} onPress={() => removerFoto(foto.localId)}>
-                  <Feather name="trash-2" size={16} color="#FFF" />
+                <TouchableOpacity style={[styles.removeBtn, { backgroundColor: theme.error }]} onPress={() => removerFoto(foto.localId)}>
+                  <Feather name="trash-2" size={16} color={theme.onPrimary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -393,7 +401,7 @@ export default function FotoScreen() {
 
           {fotos.length < MAX_FOTOS && (
             <TouchableOpacity
-              style={[styles.addFotoBtn, { backgroundColor: theme.surfaceHighlight, borderColor: theme.primary }]}
+              style={[styles.addFotoBtn, { backgroundColor: theme.surface, borderColor: theme.primary }]}
               onPress={mostrarOpcoes}
             >
               <Feather name="camera" size={32} color={theme.primary} />
@@ -404,20 +412,20 @@ export default function FotoScreen() {
 
         <View style={styles.legenda}>
           <View style={styles.legendaItem}>
-            <View style={[styles.legendaDot, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-              <Feather name="cloud" size={12} color="#10B981" />
+            <View style={[styles.legendaDot, { backgroundColor: theme.successLight }]}>
+              <Feather name="cloud" size={12} color={theme.success} />
             </View>
             <Text style={[styles.legendaText, { color: theme.textSecondary }]}>Sincronizado</Text>
           </View>
           <View style={styles.legendaItem}>
-            <View style={[styles.legendaDot, { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
-              <Feather name="smartphone" size={12} color="#3B82F6" />
+            <View style={[styles.legendaDot, { backgroundColor: theme.secondary }]}>
+              <Feather name="smartphone" size={12} color={theme.primary} />
             </View>
             <Text style={[styles.legendaText, { color: theme.textSecondary }]}>Local</Text>
           </View>
           <View style={styles.legendaItem}>
-            <View style={[styles.legendaDot, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-              <Feather name="alert-circle" size={12} color="#EF4444" />
+            <View style={[styles.legendaDot, { backgroundColor: theme.errorLight }]}>
+              <Feather name="alert-circle" size={12} color={theme.error} />
             </View>
             <Text style={[styles.legendaText, { color: theme.textSecondary }]}>Erro</Text>
           </View>
@@ -425,24 +433,16 @@ export default function FotoScreen() {
       </ScrollView>
 
       {(fotos.length > 0 || dirty) && (
-        <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
-          <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: salvando ? theme.textSecondary : theme.primary }]}
+        <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, Spacing[4]) }]}>
+          <Button
+            label={fotos.length > 0
+              ? `Salvar ${fotos.length} evidência${fotos.length !== 1 ? 's' : ''}`
+              : 'Salvar remoção das fotos'}
             onPress={salvarEvidencias}
-            disabled={salvando}
-          >
-            {salvando
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <Feather name="check" size={20} color="#FFF" />
-            }
-            <Text style={styles.saveBtnText}>
-              {salvando
-                ? 'Salvando...'
-                : fotos.length > 0
-                  ? `Salvar ${fotos.length} Evidência${fotos.length !== 1 ? 's' : ''}`
-                  : 'Salvar remoção das fotos'}
-            </Text>
-          </TouchableOpacity>
+            loading={salvando}
+            iconLeft={<Feather name="check" size={20} color={theme.onPrimary} />}
+            fullWidth
+          />
         </View>
       )}
     </View>
@@ -451,22 +451,10 @@ export default function FotoScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  titleSection: { flex: 1 },
-  title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
-  subtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
-  scrollContent: { padding: 24, paddingBottom: 120 },
-  instruction: { fontSize: 13, lineHeight: 20, marginBottom: 24 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  scrollContent: { padding: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[4] },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[3] },
   fotoWrapper: {
-    width: '47%', height: 160, borderRadius: 16, borderWidth: 1,
+    width: '47%', flexGrow: 1, height: 176, borderRadius: SpacingAlias.radiusLg, borderWidth: 1,
     overflow: 'hidden', position: 'relative',
   },
   foto: { width: '100%', height: '100%' },
@@ -475,51 +463,48 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', alignItems: 'center', gap: 8,
   },
-  uploadText: { color: '#FFF', fontSize: 11, fontWeight: '600' },
+  uploadText: { color: '#FFF', fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   erroOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'center', alignItems: 'center', gap: 6,
     padding: 10,
   },
-  erroText: { color: '#FFF', fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  erroText: { color: '#FFF', fontSize: FontSize.xs, fontWeight: FontWeight.bold, textAlign: 'center' },
   retryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FFF', borderRadius: 10,
+    backgroundColor: '#FFF', borderRadius: SpacingAlias.radiusMd,
     paddingHorizontal: 10, paddingVertical: 5, marginTop: 2,
   },
-  retryText: { color: '#EF4444', fontSize: 11, fontWeight: '700' },
+  retryText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
   syncBadge: {
     position: 'absolute', top: 8, left: 8,
-    backgroundColor: 'rgba(16,185,129,0.9)',
     width: 24, height: 24, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center',
   },
   localBadge: {
     position: 'absolute', top: 8, left: 8,
-    backgroundColor: 'rgba(59,130,246,0.9)',
     width: 24, height: 24, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center',
   },
   removeBtn: {
     position: 'absolute', top: 8, right: 8,
-    backgroundColor: 'rgba(239,68,68,0.9)',
     width: 32, height: 32, borderRadius: 16,
     justifyContent: 'center', alignItems: 'center',
   },
   addFotoBtn: {
-    width: '47%', height: 160, borderRadius: 16, borderWidth: 2,
+    width: '47%', flexGrow: 1, height: 176, borderRadius: SpacingAlias.radiusLg, borderWidth: 1.5,
     borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
-  addFotoText: { fontSize: 13, fontWeight: '600' },
-  legenda: { flexDirection: 'row', gap: 20, marginTop: 16, justifyContent: 'center' },
+  addFotoText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  legenda: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[4], justifyContent: 'center' },
   legendaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendaDot: {
     width: 22, height: 22, borderRadius: 6,
     justifyContent: 'center', alignItems: 'center',
   },
-  legendaText: { fontSize: 12, fontWeight: '500' },
-  footer: { padding: 24, paddingBottom: 40, borderTopWidth: 1 },
+  legendaText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  footer: { padding: Spacing[4], borderTopWidth: 1 },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     height: 60, borderRadius: 16, gap: 10,

@@ -1,18 +1,18 @@
-// components/ui/Card.tsx
 import React from 'react';
-import { View, ViewStyle, StyleSheet, TouchableOpacity } from 'react-native';
+import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { Spacing, SpacingAlias } from '../../constants/Spacing';
+import { Elevation, SpacingAlias } from '../../constants/Spacing';
 
-interface CardProps {
+export type CardVariant = 'default' | 'variant' | 'flat' | 'outlined';
+
+export interface CardProps {
   children: React.ReactNode;
   style?: ViewStyle;
   onPress?: () => void;
-  /** Remove padding interno — útil para conteúdo que ocupa toda a largura */
   noPadding?: boolean;
-  /** Variante com fundo alternado (surfaceVariant) */
-  variant?: 'default' | 'variant' | 'flat';
+  variant?: CardVariant;
   testID?: string;
+  accessibilityLabel?: string;
 }
 
 export const Card = React.memo(function Card({
@@ -22,61 +22,62 @@ export const Card = React.memo(function Card({
   noPadding = false,
   variant = 'default',
   testID,
+  accessibilityLabel,
 }: CardProps) {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
 
-  const bgColor =
+  const backgroundColor =
     variant === 'variant' ? theme.surfaceVariant :
-    variant === 'flat'    ? 'transparent'        :
+    variant === 'flat' ? 'transparent' :
     theme.surface;
 
   const containerStyle: ViewStyle[] = [
     styles.base,
     {
-      backgroundColor: bgColor,
-      borderColor: theme.cardBorder,
-      // Sombra só no light mode — no dark fica border sutil
-      ...(isDark
-        ? { borderWidth: 1 }
-        : {
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.06,
-            shadowRadius: 8,
-            elevation: 3,
-          }
-      ),
+      backgroundColor,
+      borderColor: theme.border,
+      borderWidth: variant === 'flat' ? 0 : 1,
     },
-    !noPadding && styles.padding,
-    style,
-  ].filter(Boolean) as ViewStyle[];
+    variant === 'default' ? styles.elevated : {},
+    !noPadding ? styles.padding : {},
+    style ?? {},
+  ];
 
   if (onPress) {
     return (
-      <TouchableOpacity
-        style={containerStyle}
+      <Pressable
+        style={({ pressed }) => [containerStyle, pressed && styles.pressed]}
         onPress={onPress}
-        activeOpacity={0.75}
         testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        android_ripple={{ color: theme.pressedOverlay, borderless: false }}
       >
         {children}
-      </TouchableOpacity>
+      </Pressable>
     );
   }
 
-  return (
-    <View style={containerStyle} testID={testID}>
-      {children}
-    </View>
-  );
+  return <View style={containerStyle} testID={testID}>{children}</View>;
 });
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: SpacingAlias.radiusMd,   // 12
+    borderRadius: SpacingAlias.radiusMd,
     overflow: 'hidden',
   },
   padding: {
-    padding: SpacingAlias.cardPaddingHorizontal,  // 16
+    padding: SpacingAlias.cardPaddingHorizontal,
+  },
+  elevated: {
+    shadowColor: '#171A18',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: Elevation.card,
+  },
+  pressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.995 }],
   },
 });

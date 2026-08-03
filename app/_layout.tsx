@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { supabase } from '../utils/supabase';
-import { ThemeProvider } from '../context/ThemeContext';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { ConnectivityProvider } from '../context/ConnectivityContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { TrainingProvider, useTraining } from '../context/TrainingContext';
@@ -33,6 +33,7 @@ async function pingSupabase() {
 }
 
 function RootNavigator() {
+  const { isDark } = useTheme();
   const { session, profile, loading } = useAuth();
   const { session: trainingSession, loading: trainingLoading, isTrainingActive, isExpired, exit } = useTraining();
   const { lastResponse } = useNotifications();
@@ -86,8 +87,8 @@ function RootNavigator() {
     };
   }, [router]);
 
-  // Lê o flag de apresentação uma vez no mount. Câmera e localização são
-  // solicitadas somente na funcionalidade que realmente precisa delas.
+  // Lê o flag de apresentação uma vez no mount e mantém o projeto ativo.
+  // Permissões sensíveis são solicitadas apenas no contexto da funcionalidade.
   useEffect(() => {
     pingSupabase();
     AsyncStorage.getItem('@onboarding_done').then(() => {
@@ -131,7 +132,7 @@ function RootNavigator() {
 
   return (
     <>
-      <StatusBar style="auto" translucent={false} />
+      <StatusBar style={isDark ? 'light' : 'dark'} translucent={false} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(auth)" />

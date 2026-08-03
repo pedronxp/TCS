@@ -40,4 +40,29 @@ export const SpacingAlias = {
   gapXl:  Spacing[6],  // 24
 } as const;
 
+export const TouchTarget = {
+  ios: 44,
+  android: 48,
+  compact: 44,
+  default: 48,
+  large: 56,
+} as const;
+
+export const ComponentSize = {
+  input: 48,
+  buttonSm: TouchTarget.compact,
+  buttonMd: TouchTarget.default,
+  buttonLg: TouchTarget.large,
+  iconSm: 16,
+  iconMd: 20,
+  iconLg: 24,
+} as const;
+
+export const Elevation = {
+  none: 0,
+  card: 2,
+  floating: 8,
+  overlay: 16,
+} as const;
+
 export type SpacingKey = keyof typeof Spacing;

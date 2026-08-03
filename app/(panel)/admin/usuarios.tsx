@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Switch, Alert, TextInput, Modal
+  ActivityIndicator, Alert, Modal, TextInput
 } from 'react-native';
 import { validarSenha } from '../../../utils/passwordValidation';
 import { Feather } from '@expo/vector-icons';
@@ -14,7 +14,7 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorState } from '../../../components/ui/ErrorState';
-import { Badge } from '../../../components/ui/Badge';
+import { AppHeader, Badge, Button, ConfirmSheet, FormField, MetricCard, StateBanner } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -37,6 +37,7 @@ export default function UsuariosScreen() {
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [busca, setBusca] = useState('');
   const [toggling, setToggling] = useState<string | null>(null);
+  const [accessUser, setAccessUser] = useState<any>(null);
   
   // States para redefinição de senha
   const [passModalVisible, setPassModalVisible] = useState(false);
@@ -94,43 +95,36 @@ export default function UsuariosScreen() {
       Alert.alert('Sem permissão', 'Você não tem permissão para alterar o acesso de usuários.');
       return;
     }
-    const acao = user.isApproved ? 'bloquear' : 'liberar';
-    Alert.alert(
-      `${acao.charAt(0).toUpperCase() + acao.slice(1)} acesso?`,
-      `Deseja ${acao} o acesso de ${user.name}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: acao.charAt(0).toUpperCase() + acao.slice(1),
-          style: user.isApproved ? 'destructive' : 'default',
-          onPress: async () => {
-            setToggling(user.uid);
-            try {
-              const { error: updateError } = await supabase
-                .from('users')
-                .update({ isApproved: !user.isApproved })
-                .eq('uid', user.uid);
-              if (updateError) throw updateError;
-              setUsers(prev => prev.map(u =>
-                u.uid === user.uid ? { ...u, isApproved: !u.isApproved } : u
-              ));
-              registrarAuditoria({
-                acao: user.isApproved ? 'usuario_bloqueado' : 'usuario_aprovado',
-                adminUid: profile?.uid ?? '',
-                adminNome: profile?.name ?? '',
-                municipio: profile?.municipio ?? '',
-                alvoId: user.uid,
-                alvoNome: user.name,
-              });
-            } catch (e) {
-              Alert.alert('Erro', 'Não foi possível atualizar o acesso.');
-            } finally {
-              setToggling(null);
-            }
-          }
-        }
-      ]
-    );
+    setAccessUser(user);
+  };
+
+  const confirmToggleAprovacao = async () => {
+    const user = accessUser;
+    if (!user) return;
+    setAccessUser(null);
+    setToggling(user.uid);
+    try {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ isApproved: !user.isApproved })
+        .eq('uid', user.uid);
+      if (updateError) throw updateError;
+      setUsers(prev => prev.map(u =>
+        u.uid === user.uid ? { ...u, isApproved: !u.isApproved } : u
+      ));
+      registrarAuditoria({
+        acao: user.isApproved ? 'usuario_bloqueado' : 'usuario_aprovado',
+        adminUid: profile?.uid ?? '',
+        adminNome: profile?.name ?? '',
+        municipio: profile?.municipio ?? '',
+        alvoId: user.uid,
+        alvoNome: user.name,
+      });
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível atualizar o acesso.');
+    } finally {
+      setToggling(null);
+    }
   };
 
   const handleOpenPasswordModal = (user: any) => {
@@ -189,6 +183,8 @@ export default function UsuariosScreen() {
       u.municipio?.toLowerCase().includes(busca.toLowerCase());
     return matchFiltro && matchBusca;
   });
+  const ativosTotal = users.filter(u => u.isApproved).length;
+  const pendentesTotal = users.length - ativosTotal;
 
   if (loading) {
     return (
@@ -214,25 +210,31 @@ export default function UsuariosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.background, paddingTop: insets.top + 20 }]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={[styles.backButton, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
-            onPress={() => router.back()}
-          >
-            <Feather name="arrow-left" color={theme.text} size={22} />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: theme.text }]}>Gerenciar Usuários</Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              {filtrados.length} de {users.length} encontrados
-            </Text>
-          </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Acessos da equipe"
+          subtitle={`${filtrados.length} de ${users.length} pessoas`}
+          onBack={() => router.back()}
+        />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.metricsRow}>
+          <MetricCard value={ativosTotal} label="Acessos ativos" tone="success" style={styles.metric} />
+          <MetricCard value={pendentesTotal} label="Aguardando análise" tone="warning" style={styles.metric} />
         </View>
 
-        {/* Busca e Filtros - Integrados no Cabeçalho */}
-        <View style={{ marginTop: 24 }}>
+        {pendentesTotal > 0 ? (
+          <StateBanner
+            title={`${pendentesTotal} ${pendentesTotal === 1 ? 'acesso pendente' : 'acessos pendentes'}`}
+            description="Confirme o perfil e o município antes de liberar cada conta."
+            variant="warning"
+            actionLabel="Ver"
+            onAction={() => setFiltro('pendentes')}
+          />
+        ) : null}
+
+        <View style={styles.controls}>
           <View style={[styles.searchInput, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
             <Feather name="search" size={18} color={theme.textSecondary} />
             <TextInput
@@ -251,7 +253,7 @@ export default function UsuariosScreen() {
             )}
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginTop: 16 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
             {([
               { key: 'todos', label: 'Todos', icon: 'users' },
               { key: 'ativos', label: 'Ativos', icon: 'check-circle' },
@@ -269,11 +271,11 @@ export default function UsuariosScreen() {
                   ]}
                   onPress={() => setFiltro(f.key)}
                 >
-                  <Feather name={f.icon as any} size={14} color={isActive ? '#FFF' : theme.textSecondary} />
+                  <Feather name={f.icon as any} size={14} color={isActive ? theme.onPrimary : theme.textSecondary} />
                   <Text style={{ 
-                    color: isActive ? '#FFF' : theme.textSecondary, 
-                    fontSize: 13, 
-                    fontWeight: isActive ? '700' : '600' 
+                    color: isActive ? theme.onPrimary : theme.textSecondary,
+                    fontSize: 13,
+                    fontWeight: isActive ? '700' : '600'
                   }}>
                     {f.label}
                   </Text>
@@ -282,9 +284,6 @@ export default function UsuariosScreen() {
             })}
           </ScrollView>
         </View>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
         {filtrados.length === 0 ? (
           <EmptyState
             icon="users"
@@ -301,17 +300,15 @@ export default function UsuariosScreen() {
                   style={[
                     styles.userCard, 
                     { 
-                      backgroundColor: theme.surfaceHighlight,
+                      backgroundColor: theme.surface,
                       borderColor: theme.border,
                       marginTop: index === 0 ? 8 : 12
                     }
                   ]}
                 >
                   <View style={styles.cardInfo}>
-                    <View style={[styles.avatar, { backgroundColor: u.isApproved ? theme.primaryLight : theme.surfaceVariant }]}>
-                      <Text style={[styles.avatarText, { color: u.isApproved ? theme.primaryText : theme.textSecondary }]}>
-                        {u.name?.[0]?.toUpperCase() || '?'}
-                      </Text>
+                    <View style={[styles.avatar, { backgroundColor: u.isApproved ? theme.primaryLight : theme.warningLight }]}>
+                      <Feather name={u.isApproved ? 'user-check' : 'user-plus'} size={22} color={u.isApproved ? theme.primary : theme.warning} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 14 }}>
                       <View style={styles.nameRow}>
@@ -323,31 +320,23 @@ export default function UsuariosScreen() {
                       </View>
                       <Text style={[styles.userEmail, { color: theme.textSecondary }]} numberOfLines={1}>{u.email}</Text>
                       
-                      <View style={styles.statusRow}>
-                        <View style={[styles.statusDot, { backgroundColor: u.isApproved ? '#10B981' : '#F59E0B' }]} />
-                        <Text style={[styles.userStatus, { color: u.isApproved ? '#10B981' : '#F59E0B' }]}>
-                          {u.isApproved ? 'Acesso liberado' : 'Aguardando aprovação'}
-                        </Text>
-                      </View>
+                      <Badge
+                        label={u.isApproved ? 'Acesso liberado' : 'Aguardando aprovação'}
+                        variant={u.isApproved ? 'success' : 'warning'}
+                        size="sm"
+                      />
                     </View>
                   </View>
 
                   <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
-                    <View style={styles.toggleRow}>
-                      <Text style={[styles.toggleLabel, { color: theme.textSecondary }]}>
-                        {u.isApproved ? 'Bloquear conta' : 'Aprovar acesso'}
-                      </Text>
-                      {toggling === u.uid ? (
-                        <ActivityIndicator size="small" color={theme.primary} />
-                      ) : (
-                        <Switch
-                          value={u.isApproved}
-                          onValueChange={() => toggleAprovacao(u)}
-                          trackColor={{ false: theme.border, true: `${theme.primary}80` }}
-                          thumbColor={u.isApproved ? theme.primary : theme.textSecondary}
-                        />
-                      )}
-                    </View>
+                    <Button
+                      label={u.isApproved ? 'Bloquear acesso' : 'Aprovar acesso'}
+                      variant={u.isApproved ? 'secondary' : 'primary'}
+                      size="sm"
+                      loading={toggling === u.uid}
+                      disabled={toggling === u.uid}
+                      onPress={() => toggleAprovacao(u)}
+                    />
 
                     {meRef.current?.role === 'master_admin' && (
                       <TouchableOpacity 
@@ -396,60 +385,59 @@ export default function UsuariosScreen() {
               </Text>
             </View>
             
-            <TextInput
-              style={[styles.inputPass, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border, color: theme.text }]}
+            <FormField
+              label="Nova senha"
+              required
               value={newPassword}
               onChangeText={setNewPassword}
               placeholder="Digite a nova senha"
-              placeholderTextColor={theme.textSecondary}
+              helperText="Use ao menos 8 caracteres, com letras e números."
               secureTextEntry
               autoCapitalize="none"
               autoFocus
             />
 
             <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={[styles.modalBtn, { backgroundColor: theme.surfaceHighlight, borderWidth: 0 }]}
+              <Button
+                label="Cancelar"
+                variant="ghost"
                 onPress={() => setPassModalVisible(false)}
                 disabled={changingPass}
-              >
-                <Text style={{ color: theme.textSecondary, fontWeight: '600' }}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalBtn, { backgroundColor: theme.text }]}
+                style={styles.modalBtn}
+              />
+              <Button
+                label="Salvar senha"
+                variant="primary"
                 onPress={handleChangePassword}
                 disabled={changingPass}
-              >
-                {changingPass ? (
-                  <ActivityIndicator color={theme.background} size="small" />
-                ) : (
-                  <Text style={{ color: theme.background, fontWeight: '700' }}>Salvar</Text>
-                )}
-              </TouchableOpacity>
+                loading={changingPass}
+                style={styles.modalBtn}
+              />
             </View>
           </View>
         </View>
       </Modal>
+      <ConfirmSheet
+        visible={Boolean(accessUser)}
+        title={accessUser?.isApproved ? 'Bloquear acesso?' : 'Aprovar acesso?'}
+        description={accessUser?.isApproved
+          ? `${accessUser?.name} deixará de acessar os módulos do TCS.`
+          : `${accessUser?.name} terá acesso como ${ROLE_LABELS[accessUser?.role] ?? accessUser?.role} em ${accessUser?.municipio ?? 'seu município'}.`}
+        onDismiss={() => setAccessUser(null)}
+        actions={[
+          { label: accessUser?.isApproved ? 'Bloquear acesso' : 'Aprovar acesso', variant: accessUser?.isApproved ? 'danger' : 'primary', onPress: confirmToggleAprovacao },
+          { label: 'Cancelar', variant: 'ghost', onPress: () => setAccessUser(null) },
+        ]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: 24,
-    paddingBottom: 4,
-  },
-  headerTop: {
-    flexDirection: 'row', 
-    alignItems: 'center',
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  title: { fontSize: 24, fontWeight: '800' },
-  subtitle: { fontSize: 13, fontWeight: '500', marginTop: 4 },
+  metricsRow: { flexDirection: 'row', gap: 12 },
+  metric: { flex: 1 },
+  controls: { gap: 12 },
   searchInput: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, height: 48,
@@ -460,7 +448,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10, 
     borderRadius: 24, borderWidth: 1,
   },
-  scrollContent: { padding: 24, paddingBottom: 80 },
+  chipRow: { gap: 8 },
+  scrollContent: { padding: 20, paddingBottom: 80, gap: 18 },
   userCard: {
     borderRadius: 16, borderWidth: 1, 
     overflow: 'hidden', // Importante para o layout das ações não vazar as bordas
@@ -473,13 +462,9 @@ const styles = StyleSheet.create({
     width: 52, height: 52, borderRadius: 16, 
     justifyContent: 'center', alignItems: 'center',
   },
-  avatarText: { fontWeight: '800', fontSize: 22 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   userName: { fontSize: 16, fontWeight: '700', flexShrink: 1 },
   userEmail: { fontSize: 13, marginBottom: 6 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  userStatus: { fontSize: 13, fontWeight: '600' },
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -487,15 +472,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
     borderTopWidth: 1,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  toggleLabel: {
-    fontSize: 13,
-    fontWeight: '600',
   },
   actionBtn: {
     flexDirection: 'row',
@@ -522,8 +498,7 @@ const styles = StyleSheet.create({
   modalIcon: { width: 64, height: 64, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 6 },
   modalDesc: { fontSize: 14, textAlign: 'center', paddingHorizontal: 10, lineHeight: 20 },
-  inputPass: { height: 52, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, fontSize: 16, marginBottom: 24 },
-  modalActions: { flexDirection: 'row', gap: 12 },
-  modalBtn: { flex: 1, height: 50, justifyContent: 'center', alignItems: 'center', borderRadius: 14 },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  modalBtn: { flex: 1 },
 });
 

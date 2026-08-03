@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, RefreshControl,
+  Alert, RefreshControl,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -13,6 +13,8 @@ import {
   GrupoLocal, GrupoMembro,
   getMembrosGrupo, addMembroGrupo, removeMembroGrupo, getGruposByMunicipio,
 } from '../../../utils/database';
+import { AppHeader, EmptyState, LoadingState, SectionHeader } from '../../../components/ui';
+import { Spacing } from '../../../constants/Spacing';
 
 interface AgentUser { uid: string; name: string; }
 
@@ -83,50 +85,39 @@ export default function GrupoDetalheScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Carregando integrantes do grupo..." />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{grupo?.nome ?? 'Grupo'}</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {membros.length} membro{membros.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: theme.primary }]}
-          onPress={() => { setShowPicker(true); carregarAgentesDisponiveis(); }}
-        >
-          <Feather name="user-plus" size={18} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+      <AppHeader
+        title={grupo?.nome ?? 'Grupo de campo'}
+        subtitle={`${membros.length} membro${membros.length !== 1 ? 's' : ''}`}
+        onBack={() => router.back()}
+        actionIcon="user-plus"
+        actionLabel="Adicionar agente"
+        onAction={() => { setShowPicker(true); carregarAgentesDisponiveis(); }}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <SectionHeader title="Integrantes" subtitle="Agentes vinculados a este grupo operacional" />
         {membros.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-            <Feather name="user-plus" size={36} color={theme.border} style={{ marginBottom: 12, opacity: 0.5 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhum membro</Text>
-            <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
-              Adicione agentes a este grupo tocando em +
-            </Text>
-          </View>
+          <EmptyState
+            icon="user-plus"
+            title="Nenhum integrante"
+            description="Adicione agentes para começar a organizar esta equipe de campo."
+            actionLabel="Adicionar agente"
+            onAction={() => { setShowPicker(true); carregarAgentesDisponiveis(); }}
+          />
         ) : (
           membros.map(m => (
             <View
               key={m.agente_uid}
-              style={[styles.membroCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              style={[styles.membroCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
             >
               <View style={[styles.avatar, { backgroundColor: `${theme.primary}15` }]}>
                 <Text style={[styles.avatarText, { color: theme.primary }]}>
@@ -136,9 +127,9 @@ export default function GrupoDetalheScreen() {
               <Text style={[styles.membroNome, { color: theme.text }]}>{m.agente_nome}</Text>
               <TouchableOpacity
                 onPress={() => confirmarRemover(m)}
-                style={[styles.removeBtn, { backgroundColor: 'rgba(239,68,68,0.1)' }]}
+                style={[styles.removeBtn, { backgroundColor: theme.errorLight }]}
               >
-                <Feather name="x" size={16} color="#EF4444" />
+                <Feather name="x" size={16} color={theme.error} />
               </TouchableOpacity>
             </View>
           ))
@@ -156,9 +147,7 @@ export default function GrupoDetalheScreen() {
           </View>
           <ScrollView>
             {loadingAgentes ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color={theme.primary} />
-              </View>
+              <LoadingState mode="inline" message="Buscando agentes disponíveis..." />
             ) : agentesDisponiveis.length === 0 ? (
               <Text style={[styles.pickerEmpty, { color: theme.textSecondary }]}>
                 Todos os agentes já são membros.
@@ -203,7 +192,7 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center',
   },
-  scrollContent: { padding: 20, paddingBottom: 100 },
+  scrollContent: { padding: Spacing[4], paddingBottom: 100, gap: Spacing[3] },
   emptyCard: {
     borderRadius: 20, borderWidth: 1, padding: 40,
     alignItems: 'center', marginTop: 40,

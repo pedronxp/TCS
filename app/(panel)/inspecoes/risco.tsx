@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   Modal, Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
-import { Card, Badge, Button } from '../../../components/ui';
+import { AppHeader, Badge, Button, Card, EmptyState, StateBanner } from '../../../components/ui';
 import { supabase } from '../../../utils/supabase';
 import { insertVistoria, markSincronizado, getVistoriaById } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
@@ -14,63 +14,55 @@ import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 const RISCO_CONFIG: Record<string, {
-  label: string; emoji: string; color: string; conduta: string;
+  label: string; emoji: string; conduta: string;
 }> = {
   r1: {
     label: 'BAIXO',
     emoji: '✅',
-    color: '#10B981',
     conduta: 'A estrutura apresenta condições adequadas. Recomenda-se monitoramento preventivo periódico e manutenção de rotina para manter a segurança.',
   },
   baixo: {
     label: 'BAIXO',
     emoji: '✅',
-    color: '#10B981',
     conduta: 'A estrutura apresenta condições adequadas. Recomenda-se monitoramento preventivo periódico e manutenção de rotina para manter a segurança.',
   },
   r2: {
     label: 'MÉDIO',
     emoji: '⚠️',
-    color: '#F59E0B',
     conduta: 'Foram identificadas irregularidades que requerem atenção. Recomenda-se laudo técnico complementar e medidas de reforço estrutural em curto prazo.',
   },
   medio: {
     label: 'MÉDIO',
     emoji: '⚠️',
-    color: '#F59E0B',
     conduta: 'Foram identificadas irregularidades que requerem atenção. Recomenda-se laudo técnico complementar e medidas de reforço estrutural em curto prazo.',
   },
   r3: {
     label: 'ALTO',
     emoji: '🚨',
-    color: '#EF4444',
     conduta: 'ATENÇÃO: Risco elevado detectado. Recomenda-se interdição preventiva imediata e evacuação de moradores até conclusão de laudo estrutural por engenheiro habilitado.',
   },
   r4: {
     label: 'CRÍTICO',
     emoji: '⛔',
-    color: '#DC2626',
     conduta: 'EMERGÊNCIA: Risco crítico à vida. Evacuar imediatamente. Acionar defesa civil municipal e corpo de bombeiros. Interdição obrigatória até análise estrutural completa.',
   },
   // Aliases para strings legadas do motor de formulários
   critico: {
     label: 'CRÍTICO',
     emoji: '⛔',
-    color: '#DC2626',
     conduta: 'EMERGÊNCIA: Risco crítico à vida. Evacuar imediatamente. Acionar defesa civil municipal e corpo de bombeiros. Interdição obrigatória até análise estrutural completa.',
   },
   iminente: {
     label: 'CRÍTICO',
     emoji: '⛔',
-    color: '#DC2626',
     conduta: 'EMERGÊNCIA: Risco crítico à vida. Evacuar imediatamente. Acionar defesa civil municipal e corpo de bombeiros. Interdição obrigatória até análise estrutural completa.',
   },
   alto: {
     label: 'ALTO',
     emoji: '🚨',
-    color: '#EF4444',
     conduta: 'ATENÇÃO: Risco elevado detectado. Recomenda-se interdição preventiva imediata e evacuação de moradores até conclusão de laudo estrutural por engenheiro habilitado.',
   },
 };
@@ -85,6 +77,7 @@ export default function ResultadoRiscoScreen() {
   }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomTabPadding();
   const { isOnlineReal: isConnected } = useConnectivity();
   const [saving, setSaving] = useState(false);
   const [showRespostas, setShowRespostas] = useState(false);
@@ -101,6 +94,13 @@ export default function ResultadoRiscoScreen() {
     if (n === 'r4' || n === 'critico' || n === 'iminente') return 'R4';
     return 'R1';
   })() as 'R1' | 'R2' | 'R3' | 'R4';
+  const riskColor = nivelBadgeVariant === 'R1'
+    ? theme.success
+    : nivelBadgeVariant === 'R2' ? theme.warning : theme.error;
+  const riskStateVariant = nivelBadgeVariant === 'R1'
+    ? 'success' as const
+    : nivelBadgeVariant === 'R2' ? 'warning' as const : 'danger' as const;
+  const riskIcon = nivelBadgeVariant === 'R1' ? 'check-circle' : nivelBadgeVariant === 'R2' ? 'alert-circle' : 'alert-triangle';
 
   const parsedRespostas: Record<string, any> = (() => {
     try { return JSON.parse(respostas || '{}'); } catch { return {}; }
@@ -186,61 +186,49 @@ export default function ResultadoRiscoScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.headerLabel, { color: theme.textSecondary }]}>RESULTADO DA ANÁLISE</Text>
-        </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader title="Classificação de risco" subtitle="Resultado técnico da análise" onBack={() => router.back()} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {/* Hero Card de Risco */}
-        <Card style={styles.heroCard as any}>
-          <View style={[styles.heroCardInner, { backgroundColor: config.color }]}>
-            <View style={styles.emojiWrap}>
-              <Text style={styles.emoji}>{config.emoji}</Text>
+        <Card style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={[styles.riskIcon, { backgroundColor: `${riskColor}15` }]}>
+              <Feather name={riskIcon} size={30} color={riskColor} />
             </View>
-            <Badge
-              label={`RISCO ${config.label}`}
-              variant={nivelBadgeVariant}
-              size="md"
-            />
-            <View style={styles.pontosBadge}>
-              <Text style={styles.pontosValue}>{pontosNum}</Text>
-              <Text style={styles.pontosSuffix}> pts</Text>
+            <View style={styles.heroCopy}>
+              <Text style={[styles.heroEyebrow, { color: theme.textSecondary }]}>RESULTADO</Text>
+              <Text style={[styles.heroTitle, { color: theme.text }]}>Risco {config.label.toLowerCase()}</Text>
+              <Badge label={`RISCO ${config.label}`} variant={nivelBadgeVariant} size="md" />
             </View>
-            {endereco ? (
-              <Text style={styles.enderecoHero} numberOfLines={2}>{endereco}</Text>
-            ) : null}
+            <View style={[styles.pontosBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Text style={[styles.pontosValue, { color: theme.text }]}>{pontosNum}</Text>
+              <Text style={[styles.pontosSuffix, { color: theme.textSecondary }]}>pts</Text>
+            </View>
           </View>
+          {endereco ? (
+            <View style={[styles.addressRow, { borderTopColor: theme.border }]}>
+              <Feather name="map-pin" size={15} color={theme.textSecondary} />
+              <Text style={[styles.enderecoHero, { color: theme.textSecondary }]} numberOfLines={2}>{endereco}</Text>
+            </View>
+          ) : null}
         </Card>
 
         {/* Conduta Recomendada */}
-        <Card style={{ marginBottom: 16 }}>
-          <View style={styles.cardHeader}>
-            <Feather name="info" size={18} color={config.color} />
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Conduta Recomendada</Text>
-          </View>
-          <Text style={[styles.conduta, { color: theme.textSecondary }]}>{config.conduta}</Text>
-        </Card>
+        <StateBanner variant={riskStateVariant} title="Conduta recomendada" description={config.conduta} />
 
         {/* Ações */}
         <Button
-          variant="ghost"
-          label="Comprovante de Respostas"
+          variant="secondary"
+          label="Comprovante de respostas"
           onPress={() => setShowRespostas(true)}
           iconLeft={<Feather name="list" size={20} color={theme.primary} />}
           style={{ marginBottom: 12 }}
         />
 
         <Button
-          variant="ghost"
+          variant="secondary"
           label="Gerar PDF / Laudo"
           onPress={() => router.push(`/(panel)/inspecoes/resultado?id=${id}`)}
           iconLeft={<Feather name="file-text" size={20} color={theme.primary} />}
@@ -249,7 +237,7 @@ export default function ResultadoRiscoScreen() {
 
         <Button
           variant="primary"
-          label={saving ? 'Processando...' : 'Salvar Relatório'}
+          label={saving ? 'Processando...' : 'Salvar relatório'}
           onPress={handleSalvar}
           loading={saving}
           disabled={saving}
@@ -260,18 +248,15 @@ export default function ResultadoRiscoScreen() {
       {/* Modal: Comprovante de Respostas */}
       <Modal visible={showRespostas} animationType="slide" presentationStyle="pageSheet">
         <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Comprovante de Respostas</Text>
-            <TouchableOpacity onPress={() => setShowRespostas(false)}>
-              <Feather name="x" size={24} color={theme.textSecondary} />
-            </TouchableOpacity>
+          <View style={{ paddingTop: insets.top }}>
+            <AppHeader title="Comprovante de respostas" subtitle={`${Object.keys(parsedRespostas).length} itens registrados`} onBack={() => setShowRespostas(false)} />
           </View>
           <ScrollView contentContainerStyle={styles.modalContent}>
             {Object.entries(parsedRespostas).length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma resposta registrada.</Text>
+              <EmptyState icon="list" title="Nenhuma resposta registrada" description="As respostas preenchidas na vistoria aparecerão aqui." />
             ) : (
               Object.entries(parsedRespostas).map(([key, value]) => (
-                <View key={key} style={[styles.respostaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                <View key={key} style={[styles.respostaCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
                   <Text style={[styles.respostaKey, { color: theme.textSecondary }]}>Parâmetro: {key}</Text>
                   <Text style={[styles.respostaValue, { color: theme.text }]}>
                     {Array.isArray(value) ? value.join(', ') : String(value)}
@@ -288,55 +273,26 @@ export default function ResultadoRiscoScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 16, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  headerLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
   scrollContent: { padding: 24, paddingBottom: 60 },
 
   heroCard: {
-    marginBottom: 24,
-    overflow: 'hidden',
-    padding: 0,
+    marginBottom: 16,
   },
-  heroCardInner: {
-    borderRadius: 24, padding: 32, alignItems: 'center',
-  },
-  emojiWrap: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 20,
-  },
-  emoji: { fontSize: 40 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  riskIcon: { width: 58, height: 58, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  heroCopy: { flex: 1, gap: 5 },
+  heroEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  heroTitle: { fontSize: 21, fontWeight: '800', textTransform: 'capitalize' },
   pontosBadge: {
-    flexDirection: 'row', alignItems: 'baseline',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 24, paddingVertical: 10,
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
-    marginBottom: 12,
+    minWidth: 62, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 9,
+    borderRadius: 14, borderWidth: 1,
   },
-  pontosValue: { color: '#FFF', fontSize: 20, fontWeight: '800' },
-  pontosSuffix: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '500' },
-  enderecoHero: {
-    color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center',
-    fontWeight: '500', marginTop: 4,
-  },
-
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '700' },
-  conduta: { fontSize: 14, lineHeight: 22, fontWeight: '500' },
+  pontosValue: { fontSize: 20, fontWeight: '800' },
+  pontosSuffix: { fontSize: 10, fontWeight: '600' },
+  addressRow: { borderTopWidth: 1, marginTop: 16, paddingTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  enderecoHero: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '500' },
 
   modalContainer: { flex: 1 },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 24, paddingVertical: 20, borderBottomWidth: 1,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '700' },
   modalContent: { padding: 24, paddingBottom: 60 },
   emptyText: { fontSize: 14, textAlign: 'center', marginTop: 40 },
   respostaCard: {

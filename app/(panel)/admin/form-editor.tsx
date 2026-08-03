@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, TextInput, RefreshControl
+  Alert, RefreshControl
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -13,7 +13,7 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Button } from '../../../components/ui/Button';
+import { AppHeader, Badge, Button, FormField, MetricCard, StateBanner } from '../../../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
@@ -31,6 +31,8 @@ export default function FormEditorScreen() {
   const [showCreate, setShowCreate] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const publicados = formularios.filter(f => f.status === 'publicado').length;
+  const rascunhos = formularios.length - publicados;
 
   const carregar = async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -202,41 +204,34 @@ export default function FormEditorScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Editor de Formulários</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{formularios.length} formulário{formularios.length !== 1 ? 's' : ''}</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: theme.primary }]}
-          onPress={() => setShowCreate(!showCreate)}
-        >
-          <Feather name={showCreate ? 'x' : 'plus'} size={20} color="#FFF" />
-        </TouchableOpacity>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Modelos de vistoria"
+          subtitle={`${formularios.length} ${formularios.length === 1 ? 'formulário' : 'formulários'}`}
+          onBack={() => router.back()}
+          actionIcon={showCreate ? 'x' : 'plus'}
+          actionLabel={showCreate ? 'Fechar criação' : 'Novo formulário'}
+          onAction={() => setShowCreate(!showCreate)}
+        />
       </View>
 
       {showCreate && (
-        <View style={[styles.createPanel, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
-          <Text style={[styles.createTitle, { color: theme.text }]}>Novo Formulário</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+        <View style={[styles.createPanel, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+          <Text style={[styles.createTitle, { color: theme.text }]}>Criar modelo</Text>
+          <Text style={[styles.createDescription, { color: theme.textSecondary }]}>O novo modelo começa como rascunho e só ficará disponível após a publicação.</Text>
+          <FormField
+            label="Título"
+            required
             value={novoTitulo}
             onChangeText={setNovoTitulo}
-            placeholder="Título do formulário *"
-            placeholderTextColor={theme.textSecondary}
+            placeholder="Ex.: Avaliação de edificação"
           />
-          <TextInput
-            style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+          <FormField
+            label="Descrição"
             value={novaDescricao}
             onChangeText={setNovaDescricao}
-            placeholder="Descrição (opcional)"
-            placeholderTextColor={theme.textSecondary}
+            placeholder="Explique quando este modelo deve ser usado"
+            helperText="Opcional, mas ajuda o agente a escolher corretamente."
           />
           <Button
             label="Criar Formulário"
@@ -253,6 +248,15 @@ export default function FormEditorScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        <View style={styles.metricsRow}>
+          <MetricCard value={publicados} label="Publicados" tone="success" style={styles.metric} />
+          <MetricCard value={rascunhos} label="Em preparação" tone="warning" style={styles.metric} />
+        </View>
+        <StateBanner
+          title="Publicação controlada"
+          description="Formulários em rascunho não aparecem para os agentes. Revise perguntas e pesos antes de publicar."
+          variant="info"
+        />
         {formularios.length === 0 ? (
           <EmptyState
             icon="edit"
@@ -265,21 +269,17 @@ export default function FormEditorScreen() {
           formularios.map(f => {
             const isPublicado = f.status === 'publicado';
             return (
-              <View key={f.id} style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+              <View key={f.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
                 <View style={styles.cardTop}>
-                  <View style={[styles.statusDot, { backgroundColor: isPublicado ? '#10B981' : theme.textSecondary }]} />
+                  <View style={[styles.formIcon, { backgroundColor: isPublicado ? theme.successLight : theme.secondary }]}>
+                    <Feather name={isPublicado ? 'clipboard' : 'edit-3'} size={20} color={isPublicado ? theme.success : theme.primary} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.cardTitle, { color: theme.text }]}>{f.titulo}</Text>
                     {f.descricao ? <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>{f.descricao}</Text> : null}
-                    <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>
-                      v{f.versao} · {isPublicado ? 'Publicado' : 'Rascunho'}
-                    </Text>
+                    <Text style={[styles.cardMeta, { color: theme.textSecondary }]}>Versão {f.versao}</Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: isPublicado ? 'rgba(16,185,129,0.12)' : theme.iconBackground }]}>
-                    <Text style={[styles.statusText, { color: isPublicado ? '#10B981' : theme.textSecondary }]}>
-                      {isPublicado ? 'ATIVO' : 'RASCUNHO'}
-                    </Text>
-                  </View>
+                  <Badge label={isPublicado ? 'Publicado' : 'Rascunho'} variant={isPublicado ? 'success' : 'neutral'} size="sm" />
                 </View>
                 <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
                   <TouchableOpacity
@@ -294,14 +294,14 @@ export default function FormEditorScreen() {
                     <Text style={[styles.actionText, { color: theme.textSecondary }]}>Duplicar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.action} onPress={() => toggleStatus(f)}>
-                    <Feather name={isPublicado ? 'eye-off' : 'eye'} size={16} color={isPublicado ? '#F59E0B' : '#10B981'} />
-                    <Text style={[styles.actionText, { color: isPublicado ? '#F59E0B' : '#10B981' }]}>
+                    <Feather name={isPublicado ? 'eye-off' : 'eye'} size={16} color={isPublicado ? theme.warning : theme.success} />
+                    <Text style={[styles.actionText, { color: isPublicado ? theme.warning : theme.success }]}>
                       {isPublicado ? 'Despublicar' : 'Publicar'}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.action} onPress={() => excluir(f)}>
-                    <Feather name="trash-2" size={16} color="#EF4444" />
-                    <Text style={[styles.actionText, { color: '#EF4444' }]}>Excluir</Text>
+                    <Feather name="trash-2" size={16} color={theme.error} />
+                    <Text style={[styles.actionText, { color: theme.error }]}>Excluir</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -315,37 +315,21 @@ export default function FormEditorScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 16, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1,
-  },
-  backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: '700' },
-  subtitle: { fontSize: 12, marginTop: 2 },
-  addBtn: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  createPanel: { padding: 20, borderBottomWidth: 1 },
-  createTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  input: {
-    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, height: 48,
-    fontSize: 15, marginBottom: 10,
-  },
-  createBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, height: 50, borderRadius: 12, marginTop: 4,
-  },
-  createBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-  scroll: { padding: 16, paddingBottom: 60 },
+  createPanel: { padding: 20, borderBottomWidth: 1, gap: 14 },
+  createTitle: { fontSize: 18, fontWeight: '800' },
+  createDescription: { fontSize: 13, lineHeight: 18, marginTop: -8 },
+  scroll: { padding: 16, paddingBottom: 60, gap: 16 },
+  metricsRow: { flexDirection: 'row', gap: 12 },
+  metric: { flex: 1 },
   card: { borderRadius: 16, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 16 },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  formIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
   cardDesc: { fontSize: 13, marginBottom: 4 },
   cardMeta: { fontSize: 12 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
-  statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  cardActions: { flexDirection: 'row', borderTopWidth: 1 },
+  cardActions: { flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1 },
   action: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    width: '50%', minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, padding: 12,
   },
   actionText: { fontSize: 13, fontWeight: '700' },

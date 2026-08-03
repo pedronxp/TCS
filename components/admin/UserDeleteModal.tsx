@@ -65,12 +65,12 @@ export function UserDeleteModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.overlay}
+        style={[styles.overlay, { backgroundColor: theme.overlay }]}
       >
         <View style={[styles.sheet, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <View style={[styles.iconWrap, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-              <Feather name="trash-2" size={24} color="#EF4444" />
+            <View style={[styles.iconWrap, { backgroundColor: theme.errorLight }]}>
+              <Feather name="trash-2" size={24} color={theme.error} />
             </View>
             <Text style={[styles.title, { color: theme.text }]}>Excluir usuario</Text>
             <Text style={[styles.description, { color: theme.textSecondary }]}>
@@ -80,7 +80,7 @@ export function UserDeleteModal({
             {loadingImpact ? (
               <ActivityIndicator color={theme.primary} style={styles.loading} />
             ) : impactError ? (
-              <Text style={[styles.error, { color: '#EF4444' }]}>{impactError}</Text>
+              <Text style={[styles.error, { color: theme.error }]}>{impactError}</Text>
             ) : impact ? (
               <View style={[styles.impactBox, { borderColor: theme.border }]}>
                 <Text style={[styles.impactText, { color: theme.textSecondary }]}>
@@ -118,7 +118,7 @@ export function UserDeleteModal({
                 <Text style={[styles.cancelText, { color: theme.text }]}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, { backgroundColor: confirmDisabled ? '#94A3B8' : '#EF4444' }]}
+                style={[styles.button, { backgroundColor: confirmDisabled ? theme.muted : theme.error }]}
                 onPress={onConfirm}
                 disabled={confirmDisabled || deleting}
               >
@@ -137,7 +137,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.58)',
   },
   sheet: {
     maxHeight: '88%',
