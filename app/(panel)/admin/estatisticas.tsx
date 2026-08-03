@@ -11,6 +11,7 @@ import { logger } from '../../../utils/logger';
 import { riscoColor } from '../../../utils/riscoUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { AppHeader, EmptyState, MetricCard, StateBanner } from '../../../components/ui';
 
 type Periodo = '7d' | '30d' | '90d';
 
@@ -120,22 +121,12 @@ export default function EstatisticasScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Estatísticas</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{municipio}</Text>
-        </View>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader title="Indicadores operacionais" subtitle={municipio || 'Visão global'} onBack={() => router.back()} />
       </View>
 
       {/* Filtro de período */}
-      <View style={[styles.filterBar, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.filterBar, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         {PERIODOS.map(p => (
           <TouchableOpacity
             key={p.key}
@@ -147,7 +138,7 @@ export default function EstatisticasScreen() {
             ]}
             onPress={() => setPeriodo(p.key)}
           >
-            <Text style={{ color: periodo === p.key ? '#FFF' : theme.textSecondary, fontSize: 13, fontWeight: '600' }}>
+            <Text style={{ color: periodo === p.key ? theme.onPrimary : theme.textSecondary, fontSize: 13, fontWeight: '600' }}>
               {p.label}
             </Text>
           </TouchableOpacity>
@@ -158,29 +149,29 @@ export default function EstatisticasScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
-        {/* KPIs */}
+        {total === 0 ? (
+          <StateBanner title="Sem dados no período" description="Selecione outro intervalo ou atualize a consulta." variant="info" />
+        ) : null}
+
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Resumo do Período</Text>
         <View style={styles.kpiRow}>
           {[
-            { label: 'Total', value: total, color: theme.primary },
-            { label: 'Alto', value: alto, color: '#EF4444' },
-            { label: 'Médio', value: medio, color: '#F59E0B' },
-            { label: 'Baixo', value: baixo, color: '#10B981' },
+            { label: 'Total', value: total, tone: 'primary' as const },
+            { label: 'Alto ou crítico', value: alto, tone: 'danger' as const },
+            { label: 'Médio', value: medio, tone: 'warning' as const },
+            { label: 'Baixo', value: baixo, tone: 'success' as const },
           ].map(k => (
-            <View key={k.label} style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-              <Text style={[styles.kpiValue, { color: k.color }]}>{k.value}</Text>
-              <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
-            </View>
+            <MetricCard key={k.label} value={k.value} label={k.label} tone={k.tone} style={styles.kpiCard} />
           ))}
         </View>
 
         {/* Distribuição de risco */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Distribuição por Risco</Text>
-        <View style={[styles.barCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <View style={[styles.barCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           {[
-            { label: 'Alto Risco', value: alto, color: '#EF4444' },
-            { label: 'Médio Risco', value: medio, color: '#F59E0B' },
-            { label: 'Baixo Risco', value: baixo, color: '#10B981' },
+            { label: 'Alto ou crítico', value: alto, color: theme.error },
+            { label: 'Médio Risco', value: medio, color: theme.warning },
+            { label: 'Baixo Risco', value: baixo, color: theme.success },
           ].map(item => {
             const pct = total > 0 ? (item.value / total) * 100 : 0;
             return (
@@ -202,7 +193,7 @@ export default function EstatisticasScreen() {
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
           Vistorias — {diasGrafico === 7 ? 'Últimos 7 Dias' : diasGrafico === 14 ? 'Últimas 2 Semanas' : `Últimos ${diasGrafico} Dias`}
         </Text>
-        <View style={[styles.chartCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <View style={[styles.chartCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.barsContainer}>
             {barData.map((b, i) => (
               <View key={i} style={styles.barCol}>
@@ -226,7 +217,7 @@ export default function EstatisticasScreen() {
 
         {/* Resumo de agentes */}
         {rankingAgentes.length > 0 && (
-          <View style={[styles.mediaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+          <View style={[styles.mediaCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
             <View style={styles.mediaItem}>
               <Text style={[styles.mediaValue, { color: theme.primary }]}>
                 {rankingAgentes.length}
@@ -253,12 +244,10 @@ export default function EstatisticasScreen() {
         {/* Ranking agentes */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Top Agentes</Text>
         {rankingAgentes.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Sem dados no período.</Text>
-          </View>
+          <EmptyState icon="users" title="Sem agentes no período" description="O ranking aparecerá depois que houver vistorias concluídas." />
         ) : (
           rankingAgentes.map((a, i) => (
-            <View key={a.uid} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+            <View key={a.uid} style={[styles.rankCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
               <Text style={[styles.rankPos, { color: i < 3 ? theme.primary : theme.textSecondary }]}>#{i + 1}</Text>
               <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
                 <Text style={[styles.rankAvatarText, { color: theme.primary }]}>{a.nome[0]?.toUpperCase()}</Text>
@@ -278,32 +267,20 @@ export default function EstatisticasScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: 20, paddingHorizontal: 24,
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1, marginRight: 16,
-  },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
   filterBar: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1,
   },
   chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  scrollContent: { padding: 20, paddingBottom: 60 },
+  scrollContent: { padding: 20, paddingBottom: 60, gap: 4 },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 12, marginTop: 4,
   },
-  kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
   kpiCard: {
-    flex: 1, borderRadius: 14, borderWidth: 1, padding: 14, alignItems: 'center',
+    width: '48%', flexGrow: 1,
   },
-  kpiValue: { fontSize: 24, fontWeight: '900' },
-  kpiLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },
   barCard: { borderRadius: 16, borderWidth: 1, padding: 20, marginBottom: 24 },
   riskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   riskLabel: { fontSize: 13, fontWeight: '600', width: 85 },

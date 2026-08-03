@@ -30,6 +30,8 @@ import {
   opcaoAcionaObservacaoCondicionalRisco,
 } from '../../../utils/formulariosAssets';
 import { safeBack } from '../../../utils/navigationUtils';
+import { AppHeader, Button, EmptyState } from '../../../components/ui';
+import { TCSPalette } from '../../../constants/Colors';
 
 // ─── Form JSONs (require() deve ser estático no RN) ───────────────────────────
 const FORM_JSONS: Record<string, any> = {
@@ -114,10 +116,9 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
 
 /** Cor do indicador por pesoRisco */
 function pesoColor(p: number) {
-  if (p === 0) return '#22C55E';
-  if (p <= 0.3) return '#EAB308';
-  if (p <= 0.6) return '#F97316';
-  return '#DC2626';
+  if (p === 0) return TCSPalette.success;
+  if (p <= 0.6) return TCSPalette.warning;
+  return TCSPalette.danger;
 }
 
 /** Formata data ISO em pt-BR */
@@ -294,13 +295,13 @@ export default function RelatorioScreen() {
   if (!draft) {
     return (
       <View style={[s.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <Feather name="file-text" size={48} color={theme.border} />
-        <Text style={[s.emptyText, { color: theme.textSecondary }]}>
-          Nenhum relatório ativo.{'\n'}Conclua uma vistoria primeiro.
-        </Text>
-        <TouchableOpacity style={[s.emptyBtn, { borderColor: theme.border }]} onPress={() => safeBack('/(panel)/inspecoes')}>
-          <Text style={[{ fontSize: 14, fontWeight: '700' }, { color: theme.textSecondary }]}>Voltar</Text>
-        </TouchableOpacity>
+        <EmptyState
+          icon="file-text"
+          title="Nenhum relatório ativo"
+          description="Conclua uma vistoria para gerar o relatório técnico."
+          actionLabel="Voltar às vistorias"
+          onAction={() => safeBack('/(panel)/inspecoes')}
+        />
       </View>
     );
   }
@@ -311,7 +312,10 @@ export default function RelatorioScreen() {
     nivelRisco: draft.nivelRisco,
     calculoRisco: draft.calculoRisco,
   });
-  const cor = apresentacao.cor;
+  const nivelNormalizado = String(draft.nivelRisco || '').toLowerCase();
+  const cor = ['r3', 'r4', 'alto', 'critico', 'crítico', 'iminente'].includes(nivelNormalizado)
+    ? theme.error
+    : ['r2', 'medio', 'médio'].includes(nivelNormalizado) ? theme.warning : theme.success;
   const label = apresentacao.label;
   const isAvaliacaoArvore = draft.formularioId === 'avaliacao_arvore_cbmmg_v1';
   const formularioLabel = isAvaliacaoArvore
@@ -502,35 +506,24 @@ export default function RelatorioScreen() {
       style={[s.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <View style={[s.header, telaCompacta && s.headerCompacto, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + (telaCompacta ? 8 : 12) }]}>
-        <TouchableOpacity
-          style={[s.backBtn, telaCompacta && s.backBtnCompacto, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => safeBack(isTrainingReport ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
-        >
-          <Feather name="arrow-left" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.headerTitle, telaCompacta && s.headerTitleCompacto, { color: theme.text }]}>Relatório Técnico</Text>
-          <Text style={[s.headerSub, { color: theme.textSecondary }]} numberOfLines={2}>{draft.protocolo}</Text>
-        </View>
-        {!telaCompacta && (
-          <View style={[s.riscoBadgeSmall, { backgroundColor: cor }]}>
-            <Text style={s.riscoBadgeText}>{label}</Text>
-          </View>
-        )}
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Relatório técnico"
+          subtitle={`${draft.protocolo || 'Sem protocolo'} · ${label}`}
+          onBack={() => safeBack(isTrainingReport ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
+        />
       </View>
 
       <ScrollView contentContainerStyle={[s.scroll, telaCompacta && s.scrollCompacto]} keyboardShouldPersistTaps="handled">
 
         {/* ── Card do Relatório ───────────────────────────────────────────── */}
-        <View style={[s.card, telaCompacta && s.cardCompacto, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+        <View style={[s.card, telaCompacta && s.cardCompacto, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
 
           {/* ── Brand + Protocolo ─────────────────────────────────────── */}
           <View style={[s.brandHeader, telaCompacta && s.brandHeaderCompacto, { borderBottomColor: theme.border }]}>
             {/* Logo + nome */}
             <View style={[s.brandLeft, telaCompacta && s.brandLeftCompacto]}>
-              <Image source={require('../../../assets/brand/tcs-mark.png')} style={[s.logo, telaCompacta && s.logoCompacto]} resizeMode="contain" />
+              <Image source={require('../../../assets/brand/tcs-mark-v5.png')} style={[s.logo, telaCompacta && s.logoCompacto]} resizeMode="contain" />
               <View>
                 <Text style={[s.brandName, { color: theme.text }]}>Defesa Civil</Text>
                 <Text style={[s.brandSub, { color: theme.textSecondary }]}>RELATÓRIO DE RISCO</Text>
@@ -704,10 +697,10 @@ export default function RelatorioScreen() {
 
         {/* Banners de rastreamento de documentos */}
         {!isTrainingReport && docTracking.relatorio_gerado_em && (
-          <View style={[s.docBanner, { backgroundColor: '#10B98112', borderColor: '#10B98130' }]}>
-            <Feather name="check-circle" size={15} color="#10B981" />
+          <View style={[s.docBanner, { backgroundColor: theme.successLight, borderColor: theme.success }]}>
+            <Feather name="check-circle" size={15} color={theme.success} />
             <View style={{ flex: 1 }}>
-              <Text style={[s.docBannerTitle, { color: '#10B981' }]}>Relatório já gerado</Text>
+              <Text style={[s.docBannerTitle, { color: theme.success }]}>Relatório já gerado</Text>
               <Text style={[s.docBannerSub, { color: theme.textSecondary }]}>
                 {fmtData(docTracking.relatorio_gerado_em)} · arquivo no seu dispositivo
               </Text>
@@ -715,10 +708,10 @@ export default function RelatorioScreen() {
           </View>
         )}
         {!isTrainingReport && docTracking.termo_gerado_em && (
-          <View style={[s.docBanner, { backgroundColor: '#F9731612', borderColor: '#F9731630' }]}>
-            <Feather name="check-circle" size={15} color="#F97316" />
+          <View style={[s.docBanner, { backgroundColor: theme.warningLight, borderColor: theme.warning }]}>
+            <Feather name="check-circle" size={15} color={theme.warning} />
             <View style={{ flex: 1 }}>
-              <Text style={[s.docBannerTitle, { color: '#F97316' }]}>Termo de Interdição já gerado</Text>
+              <Text style={[s.docBannerTitle, { color: theme.warning }]}>Termo de Interdição já gerado</Text>
               <Text style={[s.docBannerSub, { color: theme.textSecondary }]}>
                 {fmtData(docTracking.termo_gerado_em)} · arquivo no seu dispositivo
               </Text>
@@ -730,27 +723,31 @@ export default function RelatorioScreen() {
         <Text style={[s.exportLabel, { color: theme.textSecondary }]}>EXPORTAR RELATÓRIO</Text>
 
         {!isAvaliacaoArvore && (draft.nivelRisco === 'r3' || draft.nivelRisco === 'r4') && (
-          <TouchableOpacity style={[s.exportBtn, { backgroundColor: '#EF4444' }]} onPress={abrirModalTermo} disabled={gerando}>
-            {gerando
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <Feather name="alert-octagon" size={20} color="#FFF" />}
-            <Text style={s.exportBtnText}>{gerando ? 'Gerando...' : 'Gerar Documento de Intervenção'}</Text>
-          </TouchableOpacity>
+          <Button
+            variant="danger"
+            label={gerando ? 'Gerando...' : 'Gerar documento de intervenção'}
+            onPress={abrirModalTermo}
+            loading={gerando}
+            disabled={gerando}
+            fullWidth
+            iconLeft={<Feather name="alert-octagon" size={20} color="#FFF" />}
+            style={{ marginBottom: 10 }}
+          />
         )}
 
-        <TouchableOpacity style={[s.exportBtn, { backgroundColor: cor }]} onPress={exportarPDF} disabled={gerando}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Baixar PDF da vistoria" accessibilityState={{ disabled: gerando }} style={[s.exportBtn, { backgroundColor: cor }]} onPress={exportarPDF} disabled={gerando}>
           {gerando
             ? <ActivityIndicator size="small" color="#FFF" />
             : <Feather name="download" size={20} color="#FFF" />}
           <Text style={s.exportBtnText}>{gerando ? 'Gerando PDF...' : 'Baixar PDF Vistoria'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[s.exportBtnOutline, { borderColor: theme.border }]} onPress={imprimir} disabled={gerando}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Imprimir relatório" accessibilityState={{ disabled: gerando }} style={[s.exportBtnOutline, { borderColor: theme.border }]} onPress={imprimir} disabled={gerando}>
           <Feather name="printer" size={20} color={theme.textSecondary} />
           <Text style={[s.exportBtnOutlineText, { color: theme.textSecondary }]}>Imprimir</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[s.exportBtnOutline, { borderColor: theme.border }]} onPress={exportarPDF} disabled={gerando}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Compartilhar relatório" accessibilityState={{ disabled: gerando }} style={[s.exportBtnOutline, { borderColor: theme.border }]} onPress={exportarPDF} disabled={gerando}>
           <Feather name="share-2" size={20} color={theme.textSecondary} />
           <Text style={[s.exportBtnOutlineText, { color: theme.textSecondary }]}>Compartilhar</Text>
         </TouchableOpacity>
@@ -759,15 +756,15 @@ export default function RelatorioScreen() {
 
       {/* ═══════════════ MODAL TERMO DE INTERDIÇÃO ═══════════════ */}
       <Modal visible={showTermoModal} animationType="slide" transparent>
-        <View style={s.modalOverlay}>
+        <View style={[s.modalOverlay, { backgroundColor: theme.overlay }]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={s.modalKav}
           >
             <View style={[s.modalCard, { backgroundColor: theme.surfaceHighlight }]}>
               <View style={[s.modalHeader, { borderBottomColor: theme.border }]}>
-                <View style={s.modalHeaderIcon}>
-                  <Feather name="alert-triangle" size={20} color="#DC2626" />
+                <View style={[s.modalHeaderIcon, { backgroundColor: theme.errorLight }]}>
+                  <Feather name="alert-triangle" size={20} color={theme.error} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.modalTitle, { color: theme.text }]}>Termo de Interdição</Text>
@@ -882,7 +879,7 @@ export default function RelatorioScreen() {
                   <Text style={[s.modalCancelText, { color: theme.textSecondary }]}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={s.modalGerarBtn}
+                  style={[s.modalGerarBtn, { backgroundColor: theme.error }]}
                   onPress={gerarTermoInterdicao}
                 >
                   <Feather name="file-text" size={18} color="#FFF" />
@@ -912,18 +909,6 @@ function InfoItem({ label, value, theme }: { label: string; value: string; theme
 const s = StyleSheet.create({
   container: { flex: 1 },
 
-  // Header
-  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1 },
-  headerCompacto: { paddingBottom: 10, paddingHorizontal: 12, gap: 10 },
-  backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  backBtnCompacto: { width: 40, height: 40, borderRadius: 11 },
-  headerTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  headerTitleCompacto: { fontSize: 18 },
-  headerSub: { fontSize: 12, fontWeight: '500', marginTop: 1 },
-  riscoBadgeSmall: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  riscoBadgeSmallCompacto: { maxWidth: 128, paddingHorizontal: 9, paddingVertical: 6 },
-  riscoBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  riscoBadgeTextCompacto: { fontSize: 10, lineHeight: 12, textAlign: 'center' },
   scroll: { padding: 20, paddingBottom: 60 },
   scrollCompacto: { paddingHorizontal: 10, paddingTop: 12, paddingBottom: 40 },
 
@@ -1010,10 +995,7 @@ const s = StyleSheet.create({
   emptyBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5 },
 
   // Modal
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-end',
-  },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalKav: { flex: 1, justifyContent: 'flex-end' },
   modalCard: {
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
@@ -1026,7 +1008,6 @@ const s = StyleSheet.create({
   },
   modalHeaderIcon: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(220,38,38,0.1)',
     justifyContent: 'center', alignItems: 'center',
   },
   modalTitle: { fontSize: 18, fontWeight: '700' },
@@ -1049,7 +1030,6 @@ const s = StyleSheet.create({
   modalCancelText: { fontSize: 14, fontWeight: '700' },
   modalGerarBtn: {
     flex: 2, height: 52, borderRadius: 14,
-    backgroundColor: '#DC2626',
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
   modalGerarText: { color: '#FFF', fontSize: 14, fontWeight: '700' },

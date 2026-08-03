@@ -1,102 +1,115 @@
-export const Colors = {
-  light: {
-    // ── Tokens existentes (não alterar valores) ──
-    background: '#F8FAFC',
-    surface: '#FFFFFF',
-    text: '#0F172A',
-    textSecondary: '#64748B',
-    primary: '#3B82F6',
-    border: '#E2E8F0',
-    iconBackground: 'rgba(59, 130, 246, 0.1)',
-    cardBorder: 'transparent',
-    surfaceHighlight: '#F1F5F9',
+/**
+ * TCS Mobile V5 design tokens.
+ *
+ * Light keeps the approved Penpot palette. Dark is a dedicated neutral-green
+ * system designed for native surfaces; risk colors remain semantic only.
+ */
 
-    // ── Tokens novos ──
-    primaryLight: '#EFF6FF',       // fundo de destaque primário suave
-    primaryDark: '#1D4ED8',        // hover/pressed do primary
-    primaryText: '#1E40AF',         // texto sobre primaryLight — 8.1:1
+export const TCSLightPalette = {
+  background: '#F7F8F7',
+  surface: '#FFFFFF',
+  foreground: '#171A18',
+  muted: '#68716D',
+  primary: '#2F6B5B',
+  primaryDark: '#245447',
+  secondary: '#EDF3F0',
+  accent: '#B9D8CD',
+  border: '#DCE4E0',
+  success: '#2E7D5A',
+  successLight: '#E8F3EE',
+  warning: '#A66B22',
+  warningLight: '#FBF3E7',
+  danger: '#B24A4A',
+  dangerLight: '#F9ECEC',
+  riscoR3: '#C45F2A',
+  riscoR3Light: '#FFF1E9',
+  riscoR3Text: '#93441F',
+} as const;
 
-    success: '#16A34A',            // verde — contraste 3.3:1 sobre branco (use successText for AA text)
-    successLight: '#F0FDF4',       // fundo de badge success
-    successText: '#14532D',        // texto sobre successLight — 7.3:1
+export const TCSDarkPalette = {
+  background: '#0F1411',
+  surface: '#171D19',
+  foreground: '#F0F5F1',
+  muted: '#A7B2AC',
+  primary: '#7ABAA5',
+  primaryDark: '#A2D1C1',
+  secondary: '#203029',
+  accent: '#5F9F8A',
+  border: '#2C3A33',
+  success: '#72C09B',
+  successLight: '#173428',
+  warning: '#E0B06F',
+  warningLight: '#3A2D1D',
+  danger: '#E38B8B',
+  dangerLight: '#3B2222',
+  riscoR3: '#E39A70',
+  riscoR3Light: '#3D291F',
+  riscoR3Text: '#F2B28D',
+} as const;
 
-    warning: '#D97706',            // âmbar — contraste 3.2:1 sobre branco (use warningText for AA text)
-    warningLight: '#FFFBEB',       // fundo de badge warning
-    warningText: '#78350F',        // texto sobre warningLight — 8.1:1
+// Compatibility alias for static light-brand assets and legacy imports.
+export const TCSPalette = TCSLightPalette;
 
-    error: '#DC2626',              // vermelho — contraste 5.9:1 sobre branco
-    errorLight: '#FEF2F2',         // fundo de badge/estado error
-    errorText: '#7F1D1D',          // texto sobre errorLight — 8.9:1
-
-    surfaceVariant: '#F1F5F9',     // superfície alternada (ex: linhas de tabela)
-    onSurface: '#334155',          // texto sobre surface (secundário mais escuro)
-    muted: '#94A3B8',              // texto de placeholder, desabilitado
-    mutedBackground: '#F8FAFC',    // fundo de elementos desabilitados
-    overlay: 'rgba(0,0,0,0.4)',    // overlay de modal
-    divider: '#E2E8F0',            // linha divisória
-
-    // ── Risco (usados em Badge e telas de vistoria) ──
-    riscoR1: '#16A34A',            // Sem Risco — verde
-    riscoR1Light: '#F0FDF4',
-    riscoR2: '#D97706',            // Risco Baixo — âmbar
-    riscoR2Light: '#FFFBEB',
-    riscoR3: '#EA580C',            // Risco Médio — laranja
-    riscoR3Light: '#FFF7ED',
-    riscoR4: '#DC2626',            // Risco Alto/Iminente — vermelho
-    riscoR4Light: '#FEF2F2',
-    riscoR1Text: '#14532D',        // texto sobre riscoR1Light — 9.1:1 (same as successText)
-    riscoR2Text: '#78350F',        // texto sobre riscoR2Light — 8.1:1 (same as warningText)
-    riscoR3Text: '#7C2D12',        // texto sobre riscoR3Light — 8.5:1
-    riscoR4Text: '#7F1D1D',        // texto sobre riscoR4Light — 8.9:1 (same as errorText)
-  },
-  dark: {
-    // ── Tokens existentes (não alterar valores) ──
-    background: '#0B0F19',
-    surface: '#1A2235',
-    text: '#F8FAFC',
-    textSecondary: '#94A3B8',
-    primary: '#3B82F6',
-    border: 'rgba(255,255,255,0.05)',
-    iconBackground: 'rgba(255,255,255,0.05)',
-    cardBorder: 'rgba(255,255,255,0.03)',
-    surfaceHighlight: '#1F2937',
-
-    // ── Tokens novos ──
-    primaryLight: 'rgba(59,130,246,0.12)',
-    primaryDark: '#60A5FA',
-    primaryText: '#93C5FD',        // texto sobre primaryLight dark — 8.2:1
-
-    success: '#4ADE80',            // verde claro — contraste 8.5:1 sobre #0B0F19
-    successLight: 'rgba(74,222,128,0.12)',
-    successText: '#BBF7D0',
-
-    warning: '#FCD34D',            // âmbar claro — contraste 9.2:1
-    warningLight: 'rgba(252,211,77,0.12)',
-    warningText: '#FEF3C7',
-
-    error: '#F87171',              // vermelho claro — contraste 7.1:1
-    errorLight: 'rgba(248,113,113,0.12)',
-    errorText: '#FECACA',
-
-    surfaceVariant: '#1E293B',
-    onSurface: '#CBD5E1',
-    muted: '#475569',
-    mutedBackground: 'rgba(255,255,255,0.04)',
-    overlay: 'rgba(0,0,0,0.65)',
-    divider: 'rgba(255,255,255,0.06)',
-
-    // ── Risco ──
-    riscoR1: '#4ADE80',
-    riscoR1Light: 'rgba(74,222,128,0.12)',
-    riscoR2: '#FCD34D',
-    riscoR2Light: 'rgba(252,211,77,0.12)',
-    riscoR3: '#FB923C',
-    riscoR3Light: 'rgba(251,146,60,0.12)',
-    riscoR4: '#F87171',
-    riscoR4Light: 'rgba(248,113,113,0.12)',
-    riscoR1Text: '#BBF7D0',       // texto sobre riscoR1Light dark (same as successText dark)
-    riscoR2Text: '#FEF3C7',       // texto sobre riscoR2Light dark (same as warningText dark)
-    riscoR3Text: '#FED7AA',       // texto sobre riscoR3Light dark
-    riscoR4Text: '#FECACA',       // texto sobre riscoR4Light dark (same as errorText dark)
-  }
+type ThemePalette = {
+  [Key in keyof typeof TCSLightPalette]: string;
 };
+
+function createTheme(palette: ThemePalette, isDark: boolean) {
+  return {
+    background: palette.background,
+    surface: palette.surface,
+    text: palette.foreground,
+    foreground: palette.foreground,
+    textSecondary: palette.muted,
+    primary: palette.primary,
+    primaryDark: palette.primaryDark,
+    primaryLight: palette.secondary,
+    primaryText: palette.primaryDark,
+    secondary: palette.secondary,
+    accent: palette.accent,
+    border: palette.border,
+    divider: palette.border,
+    iconBackground: palette.secondary,
+    cardBorder: palette.border,
+    surfaceHighlight: isDark ? '#1E2923' : palette.secondary,
+    surfaceVariant: palette.secondary,
+    onSurface: palette.foreground,
+    onPrimary: isDark ? '#102019' : palette.surface,
+    muted: palette.muted,
+    mutedBackground: isDark ? '#121815' : palette.background,
+    focusRing: palette.accent,
+    pressedOverlay: isDark ? 'rgba(122,186,165,0.16)' : 'rgba(47,107,91,0.10)',
+    overlay: isDark ? 'rgba(0,0,0,0.66)' : 'rgba(23,26,24,0.44)',
+    disabledOpacity: isDark ? 0.5 : 0.48,
+
+    success: palette.success,
+    successLight: palette.successLight,
+    successText: palette.success,
+    warning: palette.warning,
+    warningLight: palette.warningLight,
+    warningText: palette.warning,
+    error: palette.danger,
+    errorLight: palette.dangerLight,
+    errorText: palette.danger,
+
+    riscoR1: palette.success,
+    riscoR1Light: palette.successLight,
+    riscoR1Text: palette.success,
+    riscoR2: palette.warning,
+    riscoR2Light: palette.warningLight,
+    riscoR2Text: palette.warning,
+    riscoR3: palette.riscoR3,
+    riscoR3Light: palette.riscoR3Light,
+    riscoR3Text: palette.riscoR3Text,
+    riscoR4: palette.danger,
+    riscoR4Light: palette.dangerLight,
+    riscoR4Text: palette.danger,
+  };
+}
+
+export const Colors = {
+  light: createTheme(TCSLightPalette, false),
+  dark: createTheme(TCSDarkPalette, true),
+} as const;
+
+export type TCSTheme = ReturnType<typeof createTheme>;

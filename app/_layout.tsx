@@ -2,11 +2,9 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import { supabase } from '../utils/supabase';
-import { ThemeProvider } from '../context/ThemeContext';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { ConnectivityProvider } from '../context/ConnectivityContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { TrainingProvider, useTraining } from '../context/TrainingContext';
@@ -30,19 +28,8 @@ async function pingSupabase() {
   } catch { /* fire-and-forget */ }
 }
 
-async function requestPermissions() {
-  try {
-    await Location.requestForegroundPermissionsAsync();
-  } catch { }
-  try {
-    await ImagePicker.requestCameraPermissionsAsync();
-  } catch { }
-  try {
-    await ImagePicker.requestMediaLibraryPermissionsAsync();
-  } catch { }
-}
-
 function RootNavigator() {
+  const { isDark } = useTheme();
   const { session, profile, loading } = useAuth();
   const { session: trainingSession, loading: trainingLoading, isTrainingActive, isExpired, exit } = useTraining();
   const { lastResponse } = useNotifications();
@@ -84,15 +71,12 @@ function RootNavigator() {
     return () => sub.remove();
   }, []);
 
-  // Lê o flag do onboarding uma vez no mount + solicita permissões + keep-alive Supabase
+  // Lê o flag do onboarding uma vez no mount e mantém o projeto ativo.
+  // Permissões sensíveis são solicitadas apenas no contexto da funcionalidade.
   useEffect(() => {
     pingSupabase();
-    AsyncStorage.getItem('@onboarding_done').then((val) => {
+    AsyncStorage.getItem('@onboarding_done').then(() => {
       setAppReady(true);
-      // Solicita permissões apenas após o onboarding (não na primeira tela)
-      if (val === '1') {
-        requestPermissions();
-      }
     });
   }, []);
 
@@ -130,7 +114,7 @@ function RootNavigator() {
 
   return (
     <>
-      <StatusBar style="auto" translucent={false} />
+      <StatusBar style={isDark ? 'light' : 'dark'} translucent={false} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(auth)" />

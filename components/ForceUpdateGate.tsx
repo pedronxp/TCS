@@ -3,14 +3,14 @@ import { Feather } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStateStatus } from 'react-native';
-import { ActivityIndicator, AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import type { AppUpdateConfig, AppUpdateDecision } from '../utils/appUpdate';
-import {
-  checkAndroidAppUpdate,
-  getInstalledAppVersion,
-  hasAvailableUpdate,
-  shouldForceUpdate,
-} from '../utils/appUpdate';
+import { checkAndroidAppUpdate, getInstalledAppVersion, hasAvailableUpdate, shouldForceUpdate } from '../utils/appUpdate';
+import { useTheme } from '../context/ThemeContext';
+import { FontSize, FontWeight } from '../constants/Typography';
+import { Spacing, SpacingAlias } from '../constants/Spacing';
+import { OpeningBoot, ProductIdentity } from './brand';
+import { Button, Card, StateBanner } from './ui';
 
 const UPDATE_CACHE_KEY = '@app_update_config_android_v1';
 const UPDATE_CHECK_TIMEOUT_MS = 6000;
@@ -21,7 +21,10 @@ type GateState =
   | { status: 'blocked'; decision: AppUpdateDecision; source: 'remote' | 'cache' };
 
 export function ForceUpdateGate({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<GateState>({ status: 'checking' });
+  const { theme } = useTheme();
+  const [state, setState] = useState<GateState>(
+    Platform.OS === 'android' ? { status: 'checking' } : { status: 'allowed' },
+  );
   const [opening, setOpening] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const checkingRef = useRef(false);
@@ -32,14 +35,16 @@ export function ForceUpdateGate({ children }: { children: ReactNode }) {
   }, [state]);
 
   const runCheck = async (showLoading: boolean) => {
+    if (Platform.OS !== 'android') {
+      setState({ status: 'allowed' });
+      return;
+    }
     if (checkingRef.current) return;
     checkingRef.current = true;
     if (showLoading) setState({ status: 'checking' });
     try {
       const decision = await withTimeout(checkAndroidAppUpdate(), UPDATE_CHECK_TIMEOUT_MS);
-      if (decision.config) {
-        await AsyncStorage.setItem(UPDATE_CACHE_KEY, JSON.stringify(decision.config));
-      }
+      if (decision.config) await AsyncStorage.setItem(UPDATE_CACHE_KEY, JSON.stringify(decision.config));
       setState(decision.mustUpdate ? { status: 'blocked', decision, source: 'remote' } : { status: 'allowed' });
     } catch {
       const cached = await readCachedDecision();
@@ -54,6 +59,7 @@ export function ForceUpdateGate({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS !== 'android') return;
     const sub = AppState.addEventListener('change', nextState => {
       const previousState = appStateRef.current;
       appStateRef.current = nextState;
@@ -74,51 +80,64 @@ export function ForceUpdateGate({ children }: { children: ReactNode }) {
     }
   };
 
-  if (state.status === 'checking') {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-      </View>
-    );
-  }
+  if (state.status === 'checking') return <OpeningBoot />;
 
   if (state.status === 'blocked') {
     const { installed, config } = state.decision;
     return (
-      <View style={styles.container}>
-        <View style={styles.card}>
-          <View style={styles.iconWrap}>
-            <Feather name="download-cloud" size={34} color="#FFFFFF" />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ProductIdentity variant="compact" />
+        <Card style={styles.card}>
+          <View style={[styles.iconWrap, { backgroundColor: theme.warningLight }]}>
+            <Feather name="download-cloud" size={30} color={theme.warning} />
           </View>
-
-          <Text style={styles.title}>Atualização obrigatória</Text>
-          <Text style={styles.message}>
+          <Text style={[styles.title, { color: theme.text }]}>Atualização necessária</Text>
+          <Text style={[styles.message, { color: theme.textSecondary }]}>
             {config?.message || 'Existe uma nova versão do aplicativo. Atualize para continuar usando o sistema.'}
           </Text>
 
-          <View style={styles.versionBox}>
-            <Text style={styles.versionLabel}>Versão instalada</Text>
-            <Text style={styles.versionValue}>{installed.version} · build {installed.versionCode}</Text>
-            <Text style={styles.versionLabel}>Versão exigida</Text>
-            <Text style={styles.versionValue}>{config?.latestVersion || '—'} · build {config?.minRequiredVersionCode ?? '—'}</Text>
+          <View style={styles.versionGrid}>
+            <View style={[styles.versionCell, { backgroundColor: theme.secondary }]}>
+              <Text style={[styles.versionLabel, { color: theme.textSecondary }]}>INSTALADA</Text>
+              <Text style={[styles.versionValue, { color: theme.text }]}>{installed.version}</Text>
+              <Text style={[styles.buildValue, { color: theme.textSecondary }]}>build {installed.versionCode}</Text>
+            </View>
+            <View style={[styles.versionCell, { backgroundColor: theme.warningLight }]}>
+              <Text style={[styles.versionLabel, { color: theme.warning }]}>EXIGIDA</Text>
+              <Text style={[styles.versionValue, { color: theme.text }]}>{config?.latestVersion || '—'}</Text>
+              <Text style={[styles.buildValue, { color: theme.textSecondary }]}>build {config?.minRequiredVersionCode ?? '—'}</Text>
+            </View>
           </View>
 
-          {config?.apkUrl ? (
-            <TouchableOpacity style={styles.primaryButton} onPress={openUpdate} disabled={opening}>
-              {opening ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Feather name="download" size={18} color="#FFFFFF" />}
-              <Text style={styles.primaryText}>{opening ? 'Abrindo...' : 'Baixar atualização'}</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => runCheck(true)}>
-            <Feather name="refresh-cw" size={16} color="#CBD5E1" />
-            <Text style={styles.secondaryText}>Verificar novamente</Text>
-          </TouchableOpacity>
-
           {state.source === 'cache' ? (
-            <Text style={styles.cacheText}>Usando a última regra de atualização salva neste aparelho.</Text>
+            <StateBanner
+              title="Regra salva no aparelho"
+              description="Conecte-se para consultar novamente a versão disponível."
+              variant="warning"
+            />
           ) : null}
-        </View>
+
+          {config?.apkUrl ? (
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              onPress={openUpdate}
+              loading={opening}
+              iconLeft={<Feather name="download" size={18} color={theme.onPrimary} />}
+            >
+              Baixar atualização
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            fullWidth
+            onPress={() => runCheck(true)}
+            iconLeft={<Feather name="refresh-cw" size={17} color={theme.text} />}
+          >
+            Verificar novamente
+          </Button>
+        </Card>
       </View>
     );
   }
@@ -133,12 +152,7 @@ async function readCachedDecision(): Promise<AppUpdateDecision | null> {
     const config = JSON.parse(raw) as AppUpdateConfig;
     const installed = getInstalledAppVersion();
     if (!shouldForceUpdate(installed.versionCode, config)) return null;
-    return {
-      installed,
-      config,
-      mustUpdate: true,
-      hasUpdate: hasAvailableUpdate(installed.versionCode, config),
-    };
+    return { installed, config, mustUpdate: true, hasUpdate: hasAvailableUpdate(installed.versionCode, config) };
   } catch {
     return null;
   }
@@ -160,104 +174,14 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 }
 
 const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0F172A',
-  },
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 22,
-    backgroundColor: '#0F172A',
-  },
-  card: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#243044',
-    backgroundColor: '#111827',
-    padding: 24,
-  },
-  iconWrap: {
-    width: 66,
-    height: 66,
-    borderRadius: 8,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    color: '#F8FAFC',
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: '900',
-    marginBottom: 10,
-  },
-  message: {
-    color: '#CBD5E1',
-    fontSize: 15,
-    lineHeight: 23,
-    marginBottom: 18,
-  },
-  versionBox: {
-    borderRadius: 8,
-    backgroundColor: '#0B1220',
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    padding: 14,
-    marginBottom: 18,
-  },
-  versionLabel: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0,
-    textTransform: 'uppercase',
-    marginBottom: 3,
-  },
-  versionValue: {
-    color: '#E2E8F0',
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 10,
-  },
-  primaryButton: {
-    height: 54,
-    borderRadius: 8,
-    backgroundColor: '#2563EB',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-    marginBottom: 10,
-  },
-  primaryText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  secondaryButton: {
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#334155',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  secondaryText: {
-    color: '#CBD5E1',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  cacheText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 12,
-    textAlign: 'center',
-  },
+  container: { flex: 1, justifyContent: 'center', padding: Spacing[5], gap: Spacing[6] },
+  card: { padding: Spacing[5], gap: Spacing[4] },
+  iconWrap: { width: 58, height: 58, borderRadius: SpacingAlias.radiusLg, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 26, lineHeight: 32, fontWeight: FontWeight.extrabold, letterSpacing: -0.6 },
+  message: { fontSize: FontSize.base, lineHeight: 21 },
+  versionGrid: { flexDirection: 'row', gap: Spacing[3] },
+  versionCell: { flex: 1, borderRadius: SpacingAlias.radiusMd, padding: Spacing[3] },
+  versionLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.extrabold, letterSpacing: 0.8 },
+  versionValue: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, marginTop: Spacing[2] },
+  buildValue: { fontSize: FontSize.xs, marginTop: 2 },
 });

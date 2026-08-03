@@ -11,6 +11,8 @@ import { logger } from '../../utils/logger';
 import { tempoRelativo } from '../../utils/htmlUtils';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
+import { AppHeader, EmptyState, LoadingState } from '../../components/ui';
+import { Spacing } from '../../constants/Spacing';
 
 interface AgenteCard {
   uid: string;
@@ -303,9 +305,9 @@ export default function EquipeScreen() {
   // Dropdown options
   const riscoOpts: DropdownOption[] = [
     { label: 'Todos os riscos', value: 'todos' },
-    { label: 'Alto Risco', value: 'alto', color: '#EF4444' },
-    { label: 'Médio Risco', value: 'medio', color: '#F59E0B' },
-    { label: 'Baixo Risco', value: 'baixo', color: '#10B981' },
+    { label: 'Alto Risco', value: 'alto', color: theme.error },
+    { label: 'Médio Risco', value: 'medio', color: theme.warning },
+    { label: 'Baixo Risco', value: 'baixo', color: theme.success },
   ];
 
   const municipioOpts: DropdownOption[] = [
@@ -320,41 +322,24 @@ export default function EquipeScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Carregando equipe operacional..." />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" color={theme.textSecondary} size={24} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Equipe</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {filtrados.length} de {agentes.length} agente{agentes.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-        {hasFilters && (
-          <TouchableOpacity
-            style={[styles.clearBtn, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}
-            onPress={clearAll}
-          >
-            <Feather name="x" size={14} color={theme.primary} />
-            <Text style={{ color: theme.primary, fontSize: 11, fontWeight: '700' }}>Limpar</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <AppHeader
+        title="Equipe operacional"
+        subtitle={`${filtrados.length} de ${agentes.length} agente${agentes.length !== 1 ? 's' : ''}`}
+        onBack={() => router.back()}
+        {...(hasFilters ? { actionIcon: 'x' as const, actionLabel: 'Limpar filtros', onAction: clearAll } : {})}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       {/* Barra de busca + filtros */}
-      <View style={[styles.searchSection, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
+      <View style={[styles.searchSection, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         {/* Campo de busca */}
         <View style={[styles.searchInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <Feather name="search" size={16} color={theme.textSecondary} />
@@ -382,9 +367,9 @@ export default function EquipeScreen() {
             onSelect={v => setFiltroRisco(v as FiltroRisco)}
             icon="alert-triangle"
             accentColor={
-              filtroRisco === 'alto' ? '#EF4444' :
-              filtroRisco === 'medio' ? '#F59E0B' :
-              filtroRisco === 'baixo' ? '#10B981' :
+              filtroRisco === 'alto' ? theme.error :
+              filtroRisco === 'medio' ? theme.warning :
+              filtroRisco === 'baixo' ? theme.success :
               theme.primary
             }
           />
@@ -409,7 +394,7 @@ export default function EquipeScreen() {
               options={supervisorOpts}
               onSelect={setFiltroSupervisor}
               icon="user-check"
-              accentColor="#8B5CF6"
+              accentColor={theme.primary}
             />
           )}
         </View>
@@ -417,26 +402,18 @@ export default function EquipeScreen() {
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {filtrados.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Feather name="users" size={36} color={theme.textSecondary} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhum agente encontrado</Text>
-            <Text style={[styles.emptySub, { color: theme.textSecondary }]}>
-              Tente ajustar os filtros ou limpar a busca.
-            </Text>
-            {hasFilters && (
-              <TouchableOpacity
-                style={[styles.clearBtnFull, { backgroundColor: `${theme.primary}15` }]}
-                onPress={clearAll}
-              >
-                <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 13 }}>Limpar todos os filtros</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <EmptyState
+            icon="users"
+            title="Nenhum agente encontrado"
+            description="Tente ajustar a busca, o município ou o filtro de risco."
+            actionLabel={hasFilters ? 'Limpar filtros' : undefined}
+            onAction={hasFilters ? clearAll : undefined}
+          />
         ) : (
           filtrados.map(agente => (
             <TouchableOpacity
               key={agente.uid}
-              style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+              style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
               onPress={() => router.push(`/(panel)/agente?uid=${agente.uid}`)}
               activeOpacity={0.75}
             >
@@ -474,14 +451,14 @@ export default function EquipeScreen() {
 
                 {/* Stats de risco */}
                 <View style={styles.statsRow}>
-                  <View style={[styles.statChip, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                    <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '700' }}>{agente.alto}🔴</Text>
+                  <View style={[styles.statChip, { backgroundColor: theme.errorLight }]}>
+                    <Text style={{ color: theme.error, fontSize: 11, fontWeight: '700' }}>{agente.alto} · alto</Text>
                   </View>
-                  <View style={[styles.statChip, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
-                    <Text style={{ color: '#F59E0B', fontSize: 11, fontWeight: '700' }}>{agente.medio}🟡</Text>
+                  <View style={[styles.statChip, { backgroundColor: theme.warningLight }]}>
+                    <Text style={{ color: theme.warning, fontSize: 11, fontWeight: '700' }}>{agente.medio} · médio</Text>
                   </View>
-                  <View style={[styles.statChip, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                    <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '700' }}>{agente.baixo}🟢</Text>
+                  <View style={[styles.statChip, { backgroundColor: theme.successLight }]}>
+                    <Text style={{ color: theme.success, fontSize: 11, fontWeight: '700' }}>{agente.baixo} · baixo</Text>
                   </View>
                 </View>
               </View>

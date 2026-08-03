@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
 import { validarSenha, calcularForcaSenha, FORCA_LABELS, FORCA_CORES } from '../../utils/passwordValidation';
+import { TCSPalette } from '../../constants/Colors';
 
 export default function ResetPasswordScreen() {
   const { theme } = useTheme();
@@ -55,7 +56,7 @@ export default function ResetPasswordScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
         <View style={styles.centeredContainer}>
-          <View style={[styles.iconWrap, { backgroundColor: (theme as any).successLight || '#F0FDF4' }]}>
+          <View style={[styles.iconWrap, { backgroundColor: theme.successLight }]}>
             <Feather name="check-circle" size={36} color={theme.success} />
           </View>
           <Text style={[styles.titulo, { color: theme.text }]}>Senha redefinida!</Text>
@@ -158,9 +159,9 @@ export default function ResetPasswordScreen() {
             </View>
 
             {error !== null && (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={16} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: theme.errorLight, borderColor: theme.error }]}>
+                <Feather name="alert-circle" size={16} color={theme.error} />
+                <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
               </View>
             )}
 
@@ -210,8 +211,7 @@ const styles = StyleSheet.create({
   forcaLabel: { fontSize: 12, fontWeight: '600', minWidth: 36 },
   errorBox: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12, padding: 12, gap: 8,
+    borderWidth: 1, borderRadius: 12, padding: 12, gap: 8,
   },
-  errorText: { color: '#EF4444', fontSize: 14, flex: 1 },
+  errorText: { fontSize: 14, flex: 1 },
 });

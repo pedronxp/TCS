@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image
+  Alert, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { localTestDraftKey } from '../../../services/LocalTestDataService';
@@ -48,6 +48,9 @@ import {
 } from '../../../utils/formulariosAssets';
 import { SvgXml } from 'react-native-svg';
 import { DESL_SVGS } from '../../../utils/deslizamentoSvgs';
+import { AppHeader, Button, EmptyState, FlowProgress, LoadingState } from '../../../components/ui';
+import { FontSize, FontWeight } from '../../../constants/Typography';
+import { Spacing, SpacingAlias } from '../../../constants/Spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Mapa estático de imagens locais dos formulários (require() deve ser estático no RN)
@@ -688,37 +691,32 @@ export default function WizardAvaliacaoScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={{ color: theme.textSecondary, marginTop: 16 }}>Carregando formulário...</Text>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Preparando a avaliação técnica..." />
       </View>
     );
   }
 
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => safeStep > 0 ? setStep(safeStep - 1) : safeBack(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes/selecao-formulario')}>
-          <Feather name={safeStep > 0 ? 'arrow-left' : 'x'} size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>
-            PASSO 3 DE 3 ·{' '}
-            {elementoAtual
-              ? `ELEMENTO ${elementoAtual.atual}/${elementoAtual.total}`
-              : `PERGUNTA ${safeStep + 1}/${totalPerguntas}`}
-          </Text>
-          <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{params.formularioTitulo}</Text>
-        </View>
-      </View>
-
-      {/* Progress bar */}
-      <View style={[styles.progressTrack, { backgroundColor: theme.cardBorder }]}>
-        <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${progress * 100}%` }]} />
-      </View>
+      <AppHeader
+        title={params.formularioTitulo || 'Avaliação técnica'}
+        subtitle="Coleta de campo"
+        onBack={() => safeStep > 0 ? setStep(safeStep - 1) : safeBack(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes/selecao-formulario')}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <FlowProgress
+          currentStep={3}
+          totalSteps={3}
+          label={elementoAtual
+            ? `Elemento ${elementoAtual.atual} de ${elementoAtual.total}`
+            : `Pergunta ${safeStep + 1} de ${totalPerguntas}`}
+        />
+        <View style={[styles.questionProgress, { backgroundColor: theme.border }]}>
+          <View style={[styles.questionProgressFill, { backgroundColor: theme.primary, width: `${progress * 100}%` }]} />
+        </View>
         {perguntaAtual && (
           <>
             {/* Image example */}
@@ -741,7 +739,7 @@ export default function WizardAvaliacaoScreen() {
 
             <Text style={[styles.question, { color: theme.text }]}>
               {perguntaAtual.texto}
-              {perguntaAtual.obrigatoria && <Text style={{ color: '#EF4444' }}> *</Text>}
+              {perguntaAtual.obrigatoria && <Text style={{ color: theme.error }}> *</Text>}
             </Text>
             {perguntaAtual.descricao && (
               <Text style={[styles.questionDesc, { color: theme.textSecondary }]}>{perguntaAtual.descricao}</Text>
@@ -759,7 +757,7 @@ export default function WizardAvaliacaoScreen() {
                       style={[
                         styles.optionCard,
                         perguntaAtual.layout === 'lista' && styles.optionCardLista,
-                        { backgroundColor: theme.surfaceHighlight, borderColor: sel ? theme.primary : theme.cardBorder }
+                        { backgroundColor: sel ? theme.secondary : theme.surface, borderColor: sel ? theme.primary : theme.cardBorder }
                       ]}
                       onPress={() => setResposta(perguntaAtual.id, op.id)}
                     >
@@ -778,7 +776,7 @@ export default function WizardAvaliacaoScreen() {
                       {op.descricao && <Text style={[styles.optionDesc, perguntaAtual.layout === 'lista' && styles.optionDescLista, { color: theme.textSecondary }]}>{op.descricao}</Text>}
                       {sel && (
                         <View style={[styles.selectedBadge, { backgroundColor: theme.primary }]}>
-                          <Feather name="check" size={12} color="#FFF" />
+                          <Feather name="check" size={12} color={theme.onPrimary} />
                         </View>
                       )}
                     </TouchableOpacity>
@@ -849,7 +847,7 @@ export default function WizardAvaliacaoScreen() {
                   </View>
                 )}
                 {!!resposta && erroValidacaoPergunta(perguntaAtual, resposta) && (
-                  <Text style={styles.validationError}>{erroValidacaoPergunta(perguntaAtual, resposta)}</Text>
+                  <Text style={[styles.validationError, { color: theme.error }]}>{erroValidacaoPergunta(perguntaAtual, resposta)}</Text>
                 )}
               </>
             )}
@@ -880,17 +878,15 @@ export default function WizardAvaliacaoScreen() {
         )}
 
         {totalPerguntas === 0 && !loading && (
-          <View style={styles.emptyState}>
-            <Feather name="alert-circle" size={48} color={theme.border} />
-            <Text style={[{ color: theme.textSecondary, textAlign: 'center', marginTop: 16 }]}>
-              Este formulário não possui perguntas ainda.{'\n'}Contate um Administrador.
-            </Text>
-          </View>
+          <EmptyState
+            icon="file-text"
+            title="Formulário sem perguntas"
+            description="Este modelo ainda não está pronto para uso. Solicite a revisão de um administrador."
+          />
         )}
       </ScrollView>
 
-      {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.surfaceHighlight, borderTopColor: theme.border }]}>
+      <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, Spacing[4]) }]}>
         {/* Banner de risco em tempo real — aparece após primeira resposta */}
         {riscoAtual && apresentacaoRiscoAtual && (
           <Animated.View
@@ -913,24 +909,22 @@ export default function WizardAvaliacaoScreen() {
             </Text>
           </Animated.View>
         )}
-        <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={styles.footerActions}>
           {step > 0 && (
-            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setStep(Math.max(0, safeStep - 1))}>
-              <Text style={[styles.cancelText, { color: theme.textSecondary }]}>VOLTAR</Text>
-            </TouchableOpacity>
+            <Button
+              label="Voltar"
+              variant="ghost"
+              onPress={() => setStep(Math.max(0, safeStep - 1))}
+              style={styles.backAction}
+            />
           )}
-          <TouchableOpacity
-            style={[styles.nextBtn, { backgroundColor: theme.primary, flex: step > 0 ? 2 : 1 }]}
+          <Button
+            label={safeStep < totalPerguntas - 1 ? 'Próxima pergunta' : 'Finalizar vistoria'}
             onPress={avancar}
-            disabled={salvando}
-          >
-            {salvando
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <>
-                  <Text style={styles.nextBtnText}>{safeStep < totalPerguntas - 1 ? 'PRÓXIMA' : 'FINALIZAR'}</Text>
-                  <Feather name={safeStep < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color="#FFF" />
-                </>}
-          </TouchableOpacity>
+            loading={salvando}
+            iconRight={<Feather name={safeStep < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color={theme.onPrimary} />}
+            style={{ ...styles.nextAction, flex: step > 0 ? 2 : 1 }}
+          />
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -939,21 +933,17 @@ export default function WizardAvaliacaoScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1 },
-  backBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  stepLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
-  title: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
-  progressTrack: { height: 3 },
-  progressFill: { height: 3 },
-  scroll: { padding: 20, paddingBottom: 120 },
-  groupLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginBottom: 8 },
-  groupText: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
-  instrucao: { fontSize: 14, lineHeight: 22, marginBottom: 12 },
-  exampleImage: { width: '100%', height: 180, borderRadius: 14, marginBottom: 20 },
-  question: { fontSize: 20, fontWeight: '700', lineHeight: 28, marginBottom: 24 },
-  questionDesc: { fontSize: 13, lineHeight: 20, marginTop: -14, marginBottom: 20 },
-  optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  optionCard: { width: '47%', borderRadius: 14, borderWidth: 1.5, padding: 16, alignItems: 'center', position: 'relative' },
+  scroll: { padding: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[4] },
+  questionProgress: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  questionProgressFill: { height: 4, borderRadius: 2 },
+  groupLabel: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], alignSelf: 'flex-start', paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: SpacingAlias.radiusFull },
+  groupText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, letterSpacing: 0.6, textTransform: 'uppercase' },
+  instrucao: { fontSize: FontSize.base, lineHeight: 21 },
+  exampleImage: { width: '100%', height: 180, borderRadius: SpacingAlias.radiusLg },
+  question: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, lineHeight: 28 },
+  questionDesc: { fontSize: FontSize.base, lineHeight: 20 },
+  optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[3] },
+  optionCard: { width: '47%', borderRadius: SpacingAlias.radiusLg, borderWidth: 1.5, padding: Spacing[4], alignItems: 'center', position: 'relative', minHeight: 112 },
   optionCardLista: { width: '100%', alignItems: 'flex-start' },
   optionImage: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10 },
   optionSvg: { width: '100%', height: 80, borderRadius: 8, marginBottom: 10, overflow: 'hidden' },
@@ -974,19 +964,17 @@ const styles = StyleSheet.create({
   unitText: { fontSize: 15, fontWeight: '800' },
   derivedInfo: { marginTop: 12, borderRadius: 12, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   derivedInfoText: { fontSize: 13, fontWeight: '700', flex: 1 },
-  validationError: { color: '#DC2626', fontSize: 12, fontWeight: '600', marginTop: 8 },
+  validationError: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, marginTop: Spacing[2] },
   fotoButton: { height: 160, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 12 },
   fotoButtonText: { fontSize: 15, fontWeight: '600' },
   fotoPreviewWrap: { borderRadius: 14, overflow: 'hidden', position: 'relative' },
   fotoPreview: { width: '100%', height: 220, borderRadius: 14 },
   fotoOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingVertical: 12 },
   fotoOverlayText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
-  emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 60 },
-  footer: { padding: 20, paddingBottom: 36, borderTopWidth: 1, flexDirection: 'column', gap: 0 },
-  cancelBtn: { flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-  cancelText: { fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  nextBtn: { height: 56, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  nextBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  footer: { padding: Spacing[4], borderTopWidth: 1 },
+  footerActions: { flexDirection: 'row', gap: Spacing[2] },
+  backAction: { flex: 1 },
+  nextAction: { flex: 2 },
   riscoBanner: {
     width: '100%',
     flexDirection: 'row',

@@ -1,5 +1,13 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+jest.mock('../../context/ThemeContext', () => ({
+  useTheme: () => ({
+    theme: require('../../constants/Colors').Colors.light,
+    isDark: false,
+    themeMode: 'light',
+    setThemeMode: jest.fn(),
+  }),
+}));
 import { SignaturePad } from '../SignaturePad';
 
 describe('SignaturePad', () => {

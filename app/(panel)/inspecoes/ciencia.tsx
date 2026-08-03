@@ -21,6 +21,17 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { SignaturePad } from '../../../components/SignaturePad';
 import {
+  AppHeader,
+  Badge,
+  Button,
+  EmptyState,
+  FormField,
+  SectionHeader,
+  StateBanner,
+} from '../../../components/ui';
+import { Spacing } from '../../../constants/Spacing';
+import { TCSPalette } from '../../../constants/Colors';
+import {
   INITIAL_ACKNOWLEDGEMENT_DECLARATION,
   AcknowledgementOutcome,
   LocalAcknowledgementEvent,
@@ -204,25 +215,28 @@ export default function ElectronicAcknowledgementScreen() {
   if (!document) {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
-        <Text style={{ color: theme.textSecondary }}>Documento não encontrado neste dispositivo.</Text>
+        <EmptyState
+          icon="file-text"
+          title="Documento não encontrado"
+          description="Esta versão não está disponível neste aparelho ou foi substituída."
+          actionLabel="Voltar"
+          onAction={() => router.back()}
+        />
       </View>
     );
   }
 
   const pending = event && event.syncStatus !== 'confirmed';
-  const statusColor = event?.syncStatus === 'confirmed' ? '#16A34A' : event?.syncStatus === 'failed' ? '#DC2626' : '#D97706';
+  const statusVariant = event?.syncStatus === 'confirmed' ? 'success' : event?.syncStatus === 'failed' ? 'error' : 'warning';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: theme.border, backgroundColor: theme.surfaceHighlight }]}>
-        <TouchableOpacity onPress={() => safeBack(`/(panel)/inspecoes/${document.vistoriaId}`)} style={styles.headerButton}>
-          <Feather name="arrow-left" size={22} color={theme.text} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Ciência eletrônica</Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>Versão {document.documentVersion} · {DOCUMENT_LABELS[document.documentType]}</Text>
-        </View>
-      </View>
+      <AppHeader
+        title="Ciência eletrônica"
+        subtitle={`Versão ${document.documentVersion} · ${DOCUMENT_LABELS[document.documentType]}`}
+        onBack={() => safeBack(`/(panel)/inspecoes/${document.vistoriaId}`)}
+        style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -230,40 +244,49 @@ export default function ElectronicAcknowledgementScreen() {
         scrollEnabled={!signatureInteractionActive}
       >
         {document.trainingMode && (
-          <View style={styles.trainingBanner}><Text style={styles.trainingText}>MODO DE TESTE - SEM VALIDADE OPERACIONAL</Text></View>
+          <StateBanner
+            variant="warning"
+            title="Modo de teste"
+            description="Este registro não possui validade operacional."
+          />
         )}
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Documento apresentado</Text>
+        <SectionHeader title="Documento apresentado" subtitle="Confira a versão antes de registrar a ciência" />
         <View style={[styles.preview, { borderColor: theme.border }]}>
           <WebView originWhitelist={['*']} source={{ html: document.previewHtml }} scrollEnabled nestedScrollEnabled />
         </View>
-        <TouchableOpacity onPress={checkIntegrity} style={[styles.outlineButton, { borderColor: theme.border }]}>
-          <Feather name="shield" size={17} color={theme.primary} />
-          <Text style={[styles.outlineButtonText, { color: theme.primary }]}>Verificar integridade desta versão</Text>
-        </TouchableOpacity>
+        <Button
+          label="Verificar integridade desta versão"
+          variant="secondary"
+          onPress={checkIntegrity}
+          iconLeft={<Feather name="shield" size={17} color={theme.primaryDark} />}
+          fullWidth
+        />
 
         {event ? (
-          <View style={[styles.card, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-            <Text style={[styles.status, { color: statusColor }]}>
-              {event.syncStatus === 'confirmed' ? 'REGISTRO CONFIRMADO' : event.syncStatus === 'failed' ? 'FALHA DE SINCRONIZAÇÃO' : 'PENDENTE DE SINCRONIZAÇÃO'}
-            </Text>
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Badge
+              label={event.syncStatus === 'confirmed' ? 'Registro confirmado' : event.syncStatus === 'failed' ? 'Falha de sincronização' : 'Pendente de sincronização'}
+              variant={statusVariant}
+              showDot
+            />
             <Text style={[styles.detail, { color: theme.text }]}>Resultado: {OUTCOME_LABELS[event.outcome]}</Text>
             <Text style={[styles.detail, { color: theme.textSecondary }]}>Destinatário: {event.recipientName}</Text>
             <Text style={[styles.detail, { color: theme.textSecondary }]}>Coleta: {formatarDataHora(event.occurredAtDevice)}</Text>
             <Text style={[styles.detail, { color: theme.textSecondary }]}>Protocolo: {event.protocol || 'aguardando servidor'}</Text>
-            {event.errorCode && <Text style={[styles.detail, { color: '#DC2626' }]}>Erro: {event.errorCode}</Text>}
+            {event.errorCode && <Text style={[styles.detail, { color: theme.error }]}>Erro: {event.errorCode}</Text>}
             {pending && event.syncStatus === 'failed' && (
-              <TouchableOpacity disabled={!isOnlineReal || submitting} onPress={retrySync} style={[styles.primaryButton, { backgroundColor: theme.primary, opacity: isOnlineReal ? 1 : 0.5 }]}>
-                {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>Tentar sincronizar novamente</Text>}
-              </TouchableOpacity>
+              <Button
+                label="Tentar sincronizar novamente"
+                onPress={retrySync}
+                disabled={!isOnlineReal}
+                loading={submitting}
+                fullWidth
+              />
             )}
             <View style={styles.rowButtons}>
-              <TouchableOpacity onPress={() => shareReceipt(false)} style={[styles.smallButton, { borderColor: theme.border }]}>
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Compartilhar comprovante</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => shareReceipt(true)} style={[styles.smallButton, { borderColor: theme.border }]}>
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Documento completo</Text>
-              </TouchableOpacity>
+              <Button label="Comprovante" variant="secondary" onPress={() => shareReceipt(false)} style={styles.rowButton} />
+              <Button label="Documento" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
             </View>
             {remoteHistory.length > 1 && (
               <View style={{ marginTop: 16 }}>
@@ -291,8 +314,8 @@ export default function ElectronicAcknowledgementScreen() {
                   <TouchableOpacity disabled={submitting} onPress={() => correctEvent('corrected')} style={[styles.smallButton, { borderColor: theme.border }]}>
                     <Text style={{ color: theme.primary, fontWeight: '700' }}>Anexar correção</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity disabled={submitting} onPress={() => correctEvent('invalidated')} style={[styles.smallButton, { borderColor: '#DC2626' }]}>
-                    <Text style={{ color: '#DC2626', fontWeight: '700' }}>Invalidar evento</Text>
+                  <TouchableOpacity disabled={submitting} onPress={() => correctEvent('invalidated')} style={[styles.smallButton, { borderColor: theme.error }]}>
+                    <Text style={{ color: theme.error, fontWeight: '700' }}>Invalidar evento</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -300,7 +323,7 @@ export default function ElectronicAcknowledgementScreen() {
           </View>
         ) : (
           <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Resultado da apresentação</Text>
+            <SectionHeader title="Resultado da apresentação" subtitle="Selecione como o destinatário recebeu o documento" />
             <View style={styles.outcomes}>
               {OUTCOME_OPTIONS.map(option => (
                 <TouchableOpacity
@@ -310,7 +333,7 @@ export default function ElectronicAcknowledgementScreen() {
                   onPress={() => { setOutcome(option.value); setDeclarationAccepted(false); }}
                   style={[styles.outcomeButton, {
                     borderColor: outcome === option.value ? theme.primary : theme.border,
-                    backgroundColor: outcome === option.value ? `${theme.primary}16` : theme.surfaceHighlight,
+                    backgroundColor: outcome === option.value ? theme.secondary : theme.surface,
                   }]}
                 >
                   <Feather name={option.icon} size={18} color={outcome === option.value ? theme.primary : theme.textSecondary} />
@@ -319,21 +342,19 @@ export default function ElectronicAcknowledgementScreen() {
               ))}
             </View>
 
-            <TextInput
-              accessibilityLabel="Nome do destinatário"
+            <FormField
+              label="Nome do destinatário"
+              required
               value={recipientName}
               onChangeText={setRecipientName}
               placeholder="Nome completo do destinatário"
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceHighlight }]}
             />
-            <TextInput
-              accessibilityLabel="Relação com o atendimento"
+            <FormField
+              label="Relação com o atendimento"
+              required
               value={relationship}
               onChangeText={setRelationship}
               placeholder="Ex.: morador, proprietário ou responsável"
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceHighlight }]}
             />
 
             {outcome === 'acknowledged' ? (
@@ -383,14 +404,13 @@ export default function ElectronicAcknowledgementScreen() {
             )}
 
             {!isOnlineReal && !document.trainingMode && (
-              <View style={styles.offlineBanner}>
-                <Feather name="cloud-off" size={18} color="#D97706" />
-                <Text style={styles.offlineText}>A coleta será salva neste aparelho. O protocolo definitivo só será emitido após sincronização.</Text>
-              </View>
+              <StateBanner
+                variant="warning"
+                title="Registro offline"
+                description="A ciência será salva neste aparelho. O protocolo definitivo será emitido após a sincronização."
+              />
             )}
-            <TouchableOpacity disabled={submitting} onPress={handleSubmit} style={[styles.primaryButton, { backgroundColor: theme.primary, opacity: submitting ? 0.6 : 1 }]}>
-              {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>Registrar resultado</Text>}
-            </TouchableOpacity>
+            <Button label="Registrar resultado" onPress={handleSubmit} loading={submitting} fullWidth />
           </>
         )}
       </ScrollView>
@@ -405,11 +425,9 @@ const styles = StyleSheet.create({
   headerButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 19, fontWeight: '800' },
   headerSubtitle: { fontSize: 11, marginTop: 2 },
-  content: { padding: 18, paddingBottom: 80 },
+  content: { padding: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[3] },
   sectionTitle: { fontSize: 15, fontWeight: '800', marginTop: 8, marginBottom: 10 },
   preview: { height: 360, borderWidth: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: '#FFF' },
-  trainingBanner: { padding: 12, borderRadius: 10, backgroundColor: '#FEF3C7', marginBottom: 10 },
-  trainingText: { color: '#92400E', fontWeight: '800', textAlign: 'center', fontSize: 12 },
   outcomes: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   outcomeButton: { flex: 1, minHeight: 64, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 5, padding: 6 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12, fontSize: 14, marginBottom: 10 },
@@ -419,8 +437,6 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 10 },
   switchLabel: { flex: 1, fontSize: 13, fontWeight: '600' },
   fieldLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.7, marginBottom: 7 },
-  offlineBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 10, backgroundColor: '#FFFBEB', marginVertical: 10 },
-  offlineText: { flex: 1, color: '#92400E', fontSize: 12, lineHeight: 17 },
   primaryButton: { minHeight: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingHorizontal: 16 },
   primaryButtonText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
   outlineButton: { minHeight: 44, borderWidth: 1, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginVertical: 10 },
@@ -429,5 +445,6 @@ const styles = StyleSheet.create({
   status: { fontSize: 12, fontWeight: '900', marginBottom: 9 },
   detail: { fontSize: 13, marginBottom: 5 },
   rowButtons: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  rowButton: { flex: 1 },
   smallButton: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 11, alignItems: 'center' },
 });

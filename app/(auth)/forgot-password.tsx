@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
+import { TCSPalette } from '../../constants/Colors';
 
 type Canal = 'email' | 'whatsapp';
 
@@ -85,8 +86,8 @@ export default function ForgotPasswordScreen() {
               style={[styles.tab, canal === 'email' && { backgroundColor: theme.primary, borderRadius: 10 }]}
               onPress={() => { setCanal('email'); setError(null); }}
             >
-              <Feather name="mail" size={15} color={canal === 'email' ? '#FFF' : theme.textSecondary} />
-              <Text style={[styles.tabText, { color: canal === 'email' ? '#FFF' : theme.textSecondary }]}>
+              <Feather name="mail" size={15} color={canal === 'email' ? theme.onPrimary : theme.textSecondary} />
+              <Text style={[styles.tabText, { color: canal === 'email' ? theme.onPrimary : theme.textSecondary }]}>
                 E-mail
               </Text>
             </TouchableOpacity>
@@ -98,8 +99,8 @@ export default function ForgotPasswordScreen() {
             >
               <Feather name="message-circle" size={15} color={theme.textSecondary} />
               <Text style={[styles.tabText, { color: theme.textSecondary }]}>WhatsApp</Text>
-              <View style={styles.emBreve}>
-                <Text style={styles.emBreveText}>Manutenção</Text>
+              <View style={[styles.emBreve, { backgroundColor: theme.warningLight }]}>
+                <Text style={[styles.emBreveText, { color: theme.warning }]}>Manutenção</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -124,9 +125,9 @@ export default function ForgotPasswordScreen() {
             </View>
 
             {error !== null && (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={16} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: theme.errorLight, borderColor: theme.error }]}>
+                <Feather name="alert-circle" size={16} color={theme.error} />
+                <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
               </View>
             )}
 
@@ -165,9 +166,9 @@ const styles = StyleSheet.create({
   },
   tabText: { fontSize: 13, fontWeight: '700' },
   emBreve: {
-    backgroundColor: '#F59E0B22', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, marginLeft: 2,
+    borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, marginLeft: 2,
   },
-  emBreveText: { fontSize: 9, fontWeight: '700', color: '#F59E0B' },
+  emBreveText: { fontSize: 9, fontWeight: '700' },
   form: { gap: 24 },
   fieldGroup: { gap: 8 },
   label: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -179,10 +180,9 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 16, fontWeight: '500' },
   errorBox: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12, padding: 12, gap: 8,
+    borderWidth: 1, borderRadius: 12, padding: 12, gap: 8,
   },
-  errorText: { color: '#EF4444', fontSize: 14, flex: 1 },
+  errorText: { fontSize: 14, flex: 1 },
   linkBtn: { alignItems: 'center' },
   linkText: { fontSize: 14, fontWeight: '500' },
 });

@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { TCSTheme } from '../../../constants/Colors';
+import { AppHeader, EmptyState, MetricCard, StateBanner } from '../../../components/ui';
 import {
   closeTrainingClass,
   createTrainingClass,
@@ -72,11 +74,11 @@ function fmtDateTime(iso: string) {
   });
 }
 
-function getStatus(item: TrainingClass) {
+function getStatus(item: TrainingClass, theme: TCSTheme) {
   const now = Date.now();
-  if (isTrainingClassEnded(item)) return { label: 'Encerrado', color: '#6B7280', icon: 'lock' as const };
-  if (now < new Date(item.inicio_em).getTime()) return { label: 'Agendado', color: '#2563EB', icon: 'clock' as const };
-  return { label: 'Ativo', color: '#10B981', icon: 'radio' as const };
+  if (isTrainingClassEnded(item)) return { label: 'Encerrado', color: theme.muted, background: theme.mutedBackground, icon: 'lock' as const };
+  if (now < new Date(item.inicio_em).getTime()) return { label: 'Agendado', color: theme.primary, background: theme.secondary, icon: 'clock' as const };
+  return { label: 'Ativo', color: theme.success, background: theme.successLight, icon: 'radio' as const };
 }
 
 export default function MasterTreinamentosScreen() {
@@ -238,17 +240,15 @@ export default function MasterTreinamentosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border, paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.iconBackground, borderColor: theme.border }]} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={theme.textSecondary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Treinamentos</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Tokens coletivos para turmas presenciais</Text>
-        </View>
-        <TouchableOpacity style={[styles.createTopBtn, { backgroundColor: theme.primary }]} onPress={abrirCriacao}>
-          <Feather name="plus" size={18} color="#FFF" />
-        </TouchableOpacity>
+      <View style={{ paddingTop: insets.top }}>
+        <AppHeader
+          title="Treinamentos"
+          subtitle="Turmas presenciais e acessos temporários"
+          onBack={() => router.back()}
+          actionIcon="plus"
+          actionLabel="Criar turma"
+          onAction={abrirCriacao}
+        />
       </View>
 
       <ScrollView
@@ -256,31 +256,17 @@ export default function MasterTreinamentosScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryBox, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.summaryValue, { color: theme.text }]}>{summary.abertas}</Text>
-            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>turmas abertas</Text>
-          </View>
-          <View style={[styles.summaryBox, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.summaryValue, { color: theme.text }]}>{summary.participantes}/{summary.limite}</Text>
-            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>alunos conectados</Text>
-          </View>
+          <MetricCard value={summary.abertas} label="Turmas abertas" style={styles.summaryBox} />
+          <MetricCard value={`${summary.participantes}/${summary.limite}`} label="Participantes" tone="success" style={styles.summaryBox} />
         </View>
 
         {classes.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Feather name="users" size={34} color={theme.textSecondary} style={{ opacity: 0.5 }} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhuma turma criada</Text>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Crie um token coletivo para liberar o fluxo limitado de treinamento.</Text>
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: theme.primary }]} onPress={abrirCriacao}>
-              <Feather name="plus" size={18} color="#FFF" />
-              <Text style={styles.primaryBtnText}>Criar turma</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState icon="users" title="Nenhuma turma criada" description="Crie um acesso coletivo para liberar o ambiente controlado de treinamento." actionLabel="Criar turma" onAction={abrirCriacao} />
         ) : (
           classes.map(item => {
-            const status = getStatus(item);
+            const status = getStatus(item, theme);
             return (
-              <View key={item.id} style={[styles.classCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+              <View key={item.id} style={[styles.classCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
                 <View style={styles.classHeader}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.className, { color: theme.text }]} numberOfLines={2}>{item.nome}</Text>
@@ -288,7 +274,7 @@ export default function MasterTreinamentosScreen() {
                       {fmtDateTime(item.inicio_em)} até {fmtDateTime(item.fim_em)}
                     </Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: `${status.color}18`, borderColor: `${status.color}35` }]}>
+                  <View style={[styles.statusBadge, { backgroundColor: status.background, borderColor: status.background }]}>
                     <Feather name={status.icon} size={12} color={status.color} />
                     <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
                   </View>
@@ -310,8 +296,8 @@ export default function MasterTreinamentosScreen() {
                 </View>
 
                 <View style={styles.metricRow}>
-                  <Metric label="Participantes" value={`${item.participant_count || 0}/${item.limite_participantes}`} color="#10B981" />
-                  <Metric label="Criado por" value={item.criado_por_nome || 'Master'} color="#2563EB" />
+                  <Metric label="Participantes" value={`${item.participant_count || 0}/${item.limite_participantes}`} color={theme.success} />
+                  <Metric label="Criado por" value={item.criado_por_nome || 'Master'} color={theme.primary} />
                 </View>
 
                 <View style={styles.actionsRow}>
@@ -320,9 +306,9 @@ export default function MasterTreinamentosScreen() {
                     <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Participantes</Text>
                   </TouchableOpacity>
                   {!isTrainingClassEnded(item) && (
-                    <TouchableOpacity style={[styles.dangerBtn, { borderColor: 'rgba(239,68,68,0.35)' }]} onPress={() => encerrarTurma(item)}>
-                      <Feather name="x-circle" size={16} color="#EF4444" />
-                      <Text style={styles.dangerBtnText}>Encerrar</Text>
+                    <TouchableOpacity style={[styles.dangerBtn, { borderColor: theme.error, backgroundColor: theme.errorLight }]} onPress={() => encerrarTurma(item)}>
+                      <Feather name="x-circle" size={16} color={theme.error} />
+                      <Text style={[styles.dangerBtnText, { color: theme.error }]}>Encerrar</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -333,8 +319,8 @@ export default function MasterTreinamentosScreen() {
       </ScrollView>
 
       <Modal visible={showCreate} animationType="slide" transparent onRequestClose={() => setShowCreate(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={[styles.modalCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+        <KeyboardAvoidingView style={[styles.modalOverlay, { backgroundColor: theme.overlay }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>Criar treinamento</Text>
               <TouchableOpacity onPress={() => setShowCreate(false)} disabled={creating}>
@@ -370,10 +356,7 @@ export default function MasterTreinamentosScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={[styles.allowedBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                <Text style={[styles.allowedTitle, { color: theme.text }]}>Formulários liberados</Text>
-                <Text style={[styles.allowedText, { color: theme.textSecondary }]}>Vistoria de deslizamento e risco estrutural novo</Text>
-              </View>
+              <StateBanner title="Formulários liberados" description="Vistoria de deslizamento e risco estrutural novo." variant="info" />
             </ScrollView>
 
             <View style={[styles.modalActions, { borderTopColor: theme.border }]}>
@@ -390,8 +373,8 @@ export default function MasterTreinamentosScreen() {
       </Modal>
 
       <Modal visible={!!participantsClass} animationType="slide" transparent onRequestClose={() => setParticipantsClass(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.participantsCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <View style={[styles.participantsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.modalTitle, { color: theme.text }]}>Participantes</Text>
@@ -432,10 +415,11 @@ export default function MasterTreinamentosScreen() {
 }
 
 function Metric({ label, value, color }: { label: string; value: string; color: string }) {
+  const { theme } = useTheme();
   return (
     <View style={styles.metric}>
       <Text style={[styles.metricValue, { color }]} numberOfLines={1}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{label}</Text>
     </View>
   );
 }
@@ -461,36 +445,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontSize: 13, fontWeight: '600' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  createTopBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: { fontSize: 21, fontWeight: '800' },
   subtitle: { fontSize: 12, marginTop: 2, fontWeight: '600' },
   scroll: { padding: 20, gap: 14 },
   summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
-  summaryBox: { flex: 1, borderRadius: 14, borderWidth: 1, padding: 14 },
-  summaryValue: { fontSize: 22, fontWeight: '900' },
-  summaryLabel: { fontSize: 11, marginTop: 2, fontWeight: '700' },
+  summaryBox: { flex: 1 },
   emptyCard: { borderRadius: 18, borderWidth: 1, padding: 24, alignItems: 'center' },
   emptyTitle: { fontSize: 18, fontWeight: '800', marginTop: 12 },
   emptyText: { fontSize: 13, textAlign: 'center', lineHeight: 19, marginTop: 6 },
@@ -534,7 +492,7 @@ const styles = StyleSheet.create({
   metricRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   metric: { flex: 1 },
   metricValue: { fontSize: 16, fontWeight: '900' },
-  metricLabel: { color: '#64748B', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginTop: 2 },
+  metricLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginTop: 2 },
   actionsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   secondaryBtn: {
     flex: 1,
@@ -557,8 +515,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dangerBtnText: { color: '#EF4444', fontSize: 13, fontWeight: '800' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  dangerBtnText: { fontSize: 13, fontWeight: '800' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalCard: { maxHeight: '88%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1 },
   participantsCard: { maxHeight: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1 },
   modalHeader: {

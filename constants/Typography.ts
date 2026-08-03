@@ -22,6 +22,11 @@ export const FontWeight = {
   extrabold:'800' as const,
 } as const;
 
+export const FontFamily = {
+  /** San Francisco on iOS, Roboto on Android. */
+  sans: undefined,
+} as const;
+
 export const LineHeight = {
   tight:   1.2,  // headings
   snug:    1.35, // subtítulos
@@ -87,4 +92,11 @@ export const Typography = {
     weight:     FontWeight.semibold,
     lineHeight: LineHeight.normal,
   },
+} as const;
+
+export const LetterSpacing = {
+  tight: -0.2,
+  normal: 0,
+  label: 0.1,
+  eyebrow: 0.6,
 } as const;

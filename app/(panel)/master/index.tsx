@@ -16,13 +16,15 @@ import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { tempoRelativo } from '../../../utils/htmlUtils';
-import { resolverApresentacaoRisco, riscoColor } from '../../../utils/riscoUtils';
+import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { notificarVistoriaDeletada } from '../../../services/NotificationService';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 import { isTrainingClassEnded, listTrainingClasses } from '../../../services/TrainingService';
+import { MetricCard, SectionHeader, StateBanner } from '../../../components/ui';
+import { TCSPalette } from '../../../constants/Colors';
 
 export default function MasterDashboardScreen() {
   const { theme } = useTheme();
@@ -215,20 +217,20 @@ export default function MasterDashboardScreen() {
           </Text>
           <View style={styles.badgeRow}>
             <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
-              <Feather name={developerMode ? 'code' : 'shield'} size={10} color={developerMode ? '#8B5CF6' : theme.primary} />
-              <Text style={[styles.chipText, { color: developerMode ? '#8B5CF6' : theme.primary }]}>
+              <Feather name={developerMode ? 'code' : 'shield'} size={10} color={theme.primary} />
+              <Text style={[styles.chipText, { color: theme.primary }]}>
                 {developerMode ? 'Desenvolvedor' : 'Master'}
               </Text>
             </View>
             {isConnected ? (
-              <View style={[styles.chipBadge, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.25)' }]}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
-                <Text style={[styles.chipText, { color: '#10B981' }]}>Conectado</Text>
+              <View style={[styles.chipBadge, { backgroundColor: theme.successLight, borderColor: theme.success }]}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.success }} />
+                <Text style={[styles.chipText, { color: theme.success }]}>Conectado</Text>
               </View>
             ) : (
               <View style={[styles.chipBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}>
-                <Feather name="wifi-off" size={10} color="#F59E0B" />
-                <Text style={[styles.chipText, { color: '#F59E0B' }]}>Offline</Text>
+                <Feather name="wifi-off" size={10} color={theme.warning} />
+                <Text style={[styles.chipText, { color: theme.warning }]}>Offline</Text>
               </View>
             )}
           </View>
@@ -262,41 +264,29 @@ export default function MasterDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         {developerMode && (
-          <View style={[styles.developerBanner, { backgroundColor: 'rgba(124,58,237,0.10)', borderColor: 'rgba(139,92,246,0.38)' }]}>
-            <View style={styles.developerBannerIcon}>
-              <Feather name="code" size={18} color="#A78BFA" />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.developerBannerTitle}>Ambiente Desenvolvedor</Text>
-              <Text style={[styles.developerBannerText, { color: theme.textSecondary }]}>
-                Acesso superior à Master. Dados criados nesta sessão são temporários e nenhuma alteração é gravada no sistema oficial.
-              </Text>
-            </View>
-          </View>
+          <StateBanner
+            variant="info"
+            title="Ambiente desenvolvedor"
+            description="Acesso superior à Master. Os dados criados nesta sessão são temporários e não alteram o sistema oficial."
+          />
         )}
         {!isConnected && (
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
-            <Feather name="wifi-off" size={15} color="#F59E0B" />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>Modo offline ativo</Text>
-              <Text style={{ color: '#F59E0B', fontSize: 12, marginTop: 2, opacity: 0.85 }}>Painel global indisponível offline. Dados locais acessíveis.</Text>
-            </View>
-          </View>
+          <StateBanner
+            variant="warning"
+            title="Modo offline ativo"
+            description="O painel global está indisponível, mas os dados locais continuam acessíveis."
+          />
         )}
 
         {/* Alerta global alto risco */}
         {stats.altoRisco > 0 && (
-          <TouchableOpacity
-            style={styles.alertBanner}
-            onPress={() => router.push('/(panel)/inspecoes')}
-          >
-            <Feather name="alert-triangle" size={20} color="#EF4444" />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.alertTitle}>{stats.altoRisco} ALERTA{stats.altoRisco > 1 ? 'S' : ''} CRÍTICO{stats.altoRisco > 1 ? 'S' : ''} GLOBAL</Text>
-              <Text style={styles.alertDesc}>Vistorias de alto risco em todo o sistema.</Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#EF4444" />
-          </TouchableOpacity>
+          <StateBanner
+            variant="danger"
+            title={`${stats.altoRisco} ${stats.altoRisco > 1 ? 'alertas críticos globais' : 'alerta crítico global'}`}
+            description="Existem vistorias de alto risco que exigem acompanhamento."
+            actionLabel="Ver vistorias"
+            onAction={() => router.push('/(panel)/inspecoes')}
+          />
         )}
 
         {erro && !loading && stats.totalVistorias === 0 && (
@@ -306,32 +296,22 @@ export default function MasterDashboardScreen() {
             onRetry={() => carregar()}
           />
         )}
-        {/* KPIs globais */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Visão Global</Text>
-        <View style={styles.kpiGrid}>
-          {[
-            { label: 'Vistorias', value: stats.totalVistorias, color: theme.primary, icon: 'clipboard', route: '/(panel)/inspecoes' },
-            { label: 'Alto Risco', value: stats.altoRisco, color: '#EF4444', icon: 'alert-triangle', route: '/(panel)/inspecoes' },
-            { label: 'Usuários', value: stats.totalUsuarios, color: '#10B981', icon: 'users', route: '/(panel)/admin/usuarios' },
-            { label: 'Municípios', value: stats.totalMunicipios, color: '#8B5CF6', icon: 'map', route: '/(panel)/master/municipios' },
-          ].map(k => (
-            <TouchableOpacity 
-              key={k.label} 
-              style={[styles.kpiCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push(k.route as any)}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start' }}>
-                <View style={[styles.kpiIcon, { backgroundColor: `${k.color}15` }]}>
-                  <Feather name={k.icon as any} size={20} color={k.color} />
-                </View>
-                <Feather name="arrow-up-right" size={14} color={theme.textSecondary} style={{ opacity: 0.5 }} />
-              </View>
-              <View style={{ width: '100%' }}>
-                <Text style={[styles.kpiValue, { color: theme.text }]}>{k.value}</Text>
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{k.label}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+        <SectionHeader
+          title="Visão global"
+          subtitle="Cobertura, pessoas e atividade da rede TCS"
+        />
+        <View style={styles.metricGrid}>
+          <MetricCard
+            value={stats.totalVistorias}
+            label="Vistorias da rede"
+            detail="Base consolidada"
+            tone="primary"
+            style={styles.metricWide}
+          />
+          <MetricCard value={stats.altoRisco} label="Alto risco" tone="danger" style={styles.metricHalf} />
+          <MetricCard value={stats.totalUsuarios} label="Usuários ativos" tone="success" style={styles.metricHalf} />
+          <MetricCard value={stats.totalMunicipios} label="Municípios" tone="primary" style={styles.metricHalf} />
+          <MetricCard value={trainingSummary.classes} label="Turmas abertas" tone="warning" style={styles.metricHalf} />
         </View>
 
         <TouchableOpacity
@@ -339,8 +319,8 @@ export default function MasterDashboardScreen() {
           onPress={() => router.push('/(panel)/master/treinamentos')}
           activeOpacity={0.85}
         >
-          <View style={[styles.trainingIcon, { backgroundColor: 'rgba(16,185,129,0.14)' }]}>
-            <Feather name="users" size={20} color="#10B981" />
+          <View style={[styles.trainingIcon, { backgroundColor: theme.successLight }]}>
+            <Feather name="users" size={20} color={theme.success} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.trainingTitle, { color: theme.text }]}>Treinamentos</Text>
@@ -350,7 +330,7 @@ export default function MasterDashboardScreen() {
                 : 'Nenhuma turma ativa ou agendada'}
             </Text>
             {trainingSummary.nextEnd && (
-              <Text style={[styles.trainingDeadline, { color: '#10B981' }]}>
+              <Text style={[styles.trainingDeadline, { color: theme.success }]}>
                 Expira em {new Date(trainingSummary.nextEnd).toLocaleString('pt-BR', {
                   day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
                 })}
@@ -377,7 +357,10 @@ export default function MasterDashboardScreen() {
         ) : (
           recentLogs.map(v => {
             const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
-            const cor = apresentacao.cor;
+            const nivel = String(v.nivelRisco || '').toLowerCase();
+            const cor = ['r3', 'r4', 'alto', 'critico', 'iminente'].includes(nivel)
+              ? theme.error
+              : ['r2', 'medio', 'médio'].includes(nivel) ? theme.warning : theme.success;
             return (
               <View
                 key={v.id}
@@ -390,7 +373,7 @@ export default function MasterDashboardScreen() {
                 >
                   <View style={[styles.riscoDot, { backgroundColor: `${cor}20`, borderColor: `${cor}40` }]}>
                     <Feather
-                      name={cor === '#EF4444' ? 'alert-triangle' : cor === '#F59E0B' ? 'alert-circle' : 'check-circle'}
+                      name={cor === theme.error ? 'alert-triangle' : cor === theme.warning ? 'alert-circle' : 'check-circle'}
                       size={20} color={cor}
                     />
                   </View>
@@ -409,11 +392,11 @@ export default function MasterDashboardScreen() {
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.deleteBtn, { backgroundColor: 'rgba(239,68,68,0.08)' }]}
+                  style={[styles.deleteBtn, { backgroundColor: theme.errorLight }]}
                   onPress={() => { setDeleteTarget(v); setDeleteMotivo(''); }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Feather name="trash-2" size={16} color="#EF4444" />
+                  <Feather name="trash-2" size={16} color={theme.error} />
                 </TouchableOpacity>
               </View>
             );
@@ -436,7 +419,7 @@ export default function MasterDashboardScreen() {
             </View>
             <View style={styles.riskBarContainer}>
               {stats.altoRisco > 0 && (
-                <View style={[styles.riskSegment, { width: `${(stats.altoRisco / stats.totalVistorias) * 100}%`, backgroundColor: '#EF4444' }]} />
+                <View style={[styles.riskSegment, { width: `${(stats.altoRisco / stats.totalVistorias) * 100}%`, backgroundColor: theme.error }]} />
               )}
               {stats.totalVistorias - stats.altoRisco > 0 && (
                 <View style={[styles.riskSegment, { width: `${((stats.totalVistorias - stats.altoRisco) / stats.totalVistorias) * 100}%`, backgroundColor: theme.border }]} />
@@ -444,7 +427,7 @@ export default function MasterDashboardScreen() {
             </View>
             <View style={styles.riskLegend}>
               <View style={styles.riskLegendItem}>
-                <View style={[styles.riskDot, { backgroundColor: '#EF4444' }]} />
+                <View style={[styles.riskDot, { backgroundColor: theme.error }]} />
                 <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>R3/R4 Alto ({stats.altoRisco})</Text>
               </View>
               <View style={styles.riskLegendItem}>
@@ -482,11 +465,11 @@ export default function MasterDashboardScreen() {
                 <>
                   <View style={[styles.riskModalLegend, { borderBottomColor: theme.border }]}>
                     <View style={styles.riskLegendItem}>
-                      <View style={[styles.riskDot, { backgroundColor: '#EF4444' }]} />
+                      <View style={[styles.riskDot, { backgroundColor: theme.error }]} />
                       <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: '600' }}>R3/R4 Alto risco</Text>
                     </View>
                     <View style={styles.riskLegendItem}>
-                      <View style={[styles.riskDot, { backgroundColor: '#10B981' }]} />
+                      <View style={[styles.riskDot, { backgroundColor: theme.success }]} />
                       <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: '600' }}>R1/R2 Controlado</Text>
                     </View>
                   </View>
@@ -505,18 +488,18 @@ export default function MasterDashboardScreen() {
                                 {index + 1}. {item.municipio || 'Não informado'}
                               </Text>
                               {item.alto > 0 && (
-                                <View style={styles.riskCidadeAlertBadge}>
-                                  <Feather name="alert-triangle" size={10} color="#EF4444" />
-                                  <Text style={styles.riskCidadeAlertText}>{item.alto} alto</Text>
+                                <View style={[styles.riskCidadeAlertBadge, { backgroundColor: theme.errorLight }]}>
+                                  <Feather name="alert-triangle" size={10} color={theme.error} />
+                                  <Text style={[styles.riskCidadeAlertText, { color: theme.error }]}>{item.alto} alto</Text>
                                 </View>
                               )}
                             </View>
                             <View style={[styles.riskBarContainer, { marginBottom: 4 }]}>
                               {item.alto > 0 && (
-                                <View style={[styles.riskSegment, { width: `${altoPercent}%`, backgroundColor: '#EF4444' }]} />
+                                <View style={[styles.riskSegment, { width: `${altoPercent}%`, backgroundColor: theme.error }]} />
                               )}
                               {item.baixo > 0 && (
-                                <View style={[styles.riskSegment, { width: `${100 - altoPercent}%`, backgroundColor: '#10B981' }]} />
+                                <View style={[styles.riskSegment, { width: `${100 - altoPercent}%`, backgroundColor: theme.success }]} />
                               )}
                             </View>
                             <Text style={{ color: theme.textSecondary, fontSize: 11 }}>
@@ -602,8 +585,8 @@ export default function MasterDashboardScreen() {
           <View style={styles.deleteOverlay}>
             <View style={[styles.deleteSheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               {/* Ícone */}
-              <View style={styles.deleteIconWrap}>
-                <Feather name="trash-2" size={28} color="#EF4444" />
+              <View style={[styles.deleteIconWrap, { backgroundColor: theme.errorLight }]}>
+                <Feather name="trash-2" size={28} color={theme.error} />
               </View>
               <Text style={[styles.deleteTitle, { color: theme.text }]}>Excluir Vistoria</Text>
               <Text style={[styles.deleteSubtitle, { color: theme.textSecondary }]}>
@@ -617,7 +600,7 @@ export default function MasterDashboardScreen() {
                     {deleteTarget.endereco || 'Endereço não informado'}
                   </Text>
                   <Text style={[{ fontSize: 12, color: theme.textSecondary, marginTop: 4 }]}>
-                    {(deleteTarget as any).agenteNome || '—'} · {deleteTarget.municipio} · {riscoColor(deleteTarget.nivelRisco) === '#EF4444' ? 'CRÍTICO' : deleteTarget.nivelRisco?.toUpperCase()}
+                    {(deleteTarget as any).agenteNome || '—'} · {deleteTarget.municipio} · {['r3', 'r4', 'alto', 'critico', 'iminente'].includes(String(deleteTarget.nivelRisco || '').toLowerCase()) ? 'CRÍTICO' : deleteTarget.nivelRisco?.toUpperCase()}
                   </Text>
                 </View>
               )}
@@ -693,11 +676,14 @@ const styles = StyleSheet.create({
   badge: {
     position: 'absolute', top: -4, right: -4,
     minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: TCSPalette.danger, justifyContent: 'center', alignItems: 'center',
     paddingHorizontal: 3,
   },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 100 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
+  metricWide: { width: '100%', minHeight: 128 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 112 },
   developerBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 18,
@@ -706,7 +692,6 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(124,58,237,0.18)',
   },
-  developerBannerTitle: { color: '#A78BFA', fontSize: 14, fontWeight: '900' },
   developerBannerText: { fontSize: 12, lineHeight: 18, marginTop: 3, fontWeight: '500' },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
@@ -787,12 +772,11 @@ const styles = StyleSheet.create({
   logMeta: { fontSize: 11, marginTop: 2, fontWeight: '500' },
   alertBanner: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    borderRadius: 14, borderWidth: 1,
     padding: 14, marginBottom: 20,
   },
-  alertTitle: { color: '#EF4444', fontSize: 13, fontWeight: '800' },
-  alertDesc: { color: '#EF4444', fontSize: 12, opacity: 0.8, marginTop: 1 },
+  alertTitle: { color: TCSPalette.danger, fontSize: 13, fontWeight: '800' },
+  alertDesc: { color: TCSPalette.danger, fontSize: 12, opacity: 0.8, marginTop: 1 },
   rankCard: {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 8,
@@ -826,7 +810,6 @@ const styles = StyleSheet.create({
   },
   deleteIconWrap: {
     width: 60, height: 60, borderRadius: 18,
-    backgroundColor: 'rgba(239,68,68,0.1)',
     justifyContent: 'center', alignItems: 'center', marginBottom: 16,
   },
   deleteTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
@@ -850,7 +833,7 @@ const styles = StyleSheet.create({
   },
   deleteConfirmBtn: {
     flex: 2, height: 48, borderRadius: 14,
-    backgroundColor: '#EF4444',
+    backgroundColor: TCSPalette.danger,
     justifyContent: 'center', alignItems: 'center',
   },
   riskModalOverlay: {
@@ -875,10 +858,10 @@ const styles = StyleSheet.create({
   riskCidadeNome: { fontSize: 14, fontWeight: '700', flex: 1 },
   riskCidadeAlertBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 6,
+    paddingHorizontal: 6,
     paddingVertical: 2, borderRadius: 6,
   },
-  riskCidadeAlertText: { color: '#EF4444', fontSize: 10, fontWeight: '700' },
+  riskCidadeAlertText: { fontSize: 10, fontWeight: '700' },
   sectionRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
     marginBottom: 12, marginTop: 12,
