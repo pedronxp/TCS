@@ -38,6 +38,9 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     if (status === 'vinculo-inativo') setMessage('Seu vínculo municipal não está ativo. Fale com a coordenação.');
   }, [status]);
 
+  if (!loading && session && entryContext?.accountKind === 'internal') {
+    return <Navigate to="/login" replace />;
+  }
   if (!loading && session && inviteReturn) {
     return <Navigate to={inviteReturn} replace />;
   }
@@ -173,7 +176,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 checked={termsAccepted}
                 onChange={(event) => setTermsAccepted(event.target.checked)}
               />
-              Aceito os termos de uso e privacidade (customer-terms-2026-08).
+              Aceito os Termos de Uso e a Política de Privacidade vigentes.
             </label>
             {message && <p className="rounded-md border border-destructive/20 bg-status-danger p-3 text-sm" role="alert">{message}</p>}
             <Button
