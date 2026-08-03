@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { getPortalNavigation } from '@/config/portalNavigation';
-import { parsePortalAccessContext, portalRestrictionMessage, portalSubscriptionPresentation, safePortalDestination } from './portal';
+import {
+  parseInternalCustomerEntryContext,
+  parsePortalAccessContext,
+  portalRestrictionMessage,
+  portalSubscriptionPresentation,
+  safePortalDestination,
+} from './portal';
 import type { PortalAccessContext } from '@/types/portal';
 
 function context(overrides: Partial<PortalAccessContext> = {}): PortalAccessContext {
@@ -56,6 +62,16 @@ describe('contrato de acesso do portal', () => {
       user_id: 'user',
       subscription_status: 'free_forever',
     })).toBeNull();
+  });
+
+  it('reconhece somente owner ou developer internos ativos na entrada pública', () => {
+    expect(parseInternalCustomerEntryContext({ role: 'owner', status: 'active' })).toMatchObject({
+      accountKind: 'internal',
+      entryState: 'internal_only',
+    });
+    expect(parseInternalCustomerEntryContext({ role: 'developer', status: 'active' })?.accountKind).toBe('internal');
+    expect(parseInternalCustomerEntryContext({ role: 'owner', status: 'suspended' })).toBeNull();
+    expect(parseInternalCustomerEntryContext({ role: 'support', status: 'active' })).toBeNull();
   });
 
   it('não permite redirecionamento externo, travessia ou troca de portal', () => {

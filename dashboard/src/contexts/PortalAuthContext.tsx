@@ -1,7 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
+import { fetchAuthenticatedInternalProfile } from '@/lib/account-entry';
 import { supabase } from '@/lib/supabase';
-import { fetchCustomerEntryContext, fetchPortalAccessContext } from '@/lib/portal';
+import {
+  fetchCustomerEntryContext,
+  fetchPortalAccessContext,
+  parseInternalCustomerEntryContext,
+} from '@/lib/portal';
 import type { PortalAccessContext, PortalCustomerEntryContext, PortalPermission } from '@/types/portal';
 
 interface MunicipalBootstrapInput {
@@ -56,6 +61,14 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
+      const internalProfile = await fetchAuthenticatedInternalProfile();
+      const internalEntryContext = parseInternalCustomerEntryContext(internalProfile);
+      if (internalEntryContext) {
+        setAccess(null);
+        setEntryContext(internalEntryContext);
+        setError(null);
+        return;
+      }
       if (nextSession.user.identities?.some((identity) => identity.provider === 'google')) {
         await supabase.rpc('reconcile_customer_identity');
         await supabase.rpc('record_google_identity_reconciled');

@@ -113,6 +113,22 @@ export async function fetchPortalAccessContext(user?: User | null) {
   return parsePortalAccessContext(data, user);
 }
 
+export function parseInternalCustomerEntryContext(value: unknown): PortalCustomerEntryContext | null {
+  const source = record(value);
+  const role = string(source?.role);
+  if (!source || source.status !== 'active' || (role !== 'owner' && role !== 'developer')) return null;
+  return {
+    accountKind: 'internal',
+    entryState: 'internal_only',
+    lifecycleState: 'active',
+    individualBootstrapEnabled: false,
+    municipalBootstrapEnabled: false,
+    organizationName: null,
+    subscriptionStatus: null,
+    onboarding: null,
+  };
+}
+
 export function parseCustomerEntryContext(value: unknown): PortalCustomerEntryContext {
   const source = record(value);
   const features = record(source?.features);
