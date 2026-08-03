@@ -70,3 +70,6 @@ supabase/.temp/
 .gemini/skills/openspec-update-change/
 output/
 tmp/
+
+# Local Netlify folder
+.netlify
