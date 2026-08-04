@@ -104,8 +104,8 @@ function RootNavigator() {
     AsyncStorage.getItem('@onboarding_done').then(val => {
       const done = val === '1';
       const segs = segmentsRef.current;          // sempre atualizado via ref
-      const isAuthenticated = !!session && profile?.isApproved === true;
-      const hasPendingCustomerSession = !!session && profile?.isApproved !== true;
+      const isAuthenticated = !!session && (profile?.isApproved === true || profile?.role === 'owner');
+      const hasPendingCustomerSession = !!session && !isAuthenticated;
       const hasExpiredTrainingSession = !!trainingSession && isExpired();
       const hasTrainingSession = !!trainingSession && isTrainingActive && !hasExpiredTrainingSession;
       const redirect = resolveRootRedirect({

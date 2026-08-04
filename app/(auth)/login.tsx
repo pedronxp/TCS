@@ -77,11 +77,13 @@ export default function LoginScreen() {
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('isApproved')
-        .eq('email', emailNorm)
+        .select('isApproved, role')
+        .eq('uid', data.user.id)
         .single();
 
-      if (userError || !userData?.isApproved) {
+      // Conta owner não requer aprovação manual — é aprovada pelo sistema de onboarding
+      const isOwnerRole = userData?.role === 'owner';
+      if (userError || (!userData?.isApproved && !isOwnerRole)) {
         await supabase.auth.signOut();
         await recordLoginAttempt(emailNorm);
         registrarAuditoria({
