@@ -43,7 +43,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     navigate('/entrar', { replace: true });
   }
 
-  if (!loading && session && entryContext?.accountKind === 'internal') {
+  if (!loading && session && (
+    entryContext?.accountKind === 'internal'
+    || (!access && (!entryContext || entryContext.accountKind === null))
+  )) {
     return <Navigate to="/login" replace />;
   }
   if (!loading && session && inviteReturn) {

@@ -9,7 +9,7 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
-  role: 'master_admin' | 'admin' | 'supervisor' | 'agent';
+  role: 'master_admin' | 'admin' | 'supervisor' | 'agent' | 'owner';
   municipio: string;
   isApproved: boolean;
   createdAt?: string;
