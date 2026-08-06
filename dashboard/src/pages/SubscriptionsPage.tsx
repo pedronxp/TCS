@@ -104,7 +104,7 @@ export function SubscriptionsPage() {
       />
 
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Receita recorrente</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Receita recorrente</p>
         <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Assinaturas</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Acompanhe ativação, renovação, carência e risco financeiro ao longo do ciclo.
@@ -169,7 +169,7 @@ export function SubscriptionsPage() {
                 })}
               </DataTable>
               {rows.length > metrics.priorityRows.length && (
-                <p className="px-6 pt-4 text-xs font-semibold text-info-strong">
+                <p className="px-6 pt-4 text-xs font-semibold text-primary">
                   {rows.length - metrics.priorityRows.length} outros ciclos disponíveis na base
                 </p>
               )}
@@ -193,19 +193,19 @@ export function SubscriptionsPage() {
 
 function CycleFlow({ metrics }: { metrics: ReturnType<typeof subscriptionMetrics> }) {
   const stages = [
-    ['Teste', metrics.trial, 'bg-info-strong'],
-    ['Ativas', metrics.active, 'bg-success'],
-    ['Renovação', metrics.renewals.length, 'bg-warning'],
-    ['Carência', metrics.grace, 'bg-primary'],
-    ['Em atraso', metrics.pastDue, 'bg-destructive'],
+    ['Teste', metrics.trial, 'bg-muted text-foreground'],
+    ['Ativas', metrics.active, 'bg-primary text-primary-foreground'],
+    ['Renovação', metrics.renewals.length, 'bg-muted text-foreground'],
+    ['Carência', metrics.grace, 'bg-muted text-foreground'],
+    ['Em atraso', metrics.pastDue, 'bg-destructive text-destructive-foreground'],
   ] as const;
   return (
-    <section className="rounded-2xl bg-ink-panel p-6 text-white">
-      <p className="text-[10px] font-bold uppercase text-warm">Fluxo de ciclo</p>
+    <section className="rounded-lg border border-border bg-card p-6">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fluxo de ciclo</p>
       <div className="mt-6 grid gap-5 sm:grid-cols-5">
         {stages.map(([label, value, tone], index) => (
           <div key={label} className="relative text-center">
-            {index < stages.length - 1 && <span className="absolute left-[calc(50%+28px)] top-6 hidden h-px w-[calc(100%-56px)] bg-white/25 sm:block" />}
+            {index < stages.length - 1 && <span className="absolute left-[calc(50%+28px)] top-6 hidden h-px w-[calc(100%-56px)] bg-border sm:block" />}
             <span className={cn('relative z-10 mx-auto grid h-[46px] w-[46px] place-items-center rounded-full text-xs font-bold', tone)}>{value}</span>
             <span className="mt-3 block text-[10px] font-semibold">{label}</span>
           </div>
@@ -237,8 +237,8 @@ function RenewalRadar({ metrics }: { metrics: ReturnType<typeof subscriptionMetr
     ['Em risco', metrics.atRisk.length, 'bg-destructive', 'text-destructive'],
   ] as const;
   return (
-    <aside className="rounded-[14px] border border-info-strong/20 bg-info-soft p-6">
-      <p className="text-[10px] font-bold uppercase text-info-strong">Radar de renovação</p>
+    <aside className="rounded-lg border border-border bg-muted p-6">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Radar de renovação</p>
       <strong className="mt-4 block text-[24px]">{formatCompactCurrency(metrics.renewalCents)}</strong>
       <p className="mt-1 text-[11px] text-muted-foreground">em ciclos nos próximos 30 dias</p>
       <div className="mt-8 space-y-7">
@@ -356,7 +356,7 @@ function SubscriptionDialog({
               />
             </div>
           </div>
-          {error && <p className="rounded-lg bg-danger-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
+          {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
             <Button onClick={requestSave}>Salvar assinatura</Button>

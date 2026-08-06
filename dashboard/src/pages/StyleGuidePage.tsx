@@ -12,16 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/Textarea';
 
 const tokenSwatches = [
-  { name: 'Background', value: '#FAF8F5', className: 'bg-background' },
+  { name: 'Background', value: '#FAFAFA', className: 'bg-background' },
   { name: 'Surface', value: '#FFFFFF', className: 'bg-card' },
-  { name: 'Foreground', value: '#1C1917', className: 'bg-foreground' },
-  { name: 'Secondary', value: '#F3EFE9', className: 'bg-secondary' },
-  { name: 'Border', value: '#E7E0D8', className: 'bg-border' },
-  { name: 'Primary', value: '#6F513A', className: 'bg-primary' },
-  { name: 'Warm accent', value: '#D7C3AA', className: 'bg-warm' },
-  { name: 'Info soft', value: '#EAF4FB', className: 'bg-info-soft' },
-  { name: 'Info strong', value: '#2F6F96', className: 'bg-info' },
-  { name: 'Focus ring', value: '#5C9CC5', className: 'bg-ring' },
+  { name: 'Foreground', value: '#171717', className: 'bg-foreground' },
+  { name: 'Muted', value: '#F5F5F5', className: 'bg-secondary' },
+  { name: 'Border', value: '#E0E0E0', className: 'bg-border' },
+  { name: 'Primary', value: '#15774A', className: 'bg-primary' },
+  { name: 'Primary hover', value: '#0F5437', className: 'bg-primary-hover' },
+  { name: 'Success soft', value: '#ECFAF3', className: 'bg-success-soft' },
+  { name: 'Warning', value: '#C77A00', className: 'bg-warning' },
+  { name: 'Destructive', value: '#C0291D', className: 'bg-destructive' },
 ] as const;
 
 export function StyleGuidePage() {
@@ -30,7 +30,7 @@ export function StyleGuidePage() {
       <PageHeader
         eyebrow="Design system"
         title="Referência da interface TCS"
-        description="Foundations e componentes compartilhados, alinhados ao board oficial no Penpot."
+        description="Foundations monocromáticas + acento verde, tipografia Inter e componentes compartilhados."
       />
 
       <section aria-labelledby="guide-foundations" className="space-y-5">
@@ -121,7 +121,7 @@ export function StyleGuidePage() {
           <Card>
             <CardHeader>
               <CardTitle>Inputs</CardTitle>
-              <CardDescription>Altura consistente, foco azul e estado desabilitado explícito.</CardDescription>
+              <CardDescription>Altura consistente, foco verde e estado desabilitado explícito.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-5 sm:grid-cols-2">
               <div className="space-y-2">

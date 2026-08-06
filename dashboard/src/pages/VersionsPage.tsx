@@ -140,7 +140,7 @@ export function VersionsPage() {
       />
 
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Release management</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Release management</p>
         <h1 id="versions-title" className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Versões</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Uma trilha clara entre desenvolvimento, homologação e produção.
@@ -297,18 +297,18 @@ export function VersionsPage() {
 
 function ReleaseTrain({ development, candidate, published }: { development: string; candidate: string; published: string }) {
   const stages = [
-    { number: 1, label: 'Desenvolvimento', value: development, tone: 'bg-info' },
-    { number: 2, label: 'Homologação', value: candidate, tone: 'bg-warning' },
-    { number: 3, label: 'Produção', value: published, tone: 'bg-success' },
+    { number: 1, label: 'Desenvolvimento', value: development, tone: 'bg-muted text-foreground' },
+    { number: 2, label: 'Homologação', value: candidate, tone: 'bg-muted text-foreground' },
+    { number: 3, label: 'Produção', value: published, tone: 'bg-primary text-primary-foreground' },
   ];
   return (
-    <section className="rounded-2xl bg-ink-panel p-6 text-white" aria-labelledby="release-train-title">
-      <p id="release-train-title" className="text-[10px] font-bold uppercase text-warm">Release train</p>
+    <section className="rounded-lg border border-border bg-card p-6" aria-labelledby="release-train-title">
+      <p id="release-train-title" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Release train</p>
       <div className="mt-7 grid gap-6 md:grid-cols-3">
         {stages.map((stage, index) => (
           <div key={stage.label} className="relative">
             {index < stages.length - 1 && (
-              <span className="absolute left-[64px] top-6 hidden h-px w-[calc(100%-48px)] bg-white/25 md:block" aria-hidden="true" />
+              <span className="absolute left-[64px] top-6 hidden h-px w-[calc(100%-48px)] bg-border md:block" aria-hidden="true" />
             )}
             <div className="relative z-10 flex items-center gap-4">
               <span className={cn('grid h-12 w-12 shrink-0 place-items-center rounded-full text-xs font-bold', stage.tone)}>
@@ -316,7 +316,7 @@ function ReleaseTrain({ development, candidate, published }: { development: stri
               </span>
               <strong className="truncate text-base">{stage.value || '—'}</strong>
             </div>
-            <p className="mt-3 pl-1 text-[11px] text-white/65">{stage.label}</p>
+            <p className="mt-3 pl-1 text-[11px] text-muted-foreground">{stage.label}</p>
           </div>
         ))}
       </div>
@@ -343,7 +343,7 @@ function VersionSummaryCard({
         <p className="mt-1 text-[11px] text-muted-foreground">
           {label} · {version.adoption} {version.adoption === 1 ? 'evento' : 'eventos'}
         </p>
-        <button className="mt-auto flex items-center gap-1 pt-4 text-left text-xs font-bold text-info-strong" onClick={() => onOpen(version)}>
+        <button className="mt-auto flex items-center gap-1 pt-4 text-left text-xs font-bold text-primary" onClick={() => onOpen(version)}>
           Abrir notas <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </button>
       </CardContent>
@@ -368,8 +368,8 @@ function AdoptionPanel({
 }) {
   const belowMinimum = Math.max(0, total - publishedCount - minimumCount);
   return (
-    <aside className="rounded-[14px] border border-info-strong/20 bg-info-soft p-6" aria-labelledby="adoption-title">
-      <p id="adoption-title" className="text-[10px] font-bold uppercase text-info-strong">Adoção observada</p>
+    <aside className="rounded-lg border border-border bg-muted p-6" aria-labelledby="adoption-title">
+      <p id="adoption-title" className="text-[10px] font-bold uppercase tracking-wider text-primary">Adoção observada</p>
       <strong className="mt-5 block text-[30px]">{percent}%</strong>
       <p className="text-[11px] text-muted-foreground">dos eventos na versão publicada</p>
       <dl className="mt-8 space-y-6 text-xs">
@@ -382,7 +382,7 @@ function AdoptionPanel({
 }
 
 function AdoptionRow({ label, value }: { label: string; value: number }) {
-  return <div className="flex items-center justify-between gap-4"><dt className="font-semibold">{label || '—'}</dt><dd className="font-bold text-info-strong">{value}</dd></div>;
+  return <div className="flex items-center justify-between gap-4"><dt className="font-semibold">{label || '—'}</dt><dd className="font-bold text-foreground">{value}</dd></div>;
 }
 
 function CandidateChanges({ version }: { version: VersionRow }) {
@@ -420,10 +420,10 @@ function CandidateChanges({ version }: { version: VersionRow }) {
 
 function ChangeBadge({ kind }: { kind: ReturnType<typeof classifyChange> }) {
   const styles = {
-    new: 'bg-info-soft text-info-strong',
+    new: 'bg-info-soft text-info',
     improvement: 'bg-secondary text-foreground',
-    fix: 'bg-danger-soft text-danger-soft-foreground',
-    security: 'bg-warning-soft text-warning-soft-foreground',
+    fix: 'bg-destructive-soft text-destructive',
+    security: 'bg-warning-soft text-warning',
   };
   const labels = { new: 'Novo', improvement: 'Melhoria', fix: 'Correção', security: 'Segurança' };
   const Icon = kind === 'new' ? Rocket : CheckCircle2;

@@ -190,7 +190,7 @@ function OperationLink({
   Icon: typeof Archive;
 }) {
   return (
-    <Link to={to} className="group rounded-2xl border bg-card p-5 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <Link to={to} className="group rounded-lg border border-border bg-card p-5 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <div className="flex items-start gap-3">
         <div className="rounded-xl bg-accent p-2 text-accent-foreground"><Icon className="h-5 w-5" /></div>
         <div>

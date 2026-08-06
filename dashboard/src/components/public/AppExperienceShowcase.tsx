@@ -4,12 +4,12 @@ import { TcsMark } from '@/components/brand/TcsMark';
 
 export function AppExperienceShowcase() {
   return (
-    <section aria-labelledby="app-experience-title" className="bg-ink text-white">
+    <section aria-labelledby="app-experience-title" className="bg-foreground text-background">
       <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-8 lg:px-12 xl:px-16 xl:py-20">
         <div className="max-w-3xl">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-warm">Aplicativo TCS</p>
+          <p className="text-primary text-[11px] font-bold uppercase tracking-[0.14em]">Aplicativo TCS</p>
           <h2 id="app-experience-title" className="mt-3 text-[30px] font-semibold leading-tight tracking-[-0.02em] sm:text-[36px]">Do primeiro acesso à operação em campo.</h2>
-          <p className="mt-4 text-[15px] leading-6 text-white/65">Uma prévia das telas mobile que acompanham o profissional antes do login, durante o onboarding e na rotina de vistorias.</p>
+          <p className="mt-4 text-[15px] leading-6 text-background/65">Uma prévia das telas mobile que acompanham o profissional antes do login, durante o onboarding e na rotina de vistorias.</p>
         </div>
 
         <div className="app-phone-track mt-10 grid gap-6 md:grid-cols-3">
@@ -56,9 +56,9 @@ export function AppExperienceShowcase() {
 }
 
 function PhoneFrame({ label, className, children }: { label: string; className: string; children: ReactNode }) {
-  return <article className={`mx-auto w-full max-w-[310px] ${className}`}><p className="mb-3 text-center text-xs font-bold uppercase tracking-[0.14em] text-warm">{label}</p><div className="overflow-hidden rounded-[34px] border-[7px] border-warm/25 bg-background shadow-2xl"><div className="mx-auto mt-2 h-4 w-20 rounded-full bg-ink" />{children}</div></article>;
+  return <article className={`mx-auto w-full max-w-[310px] ${className}`}><p className="mb-3 text-center text-xs font-bold uppercase tracking-[0.14em] text-primary">{label}</p><div className="overflow-hidden rounded-[34px] border-[7px] border-primary/25 bg-background shadow-2xl"><div className="mx-auto mt-2 h-4 w-20 rounded-full bg-foreground" />{children}</div></article>;
 }
 function MockInput({ text }: { text: string }) { return <div className="rounded-xl border bg-card px-4 py-3 text-left text-xs text-muted-foreground">{text}</div>; }
-function Choice({ icon, title, detail, selected = false }: { icon: ReactNode; title: string; detail: string; selected?: boolean }) { return <div className={`mt-3 flex items-center gap-3 rounded-xl border p-3 ${selected ? 'border-primary bg-warm/30' : 'bg-card'}`}><span className="[&>svg]:h-5 [&>svg]:w-5 text-primary">{icon}</span><div><p className="text-xs font-bold">{title}</p><p className="text-[9px] text-muted-foreground">{detail}</p></div></div>; }
+function Choice({ icon, title, detail, selected = false }: { icon: ReactNode; title: string; detail: string; selected?: boolean }) { return <div className={`mt-3 flex items-center gap-3 rounded-xl border p-3 ${selected ? 'border-primary bg-primary/10' : 'bg-card'}`}><span className="[&>svg]:h-5 [&>svg]:w-5 text-primary">{icon}</span><div><p className="text-xs font-bold">{title}</p><p className="text-[9px] text-muted-foreground">{detail}</p></div></div>; }
 function Metric({ value, label }: { value: string; label: string }) { return <div className="rounded-xl border bg-card p-3"><p className="text-xl font-bold">{value}</p><p className="text-[9px] text-muted-foreground">{label}</p></div>; }
-function Activity({ title, risk }: { title: string; risk: string }) { return <div className="flex items-center justify-between rounded-xl bg-card p-3 text-[10px]"><span>{title}</span><span className="rounded-full bg-warm px-2 py-1 font-bold text-primary">{risk}</span></div>; }
+function Activity({ title, risk }: { title: string; risk: string }) { return <div className="flex items-center justify-between rounded-xl bg-card p-3 text-[10px]"><span>{title}</span><span className="rounded-full bg-primary px-2 py-1 font-bold text-primary-foreground">{risk}</span></div>; }

@@ -243,7 +243,7 @@ function FilterChip({ active, onClick, label }: { active: boolean; onClick: () =
       onClick={onClick}
       className={cn(
         'h-8 shrink-0 rounded-full border px-3 text-[11px] font-semibold',
-        active ? 'border-ink bg-ink text-white' : 'bg-card text-muted-foreground hover:bg-secondary',
+        active ? 'border-primary bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-secondary',
       )}
     >
       {label}
@@ -261,23 +261,23 @@ function AuditInspector({ row }: { row: AuditRow | null }) {
     ['Resultado', auditResultLabel(row.result)],
   ];
   return (
-    <Card className="min-h-[630px] overflow-hidden border-ink bg-ink text-white shadow-none">
+    <Card className="min-h-[630px] overflow-hidden border-foreground bg-foreground text-background shadow-none">
       <CardContent className="p-6">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-warm">Evento selecionado</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Evento selecionado</p>
         <h2 className="mt-5 text-xl font-bold">{humanize(row.type)}</h2>
-        <p className="mt-2 truncate font-mono text-[10px] text-white/60">{shortId(row.id, 22)}</p>
-        <dl className="mt-8 border-t border-white/10 pt-2">
+        <p className="mt-2 truncate font-mono text-[10px] text-background/60">{shortId(row.id, 22)}</p>
+        <dl className="mt-8 border-t border-background/10 pt-2">
           {details.map(([label, value]) => (
             <div key={label} className="grid grid-cols-[96px_minmax(0,1fr)] gap-3 py-4 text-[11px]">
-              <dt className="text-[10px] text-white/60">{label}</dt>
+              <dt className="text-[10px] text-background/60">{label}</dt>
               <dd className="break-words font-semibold">{value}</dd>
             </div>
           ))}
         </dl>
         <div className="mt-6">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-warm">Contexto sanitizado</p>
-          <div className="mt-4 min-h-28 rounded-lg border border-white/10 bg-white/[0.035] p-4">
-            <p className="whitespace-pre-wrap break-words text-[11px] leading-5 text-white/75">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Contexto sanitizado</p>
+          <div className="mt-4 min-h-28 rounded-lg border border-background/10 bg-background/[0.035] p-4">
+            <p className="whitespace-pre-wrap break-words text-[11px] leading-5 text-background/75">
               {row.reason || 'Nenhum motivo adicional informado para este evento.'}
             </p>
           </div>

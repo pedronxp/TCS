@@ -197,7 +197,7 @@ export function SessionsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9 text-destructive hover:bg-danger-soft"
+                              className="h-9 w-9 text-destructive hover:bg-destructive-soft"
                               onClick={() => setSelected(session)}
                               aria-label={`Revogar sessão de ${shortId(session.user_id)}`}
                             >
@@ -290,14 +290,14 @@ function SessionPulse({
   customers: number;
 }) {
   return (
-    <Card className="overflow-hidden border-ink bg-ink text-white shadow-none">
+    <Card className="overflow-hidden border-foreground bg-foreground text-background shadow-none">
       <CardContent className="grid grid-cols-3 gap-7 p-6 xl:grid-cols-[minmax(0,1fr)_repeat(3,minmax(72px,132px))] xl:items-center">
         <div className="col-span-3 xl:col-span-1">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-warm">Agora</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Agora</p>
           <strong className="mt-4 block text-[28px] leading-none">
             {overview.total.toLocaleString('pt-BR')} {overview.total === 1 ? 'sessão ativa' : 'sessões ativas'}
           </strong>
-          <p className="mt-3 text-xs text-white/60">
+          <p className="mt-3 text-xs text-background/60">
             em {devices.toLocaleString('pt-BR')} {devices === 1 ? 'dispositivo' : 'dispositivos'} ·{' '}
             {customers.toLocaleString('pt-BR')} {customers === 1 ? 'cliente' : 'clientes'}
           </p>
@@ -308,8 +308,8 @@ function SessionPulse({
           ['iOS', overview.platforms.ios],
         ] as const).map(([label, value]) => (
           <div key={label}>
-            <p className="text-[11px] font-medium text-white/60">{label}</p>
-            <strong className="mt-3 block text-xl text-warm">{value.toLocaleString('pt-BR')}</strong>
+            <p className="text-[11px] font-medium text-background/60">{label}</p>
+            <strong className="mt-3 block text-xl text-primary">{value.toLocaleString('pt-BR')}</strong>
           </div>
         ))}
       </CardContent>
@@ -379,7 +379,7 @@ function AnomalyMap({ sessions, anomalies }: { sessions: SessionRow[]; anomalies
                 slot.risk > 0
                   ? 'bg-warning'
                   : slot.total === 0
-                    ? 'bg-white/80'
+                    ? 'bg-muted'
                     : slot.total / max > 0.66
                       ? 'bg-info'
                       : 'bg-info/55',
@@ -447,7 +447,7 @@ function RiskAlert({
   canTerminate: boolean;
 }) {
   return (
-    <Card className="border-destructive/25 bg-danger-soft shadow-none">
+    <Card className="border-destructive/25 bg-destructive-soft shadow-none">
       <CardContent className="p-6">
         <p className="text-[10px] font-bold uppercase tracking-wide text-destructive">Atenção</p>
         <h2 className="mt-5 text-[22px] font-bold">
@@ -466,7 +466,7 @@ function RiskAlert({
                 className="flex w-full items-start gap-3 text-left disabled:cursor-default"
                 disabled={!canTerminate}
               >
-                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white text-destructive">
+                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-background text-destructive">
                   <AlertTriangle className="h-3.5 w-3.5" />
                 </span>
                 <span className="min-w-0">

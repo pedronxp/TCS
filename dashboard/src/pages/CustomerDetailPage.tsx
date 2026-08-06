@@ -159,7 +159,7 @@ export function CustomerDetailWorkspace({
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
               {customer.kind === 'organization' ? 'Organização municipal' : 'Cliente individual'}
             </p>
             <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">
@@ -191,7 +191,7 @@ export function CustomerDetailWorkspace({
       {!detail.can_view_sensitive && (
         <div
           role="status"
-          className="rounded-xl border border-warning/25 bg-warning-soft px-4 py-3 text-sm text-warning-foreground"
+          className="rounded-lg border border-warning/25 bg-warning-soft px-4 py-3 text-sm text-warning"
         >
           <AlertTriangle className="mr-2 inline h-4 w-4" aria-hidden="true" />
           Dados pessoais estão ocultos. Abra um acesso de suporte auditado para visualizá-los.
@@ -199,7 +199,7 @@ export function CustomerDetailWorkspace({
       )}
 
       <nav
-        className="flex min-h-[52px] items-stretch overflow-x-auto rounded-xl border bg-card px-2"
+        className="flex min-h-[52px] items-stretch overflow-x-auto rounded-lg border bg-card px-2"
         aria-label="Seções do cliente"
       >
         {primarySections.map(([key, label]) => (
@@ -329,9 +329,9 @@ function Summary({ detail }: { detail: CustomerDetail }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid min-h-[210px] gap-8 rounded-2xl border border-info-strong/20 bg-info-soft p-7 md:grid-cols-[1fr_auto] md:items-center">
+      <section className="surface-muted grid min-h-[210px] gap-8 p-7 md:grid-cols-[1fr_auto] md:items-center">
         <div className="self-start md:self-center">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Visão geral do cliente
           </p>
           <h2 className="mt-4 text-[25px] font-bold leading-8">
@@ -350,14 +350,14 @@ function Summary({ detail }: { detail: CustomerDetail }) {
             role="img"
             aria-label={`Saúde operacional calculada em ${health.score} de 100`}
           >
-            <div className="grid h-[96px] w-[96px] place-items-center rounded-full bg-info-soft text-center">
+            <div className="grid h-[96px] w-[96px] place-items-center rounded-full bg-card text-center">
               <span>
                 <strong className="block text-[30px] leading-8">{health.score}</strong>
-                <span className="text-[9px] font-bold uppercase text-info-strong">Saúde</span>
+                <span className="text-[9px] font-bold uppercase text-muted-foreground">Saúde</span>
               </span>
             </div>
           </div>
-          <p className="mt-3 text-xs font-semibold text-info-strong">{health.label}</p>
+          <p className="mt-3 text-xs font-semibold text-primary">{health.label}</p>
         </div>
       </section>
 
@@ -426,7 +426,7 @@ function Summary({ detail }: { detail: CustomerDetail }) {
                     <span
                       className={cn(
                         'absolute left-0 top-1 h-2.5 w-2.5 rounded-full',
-                        index === 0 ? 'bg-info-strong' : 'bg-warm',
+                        index === 0 ? 'bg-primary' : 'bg-muted-foreground',
                       )}
                       aria-hidden="true"
                     />
@@ -443,28 +443,28 @@ function Summary({ detail }: { detail: CustomerDetail }) {
           </CardContent>
         </Card>
 
-        <aside className="min-h-[246px] rounded-[14px] bg-ink-panel p-6 text-white">
-          <p className="text-[10px] font-bold uppercase text-warm">Contato principal</p>
-          <div className="mt-5 flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-warm text-xs font-bold text-warm-foreground">
+        <aside className="surface-panel flex flex-col gap-4 p-6">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Contato principal</p>
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
               {initials(customer.contact_name)}
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{customer.contact_name || 'Não informado'}</p>
-              <p className="mt-0.5 text-[11px] text-white/65">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {customer.kind === 'organization' ? 'Contato municipal cadastrado' : 'Contato cadastrado'}
               </p>
             </div>
           </div>
-          <div className="my-5 h-px bg-white/10" />
+          <div className="h-px bg-border" />
           {detail.can_view_sensitive ? (
-            <p className="break-all text-[11px] text-white/80">{customer.contact_email || 'E-mail não informado'}</p>
+            <p className="break-all text-xs text-muted-foreground">{customer.contact_email || 'E-mail não informado'}</p>
           ) : (
-            <p className="text-[11px] text-white/65">Dados protegidos por permissão</p>
+            <p className="text-xs text-muted-foreground">Dados protegidos por permissão</p>
           )}
           <Link
             to={`/app/clientes/${encodeURIComponent(customer.customer_id)}/implantacao`}
-            className="mt-7 inline-flex items-center gap-1 text-xs font-semibold text-warm hover:text-white"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
           >
             Abrir dados completos
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -486,7 +486,7 @@ function Subscription({ detail }: { detail: CustomerDetail }) {
       <Card className="shadow-none">
         <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Assinatura atual</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Assinatura atual</p>
             <h2 className="mt-2 text-2xl font-bold">{subscription.plan_name}</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
               {subscriptionStatusDescription(subscription.status)}
@@ -511,9 +511,9 @@ function Subscription({ detail }: { detail: CustomerDetail }) {
           <DefinitionRow label="Cancelamento" value={subscription.canceled_at ? formatDate(subscription.canceled_at) : 'Não cancelada'} last />
         </DefinitionCard>
       </div>
-      <div className="rounded-xl border border-info-strong/20 bg-info-soft p-4 text-sm text-info-strong">
+      <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
         <Info className="mr-2 inline h-4 w-4" aria-hidden="true" />
-        <strong>Como interpretar:</strong> a situação indica se o plano está liberado; o período mostra o ciclo atual.
+        <strong className="text-foreground">Como interpretar:</strong> a situação indica se o plano está liberado; o período mostra o ciclo atual.
       </div>
     </div>
   );
@@ -522,9 +522,9 @@ function Subscription({ detail }: { detail: CustomerDetail }) {
 function Usage({ detail }: { detail: CustomerDetail }) {
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-info-strong/20 bg-info-soft p-5">
+      <div className="rounded-lg border border-border bg-muted p-5">
         <div className="flex gap-3">
-          <span className="rounded-lg bg-info-strong p-2 text-white"><Info className="h-5 w-5" /></span>
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-muted-foreground"><Info className="h-5 w-5" /></span>
           <div>
             <h2 className="font-bold">Uso do plano</h2>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
@@ -709,7 +709,7 @@ function Onboarding({ detail }: { detail: CustomerDetail }) {
       <Card className="shadow-none">
         <CardHeader><CardTitle>Checklist</CardTitle></CardHeader>
         <CardContent>
-          <pre className="overflow-auto rounded-lg bg-ink-panel p-4 text-xs text-white">
+          <pre className="overflow-auto rounded-lg bg-muted p-4 text-xs text-foreground">
             {JSON.stringify(onboarding.checklist, null, 2)}
           </pre>
         </CardContent>
@@ -786,7 +786,7 @@ function Appointments({ operations, detail }: { operations: CustomerOperations; 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold">Agenda compartilhada</h2>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -810,7 +810,7 @@ function Appointments({ operations, detail }: { operations: CustomerOperations; 
               <td className="p-3 font-semibold">{item.title}</td>
               <td className="p-3">
                 {item.origin === 'web' ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-info-strong">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-info">
                     <Globe2 className="h-3 w-3" />
                     Web
                   </span>
@@ -930,7 +930,7 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
   function documentStatus(item: CustomerOperations['documents'][number]) {
     if (item.document_status === 'available') {
       return (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success-strong">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success">
           <CheckCircle2 className="h-4 w-4" />
           Disponível
         </span>
@@ -945,7 +945,7 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning-foreground">
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning">
         <FileClock className="h-4 w-4" />
         Aguardando geração
       </span>
@@ -986,7 +986,7 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
   }
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-card p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+      <div className="rounded-lg border bg-card p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4 text-primary" />
@@ -998,11 +998,11 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-success-soft px-3 py-1 text-xs font-semibold text-success-strong">
+            <span className="rounded-full bg-success-soft px-3 py-1 text-xs font-semibold text-success">
               {availableCount} disponível{availableCount === 1 ? '' : 'is'}
             </span>
             {pendingCount > 0 && (
-              <span className="rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning-foreground">
+              <span className="rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning">
                 {pendingCount} pendente{pendingCount === 1 ? '' : 's'}
               </span>
             )}
@@ -1090,7 +1090,7 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
             </DialogDescription>
           </DialogHeader>
           {previewUrl && (
-            <iframe src={previewUrl} title={previewTitle} className="h-full min-h-[520px] w-full rounded-xl border bg-card" />
+            <iframe src={previewUrl} title={previewTitle} className="h-full min-h-[520px] w-full rounded-lg border bg-card" />
           )}
         </DialogContent>
       </Dialog>
@@ -1132,7 +1132,7 @@ function SummaryMetric({
   detail: string;
 }) {
   const tones = {
-    info: 'bg-info-soft text-info-strong',
+    info: 'bg-info-soft text-info',
     success: 'bg-success-soft text-success',
     warning: 'bg-warning-soft text-warning',
     neutral: 'bg-secondary text-primary',
@@ -1140,13 +1140,13 @@ function SummaryMetric({
   return (
     <Card className="min-h-[126px] shadow-none">
       <CardContent className="p-[18px]">
-        <span className={cn('grid h-9 w-9 place-items-center rounded-[10px] text-[13px] font-bold', tones[tone])} aria-hidden="true">
+        <span className={cn('grid h-9 w-9 place-items-center rounded-lg text-[13px] font-bold', tones[tone])} aria-hidden="true">
           {code}
         </span>
         <p className="mt-3 text-xs font-medium text-muted-foreground">{label}</p>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-8 gap-y-1">
           <strong className="text-[22px] leading-7">{value}</strong>
-          <span className={cn('text-[11px] font-medium', tone === 'warning' ? 'text-warning' : tone === 'success' ? 'text-success' : tone === 'info' ? 'text-info-strong' : 'text-muted-foreground')}>
+          <span className={cn('text-[11px] font-medium', tone === 'warning' ? 'text-warning' : tone === 'success' ? 'text-success' : tone === 'info' ? 'text-info' : 'text-muted-foreground')}>
             {detail}
           </span>
         </div>

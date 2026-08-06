@@ -20,7 +20,7 @@ export default function App() {
           <Route index element={<CommercialPage />} />
           <Route path="/planos" element={<PlansCatalogPage />} />
         </Route>
-        <Route path="/login" element={<Suspense fallback={<PrivateAppFallback />}><PrivateApp /></Suspense>} />
+        <Route path="/login/*" element={<Suspense fallback={<PrivateAppFallback />}><PrivateApp /></Suspense>} />
         <Route path="/app/*" element={<Suspense fallback={<PrivateAppFallback />}><PrivateApp /></Suspense>} />
         <Route path="*" element={<Suspense fallback={<PrivateAppFallback />}><PortalApp /></Suspense>} />
       </Routes>

@@ -16,7 +16,7 @@ export function PublicLayout() {
     <div className="min-h-screen bg-background text-foreground">
       <a
         href="#conteudo"
-        className="sr-only z-[100] rounded-md bg-card px-4 py-2 shadow-card focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-[100] rounded-md bg-card px-4 py-2 shadow-sm focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Pular para o conteúdo
       </a>

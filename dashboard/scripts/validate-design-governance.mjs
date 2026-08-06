@@ -7,6 +7,7 @@ const governedPages = [
   'StaffPage.tsx', 'AuditPage.tsx', 'VersionsPage.tsx', 'BuildsPage.tsx', 'FormsPage.tsx',
   'RiskRulesPage.tsx', 'TechnicalEventsPage.tsx', 'ConfiguracoesPage.tsx',
   'ArquivamentoPage.tsx', 'LoginPage.tsx', 'StyleGuidePage.tsx',
+  'OcorrenciasPage.tsx',
 ];
 
 const nativePrimitiveBudget = {
@@ -24,6 +25,8 @@ const nativePrimitiveBudget = {
   'FormsPage.tsx': 5,
   'RiskRulesPage.tsx': 3,
   'LoginPage.tsx': 1,
+  // Filtros chip, overlay/lightbox e botões de foto no painel de detalhe.
+  'OcorrenciasPage.tsx': 6,
 };
 
 const literalColorBudget = {};

@@ -101,7 +101,7 @@ export function HighRiskDialog({ open, title, description, confirmLabel, onClose
         aria-modal="true"
         aria-labelledby="high-risk-title"
         aria-describedby="high-risk-description"
-        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-2xl"
+        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-card p-6 shadow-sm"
       >
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-warning-soft p-2 text-warning-soft-foreground">
@@ -200,7 +200,7 @@ export function HighRiskDialog({ open, title, description, confirmLabel, onClose
           </div>
         )}
         {error && (
-          <p className="mt-3 rounded-lg bg-danger-soft p-3 text-sm text-destructive" role="alert">
+          <p className="mt-3 rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">
             {error}
           </p>
         )}

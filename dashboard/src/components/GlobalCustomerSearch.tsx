@@ -21,7 +21,7 @@ export function GlobalCustomerSearch() {
       />
       {open && (
         <div
-          className="absolute left-0 right-0 top-[52px] z-50 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-card"
+          className="glass absolute left-0 right-0 top-[52px] z-50 overflow-hidden rounded-lg border border-border text-popover-foreground"
           role="listbox"
         >
           {query.isLoading ? (

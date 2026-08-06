@@ -11,10 +11,10 @@ const CENTER_PADRAO: [number, number] = [-48.5044, -1.4558]; // Belém-PA
 const ZOOM = 13;
 
 const RISCO_COR: Record<string, string> = {
-  r1: '#16a34a',
-  r2: '#eab308',
-  r3: '#ea580c',
-  r4: '#dc2626',
+  r1: 'hsl(var(--risk-r1))',
+  r2: 'hsl(var(--risk-r2))',
+  r3: 'hsl(var(--risk-r3))',
+  r4: 'hsl(var(--risk-r4))',
 };
 
 const RISCO_LABEL: Record<string, string> = {
@@ -54,7 +54,7 @@ async function geocodificarNominatim(query: string): Promise<[number, number] | 
 // ─── Popup HTML ───────────────────────────────────────────────────────────────
 
 function popupVistoria(v: PinVistoria): string {
-  const cor = RISCO_COR[v.nivelRisco] ?? '#94a3b8';
+  const cor = RISCO_COR[v.nivelRisco] ?? 'hsl(var(--muted-foreground))';
   const risco = escapeHtml(RISCO_LABEL[v.nivelRisco] ?? v.nivelRisco);
   const endereco = escapeHtml(v.endereco ?? '—');
   const municipio = escapeHtml(v.municipio ?? '');
@@ -66,11 +66,11 @@ function popupVistoria(v: PinVistoria): string {
         <span style="width:10px;height:10px;border-radius:50%;background:${cor};flex-shrink:0"></span>
         <strong style="font-size:13px">${risco}</strong>
       </div>
-      <p style="font-size:12px;color:#475569;margin:0 0 4px">${endereco}</p>
-      ${municipio ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">${municipio}</p>` : ''}
-      ${agenteNome ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">Agente: ${agenteNome}</p>` : ''}
-      ${v.dataVistoria ? `<p style="font-size:11px;color:#94a3b8;margin:0">${new Date(v.dataVistoria).toLocaleDateString('pt-BR')}</p>` : ''}
-      ${protocolo ? `<p style="font-size:10px;color:#94a3b8;margin:4px 0 0;font-family:monospace">${protocolo}</p>` : ''}
+      <p style="font-size:12px;color:hsl(var(--muted-foreground));margin:0 0 4px">${endereco}</p>
+      ${municipio ? `<p style="font-size:11px;color:hsl(var(--muted-foreground));margin:0 0 4px">${municipio}</p>` : ''}
+      ${agenteNome ? `<p style="font-size:11px;color:hsl(var(--muted-foreground));margin:0 0 4px">Agente: ${agenteNome}</p>` : ''}
+      ${v.dataVistoria ? `<p style="font-size:11px;color:hsl(var(--muted-foreground)/0.7);margin:0">${new Date(v.dataVistoria).toLocaleDateString('pt-BR')}</p>` : ''}
+      ${protocolo ? `<p style="font-size:10px;color:hsl(var(--muted-foreground)/0.7);margin:4px 0 0;font-family:monospace">${protocolo}</p>` : ''}
     </div>`;
 }
 
@@ -82,13 +82,13 @@ function popupAgendamento(a: PinAgendamento): string {
   return `
     <div style="font-family:system-ui;min-width:200px;padding:4px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>
+        <span style="width:10px;height:10px;border-radius:50%;background:hsl(var(--info));flex-shrink:0"></span>
         <strong style="font-size:13px">${titulo}</strong>
       </div>
-      <p style="font-size:12px;color:#475569;margin:0 0 4px">${endereco}</p>
-      ${municipio ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">${municipio}</p>` : ''}
-      ${agenteNome ? `<p style="font-size:11px;color:#64748b;margin:0 0 4px">Agente: ${agenteNome}</p>` : ''}
-      ${a.data_agendada ? `<p style="font-size:11px;color:#94a3b8;margin:0">${new Date(a.data_agendada).toLocaleString('pt-BR')}</p>` : ''}
+      <p style="font-size:12px;color:hsl(var(--muted-foreground));margin:0 0 4px">${endereco}</p>
+      ${municipio ? `<p style="font-size:11px;color:hsl(var(--muted-foreground));margin:0 0 4px">${municipio}</p>` : ''}
+      ${agenteNome ? `<p style="font-size:11px;color:hsl(var(--muted-foreground));margin:0 0 4px">Agente: ${agenteNome}</p>` : ''}
+      ${a.data_agendada ? `<p style="font-size:11px;color:hsl(var(--muted-foreground)/0.7);margin:0">${new Date(a.data_agendada).toLocaleString('pt-BR')}</p>` : ''}
     </div>`;
 }
 
@@ -195,7 +195,7 @@ export function MapaPage() {
 
     if (mostrarAgendamentos && agendamentos.data) {
       agendamentos.data.forEach((a) => {
-        const marker = new maplibregl.Marker({ element: criarElementoMarker('#3b82f6') })
+        const marker = new maplibregl.Marker({ element: criarElementoMarker('hsl(var(--info))') })
           .setLngLat([a.lng, a.lat])
           .setPopup(popup(popupAgendamento(a)))
           .addTo(map);
@@ -222,7 +222,7 @@ export function MapaPage() {
     // Marker temporário do local buscado
     geoMarkerRef.current?.remove();
     const el = document.createElement('div');
-    el.style.cssText = 'width:20px;height:20px;border-radius:50%;background:#6366f1;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.4)';
+    el.style.cssText = 'width:20px;height:20px;border-radius:50%;background:hsl(var(--info));border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.4)';
     geoMarkerRef.current = new maplibregl.Marker({ element: el })
       .setLngLat(coords)
       .setPopup(new maplibregl.Popup({ offset: 14 }).setText(busca))
@@ -241,7 +241,7 @@ export function MapaPage() {
 
         geoMarkerRef.current?.remove();
         const el = document.createElement('div');
-        el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#2563eb;border:3px solid white;box-shadow:0 0 0 4px rgba(37,99,235,.25)';
+        el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:hsl(var(--info));border:3px solid white;box-shadow:0 0 0 4px hsl(var(--info)/0.25)';
         geoMarkerRef.current = new maplibregl.Marker({ element: el })
           .setLngLat(coords)
           .setPopup(new maplibregl.Popup({ offset: 14 }).setText('Sua localização'))
@@ -263,7 +263,7 @@ export function MapaPage() {
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="shrink-0">
-          <h1 className="text-2xl font-bold text-slate-900">Mapa</h1>
+          <h1 className="text-2xl font-bold text-foreground">Mapa</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Vistorias e agendamentos georreferenciados</p>
         </div>
 
@@ -275,22 +275,22 @@ export function MapaPage() {
               value={busca}
               onChange={(e) => { setBusca(e.target.value); setErroBusca(''); }}
               placeholder="Cidade ou CEP..."
-              className="h-9 pl-9 pr-8 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ring w-full sm:w-52"
+              className="h-9 pl-9 pr-8 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring w-full sm:w-52"
             />
             {busca && (
               <button type="button" onClick={() => { setBusca(''); setErroBusca(''); geoMarkerRef.current?.remove(); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-700">
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
           <button type="submit" disabled={buscando || !busca.trim()}
-            className="h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 shrink-0">
+            className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 shrink-0">
             {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             <span className="hidden sm:inline">Buscar</span>
           </button>
           <button type="button" onClick={handleGeolocalizacao} disabled={geolocalizando} title="Minha localização"
-            className="h-9 w-9 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-50 shrink-0">
+            className="h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 shrink-0">
             {geolocalizando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
           </button>
           {isLoading && (
@@ -302,73 +302,73 @@ export function MapaPage() {
       </div>
 
       {erroBusca && (
-        <p className="text-xs text-red-500 -mt-2">{erroBusca}</p>
+        <p className="text-xs text-destructive -mt-2">{erroBusca}</p>
       )}
 
       {/* Corpo: mapa + painel — coluna no mobile, linha no desktop */}
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Mapa */}
-        <div className="flex-1 rounded-xl overflow-hidden border border-slate-200 relative" style={{ minHeight: 0 }}>
+        <div className="flex-1 rounded-lg overflow-hidden border border-border relative" style={{ minHeight: 0 }}>
           <div ref={containerRef} className="w-full h-[55vw] sm:h-[420px] lg:h-[calc(100vh-220px)]" />
 
           {/* Camadas */}
-          <div className="absolute top-3 left-3 z-10 bg-white rounded-xl shadow-md border border-slate-200 p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
+          <div className="absolute top-3 left-3 z-10 bg-card rounded-lg border border-border p-3 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-semibold text-foreground mb-1">
               <Layers className="w-3.5 h-3.5" /> Camadas
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={mostrarVistorias}
                 onChange={(e) => setMostrarVistorias(e.target.checked)} className="accent-primary" />
-              <MapPin className="w-3 h-3 text-red-500" />
-              <span className="text-xs text-slate-700">Vistorias</span>
+              <MapPin className="w-3 h-3 text-destructive" />
+              <span className="text-xs text-foreground">Vistorias</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={mostrarAgendamentos}
                 onChange={(e) => setMostrarAgendamentos(e.target.checked)} className="accent-primary" />
-              <Calendar className="w-3 h-3 text-blue-500" />
-              <span className="text-xs text-slate-700">Agendamentos</span>
+              <Calendar className="w-3 h-3 text-info" />
+              <span className="text-xs text-foreground">Agendamentos</span>
             </label>
           </div>
         </div>
 
         {/* Painel de stats — linha no mobile, coluna no desktop */}
         <div className="flex flex-row lg:flex-col gap-3 lg:w-52 lg:shrink-0">
-          <div className="flex-1 bg-white border border-slate-200 rounded-xl p-4">
-            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">Vistorias por risco</h3>
+          <div className="flex-1 bg-card border border-border rounded-lg p-4">
+            <h3 className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Vistorias por risco</h3>
             {statsRisco.map((s) => (
               <div key={s.nivel} className="flex items-center gap-2 mb-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: RISCO_COR[s.nivel] }} />
-                <span className="text-xs text-slate-600 flex-1 hidden sm:block">{RISCO_LABEL[s.nivel]}</span>
-                <span className="text-xs text-slate-600 flex-1 sm:hidden">{s.nivel.toUpperCase()}</span>
-                <span className="text-xs font-bold text-slate-900">{s.count}</span>
+                <span className="text-xs text-muted-foreground flex-1 hidden sm:block">{RISCO_LABEL[s.nivel]}</span>
+                <span className="text-xs text-muted-foreground flex-1 sm:hidden">{s.nivel.toUpperCase()}</span>
+                <span className="text-xs font-bold text-foreground">{s.count}</span>
               </div>
             ))}
-            <div className="border-t border-slate-100 mt-2 pt-2 flex justify-between">
-              <span className="text-xs text-slate-500">Total</span>
+            <div className="border-t border-border mt-2 pt-2 flex justify-between">
+              <span className="text-xs text-muted-foreground">Total</span>
               <span className="text-xs font-bold">{vistorias.data?.length ?? 0}</span>
             </div>
           </div>
 
-          <div className="flex-1 lg:flex-none bg-white border border-slate-200 rounded-xl p-4">
-            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">Agendamentos</h3>
+          <div className="flex-1 lg:flex-none bg-card border border-border rounded-lg p-4">
+            <h3 className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Agendamentos</h3>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
-              <span className="text-xs text-slate-600 flex-1">Pendentes</span>
-              <span className="text-xs font-bold text-slate-900">{totalAgendados}</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-info shrink-0" />
+              <span className="text-xs text-muted-foreground flex-1">Pendentes</span>
+              <span className="text-xs font-bold text-foreground">{totalAgendados}</span>
             </div>
           </div>
 
           {!isLoading && (vistorias.data?.length ?? 0) === 0 && totalAgendados === 0 && (
-            <div className={cn('flex-1 lg:flex-none bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center')}>
-              <MapPin className="w-6 h-6 mx-auto mb-2 text-slate-300" />
+            <div className={cn('flex-1 lg:flex-none bg-secondary border border-dashed border-border rounded-lg p-4 text-center')}>
+              <MapPin className="w-6 h-6 mx-auto mb-2 text-muted-foreground/60" />
               <p className="text-xs text-muted-foreground">Nenhum ponto georreferenciado ainda.</p>
             </div>
           )}
 
           {(vistorias.isError || agendamentos.isError) && (
-            <div className="flex-1 lg:flex-none bg-red-50 border border-red-100 rounded-xl p-3 flex items-start gap-2">
-              <RotateCcw className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-red-600">Erro ao carregar dados do mapa.</p>
+            <div className="flex-1 lg:flex-none bg-destructive-soft border border-destructive/20 rounded-lg p-3 flex items-start gap-2">
+              <RotateCcw className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-xs text-destructive">Erro ao carregar dados do mapa.</p>
             </div>
           )}
         </div>

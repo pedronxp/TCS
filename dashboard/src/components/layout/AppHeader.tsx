@@ -183,7 +183,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange }: AppHeaderP
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="grid h-10 w-10 place-items-center rounded-full bg-warm text-[11px] font-bold text-warm-foreground"
+                className="grid h-10 w-10 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground"
                 aria-label="Abrir menu do perfil"
               >
                 {initials}

@@ -21,8 +21,8 @@ describe('referência da interface', () => {
     expect(screen.getByRole('heading', { name: 'Foundations' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Components' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Primário' })).toBeVisible();
-    expect(screen.getByText('#FAF8F5')).toBeVisible();
-    expect(screen.getByText('#6F513A')).toBeVisible();
+    expect(screen.getByText('#FAFAFA')).toBeVisible();
+    expect(screen.getByText('#15774A')).toBeVisible();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

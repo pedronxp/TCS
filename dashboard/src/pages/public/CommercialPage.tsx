@@ -143,7 +143,7 @@ export function CommercialPage() {
             </h2>
             <div className="mt-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {benefits.map((benefit) => (
-                <article key={benefit.title} className="min-h-[142px] rounded-lg border bg-card p-5 shadow-card">
+                <article key={benefit.title} className="min-h-[142px] rounded-lg border bg-card p-5 ">
                   <span aria-hidden="true" className="block h-2.5 w-2.5 rounded-full bg-primary" />
                   <h3 className="mt-5 text-[15px] font-semibold">{benefit.title}</h3>
                   <p className="mt-2 text-[13px] leading-5 text-muted-foreground">{benefit.text}</p>
@@ -170,22 +170,22 @@ export function CommercialPage() {
                 key={solution.title}
                 className={`flex min-h-[198px] flex-col rounded-lg border p-6 ${
                   solution.featured
-                    ? 'border-ink-border bg-ink text-white'
+                    ? 'border-border bg-foreground text-background'
                     : 'bg-background text-foreground'
                 }`}
               >
                 <span
                   aria-hidden="true"
-                  className={`h-9 w-9 rounded-md ${solution.featured ? 'bg-warm' : 'bg-secondary'}`}
+                  className={`h-9 w-9 rounded-md ${solution.featured ? 'bg-primary' : 'bg-secondary'}`}
                 />
                 <h3 className="mt-5 text-lg font-semibold">{solution.title}</h3>
-                <p className={`mt-2 text-[13px] leading-5 ${solution.featured ? 'text-white/65' : 'text-muted-foreground'}`}>
+                <p className={`mt-2 text-[13px] leading-5 ${solution.featured ? 'text-background/65' : 'text-muted-foreground'}`}>
                   {solution.text}
                 </p>
                 <a
                   href="#planos"
                   className={`mt-auto inline-flex items-center gap-2 pt-4 text-[13px] font-semibold ${
-                    solution.featured ? 'text-warm' : 'text-primary'
+                    solution.featured ? 'text-primary' : 'text-primary'
                   }`}
                 >
                   {solution.action} <ArrowRight className="h-3.5 w-3.5" />
@@ -198,7 +198,7 @@ export function CommercialPage() {
 
       <AppExperienceShowcase />
 
-      <section id="planos" className="bg-commercial-section">
+      <section id="planos" className="bg-muted">
         <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-8 lg:px-12 xl:px-16 xl:py-[72px]">
           <div>
             <Eyebrow>Planos</Eyebrow>
@@ -214,31 +214,31 @@ export function CommercialPage() {
             {plans.map((plan) => (
               <article
                 key={plan.name}
-                className={`relative flex min-h-[294px] flex-col rounded-[18px] border p-6 ${
+                className={`relative flex min-h-[294px] flex-col rounded-lg border p-6 ${
                   plan.featured
-                    ? 'border-ink-border bg-ink text-white shadow-card'
-                    : 'bg-card text-foreground shadow-card'
+                    ? 'border-border bg-foreground text-background '
+                    : 'bg-card text-foreground '
                 }`}
               >
                 {plan.featured && (
-                  <span className="absolute right-5 top-5 rounded-full bg-warm px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-warm-foreground">
+                  <span className="absolute right-5 top-5 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground">
                     Mais escolhido
                   </span>
                 )}
                 <h3 className="text-[22px] font-semibold">{plan.name}</h3>
-                <p className={`mt-1 text-[13px] ${plan.featured ? 'text-white/60' : 'text-muted-foreground'}`}>
+                <p className={`mt-1 text-[13px] ${plan.featured ? 'text-background/60' : 'text-muted-foreground'}`}>
                   {plan.description}
                 </p>
                 <div className="mt-5">
                   <span className="text-[28px] font-bold leading-none">{plan.price}</span>
-                  <span className={`ml-2 text-xs ${plan.featured ? 'text-white/55' : 'text-muted-foreground'}`}>
+                  <span className={`ml-2 text-xs ${plan.featured ? 'text-background/55' : 'text-muted-foreground'}`}>
                     {plan.cadence}
                   </span>
                 </div>
                 <ul className="mt-5 space-y-2">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-center gap-2 text-[13px]">
-                      <Check className={`h-3.5 w-3.5 ${plan.featured ? 'text-warm' : 'text-success'}`} />
+                      <Check className={`h-3.5 w-3.5 ${plan.featured ? 'text-primary' : 'text-success'}`} />
                       {feature}
                     </li>
                   ))}
@@ -246,7 +246,7 @@ export function CommercialPage() {
                 <Button
                   asChild
                   variant={plan.featured ? 'secondary' : 'outline'}
-                  className={`mt-auto h-10 w-full ${plan.featured ? 'border-warm bg-warm text-warm-foreground hover:bg-warm/90' : ''}`}
+                  className={`mt-auto h-10 w-full ${plan.featured ? 'border-primary bg-primary text-primary-foreground hover:bg-primary-hover' : ''}`}
                 >
                   <a href={`mailto:comercial@tcs.app?subject=${encodeURIComponent(`Interesse no plano ${plan.name}`)}`}>
                     {plan.action}
@@ -258,53 +258,53 @@ export function CommercialPage() {
         </div>
       </section>
 
-      <section id="seguranca" className="bg-ink text-white">
+      <section id="seguranca" className="bg-foreground text-background">
         <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-16 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:px-12 xl:gap-12 xl:px-16 xl:py-[46px]">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-warm">Segurança por padrão</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Segurança por padrão</p>
             <h2 className="mt-4 max-w-[550px] text-[32px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[36px]">
               Confiança não é um recurso extra.
             </h2>
-            <p className="mt-5 max-w-[570px] text-[15px] leading-6 text-white/60">
+            <p className="mt-5 max-w-[570px] text-[15px] leading-6 text-background/60">
               Proteção da identidade ao histórico de cada decisão, com controles pensados para operações públicas e equipes distribuídas.
             </p>
-            <Button asChild variant="secondary" className="mt-8 h-[46px] bg-warm text-warm-foreground hover:bg-warm/90">
+            <Button asChild variant="secondary" className="mt-8 h-[46px] bg-primary text-primary-foreground hover:bg-primary-hover">
               <a href="mailto:seguranca@tcs.app">Conhecer segurança</a>
             </Button>
           </div>
 
           <div>
-            <div className="rounded-lg border border-ink-border bg-ink-panel p-5">
+            <div className="rounded-lg border border-background/15 bg-background/5 p-5">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/45">Postura de segurança</p>
-                  <p className="mt-2 text-[13px] text-white/55">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-background/45">Postura de segurança</p>
+                  <p className="mt-2 text-[13px] text-background/55">
                     Monitoramento contínuo · políticas válidas · nenhum segredo exposto
                   </p>
                 </div>
-                <p className="shrink-0 text-[28px] font-bold text-warm">98/100</p>
+                <p className="shrink-0 text-[28px] font-bold text-primary">98/100</p>
               </div>
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               {securityItems.map((item) => {
                 const SecurityIcon = item.icon;
                 return (
-                  <article key={item.title} className="min-h-[194px] rounded-lg border border-ink-border bg-ink-panel p-5">
-                    <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-md bg-warm">
-                      <SecurityIcon className="h-5 w-5 text-primary" strokeWidth={1.8} />
+                  <article key={item.title} className="min-h-[194px] rounded-lg border border-background/15 bg-background/5 p-5">
+                    <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-md bg-primary">
+                      <SecurityIcon className="h-5 w-5 text-primary-foreground" strokeWidth={1.8} />
                     </span>
                     <h3 className="mt-6 text-[15px] font-semibold">{item.title}</h3>
-                    <p className="mt-2 text-[12px] leading-[1.55] text-white/55">{item.text}</p>
+                    <p className="mt-2 text-[12px] leading-[1.55] text-background/55">{item.text}</p>
                   </article>
                 );
               })}
             </div>
-            <p className="mt-4 text-[11px] text-white/40">Controles alinhados à LGPD e às práticas de segurança para software como serviço.</p>
+            <p className="mt-4 text-[11px] text-background/40">Controles alinhados à LGPD e às práticas de segurança para software como serviço.</p>
           </div>
         </div>
       </section>
 
-      <section id="contato" className="scroll-mt-20 bg-commercial-section">
+      <section id="contato" className="scroll-mt-20 bg-muted">
         <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-8 lg:px-12 xl:px-16 xl:py-[72px]">
           <Eyebrow>Contato</Eyebrow>
           <h2 className="mt-3 max-w-[760px] text-[30px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[34px]">
@@ -324,13 +324,13 @@ export function CommercialPage() {
 
       <section className="bg-background">
         <div className="mx-auto max-w-[1440px] px-4 py-9 sm:px-8 lg:px-12 xl:px-16">
-          <div className="grid gap-8 rounded-[18px] bg-ink px-6 py-8 text-white sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="grid gap-8 rounded-lg bg-foreground px-6 py-8 text-background sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-warm">Planos para cada escala</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Planos para cada escala</p>
               <h2 className="mt-3 text-[26px] font-semibold leading-[1.2] sm:text-[30px]">
                 Comece pequeno. Evolua sem trocar de plataforma.
               </h2>
-              <p className="mt-3 text-[13px] text-white/55">
+              <p className="mt-3 text-[13px] text-background/55">
                 Planos individuais e municipais, com limites, recursos e SLA transparentes.
               </p>
               <div className="mt-6 grid gap-4 text-[13px] sm:grid-cols-3">
@@ -339,7 +339,7 @@ export function CommercialPage() {
                 <PlanSummary label="Enterprise" value="sob consulta" />
               </div>
             </div>
-            <Button asChild variant="secondary" className="h-[46px] bg-warm px-6 text-warm-foreground hover:bg-warm/90">
+            <Button asChild variant="secondary" className="h-[46px] bg-primary px-6 text-primary-foreground hover:bg-primary-hover">
               <a href="#planos">Comparar planos</a>
             </Button>
           </div>
@@ -353,17 +353,17 @@ function ProductPreview() {
   return (
     <div
       aria-label="Prévia da operação municipal"
-      className="grid min-h-[360px] overflow-hidden rounded-[18px] border bg-card shadow-preview sm:min-h-[416px] sm:grid-cols-[132px_1fr]"
+      className="grid min-h-[360px] overflow-hidden rounded-lg border bg-card sm:min-h-[416px] sm:grid-cols-[132px_1fr]"
     >
-      <aside className="hidden bg-ink px-4 py-5 text-white sm:block">
+      <aside className="hidden bg-foreground px-4 py-5 text-background sm:block">
         <div className="flex items-center gap-2">
           <TcsMark decorative size={28} />
           <span className="text-[11px] font-semibold">TCS</span>
         </div>
         <div className="mt-8 space-y-3">
           {[true, false, false, false].map((active, index) => (
-            <div key={index} className={`h-8 rounded-md ${active ? 'bg-white/10' : 'bg-transparent'}`}>
-              <span className={`ml-3 mt-3 inline-block h-1.5 rounded-full ${active ? 'w-12 bg-warm' : 'w-9 bg-white/15'}`} />
+            <div key={index} className={`h-8 rounded-md ${active ? 'bg-background/10' : 'bg-transparent'}`}>
+              <span className={`ml-3 mt-3 inline-block h-1.5 rounded-full ${active ? 'w-12 bg-primary' : 'w-9 bg-background/15'}`} />
             </div>
           ))}
         </div>
@@ -391,7 +391,7 @@ function ProductPreview() {
           <MapDot className="left-[42%] top-[34%]" />
           <MapDot className="left-[63%] top-[62%]" emphasized />
           <MapDot className="left-[80%] top-[28%]" />
-          <div className="absolute bottom-3 left-3 rounded-md bg-card/90 px-3 py-2 text-[10px] font-semibold text-muted-foreground shadow-card">
+          <div className="absolute bottom-3 left-3 rounded-md bg-card/90 px-3 py-2 text-[10px] font-semibold text-muted-foreground ">
             Cobertura territorial · 84%
           </div>
         </div>
@@ -403,7 +403,7 @@ function ProductPreview() {
 function MapDot({ className, emphasized = false }: { className: string; emphasized?: boolean }) {
   return (
     <span
-      className={`absolute h-3 w-3 rounded-full border-2 border-card shadow-card ${
+      className={`absolute h-3 w-3 rounded-full border-2 border-card  ${
         emphasized ? 'bg-success' : 'bg-primary'
       } ${className}`}
     />
@@ -427,14 +427,14 @@ function PlanSummary({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="font-semibold">{label}</p>
-      <p className="mt-1 text-[11px] text-white/45">{value}</p>
+      <p className="mt-1 text-[11px] text-background/45">{value}</p>
     </div>
   );
 }
 
 function ContactCard({ title, text, email }: { title: string; text: string; email: string }) {
   return (
-    <article className="flex min-h-[190px] flex-col rounded-[18px] border bg-card p-6 shadow-card">
+    <article className="flex min-h-[190px] flex-col rounded-lg border bg-card p-6 ">
       <h3 className="text-lg font-semibold">{title}</h3>
       <p className="mt-2 text-[13px] leading-5 text-muted-foreground">{text}</p>
       <a className="mt-auto inline-flex items-center gap-2 pt-5 text-[13px] font-semibold text-primary" href={`mailto:${email}`}>

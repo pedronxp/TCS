@@ -105,7 +105,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
           ) : mode === 'request' ? (
             <form className="space-y-4" onSubmit={request}>
               <label className="block text-sm font-medium">E-mail<Input className="mt-2" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-              {message && <p className="rounded-md bg-status-danger p-3 text-sm" role="alert">{message}</p>}
+              {message && <p className="rounded-md bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</p>}
               <Button type="submit" className="w-full" disabled={submitting}>{submitting ? 'Enviando…' : 'Enviar link seguro'}</Button>
               <Button asChild variant="ghost" className="w-full"><Link to="/entrar">Voltar</Link></Button>
             </form>
@@ -113,7 +113,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
             <p className="text-sm text-muted-foreground">Validando sessão de recuperação…</p>
           ) : !validRecovery ? (
             <div className="space-y-4">
-              <p className="rounded-md bg-status-danger p-3 text-sm" role="alert">Este link é inválido, expirou ou já foi utilizado.</p>
+              <p className="rounded-md bg-destructive-soft p-3 text-sm text-destructive" role="alert">Este link é inválido, expirou ou já foi utilizado.</p>
               <Button asChild className="w-full"><Link to="/recuperar-senha">Solicitar outro link</Link></Button>
             </div>
           ) : (
@@ -121,7 +121,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
               <label className="block text-sm font-medium">Nova senha<Input className="mt-2" type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
               <label className="block text-sm font-medium">Confirmar senha<Input className="mt-2" type="password" autoComplete="new-password" minLength={8} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /></label>
               <label className="flex items-start gap-3 text-sm text-muted-foreground"><input className="mt-1 h-4 w-4" type="checkbox" checked={revokeOthers} onChange={(event) => setRevokeOthers(event.target.checked)} />Encerrar minhas outras sessões.</label>
-              {message && <p className="rounded-md bg-status-danger p-3 text-sm" role="alert">{message}</p>}
+              {message && <p className="rounded-md bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</p>}
               <Button type="submit" className="w-full" disabled={submitting}>{submitting ? 'Alterando…' : 'Redefinir senha'}</Button>
             </form>
           )}

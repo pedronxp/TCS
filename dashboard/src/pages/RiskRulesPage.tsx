@@ -191,7 +191,7 @@ export function RiskRulesPage() {
       />
 
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Governança de risco</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Governança de risco</p>
         <h1 id="risk-rules-title" className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Regras de risco</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Configure faixas por município, simule o resultado e publique com segurança.
@@ -282,7 +282,7 @@ export function RiskRulesPage() {
         )}
       </AsyncBoundary>
 
-      {error && <p className="rounded-lg bg-status-danger p-3 text-sm text-destructive" role="alert">{error}</p>}
+      {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
 
       <HighRiskDialog
         open={confirming}
@@ -322,16 +322,16 @@ function SimulationHero({
 }) {
   const row = jsonObject(simulation);
   return (
-    <section className="grid min-h-[156px] gap-5 rounded-2xl border border-info-strong/20 bg-info-soft p-6 lg:grid-cols-[minmax(0,1fr)_188px_366px] lg:items-center" aria-labelledby="simulation-title">
+    <section className="grid min-h-[156px] gap-5 rounded-lg border border-border bg-muted p-6 lg:grid-cols-[minmax(0,1fr)_188px_366px] lg:items-center" aria-labelledby="simulation-title">
       <div>
-        <span className="inline-flex rounded-full bg-info-strong px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-white">Obrigatória</span>
+        <span className="inline-flex rounded-full bg-primary px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-primary-foreground">Obrigatória</span>
         <h2 id="simulation-title" className="mt-3 text-lg font-bold">Simule antes de publicar</h2>
-        <p className="mt-1 max-w-md text-xs leading-5 text-info-strong">
+        <p className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
           A publicação só é liberada após a configuração atual produzir uma classificação válida.
         </p>
       </div>
 
-      <div className="rounded-xl border border-info-strong/20 bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-4">
         <Label htmlFor="risk-score" className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Pontuação</Label>
         <div className="mt-1 flex items-end gap-2">
           <Input
@@ -346,19 +346,19 @@ function SimulationHero({
         <Button size="sm" variant="outline" className="mt-2 w-full" onClick={onSimulate}><FlaskConical />Simular</Button>
       </div>
 
-      <div className="min-h-[100px] rounded-xl bg-sidebar p-5 text-sidebar-foreground" aria-live="polite">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-sidebar-foreground/60">Resultado simulado</p>
+      <div className="min-h-[100px] rounded-xl border border-border bg-muted p-5" aria-live="polite">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Resultado simulado</p>
         {simulation && level ? (
           <div className="mt-3 flex items-center gap-3">
             <RiskLevelBadge level={level} />
             <div>
-              <p className="text-sm font-semibold text-white">{jsonString(row?.label) || 'Classificação encontrada'}</p>
-              <p className="mt-1 text-[11px] text-sidebar-foreground/65">{jsonString(row?.descricao) || 'Intervalo validado com sucesso.'}</p>
+              <p className="text-sm font-semibold text-foreground">{jsonString(row?.label) || 'Classificação encontrada'}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{jsonString(row?.descricao) || 'Intervalo validado com sucesso.'}</p>
             </div>
           </div>
         ) : (
-          <div className="mt-3 flex items-center gap-3 text-xs text-sidebar-foreground/65">
-            <ShieldAlert className="h-5 w-5 text-warm" />
+          <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+            <ShieldAlert className="h-5 w-5 text-primary" />
             Aguardando uma simulação válida.
           </div>
         )}
@@ -384,7 +384,7 @@ function MunicipalityPanel({
 }) {
   const isNew = !items.some((item) => item.municipality === selected);
   return (
-    <Card className="rounded-[14px] p-6 md:col-span-1">
+    <Card className="rounded-lg p-6 md:col-span-1">
       <h2 className="text-base font-bold">Escopo municipal</h2>
       <p className="mt-1 text-xs text-muted-foreground">Selecione a configuração</p>
       {isNew && (
@@ -408,8 +408,8 @@ function MunicipalityPanel({
             <button
               key={item.municipality}
               className={cn(
-                'flex min-h-[68px] w-full items-center gap-3 rounded-[10px] border p-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                selected === item.municipality && 'border-warm bg-warm-soft',
+                'flex min-h-[68px] w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                selected === item.municipality && 'border-primary bg-success-soft',
               )}
               onClick={() => onSelect(item)}
               aria-pressed={selected === item.municipality}
@@ -455,7 +455,7 @@ function TierPanel({
 }) {
   const currentVersion = selected?.versions[0];
   return (
-    <Card className="min-w-0 rounded-[14px] p-6 md:col-span-1">
+    <Card className="min-w-0 rounded-lg p-6 md:col-span-1">
       <h2 className="text-base font-bold">Faixas de classificação</h2>
       <p className="mt-1 truncate text-xs text-muted-foreground">
         {municipality || 'Novo município'}{currentVersion ? ` · ${currentVersion.status === 'draft' ? 'rascunho' : 'versão'} v${currentVersion.version}` : ''}
@@ -463,7 +463,7 @@ function TierPanel({
 
       <div className="mt-5 space-y-3">
         {tiers.map((tier) => (
-          <div key={tier.level} className="flex min-h-[72px] items-center gap-3 rounded-[10px] border bg-secondary/30 p-3">
+          <div key={tier.level} className="flex min-h-[72px] items-center gap-3 rounded-lg border bg-secondary/30 p-3">
             <RiskLevelBadge level={tier.level} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold">{formatRange(tier.min, tier.max)}</p>
@@ -473,7 +473,7 @@ function TierPanel({
           </div>
         ))}
         {!tiers.length && (
-          <p className="rounded-lg border border-destructive/25 bg-status-danger p-3 text-xs text-destructive">
+          <p className="rounded-lg border border-destructive/25 bg-destructive-soft p-3 text-xs text-destructive">
             O JSON atual ainda não forma faixas R1–R4 válidas.
           </p>
         )}
@@ -482,13 +482,13 @@ function TierPanel({
       <details
         open={advancedOpen}
         onToggle={(event) => onAdvancedOpenChange(event.currentTarget.open)}
-        className="mt-5 rounded-[10px] bg-sidebar text-sidebar-foreground"
+        className="mt-5 rounded-lg border border-border bg-muted"
       >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-semibold">
           <span className="inline-flex items-center gap-2"><Braces className="h-4 w-4" />Configuração avançada (JSON)</span>
           <span aria-hidden="true">›</span>
         </summary>
-        <div className="border-t border-sidebar-border p-3">
+        <div className="border-t border-border p-3">
           <Label htmlFor="risk-config" className="sr-only">Configuração dos intervalos em JSON</Label>
           <Textarea
             id="risk-config"
@@ -496,7 +496,7 @@ function TierPanel({
             onChange={(event) => onConfigChange(event.target.value)}
             rows={16}
             spellCheck={false}
-            className="border-sidebar-border bg-sidebar-accent font-mono text-[11px] text-sidebar-foreground"
+            className="border-border bg-card font-mono text-[11px] text-foreground"
           />
         </div>
       </details>
@@ -529,23 +529,23 @@ function VersionPanel({
 }) {
   const latest = selected?.versions[0];
   return (
-    <aside className="flex min-h-[544px] flex-col rounded-[14px] bg-sidebar p-6 text-sidebar-foreground md:col-span-2 xl:col-span-1" aria-labelledby="risk-version-title">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-warm">Versão atual</p>
-      <h2 id="risk-version-title" className="mt-3 text-lg font-bold text-white">
+    <aside className="flex min-h-[544px] flex-col rounded-lg border border-border bg-card p-6 md:col-span-2 xl:col-span-1" aria-labelledby="risk-version-title">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Versão atual</p>
+      <h2 id="risk-version-title" className="mt-3 text-lg font-bold">
         {municipality || 'Novo município'}{latest ? ` · v${latest.version}` : ''}
       </h2>
       <div className="mt-3">{latest ? <StatusBadge value={latest.status} /> : <StatusBadge value="draft" />}</div>
 
       <div className={cn(
         'mt-5 flex gap-3 rounded-lg border p-3 text-xs',
-        simulationReady ? 'border-success/25 bg-success/10 text-sidebar-foreground' : 'border-sidebar-border bg-sidebar-accent text-sidebar-foreground/70',
+        simulationReady ? 'border-success/25 bg-success-soft text-foreground' : 'border-border bg-muted text-muted-foreground',
       )}>
-        {simulationReady ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : <FlaskConical className="h-4 w-4 shrink-0 text-warm" />}
+        {simulationReady ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : <FlaskConical className="h-4 w-4 shrink-0 text-muted-foreground" />}
         {simulationReady ? 'Simulação válida. A configuração pode ser versionada.' : 'Execute uma simulação válida para liberar as ações.'}
       </div>
 
-      <div className="my-6 h-px bg-sidebar-border" />
-      <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-sidebar-foreground/60">
+      <div className="my-6 h-px bg-border" />
+      <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
         <History className="h-3.5 w-3.5" />
         Histórico
       </p>
@@ -554,24 +554,24 @@ function VersionPanel({
           <button
             key={version.version}
             className={cn(
-              'flex w-full items-center justify-between rounded-lg px-2 py-3 text-left text-xs hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warm',
-              targetVersion === version.version && 'bg-white/10',
+              'flex w-full items-center justify-between rounded-lg px-2 py-3 text-left text-xs hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              targetVersion === version.version && 'bg-secondary',
             )}
             onClick={() => onSelectVersion(version)}
           >
-            <span className="font-bold text-white">v{version.version}</span>
-            <span className="text-sidebar-foreground/65">{version.status === 'published' ? 'Publicada' : version.status === 'retired' ? 'Substituída' : 'Rascunho'}</span>
-            <span className="text-[10px] text-sidebar-foreground/45">{formatDate(version.createdAt)}</span>
+            <span className="font-bold text-foreground">v{version.version}</span>
+            <span className="text-muted-foreground">{version.status === 'published' ? 'Publicada' : version.status === 'retired' ? 'Substituída' : 'Rascunho'}</span>
+            <span className="text-[10px] text-muted-foreground">{formatDate(version.createdAt)}</span>
           </button>
         ))}
-        {!selected?.versions.length && <p className="py-4 text-xs text-sidebar-foreground/60">Nenhuma versão registrada.</p>}
+        {!selected?.versions.length && <p className="py-4 text-xs text-muted-foreground">Nenhuma versão registrada.</p>}
       </div>
 
       <div className="mt-auto space-y-2 pt-6">
         {canPrepare && <Button variant="secondary" className="w-full" disabled={!simulationReady || !municipality.trim()} onClick={onSaveDraft}>Salvar rascunho</Button>}
         {canPublish && <Button className="w-full" disabled={!simulationReady || !municipality.trim()} onClick={onPublish}>Publicar configuração</Button>}
         {canPublish && targetVersion && (
-          <Button variant="outline" className="w-full border-sidebar-border bg-transparent text-warm hover:bg-white/5" disabled={!simulationReady} onClick={onRollback}>
+          <Button variant="outline" className="w-full" disabled={!simulationReady} onClick={onRollback}>
             <RotateCcw />
             Restaurar v{targetVersion}
           </Button>

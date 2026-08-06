@@ -64,7 +64,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="rounded-md border border-warning/25 bg-status-warning p-4 text-sm text-foreground" role="status">
+            <p className="rounded-md border border-warning/30 bg-warning-soft p-4 text-sm text-warning" role="status">
               Nenhum dado municipal foi carregado para esta sessão.
             </p>
             <Button
@@ -183,7 +183,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               />
               Aceito os Termos de Uso e a Política de Privacidade vigentes.
             </label>
-            {message && <p className="rounded-md border border-destructive/20 bg-status-danger p-3 text-sm" role="alert">{message}</p>}
+            {message && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</p>}
             <Button
               className="w-full"
               disabled={!termsAccepted || submitting || (
@@ -247,7 +247,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             </label>
             {message && (
               <div
-                className={`rounded-md border p-3 text-sm text-foreground ${success ? 'border-success/25 bg-status-success' : 'border-destructive/20 bg-status-danger'}`}
+                className={`rounded-md border p-3 text-sm ${success ? 'border-primary/25 bg-success-soft text-primary' : 'border-destructive/30 bg-destructive-soft text-destructive'}`}
                 role={success ? 'status' : 'alert'}
               >
                 {message}
@@ -295,14 +295,14 @@ function AuthFrame({ children }: { children: React.ReactNode }) {
       >
         Pular para o conteúdo
       </a>
-      <aside aria-label="Apresentação do portal TCS" className="relative hidden overflow-hidden bg-ink p-12 text-white lg:flex lg:flex-col">
+      <aside aria-label="Apresentação do portal TCS" className="glass relative hidden overflow-hidden p-12 text-foreground lg:flex lg:flex-col">
         <Link to="/" className="flex items-center gap-3"><TcsMark decorative /><span className="font-bold">TCS</span></Link>
         <div className="my-auto max-w-xl">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-warm">Operação em um só lugar</p>
-          <p className="mt-5 text-4xl font-semibold leading-tight">Do território à decisão, com acesso seguro para cada papel.</p>
-          <ul className="mt-8 space-y-4 text-sm text-white/65">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Operação em um só lugar</p>
+          <p className="mt-5 text-4xl font-semibold leading-tight tracking-[-0.02em]">Do território à decisão, com acesso seguro para cada papel.</p>
+          <ul className="mt-8 space-y-4 text-sm text-muted-foreground">
             {['Vistorias, agenda e documentos conectados', 'Visão individual ou municipal conforme seu vínculo', 'Plano, permissões e consumo sempre transparentes'].map((item) => (
-              <li key={item} className="flex items-center gap-3"><span className="grid h-6 w-6 place-items-center rounded-full bg-white/10"><Check className="h-3.5 w-3.5 text-warm" /></span>{item}</li>
+              <li key={item} className="flex items-center gap-3"><span className="grid h-6 w-6 place-items-center rounded-full bg-success-soft"><Check className="h-3.5 w-3.5 text-primary" /></span><span className="text-foreground">{item}</span></li>
             ))}
           </ul>
         </div>

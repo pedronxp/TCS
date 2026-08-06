@@ -31,7 +31,7 @@ export function LoginPage() {
 
   if (authLoading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-ink text-warm" aria-live="polite">
+      <div className="grid min-h-screen place-items-center bg-background text-foreground" aria-live="polite">
         <Loader2 className="h-7 w-7 animate-spin" />
         <span className="sr-only">Verificando sessão…</span>
       </div>
@@ -69,27 +69,27 @@ export function LoginPage() {
 
   return (
     <main className="min-h-screen bg-card lg:grid lg:grid-cols-[minmax(0,1.1176fr)_minmax(0,1fr)]">
-      <section className="flex min-h-[330px] flex-col bg-ink px-6 py-8 text-white sm:min-h-[390px] sm:px-10 lg:min-h-screen lg:px-10 lg:py-12 xl:px-14">
+      <section className="flex min-h-[330px] flex-col bg-foreground px-6 py-8 text-background sm:min-h-[390px] sm:px-10 lg:min-h-screen lg:px-10 lg:py-12 xl:px-14">
         <Link to="/" className="flex w-fit items-center gap-3 text-[15px] font-semibold">
           <TcsMark decorative />
           TCS Console
         </Link>
 
         <div className="mt-14 max-w-[610px] lg:mt-[74px]">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-warm">Operação conectada</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Operação conectada</p>
           <h1 className="mt-5 text-[32px] font-bold leading-[1.2] tracking-[-0.025em] sm:text-[38px] xl:text-[42px]">
             Decisões melhores começam com dados confiáveis.
           </h1>
-          <p className="mt-6 max-w-[560px] text-[15px] leading-6 text-white/60 sm:text-base">
+          <p className="mt-6 max-w-[560px] text-[15px] leading-6 text-background/60 sm:text-base">
             Entre para acompanhar clientes, suporte, assinaturas e a saúde técnica da plataforma em um único lugar.
           </p>
         </div>
 
-        <div className="mt-10 hidden max-w-[648px] rounded-[16px] border border-ink-border bg-ink-panel p-6 md:block lg:mt-[52px] xl:p-8">
-          <blockquote className="max-w-[560px] text-[17px] font-medium leading-7 text-white/85">
+        <div className="mt-10 hidden max-w-[648px] rounded-lg border border-background/10 bg-background/5 p-6 md:block lg:mt-[52px] xl:p-8">
+          <blockquote className="max-w-[560px] text-[17px] font-medium leading-7 text-background/85">
             “A operação ficou mais previsível quando todos passaram a enxergar a mesma informação.”
           </blockquote>
-          <div className="my-6 h-px bg-ink-border" />
+          <div className="my-6 h-px bg-background/10" />
           <dl className="grid grid-cols-3 gap-4">
             <LoginMetric label="Clientes ativos" value="148" />
             <LoginMetric label="SLA cumprido" value="96,8%" />
@@ -97,7 +97,7 @@ export function LoginPage() {
           </dl>
         </div>
 
-        <p className="mt-auto hidden pt-8 text-[11px] text-white/40 lg:block">
+        <p className="mt-auto hidden pt-8 text-[11px] text-background/40 lg:block">
           Conexão segura · Acesso auditado · LGPD
         </p>
       </section>
@@ -246,8 +246,8 @@ function GoogleMark() {
 function LoginMetric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11px] text-white/40">{label}</dt>
-      <dd className="mt-2 text-[21px] font-semibold text-white">{value}</dd>
+      <dt className="text-[11px] text-background/40">{label}</dt>
+      <dd className="mt-2 text-[21px] font-semibold text-background">{value}</dd>
     </div>
   );
 }

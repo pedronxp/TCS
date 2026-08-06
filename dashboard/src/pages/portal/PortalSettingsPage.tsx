@@ -87,13 +87,13 @@ export function PortalSettingsPage() {
                 <Input className="mt-2" type="number" min={5} max={43200} value={sessionTimeout} onChange={(event) => setSessionTimeout(event.target.value)} disabled={!mayManage} required />
               </label>
               {mayManage ? (
-                <div className="grid gap-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                <div className="grid gap-4 rounded-lg border border-warning/30 bg-warning-soft p-4 text-warning-foreground">
                   <p className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4" />Alteração auditável</p>
                   <label className="text-sm font-medium">Justificativa
-                    <textarea className="mt-2 min-h-24 w-full rounded-md border bg-white p-3 text-sm" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} required />
+                    <textarea className="mt-2 min-h-24 w-full rounded-md border bg-card p-3 text-sm" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} required />
                   </label>
                   <label className="text-sm font-medium">Digite CONFIRMAR
-                    <Input className="mt-2 bg-white" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" required />
+                    <Input className="mt-2 bg-card" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" required />
                   </label>
                   <Button className="w-fit" disabled={submitting || confirmation !== 'CONFIRMAR' || reason.trim().length < 10}>{submitting ? 'Salvando…' : 'Salvar configurações'}</Button>
                 </div>

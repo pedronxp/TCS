@@ -52,7 +52,7 @@ export function InviteAcceptancePage() {
               <div><dt className="text-xs text-muted-foreground">Destinatário</dt><dd className="mt-1 font-semibold">{preview.email_hint}</dd></div>
             </dl>
           )}
-          {message && <p className="rounded-md bg-status-danger p-3 text-sm text-foreground" role="alert">{message}</p>}
+          {message && <p className="rounded-md bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</p>}
           {!session ? <Button asChild className="w-full"><Link to={`/entrar?returnTo=${encodeURIComponent(`/convite/${token}`)}`}>Entrar para aceitar</Link></Button> : <Button className="w-full" onClick={() => void accept()} disabled={loading || !preview}>Aceitar convite</Button>}
           <Button asChild variant="ghost" className="w-full"><Link to="/">Voltar ao site</Link></Button>
         </CardContent>

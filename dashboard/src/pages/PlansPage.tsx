@@ -273,7 +273,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
         emptyTitle="Nenhum plano comercial"
         emptyDescription="Os planos cadastrados aparecerão aqui."
       >
-        <div className="flex flex-col gap-3 rounded-2xl bg-info px-5 py-4 text-info-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg bg-info px-5 py-4 text-info-foreground sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-info-foreground/15">
               <Rocket className="h-4 w-4" aria-hidden="true" />
@@ -291,7 +291,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
         </div>
 
         {notice && (
-          <div role="status" className="flex items-center gap-2 rounded-xl border border-success/25 bg-success-soft px-4 py-3 text-sm text-success-soft-foreground">
+          <div role="status" className="flex items-center gap-2 rounded-xl border border-success/25 bg-success-soft px-4 py-3 text-sm text-success">
             <Check className="h-4 w-4" aria-hidden="true" /> {notice}
           </div>
         )}
@@ -309,7 +309,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
             ))}
           </div>
 
-          <aside className="rounded-2xl border bg-card p-5" aria-labelledby="version-history-title">
+          <aside className="rounded-lg border bg-card p-5" aria-labelledby="version-history-title">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Publicações</p>
@@ -338,7 +338,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
           </aside>
         </div>
 
-        <section className="rounded-2xl border bg-card p-5" aria-labelledby="comparison-title">
+        <section className="rounded-lg border bg-card p-5" aria-labelledby="comparison-title">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Visão rápida</p>
@@ -390,7 +390,7 @@ function PlanCard({ plan, features, featured, onEdit }: { plan: PlanRow; feature
   const enabledFeatures = plan.plan_features.filter(item => item.enabled);
   const normalSla = plan.support_sla_policies.find(item => item.priority === 'normal');
   return (
-    <article className={cn('flex min-h-[378px] flex-col rounded-2xl border p-5', featured ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/15' : 'bg-card')}>
+    <article className={cn('flex min-h-[378px] flex-col rounded-lg border p-5', featured ? 'border-primary bg-primary text-primary-foreground' : 'bg-card')}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -450,14 +450,14 @@ function PlanEditor({ plan, featureCatalog, saving, error, onClose, onSave }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/60 p-3 backdrop-blur-sm sm:p-8">
-      <div role="dialog" aria-modal="true" aria-labelledby="plan-editor-title" className="w-full max-w-6xl overflow-hidden rounded-2xl bg-muted shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="plan-editor-title" className="w-full max-w-6xl overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4 sm:px-7">
           <div><p className="text-xs font-bold uppercase tracking-wider text-primary">Editor comercial • versão atual {plan.current_version}</p><h2 id="plan-editor-title" className="text-xl font-bold text-foreground">{plan.name}</h2></div>
           <button onClick={onClose} disabled={saving} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" aria-label="Fechar editor"><X className="h-5 w-5" /></button>
         </header>
 
         <div className="space-y-6 p-5 sm:p-7">
-          {error && <div className="rounded-xl border border-destructive/25 bg-danger-soft p-4 text-sm text-destructive">{error}</div>}
+          {error && <div className="rounded-lg border border-destructive/25 bg-destructive-soft p-4 text-sm text-destructive">{error}</div>}
 
           <EditorSection icon={<Edit3 />} title="Identificação da proposta" description="Nome, descrição e disponibilidade comercial.">
             <div className="grid gap-4 md:grid-cols-[1fr_220px]">
@@ -522,7 +522,7 @@ function PlanEditor({ plan, featureCatalog, saving, error, onClose, onSave }: {
 }
 
 function EditorSection({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
-  return <section className="rounded-2xl border border-border bg-card p-5"><div className="mb-5 flex gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info [&>svg]:h-5 [&>svg]:w-5">{icon}</div><div><h3 className="font-bold text-foreground">{title}</h3><p className="text-xs text-muted-foreground">{description}</p></div></div><div className="space-y-4">{children}</div></section>;
+  return <section className="rounded-lg border border-border bg-card p-5"><div className="mb-5 flex gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-info-soft text-info [&>svg]:h-5 [&>svg]:w-5">{icon}</div><div><h3 className="font-bold text-foreground">{title}</h3><p className="text-xs text-muted-foreground">{description}</p></div></div><div className="space-y-4">{children}</div></section>;
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -530,7 +530,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 function DemoBadge() {
-  return <span className="w-fit rounded-full border border-warning/25 bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning-soft-foreground">Demonstração local</span>;
+  return <span className="w-fit rounded-full border border-warning/25 bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning">Demonstração local</span>;
 }
 
 const inputClass = 'w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-ring focus:ring-[3px] focus:ring-ring/20';
@@ -666,9 +666,9 @@ function applyDemoSave(plan: PlanRow, draft: PlanDraft, commercial: CommercialCo
 }
 
 function statusClass(status: PlanStatus) {
-  if (status === 'active') return 'bg-success-soft text-success-soft-foreground';
+  if (status === 'active') return 'bg-success-soft text-success';
   if (status === 'retired') return 'bg-secondary text-muted-foreground';
-  return 'bg-warning-soft text-warning-soft-foreground';
+  return 'bg-warning-soft text-warning';
 }
 
 function moneyToCents(value: string) { return value.trim() === '' ? null : Math.round(Number(value) * 100); }

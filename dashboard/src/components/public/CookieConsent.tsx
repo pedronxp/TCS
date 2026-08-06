@@ -28,7 +28,7 @@ export function CookieConsent() {
       role="dialog"
     >
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-warm text-primary"><Cookie className="h-5 w-5" /></span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary"><Cookie className="h-5 w-5" /></span>
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold">Privacidade e funcionamento da página</h2>
           <p className="mt-1 text-sm leading-5 text-muted-foreground">
