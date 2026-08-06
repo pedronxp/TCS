@@ -36,10 +36,10 @@ export function PortalShell() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <a href="#portal-content" className="sr-only z-[100] rounded-md bg-card px-4 py-2 shadow-card focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+      <a href="#portal-content" className="sr-only z-[100] rounded-md bg-card px-4 py-2 shadow-sm focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
         Pular para o conteúdo
       </a>
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-[264px] flex-col bg-ink text-white lg:flex">
+      <aside className="glass fixed inset-y-0 left-0 z-50 hidden w-[264px] flex-col text-foreground lg:flex">
         <PortalBrand />
         <PortalNavigation items={navigation} />
         <PortalIdentity name={access.displayName} detail={access.organizationName ?? access.planName ?? 'Conta individual'} onSignOut={signOut} />
@@ -48,10 +48,10 @@ export function PortalShell() {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button className="absolute inset-0 bg-black/45" aria-label="Fechar navegação" onClick={closeMobileNavigation} />
-          <aside className="relative flex h-full w-[286px] flex-col bg-ink text-white shadow-preview" role="dialog" aria-modal="true" aria-label="Navegação do portal">
+          <aside className="glass surface-glass relative flex h-full w-[286px] flex-col text-foreground" role="dialog" aria-modal="true" aria-label="Navegação do portal">
             <div className="flex items-center justify-between pr-3">
               <PortalBrand />
-              <Button ref={closeButtonRef} variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={closeMobileNavigation} aria-label="Fechar menu">
+              <Button ref={closeButtonRef} variant="ghost" size="icon" className="hover:bg-secondary" onClick={closeMobileNavigation} aria-label="Fechar menu">
                 <X />
               </Button>
             </div>
@@ -80,7 +80,7 @@ export function PortalShell() {
         </header>
 
         {!access.creationAllowed && (
-          <div className="border-b border-warning/25 bg-status-warning px-4 py-3 text-sm text-foreground sm:px-6 lg:px-8" role="status">
+          <div className="border-b border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning sm:px-6 lg:px-8" role="status">
             {portalRestrictionMessage(access.restrictionCause)}
           </div>
         )}
@@ -104,11 +104,11 @@ export function PortalShell() {
 
 function PortalBrand() {
   return (
-    <Link to="/" className="flex h-[78px] items-center gap-3 px-6 text-white">
+    <Link to="/" className="flex h-[78px] items-center gap-3 px-6 text-foreground">
       <TcsMark decorative />
       <span>
         <span className="block text-sm font-bold">TCS</span>
-        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.12em] text-white/70">Portal do cliente</span>
+        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Portal do cliente</span>
       </span>
     </Link>
   );
@@ -118,7 +118,7 @@ function PortalNavigation({ items, onNavigate }: { items: ReturnType<typeof getP
   return (
     <nav className="sidebar-scroll flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Módulos do portal">
       {items.map((item) => (
-        <NavLink key={item.path} to={item.path} end={item.label === 'Visão geral'} onClick={onNavigate} className={({ isActive }) => cn('flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-white/65 transition-colors hover:bg-white/8 hover:text-white', isActive && 'bg-white/10 text-white')}>
+        <NavLink key={item.path} to={item.path} end={item.label === 'Visão geral'} onClick={onNavigate} className={({ isActive }) => cn('flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', isActive && 'bg-success-soft text-primary')}>
           <item.icon className="h-[18px] w-[18px]" />
           {item.label}
         </NavLink>
@@ -129,10 +129,10 @@ function PortalNavigation({ items, onNavigate }: { items: ReturnType<typeof getP
 
 function PortalIdentity({ name, detail, onSignOut }: { name: string; detail: string; onSignOut: () => Promise<void> }) {
   return (
-    <div className="border-t border-white/10 p-4">
+    <div className="border-t border-border p-4">
       <p className="truncate text-sm font-semibold">{name}</p>
-      <p className="mt-1 truncate text-xs text-white/70">{detail}</p>
-      <button onClick={() => void onSignOut()} className="mt-3 flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-xs font-semibold text-white/60 hover:bg-white/10 hover:text-white">
+      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+      <button onClick={() => void onSignOut()} className="mt-3 flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
         <LogOut className="h-4 w-4" /> Sair
       </button>
     </div>

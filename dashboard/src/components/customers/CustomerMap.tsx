@@ -112,11 +112,11 @@ export function CustomerMap({ points }: { points: CustomerMapPoint[] }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label="Mapa das vistorias do cliente">
+    <section className="overflow-hidden rounded-lg border bg-card" aria-label="Mapa das vistorias do cliente">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-info-soft text-info-strong">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-info-soft text-info">
               <Layers3 className="h-4 w-4" aria-hidden="true" />
             </span>
             Cobertura geográfica

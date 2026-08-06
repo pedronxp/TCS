@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Search,
-  X,
-  RotateCcw,
-  AlertCircle,
-  Loader2,
   ChevronRight,
   Image as ImageIcon,
   MapPin,
+  Search,
   User,
   Calendar,
   FileText,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -23,28 +21,39 @@ import {
 } from '@/hooks/useOcorrencias';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/domain/PageHeader';
+import { RiskBadge } from '@/components/domain/Badges';
+import { AsyncBoundary } from '@/components/states/AsyncBoundary';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/Select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const RISCO_CONFIG: Record<NivelRisco, { label: string; bg: string; text: string; dot: string }> = {
-  r1: { label: 'R1 — Baixo', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
-  r2: { label: 'R2 — Médio', bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
-  r3: { label: 'R3 — Alto', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
-  r4: { label: 'R4 — Crítico', bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
+// Mapeia o nível de risco (lowercase, vindo do banco) para o formato do
+// componente compartilhado RiskBadge ('R1'..'R4').
+const RISCO_LABEL: Record<NivelRisco, 'R1' | 'R2' | 'R3' | 'R4'> = {
+  r1: 'R1',
+  r2: 'R2',
+  r3: 'R3',
+  r4: 'R4',
 };
 
-function RiscoBadge({ nivel }: { nivel: NivelRisco | null }) {
-  if (!nivel) return <span className="text-xs text-muted-foreground">—</span>;
-  const c = RISCO_CONFIG[nivel];
-  return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full', c.bg, c.text)}>
-      <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} />
-      {c.label}
-    </span>
-  );
-}
+// Fundo suave por nível — usa os tokens de risco semânticos para o painel de
+// destaque (a única exceção monocromática: cores de risco são críticas).
+const RISCO_SOFT_BG: Record<NivelRisco, string> = {
+  r1: 'bg-success-soft',
+  r2: 'bg-warning-soft',
+  r3: 'bg-warning-soft',
+  r4: 'bg-destructive-soft',
+};
 
 function enderecoCompleto(v: Vistoria): string {
   if (v.endereco) return v.endereco;
@@ -84,38 +93,55 @@ function PainelDetalhe({ vistoria, onClose }: { vistoria: Vistoria; onClose: () 
       .finally(() => setLoadingFotos(false));
   }, [urls]);
 
-  const rc = vistoria.nivelRisco ? RISCO_CONFIG[vistoria.nivelRisco] : null;
+  const risco = vistoria.nivelRisco ? RISCO_LABEL[vistoria.nivelRisco] : null;
 
   return (
     <>
       {/* Overlay */}
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      <button
+        type="button"
+        aria-label="Fechar detalhes"
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+      />
 
-      {/* Painel lateral */}
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col overflow-hidden">
+      {/* Painel lateral — superfície glass conforme design system */}
+      <aside
+        className="glass fixed right-0 top-0 bottom-0 z-50 flex w-full max-w-md flex-col overflow-hidden"
+        aria-label="Detalhes da vistoria"
+      >
         {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-slate-200">
+        <div className="flex items-start justify-between border-b border-sidebar-border p-5">
           <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Vistoria</p>
-            <h2 className="font-bold text-slate-900 text-sm">
+            <p className="mb-0.5 text-xs text-muted-foreground">Vistoria</p>
+            <h2 className="text-sm font-bold text-foreground">
               {vistoria.protocolo ?? vistoria.id.slice(0, 8).toUpperCase()}
             </h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 mt-0.5">
-            <X className="w-5 h-5" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            className="mt-0.5 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Conteúdo */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
           {/* Nível de risco */}
-          {rc && (
-            <div className={cn('rounded-xl p-4 flex items-center gap-4', rc.bg)}>
-              <span className={cn('w-3 h-3 rounded-full shrink-0', rc.dot)} />
+          {risco && (
+            <div
+              className={cn(
+                'flex items-center gap-4 rounded-lg p-4',
+                vistoria.nivelRisco ? RISCO_SOFT_BG[vistoria.nivelRisco] : 'bg-secondary'
+              )}
+            >
+              <RiskBadge risk={risco} />
               <div>
-                <p className={cn('font-bold', rc.text)}>{rc.label}</p>
                 {vistoria.pontuacaoTotal != null && (
-                  <p className={cn('text-xs', rc.text)}>
+                  <p className="text-xs font-medium text-foreground">
                     Pontuação: {vistoria.pontuacaoTotal}
                   </p>
                 )}
@@ -126,42 +152,38 @@ function PainelDetalhe({ vistoria, onClose }: { vistoria: Vistoria; onClose: () 
           {/* Detalhes */}
           <div className="space-y-3">
             <div className="flex items-start gap-3">
-              <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-              <div>
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">Endereço</p>
-                <p className="text-sm font-medium text-slate-900">{enderecoCompleto(vistoria)}</p>
-                {vistoria.municipio && (
-                  <p className="text-xs text-muted-foreground">{vistoria.municipio}</p>
-                )}
+                <p className="text-sm font-medium text-foreground">{enderecoCompleto(vistoria)}</p>
+                {vistoria.municipio && <p className="text-xs text-muted-foreground">{vistoria.municipio}</p>}
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+              <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <div>
                 <p className="text-xs text-muted-foreground">Agente</p>
-                <p className="text-sm font-medium text-slate-900">{vistoria.agenteNome ?? '—'}</p>
+                <p className="text-sm font-medium text-foreground">{vistoria.agenteNome ?? '—'}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+              <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <div>
                 <p className="text-xs text-muted-foreground">Data da vistoria</p>
-                <p className="text-sm font-medium text-slate-900">
-                  {vistoria.dataVistoria
-                    ? new Date(vistoria.dataVistoria).toLocaleString('pt-BR')
-                    : '—'}
+                <p className="text-sm font-medium text-foreground">
+                  {vistoria.dataVistoria ? new Date(vistoria.dataVistoria).toLocaleString('pt-BR') : '—'}
                 </p>
               </div>
             </div>
 
             {vistoria.laudo_gerado_em && (
               <div className="flex items-start gap-3">
-                <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <div>
                   <p className="text-xs text-muted-foreground">Laudo gerado em</p>
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-foreground">
                     {new Date(vistoria.laudo_gerado_em).toLocaleString('pt-BR')}
                   </p>
                 </div>
@@ -171,17 +193,17 @@ function PainelDetalhe({ vistoria, onClose }: { vistoria: Vistoria; onClose: () 
 
           {/* Fotos */}
           <div>
-            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Fotos ({urls.length})
             </p>
             {urls.length === 0 ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
-                <ImageIcon className="w-4 h-4" />
+              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <ImageIcon className="h-4 w-4" aria-hidden="true" />
                 <span>Nenhuma foto registrada</span>
               </div>
             ) : loadingFotos ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 <span>Carregando fotos...</span>
               </div>
             ) : (
@@ -189,42 +211,63 @@ function PainelDetalhe({ vistoria, onClose }: { vistoria: Vistoria; onClose: () 
                 {signedUrls.map((url, i) => (
                   <button
                     key={i}
+                    type="button"
                     onClick={() => setFotoAberta(url)}
-                    className="aspect-square rounded-xl overflow-hidden bg-slate-100 hover:opacity-90 transition-opacity"
+                    aria-label={`Ampliar foto ${i + 1}`}
+                    className="aspect-square overflow-hidden rounded-lg bg-secondary transition-opacity hover:opacity-90"
                   >
-                    <img
-                      src={url}
-                      alt={`Foto ${i + 1}`}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={url} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
             )}
           </div>
         </div>
-      </div>
+      </aside>
 
       {/* Lightbox */}
       {fotoAberta && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+        <button
+          type="button"
+          aria-label="Fechar foto"
           onClick={() => setFotoAberta(null)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
         >
-          <img
-            src={fotoAberta}
-            alt="Foto ampliada"
-            className="max-w-full max-h-full rounded-lg object-contain"
-          />
-          <button
-            onClick={() => setFotoAberta(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white"
-          >
-            <X className="w-7 h-7" />
-          </button>
-        </div>
+          <img src={fotoAberta} alt="Foto ampliada" className="max-h-full max-w-full rounded-lg object-contain" />
+          <span className="absolute right-4 top-4 rounded-md p-1 text-white/80 transition-colors hover:text-white">
+            <X className="h-7 w-7" />
+          </span>
+        </button>
       )}
     </>
+  );
+}
+
+// ─── Chip de filtro (toggle monocromático) ────────────────────────────────────
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'h-8 rounded-full border px-3 text-[11px] font-semibold transition-colors',
+        active
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-card text-muted-foreground hover:bg-secondary'
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -245,7 +288,7 @@ export function OcorrenciasPage() {
     periodo,
     risco,
     municipioFiltro,
-    busca
+    busca,
   );
 
   const vistorias = data;
@@ -266,176 +309,166 @@ export function OcorrenciasPage() {
   ];
 
   return (
-    <div>
-      {/* Cabeçalho */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Ocorrências</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Vistorias registradas no sistema
-        </p>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        eyebrow="Operacional"
+        title="Ocorrências"
+        description="Vistorias registradas no sistema, com detalhes de risco e fotos anexadas."
+      />
 
       {/* Filtros */}
-      <div className="space-y-3 mb-6">
-        {/* Busca */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por endereço, agente ou protocolo..."
-            className="pl-9"
-          />
-          {busca && (
-            <button
-              onClick={() => setBusca('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-700"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Linha de filtros */}
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Período */}
-          <div className="flex gap-1">
-            {periodos.map((p) => (
+      <Card>
+        <CardContent className="space-y-3 p-3">
+          {/* Busca */}
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground">
+              <Search className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por endereço, agente ou protocolo..."
+              className="border-0 bg-secondary pl-10 shadow-none"
+              aria-label="Buscar ocorrências"
+            />
+            {busca && (
               <button
-                key={p.key}
-                onClick={() => setPeriodo(p.key)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
-                  periodo === p.key
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                )}
+                type="button"
+                onClick={() => setBusca('')}
+                aria-label="Limpar busca"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
               >
-                {p.label}
+                <X className="h-4 w-4" />
               </button>
-            ))}
+            )}
           </div>
 
-          <div className="w-px h-5 bg-slate-200" />
-
-          {/* Risco */}
-          <select
-            value={risco}
-            onChange={(e) => setRisco(e.target.value as FiltroRisco)}
-            className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {riscos.map((r) => (
-              <option key={r.key} value={r.key}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Município (master_admin) */}
-          {isMaster && (
-            <select
-              value={municipioFiltro}
-              onChange={(e) => setMunicipioFiltro(e.target.value)}
-              className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">Todos os municípios</option>
-              {municipios.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
+          {/* Linha de filtros */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Período */}
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Período
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {periodos.map((p) => (
+                <FilterChip
+                  key={p.key}
+                  active={periodo === p.key}
+                  onClick={() => setPeriodo(p.key)}
+                >
+                  {p.label}
+                </FilterChip>
               ))}
-            </select>
-          )}
-        </div>
-      </div>
+            </div>
+
+            <div className="mx-1 h-5 w-px bg-border" />
+
+            {/* Risco (Radix Select) */}
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Risco
+            </span>
+            <Select value={risco} onValueChange={(v) => setRisco(v as FiltroRisco)}>
+              <SelectTrigger className="h-8 w-auto min-w-[9rem] rounded-full text-[11px] font-semibold" aria-label="Filtrar por risco">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {riscos.map((r) => (
+                  <SelectItem key={r.key} value={r.key}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Município (master_admin) */}
+            {isMaster && (
+              <Select
+                value={municipioFiltro || 'all'}
+                onValueChange={(v) => setMunicipioFiltro(v === 'all' ? '' : v)}
+              >
+                <SelectTrigger className="h-8 w-auto min-w-[12rem] rounded-full text-[11px] font-semibold" aria-label="Filtrar por município">
+                  <SelectValue placeholder="Todos os municípios" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os municípios</SelectItem>
+                  {municipios.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabela */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Carregando ocorrências...</span>
-        </div>
-      ) : isError ? (
-        <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
-          <AlertCircle className="w-8 h-8 text-red-400" />
-          <p>Falha ao carregar ocorrências.</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RotateCcw className="w-4 h-4" /> Tentar novamente
-          </Button>
-        </div>
-      ) : vistorias.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p>Nenhuma vistoria encontrada para os filtros selecionados.</p>
-        </div>
-      ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <p className="text-xs text-muted-foreground">
-              {vistorias.length} vistoria{vistorias.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+      <AsyncBoundary
+        loading={isLoading}
+        error={isError ? new Error('Falha ao carregar ocorrências.') : undefined}
+        onRetry={() => void refetch()}
+        empty={Boolean(!isLoading && !isError && vistorias.length === 0)}
+        emptyTitle="Nenhuma vistoria encontrada"
+        emptyDescription="Ajuste os filtros para visualizar ocorrências registradas."
+        loadingLabel="Carregando ocorrências..."
+      >
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            {vistorias.length} vistoria{vistorias.length !== 1 ? 's' : ''}
+          </p>
 
-          {/* Header da tabela */}
-          <div
-            className={cn(
-              'grid text-xs font-semibold text-muted-foreground uppercase tracking-wide bg-slate-50 px-4 py-2.5 border-b border-slate-100',
-              isMaster
-                ? 'grid-cols-[1fr_1.5fr_1fr_1fr_1fr_auto]'
-                : 'grid-cols-[1fr_2fr_1fr_1fr_auto]'
-            )}
-          >
-            <span>Data</span>
-            <span>Endereço</span>
-            {isMaster && <span>Município</span>}
-            <span>Risco</span>
-            <span>Agente</span>
-            <span />
-          </div>
-
-          {/* Linhas */}
-          <div className="divide-y divide-slate-100">
-            {vistorias.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setSelecionada(v)}
-                className={cn(
-                  'w-full grid text-sm px-4 py-3 hover:bg-slate-50 transition-colors text-left items-center',
-                  isMaster
-                    ? 'grid-cols-[1fr_1.5fr_1fr_1fr_1fr_auto]'
-                    : 'grid-cols-[1fr_2fr_1fr_1fr_auto]'
-                )}
-              >
-                <span className="text-slate-500 text-xs">
-                  {v.dataVistoria
-                    ? new Date(v.dataVistoria).toLocaleDateString('pt-BR')
-                    : '—'}
-                </span>
-                <span className="text-slate-900 font-medium truncate pr-2">
-                  {enderecoCompleto(v)}
-                </span>
-                {isMaster && (
-                  <span className="text-slate-600 text-xs truncate pr-2">
-                    {v.municipio ?? '—'}
-                  </span>
-                )}
-                <span>
-                  <RiscoBadge nivel={v.nivelRisco} />
-                </span>
-                <span className="text-slate-600 text-xs truncate pr-2">
-                  {v.agenteNome ?? '—'}
-                </span>
-                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-              </button>
-            ))}
-          </div>
+          <Card className="overflow-hidden p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Endereço</TableHead>
+                  {isMaster && <TableHead>Município</TableHead>}
+                  <TableHead>Risco</TableHead>
+                  <TableHead>Agente</TableHead>
+                  <TableHead className="w-8">
+                    <span className="sr-only">Abrir detalhes</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vistorias.map((v) => (
+                  <TableRow
+                    key={v.id}
+                    className="cursor-pointer"
+                    onClick={() => setSelecionada(v)}
+                  >
+                    <TableCell className="text-xs text-muted-foreground">
+                      {v.dataVistoria ? new Date(v.dataVistoria).toLocaleDateString('pt-BR') : '—'}
+                    </TableCell>
+                    <TableCell className="max-w-0 truncate pr-2 font-medium text-foreground">
+                      {enderecoCompleto(v)}
+                    </TableCell>
+                    {isMaster && (
+                      <TableCell className="truncate pr-2 text-xs text-muted-foreground">
+                        {v.municipio ?? '—'}
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <RiskBadge risk={v.nivelRisco ? RISCO_LABEL[v.nivelRisco] : null} />
+                    </TableCell>
+                    <TableCell className="truncate pr-2 text-xs text-muted-foreground">
+                      {v.agenteNome ?? '—'}
+                    </TableCell>
+                    <TableCell className="w-8">
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
         </div>
-      )}
+      </AsyncBoundary>
 
       {/* Painel de detalhe */}
-      {selecionada && (
-        <PainelDetalhe vistoria={selecionada} onClose={() => setSelecionada(null)} />
-      )}
+      {selecionada && <PainelDetalhe vistoria={selecionada} onClose={() => setSelecionada(null)} />}
     </div>
   );
 }

@@ -84,7 +84,7 @@ export function StaffPage() {
       />
 
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Organização interna</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Organização interna</p>
         <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Equipe interna</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Papéis, capacidade e responsabilidade em uma visão humana da operação.
@@ -103,9 +103,9 @@ export function StaffPage() {
         emptyTitle="Sem equipe interna"
         emptyDescription="Nenhum perfil interno foi cadastrado."
       >
-        <section className="grid min-h-[174px] gap-6 rounded-2xl border border-info-strong/20 bg-info-soft p-6 lg:grid-cols-[1fr_auto] lg:items-center">
+        <section className="grid min-h-[174px] gap-6 rounded-lg border border-info/20 bg-info-soft p-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <p className="text-[10px] font-bold uppercase text-info-strong">Time em destaque</p>
+            <p className="text-[10px] font-bold uppercase text-info">Time em destaque</p>
             <h2 className="mt-4 text-2xl font-bold">
               {stats.active} {stats.active === 1 ? 'pessoa conectada' : 'pessoas conectadas'} à operação
             </h2>
@@ -137,8 +137,8 @@ export function StaffPage() {
                     <span className={cn(
                       'grid h-11 w-11 place-items-center rounded-full text-[11px] font-bold',
                       member.role === 'owner'
-                        ? 'bg-warm text-warm-foreground'
-                        : 'bg-info-soft text-info-strong',
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-info-soft text-info',
                     )}>
                       {initials(member.display_name)}
                     </span>
@@ -170,10 +170,10 @@ export function StaffPage() {
           </Card>
 
           <div className="space-y-5">
-            <aside className="rounded-[14px] bg-ink-panel p-6 text-white">
-              <p className="text-[10px] font-bold uppercase text-warm">Cobertura de papéis</p>
+            <aside className="rounded-lg bg-foreground p-6 text-background">
+              <p className="text-[10px] font-bold uppercase text-primary">Cobertura de papéis</p>
               <div className="mt-7 space-y-6">
-                <CoverageBar label="Owners" value={stats.total ? stats.owner * 100 / stats.total : 0} tone="warm" />
+                <CoverageBar label="Owners" value={stats.total ? stats.owner * 100 / stats.total : 0} tone="primary" />
                 <CoverageBar label="Developers" value={stats.total ? stats.developer * 100 / stats.total : 0} tone="info" />
                 <CoverageBar label="Acesso ativo" value={stats.total ? stats.active * 100 / stats.total : 0} tone="success" />
                 <CoverageBar label="Acesso restrito" value={stats.total ? (stats.suspended + stats.removed) * 100 / stats.total : 0} tone="danger" />
@@ -301,9 +301,9 @@ function StaffStatCircle({
 }) {
   const tones = {
     primary: 'bg-primary text-primary-foreground',
-    info: 'bg-info-strong text-white',
-    success: 'bg-success text-white',
-    warning: 'bg-warning text-white',
+    info: 'bg-info text-info-foreground',
+    success: 'bg-success text-success-foreground',
+    warning: 'bg-warning text-warning-foreground',
   };
   return (
     <div className="text-center">
@@ -315,10 +315,10 @@ function StaffStatCircle({
   );
 }
 
-function CoverageBar({ label, value, tone }: { label: string; value: number; tone: 'warm' | 'info' | 'success' | 'danger' }) {
+function CoverageBar({ label, value, tone }: { label: string; value: number; tone: 'primary' | 'info' | 'success' | 'danger' }) {
   const tones = {
-    warm: 'bg-warm',
-    info: 'bg-info-strong',
+    primary: 'bg-primary',
+    info: 'bg-info',
     success: 'bg-success',
     danger: 'bg-destructive',
   };
@@ -329,7 +329,7 @@ function CoverageBar({ label, value, tone }: { label: string; value: number; ton
         <span>{label}</span>
         <span>{percent}%</span>
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background/15">
         <div className={cn('h-full rounded-full', tones[tone])} style={{ width: `${percent}%` }} />
       </div>
     </div>

@@ -56,7 +56,7 @@ export function PortalInvitesPage() {
               <label className="block text-sm font-medium">Papel<select className="mt-2 h-11 w-full rounded-md border bg-card px-3 text-sm" value={role} onChange={(event) => setRole(event.target.value)}>{allowedRoles.map((allowedRole) => <option key={allowedRole} value={allowedRole}>{allowedRole}</option>)}</select></label>
               <Button className="w-full" disabled={submitting}>{submitting ? 'Criando…' : 'Criar convite'}</Button>
             </form>
-            {inviteUrl && <div className="mt-4 rounded-md border border-success/25 bg-status-success p-3"><p className="flex items-center gap-2 text-sm font-semibold text-foreground"><Check className="h-4 w-4" />Convite criado</p><Button className="mt-3 w-full" variant="outline" onClick={() => void copy()}><Copy />Copiar link seguro</Button></div>}
+            {inviteUrl && <div className="mt-4 rounded-md border border-success/25 bg-success-soft p-3"><p className="flex items-center gap-2 text-sm font-semibold text-foreground"><Check className="h-4 w-4" />Convite criado</p><Button className="mt-3 w-full" variant="outline" onClick={() => void copy()}><Copy />Copiar link seguro</Button></div>}
             {message && <p className="mt-4 text-sm text-muted-foreground" role="status">{message}</p>}
           </CardContent>
         </Card>

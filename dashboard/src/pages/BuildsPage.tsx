@@ -175,7 +175,7 @@ export function BuildsPage() {
       />
 
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Entrega contínua</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Entrega contínua</p>
         <h1 id="builds-title" className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Builds</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Acompanhe filas, artefatos e falhas sem perder o contexto da versão.
@@ -262,7 +262,7 @@ export function BuildsPage() {
 function CurrentBuildHero({ build, request }: { build: BuildRow | null; request: BuildRequestRow | null }) {
   const progress = buildProgress(build?.status);
   return (
-    <section className="grid min-h-[150px] gap-6 rounded-2xl border border-info-strong/20 bg-info-soft p-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,1fr)] lg:items-center">
+    <section className="grid min-h-[150px] gap-6 rounded-lg border border-border bg-muted p-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,1fr)] lg:items-center">
       <div>
         <StatusBadge value={build?.status || request?.status || 'waiting'} />
         <h2 className="mt-4 text-[22px] font-bold">
@@ -280,13 +280,13 @@ function CurrentBuildHero({ build, request }: { build: BuildRow | null; request:
         <div className="flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-card">
             <div
-              className={cn('h-full rounded-full', build?.status === 'failed' ? 'bg-destructive' : 'bg-info')}
+              className={cn('h-full rounded-full', build?.status === 'failed' ? 'bg-destructive' : 'bg-primary')}
               style={{ width: `${progress}%` }}
             />
           </div>
-          <strong className="text-xs text-info-strong">{progress}%</strong>
+          <strong className="text-xs text-primary">{progress}%</strong>
         </div>
-        <p className="mt-3 text-xs font-semibold text-info-strong">{buildStageLabel(build?.status, request?.status)}</p>
+        <p className="mt-3 text-xs font-semibold text-primary">{buildStageLabel(build?.status, request?.status)}</p>
       </div>
     </section>
   );
@@ -305,7 +305,7 @@ function PipelineStages({ build, request }: { build: BuildRow | null; request: B
               <p className={cn(
                 'mt-2 text-[10px] font-semibold',
                 stage.state === 'done' && 'text-success',
-                stage.state === 'active' && 'text-info-strong',
+                stage.state === 'active' && 'text-primary',
                 stage.state === 'error' && 'text-destructive',
                 stage.state === 'waiting' && 'text-muted-foreground',
               )}>
@@ -322,9 +322,9 @@ function PipelineStages({ build, request }: { build: BuildRow | null; request: B
 function PipelineIcon({ state }: { state: 'done' | 'active' | 'waiting' | 'error' }) {
   const classes = {
     done: 'bg-success-soft text-success',
-    active: 'bg-info-soft text-info-strong',
+    active: 'bg-success-soft text-primary',
     waiting: 'bg-secondary text-muted-foreground',
-    error: 'bg-danger-soft text-destructive',
+    error: 'bg-destructive-soft text-destructive',
   };
   const Icon = state === 'done' ? Check : state === 'active' ? LoaderCircle : state === 'error' ? X : Circle;
   return (
@@ -363,25 +363,25 @@ function BuildHistory({ builds }: { builds: BuildRow[] }) {
 
 function BuildLogPanel({ events, build }: { events: BuildEvent[]; build: BuildRow | null }) {
   return (
-    <aside className="rounded-[14px] bg-ink-panel p-6 text-white" aria-labelledby="build-log-title">
-      <p id="build-log-title" className="text-[10px] font-bold uppercase text-warm">Eventos permitidos</p>
+    <aside className="rounded-lg border border-border bg-card p-6" aria-labelledby="build-log-title">
+      <p id="build-log-title" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Eventos permitidos</p>
       <div className="mt-7 min-h-[210px] space-y-5">
         {events.map((event) => (
           <div key={event.id} className="grid grid-cols-[64px_minmax(0,1fr)] gap-3 text-[10px]">
-            <time className="text-white/45">{formatTime(event.occurredAt)}</time>
-            <p className={cn(event.severity === 'error' || event.severity === 'critical' ? 'text-danger-soft-foreground' : 'text-white/80')}>
+            <time className="text-muted-foreground">{formatTime(event.occurredAt)}</time>
+            <p className={cn(event.severity === 'error' || event.severity === 'critical' ? 'text-destructive' : 'text-foreground')}>
               {event.summary}
             </p>
           </div>
         ))}
-        {!events.length && <p className="text-xs leading-5 text-white/55">Nenhum evento sanitizado foi retornado para este build.</p>}
+        {!events.length && <p className="text-xs leading-5 text-muted-foreground">Nenhum evento sanitizado foi retornado para este build.</p>}
       </div>
-      <div className="mt-6 border-t border-white/10 pt-5">
+      <div className="mt-6 border-t border-border pt-5">
         <p className="truncate text-xs font-bold">{artifactName(build)}</p>
         <div className="mt-3 flex flex-wrap gap-4 text-[10px]">
           {build?.apk_url && <ArtifactLink href={build.apk_url}>Abrir APK</ArtifactLink>}
           {build?.drive_folder_url && <ArtifactLink href={build.drive_folder_url}>Pasta permitida</ArtifactLink>}
-          {!build?.apk_url && !build?.drive_folder_url && <span className="text-white/45">Artefato ainda indisponível</span>}
+          {!build?.apk_url && !build?.drive_folder_url && <span className="text-muted-foreground">Artefato ainda indisponível</span>}
         </div>
       </div>
     </aside>
@@ -390,7 +390,7 @@ function BuildLogPanel({ events, build }: { events: BuildEvent[]; build: BuildRo
 
 function ArtifactLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-warm">
+    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-primary">
       {children}<ExternalLink className="h-3 w-3" aria-hidden="true" />
     </a>
   );

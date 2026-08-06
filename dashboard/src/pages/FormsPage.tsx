@@ -158,7 +158,7 @@ export function FormsPage() {
       />
 
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Configuração operacional</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Configuração operacional</p>
         <h1 id="forms-title" className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Formulários</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Edite perguntas, valide a prévia e publique versões com rastreabilidade.
@@ -188,7 +188,7 @@ export function FormsPage() {
             </div>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_350px]">
-              <Card className="min-w-0 overflow-hidden rounded-[14px]">
+              <Card className="min-w-0 overflow-hidden rounded-lg">
                 <div className="p-5 sm:p-6">
                   <h2 className="text-base font-bold">Catálogo de formulários</h2>
                   <p className="mt-1 text-xs text-muted-foreground">Versões publicadas e rascunhos</p>
@@ -227,7 +227,7 @@ export function FormsPage() {
                     </thead>
                     <tbody className="divide-y">
                       {filteredForms.map((form) => (
-                        <tr key={form.id} className={cn('transition-colors hover:bg-secondary/35', selected?.id === form.id && 'bg-warm-soft')}>
+                        <tr key={form.id} className={cn('transition-colors hover:bg-secondary/35', selected?.id === form.id && 'bg-success-soft')}>
                           <td className="px-6 py-4">
                             <button className="max-w-[270px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedId(form.id)}>
                               <span className="block truncate font-semibold">{form.title}</span>
@@ -314,9 +314,9 @@ function FormMetric({
 }) {
   return (
     <Card className={cn(
-      'rounded-[14px] p-5 shadow-none',
-      tone === 'warning' && 'border-warning/20 bg-status-warning',
-      tone === 'info' && 'border-info-strong/20 bg-info-soft',
+      'rounded-lg p-5 shadow-none',
+      tone === 'warning' && 'border-warning/20 bg-warning-soft',
+      tone === 'info' && 'border-border bg-muted',
     )}>
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -324,7 +324,7 @@ function FormMetric({
           <p className="mt-2 text-2xl font-bold">{String(value).padStart(2, '0')}</p>
           <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
         </div>
-        <span className="grid h-9 w-9 place-items-center rounded-lg bg-card/75 text-muted-foreground">
+        <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
       </div>
@@ -355,16 +355,16 @@ function FormPreview({
   const rollbackVersions = form.versions.filter((version) => version.version !== form.version);
 
   return (
-    <aside className="flex min-h-[602px] flex-col rounded-[14px] bg-sidebar p-6 text-sidebar-foreground" aria-labelledby="form-preview-title">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-warm">Pré-visualização</p>
+    <aside className="flex min-h-[602px] flex-col rounded-lg border border-border bg-card p-6" aria-labelledby="form-preview-title">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Pré-visualização</p>
       <h2 id="form-preview-title" className="mt-3 text-lg font-bold">{form.title}</h2>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <StatusBadge value={form.status} />
-        <span className="text-xs text-info-soft">v{form.version}</span>
+        <span className="text-xs text-primary">v{form.version}</span>
       </div>
 
-      <div className="my-6 h-px bg-sidebar-border" />
-      <p className="text-[10px] font-bold uppercase tracking-wide text-sidebar-foreground/60">Estrutura reconhecida</p>
+      <div className="my-6 h-px bg-border" />
+      <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Estrutura reconhecida</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
         <PreviewStat value={questions.length} label="perguntas" />
         <PreviewStat value={phases.length} label="fases" />
@@ -372,28 +372,28 @@ function FormPreview({
       </div>
 
       <div className="mt-6">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-sidebar-foreground/60">Cálculo</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Cálculo</p>
         <p className="mt-2 text-sm font-semibold">{calculationLabel(form.calculationType)}</p>
       </div>
 
       <div className="mt-6">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-sidebar-foreground/60">Fases de atendimento</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Fases de atendimento</p>
         {phases.length ? (
           <ol className="mt-3 space-y-3">
             {phases.slice(0, 5).map((phase, index) => (
               <li key={`${phase}-${index}`} className="flex items-center gap-3 text-xs">
                 <span className={cn(
-                  'grid h-6 w-6 shrink-0 place-items-center rounded-full border border-sidebar-border bg-sidebar-accent text-[10px] font-bold',
-                  index === 0 && 'bg-warm text-warm-foreground',
+                  'grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border bg-muted text-[10px] font-bold',
+                  index === 0 && 'border-transparent bg-primary text-primary-foreground',
                 )}>
                   {index + 1}
                 </span>
-                <span className={index === 0 ? 'font-semibold text-white' : 'text-sidebar-foreground/75'}>{phase}</span>
+                <span className={index === 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}>{phase}</span>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="mt-3 text-xs text-sidebar-foreground/60">Nenhuma fase reconhecida.</p>
+          <p className="mt-3 text-xs text-muted-foreground">Nenhuma fase reconhecida.</p>
         )}
       </div>
 
@@ -403,17 +403,17 @@ function FormPreview({
           {canPublish && form.status !== 'publicado' && <Button size="sm" onClick={onPublish}><FileCheck2 />Publicar</Button>}
         </div>
         {canPublish && rollbackVersions.length > 0 && (
-          <details className="mt-3 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2">
+          <details className="mt-3 rounded-lg border border-border bg-muted px-3 py-2">
             <summary className="cursor-pointer text-xs font-semibold">Histórico da versão</summary>
             <div className="mt-2 space-y-1">
               {rollbackVersions.slice(0, 5).map((version) => (
                 <button
                   key={version.version}
-                  className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warm"
+                  className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => onRollback(version.version)}
                 >
                   <span className="inline-flex items-center gap-2"><RotateCcw className="h-3.5 w-3.5" />Restaurar v{version.version}</span>
-                  <ArrowRight className="h-3.5 w-3.5 text-warm" />
+                  <ArrowRight className="h-3.5 w-3.5 text-primary" />
                 </button>
               ))}
             </div>
@@ -426,9 +426,9 @@ function FormPreview({
 
 function PreviewStat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="rounded-[10px] border border-sidebar-border bg-sidebar-accent p-3">
-      <p className="text-lg font-bold text-white">{String(value).padStart(2, '0')}</p>
-      <p className="mt-1 truncate text-[9px] text-sidebar-foreground/65">{label}</p>
+    <div className="rounded-lg border border-border bg-muted p-3">
+      <p className="text-lg font-bold text-foreground">{String(value).padStart(2, '0')}</p>
+      <p className="mt-1 truncate text-[9px] text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -535,7 +535,7 @@ function FormEditorContent({
                 <ol className="mt-4 space-y-2">
                   {preview.slice(0, 20).map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-2 text-xs leading-5">
-                      <span className="font-bold text-info-strong">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="font-bold text-primary">{String(index + 1).padStart(2, '0')}</span>
                       <span>{item}</span>
                     </li>
                   ))}
@@ -546,7 +546,7 @@ function FormEditorContent({
             </aside>
           </div>
 
-          {error && <p className="rounded-lg bg-status-danger p-3 text-sm text-destructive" role="alert">{error}</p>}
+          {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
             <Button onClick={() => {

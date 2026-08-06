@@ -20,6 +20,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
 import { cn } from '@/lib/utils';
 
+function formatActivity(value: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const elapsed = Date.now() - date.getTime();
+  if (elapsed >= 0 && elapsed < 24 * 60 * 60 * 1000) {
+    return `Hoje, ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(date)}`;
+  }
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+}
+
 const statusFilters = [
   { value: 'all', label: 'Todos' },
   { value: 'active', label: 'Ativos' },
@@ -91,7 +102,7 @@ export function CustomersPage() {
 
       <CustomerOverview totals={totals} activePercent={activePercent} />
 
-      <Card className="shadow-none">
+      <Card>
         <CardContent className="flex flex-col gap-3 p-2 sm:flex-row sm:items-center">
           <label className="relative min-w-0 flex-1 xl:max-w-[460px]">
             <span className="sr-only">Buscar clientes</span>
@@ -103,7 +114,7 @@ export function CustomersPage() {
                 setPage(0);
               }}
               placeholder="Nome, município, contato ou identificador"
-              className="h-11 border-0 bg-background pl-10 shadow-none"
+              className="h-11 border-0 bg-background pl-10"
             />
           </label>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -116,8 +127,8 @@ export function CustomersPage() {
                 className={cn(
                   'h-8 rounded-full border px-3 text-[11px] font-semibold transition-colors',
                   status === filter.value
-                    ? 'border-ink bg-ink text-white'
-                    : 'bg-card text-muted-foreground hover:bg-secondary',
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:bg-secondary',
                 )}
               >
                 {filter.label}
@@ -153,9 +164,9 @@ export function CustomersPage() {
       >
         {query.data && query.data.items.length > 0 ? (
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_264px]">
-            <Card className="min-w-0 overflow-hidden shadow-none">
-              <div className="flex items-center justify-between gap-4 px-6 py-5">
-                <h2 className="text-[17px] font-bold">Carteira completa</h2>
+            <Card className="min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+                <h2 className="stat-label">Carteira completa</h2>
                 <p className="text-xs font-medium text-muted-foreground">
                   {query.data.total.toLocaleString('pt-BR')} clientes
                 </p>
@@ -171,19 +182,16 @@ export function CustomersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {query.data.items.map((customer, index) => (
+                  {query.data.items.map((customer) => (
                     <TableRow key={customer.customer_id}>
                       <TableCell className="pl-6">
                         <div className="flex items-center gap-3">
-                          <span className={cn(
-                            'grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold',
-                            index % 3 === 1 ? 'bg-info-soft text-info' : 'bg-secondary text-primary',
-                          )}>
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary text-xs font-bold text-foreground">
                             {customer.display_name.trim().charAt(0).toUpperCase()}
                           </span>
                           <div className="min-w-0">
                             <Link
-                              className="block truncate text-[13px] font-semibold hover:text-primary hover:underline"
+                              className="block truncate text-[13px] font-semibold hover:text-primary transition-colors"
                               to={`/app/clientes/${encodeURIComponent(customer.customer_id)}`}
                             >
                               {customer.display_name}
@@ -195,8 +203,8 @@ export function CustomersPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{customer.plan_name || 'Sem plano'}</TableCell>
-                      <TableCell className="text-center text-xs font-semibold">{customer.active_users}</TableCell>
+                      <TableCell className="text-[13px] text-muted-foreground">{customer.plan_name || 'Sem plano'}</TableCell>
+                      <TableCell className="text-center text-[13px] font-semibold tabular-nums">{customer.active_users}</TableCell>
                       <TableCell className="text-[11px] text-muted-foreground">{formatActivity(customer.last_activity_at)}</TableCell>
                       <TableCell><StatusBadge value={customer.status} /></TableCell>
                     </TableRow>
@@ -258,26 +266,22 @@ function CustomerOverview({
   activePercent: number;
 }) {
   const items = [
-    { label: 'Total da base', value: totals.all, detail: 'dados persistidos', tone: 'text-info' },
-    { label: 'Em onboarding', value: totals.onboarding, detail: `${totals.pilot} em piloto`, tone: 'text-info' },
-    { label: 'Operação ativa', value: totals.active, detail: `${activePercent}% da base`, tone: 'text-info' },
-    { label: 'Exigem atenção', value: totals.suspended, detail: 'requer revisão', tone: 'text-warning' },
+    { label: 'Total da base', value: totals.all, detail: 'dados persistidos' },
+    { label: 'Em onboarding', value: totals.onboarding, detail: `${totals.pilot} em piloto` },
+    { label: 'Operação ativa', value: totals.active, detail: `${activePercent}% da base` },
+    { label: 'Exigem atenção', value: totals.suspended, detail: 'requer revisão' },
   ];
 
   return (
-    <Card className="shadow-none">
-      <CardContent className="grid p-0 sm:grid-cols-2 xl:grid-cols-4">
-        {items.map((item, index) => (
-          <div key={item.label} className={cn('px-6 py-5', index > 0 && 'border-t sm:border-l sm:border-t-0')}>
-            <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
-            <div className="mt-3 flex items-baseline gap-4">
-              <strong className="text-[26px] leading-none">{item.value.toLocaleString('pt-BR')}</strong>
-              <span className={cn('text-[11px] font-semibold', item.tone)}>{item.detail}</span>
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <section aria-label="Visão geral da carteira" className="grid grid-cols-2 gap-x-8 gap-y-10 xl:grid-cols-4">
+      {items.map((item) => (
+        <div key={item.label} className="min-w-0">
+          <div className="stat-number mb-2">{item.value.toLocaleString('pt-BR')}</div>
+          <div className="stat-label">{item.label}</div>
+          <p className="mt-1.5 text-xs text-muted-foreground">{item.detail}</p>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -291,28 +295,28 @@ function OnboardingRadar({
   const journeyTotal = totals.onboarding + totals.pilot;
   const max = Math.max(totals.onboarding, totals.pilot, totals.active, totals.suspended, 1);
   const stages = [
-    { label: 'Em onboarding', value: totals.onboarding, tone: 'bg-info' },
-    { label: 'Em piloto', value: totals.pilot, tone: 'bg-info' },
-    { label: 'Operação ativa', value: totals.active, tone: 'bg-warm' },
-    { label: 'Exigem atenção', value: totals.suspended, tone: 'bg-destructive' },
+    { label: 'Em onboarding', value: totals.onboarding, tone: 'bg-foreground' },
+    { label: 'Em piloto', value: totals.pilot, tone: 'bg-foreground' },
+    { label: 'Operação ativa', value: totals.active, tone: 'bg-primary' },
+    { label: 'Exigem atenção', value: totals.suspended, tone: 'bg-foreground' },
   ];
 
   return (
-    <Card className="overflow-hidden border-ink bg-ink text-white shadow-none">
+    <Card>
       <CardContent className="p-6">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-warm">Radar de implantação</p>
-        <strong className="mt-4 block text-2xl">{journeyTotal.toLocaleString('pt-BR')} clientes</strong>
-        <p className="mt-1 text-xs text-white/60">em jornada de ativação</p>
-        <ul className="mt-10 space-y-8">
+        <p className="stat-label">Radar de implantação</p>
+        <strong className="mt-4 block text-2xl font-bold tracking-tight">{journeyTotal.toLocaleString('pt-BR')} clientes</strong>
+        <p className="mt-1 text-xs text-muted-foreground">em jornada de ativação</p>
+        <ul className="mt-10 space-y-7">
           {stages.map((stage) => (
             <li key={stage.label}>
-              <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="font-medium">{stage.label}</span>
-                <span className="font-bold text-warm">{stage.value.toLocaleString('pt-BR')}</span>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium text-foreground">{stage.label}</span>
+                <span className="font-bold tabular-nums text-foreground">{stage.value.toLocaleString('pt-BR')}</span>
               </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+              <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
                 <div
-                  className={cn('h-full rounded-full', stage.tone)}
+                  className={cn('h-full rounded-full transition-all duration-300 ease-out', stage.tone)}
                   style={{ width: `${Math.max(stage.value > 0 ? 8 : 0, Math.round((stage.value / max) * 100))}%` }}
                 />
               </div>
@@ -322,22 +326,11 @@ function OnboardingRadar({
         <Link
           to="/app/clientes?status=onboarding"
           onClick={onOpenOnboarding}
-          className="mt-9 inline-flex border-t border-white/10 pt-6 text-xs font-semibold text-warm hover:underline"
+          className="mt-9 inline-flex border-t border-border pt-6 text-xs font-semibold text-primary hover:opacity-70 transition-opacity"
         >
           Abrir visão de onboarding →
         </Link>
       </CardContent>
     </Card>
   );
-}
-
-function formatActivity(value: string | null) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  const elapsed = Date.now() - date.getTime();
-  if (elapsed >= 0 && elapsed < 24 * 60 * 60 * 1000) {
-    return `Hoje, ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(date)}`;
-  }
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
 }

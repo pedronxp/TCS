@@ -15,6 +15,8 @@ type AppSidebarProps = {
   mobile?: boolean;
 };
 
+// Sidebar glass minimalista: fundo translúcido + blur, item ativo com
+// fundo success-soft e texto primary (verde). Funciona em light e dark.
 export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = false }: AppSidebarProps) {
   const { profile, signOut, can } = useAuth();
   const groups = resolveNavigation(
@@ -37,7 +39,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'group/sidebar relative flex h-full flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200',
+          'glass group/sidebar relative flex h-full flex-col text-foreground transition-[width] duration-200',
           compact ? 'w-[88px]' : 'w-[232px]',
         )}
         aria-label="Navegação do console"
@@ -47,8 +49,8 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
             <TcsMark decorative size={compact ? 40 : 36} className="shrink-0" />
             {!compact && (
               <span className="min-w-0 leading-none">
-                <strong className="block truncate text-base font-bold text-white">TCS Console</strong>
-                <span className="mt-1.5 block truncate text-[9px] font-bold uppercase tracking-[0.1em] text-sidebar-foreground/50">
+                <strong className="block truncate text-base font-bold text-foreground">TCS Console</strong>
+                <span className="mt-1.5 block truncate text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                   Painel interno
                 </span>
               </span>
@@ -61,7 +63,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
             variant="outline"
             size="icon"
             className={cn(
-              'absolute -right-[17px] top-[23px] z-10 h-[34px] w-[34px] rounded-full border-sidebar-border bg-sidebar text-sidebar-foreground shadow-md transition-all hover:scale-105 hover:bg-sidebar-accent hover:text-white focus-visible:opacity-100 group-hover/sidebar:opacity-100',
+              'absolute -right-[17px] top-[23px] z-10 h-[34px] w-[34px] rounded-full border-border bg-card text-foreground shadow-sm transition-all hover:scale-105 hover:bg-secondary focus-visible:opacity-100 group-hover/sidebar:opacity-100',
               compact ? 'opacity-100' : 'opacity-0',
             )}
             onClick={() => onCollapsedChange(!compact)}
@@ -75,7 +77,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
           {groups.map((group) => (
             <div key={group.label} className="mb-6">
               {!compact && (
-                <p className="mb-2 px-3 text-[10px] font-bold uppercase text-sidebar-foreground/45">
+                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </p>
               )}
@@ -90,10 +92,10 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
                       aria-label={compact ? item.label : undefined}
                       className={({ isActive }) =>
                         cn(
-                          'flex h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+                          'flex h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                           isActive
-                            ? 'bg-sidebar-accent font-semibold text-white'
-                            : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-white',
+                            ? 'bg-success-soft font-semibold text-primary'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                           compact && 'mx-auto h-12 w-12 justify-center rounded-xl px-0',
                         )
                       }
@@ -102,8 +104,10 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
                         <>
                           <span
                             className={cn(
-                              'grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover/sidebar:scale-105',
-                              isActive ? 'bg-warm text-warm-foreground shadow-sm' : 'bg-white/10 text-sidebar-foreground',
+                              'grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors',
+                              isActive
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground',
                             )}
                           >
                             <item.icon className="h-4 w-4" />
@@ -126,14 +130,14 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
           ))}
         </nav>
 
-        <div className={cn('group/footer flex min-h-[95px] items-center border-t border-sidebar-border', compact ? 'mx-4 justify-center' : 'mx-6')}>
+        <div className={cn('group/footer flex min-h-[95px] items-center border-t border-border', compact ? 'mx-4 justify-center' : 'mx-6')}>
           {compact ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11 rounded-xl text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
+                  className="h-11 w-11 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground"
                   onClick={() => void signOut()}
                   aria-label="Sair"
                 >
@@ -144,17 +148,17 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
             </Tooltip>
           ) : (
             <>
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-warm text-[11px] font-bold text-warm-foreground">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
                 {initials}
               </span>
               <div className="ml-3 min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-white">{profile?.displayName}</p>
-                <p className="mt-1 truncate text-[11px] text-sidebar-foreground/50">{ptBrLabel(profile?.role)}</p>
+                <p className="truncate text-[13px] font-semibold text-foreground">{profile?.displayName}</p>
+                <p className="mt-1 truncate text-[11px] text-muted-foreground">{ptBrLabel(profile?.role)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => void signOut()}
-                className="rounded-md p-2 text-sidebar-foreground/55 opacity-0 hover:bg-sidebar-accent hover:text-white focus-visible:opacity-100 group-hover/footer:opacity-100"
+                className="rounded-md p-2 text-muted-foreground opacity-0 hover:bg-secondary hover:text-foreground focus-visible:opacity-100 group-hover/footer:opacity-100"
                 aria-label="Sair"
               >
                 <LogOut className="h-4 w-4" />

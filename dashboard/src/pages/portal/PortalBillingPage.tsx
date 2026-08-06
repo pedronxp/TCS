@@ -47,7 +47,7 @@ export function PortalBillingPage() {
       {can('billing.manage') && (
         <>
           <div className="flex gap-2" role="group" aria-label="Periodicidade"><Button variant={periodicity === 'monthly' ? 'default' : 'outline'} onClick={() => setPeriodicity('monthly')}>Mensal</Button><Button variant={periodicity === 'annual' ? 'default' : 'outline'} onClick={() => setPeriodicity('annual')}>Anual</Button></div>
-          {message && <p className="rounded-md border border-warning/25 bg-status-warning p-4 text-sm text-foreground" role="status">{message}</p>}
+          {message && <p className="rounded-md border border-warning/30 bg-warning-soft p-4 text-sm text-warning" role="status">{message}</p>}
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {plans.map((plan) => <Card key={plan.id}><CardContent className="flex h-full flex-col p-6"><CreditCard className="h-6 w-6 text-primary" /><h2 className="mt-4 text-xl font-semibold">{plan.name}</h2><p className="mt-2 text-2xl font-bold">{formatPublicPlanPrice(periodicity === 'annual' ? plan.annualPriceCents : plan.monthlyPriceCents)}</p><ul className="my-5 space-y-2">{plan.limits.map((limit) => <li key={limit} className="flex gap-2 text-sm text-muted-foreground"><Check className="h-4 w-4 text-success" />{limit}</li>)}</ul><Button className="mt-auto" onClick={() => void checkout(plan.id)} disabled={submitting !== null}>{submitting === plan.id ? 'Preparando…' : 'Escolher plano'}</Button></CardContent></Card>)}
           </section>

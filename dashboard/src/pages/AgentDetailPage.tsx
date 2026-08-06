@@ -17,6 +17,7 @@ import { agentKeys, useAgentInspections, useAgentMap, useAgentOperations, useAge
 import { useAdministrativeMutation } from '@/hooks/useAdministrativeMutation';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 import type { AgentDocument, AgentFilters, AgentInspectionPage, AgentMapResult, AgentOperations, AgentSummary } from '@/types/agent';
 import type { CustomerMapPoint } from '@/types/domain';
 
@@ -74,53 +75,147 @@ export function AgentDetailPage() {
   if (summary.isError || !summary.data) return <ErrorState error={summary.error} onRetry={() => void summary.refetch()} />;
   const data = summary.data;
   const base = `/app/clientes/${encodeURIComponent(decodedCustomerId)}/usuarios/${userId}`;
-  return <section className="page-stack">
-    <PageHeader
-      eyebrow={data.agent.customerName}
-      title={data.agent.name}
-      description={`${ptBrLabel(data.agent.role, 'Papel não informado')} · ${data.agent.planName || 'Plano não informado'} · último acesso ${formatDate(data.agent.lastLogin)}`}
-      actions={<><StatusBadge value={data.agent.membershipStatus} /><StatusBadge value={data.agent.effectiveAccess} /></>}
-    />
-    <Button asChild variant="ghost" size="sm" className="w-fit px-0">
-      <Link to={`/app/clientes/${encodeURIComponent(decodedCustomerId)}/usuarios`}><ArrowLeft />Voltar aos usuários</Link>
-    </Button>
-    {!data.canViewSensitive && <Alert variant="warning" role="status"><AlertTriangle className="h-4 w-4" /><AlertTitle>Dados sensíveis protegidos</AlertTitle><AlertDescription>Endereços, coordenadas, contato e downloads exigem acesso de suporte auditado.</AlertDescription></Alert>}
-    <AgentFilterBar params={params} onChange={updateFilter} />
-    <nav className="flex flex-wrap gap-1 rounded-xl border bg-card p-1 sm:flex-nowrap sm:overflow-x-auto" aria-label="Módulos do agente">{sections.map(([key, label]) => <Link key={key} to={{ pathname: `${base}/${key}`, search: params.toString() }} aria-current={activeSection === key ? 'page' : undefined} className={`min-h-10 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeSection === key ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>{label}</Link>)}</nav>
-    {activeSection === 'resumo' && <Overview summary={data} />}
-    {activeSection === 'vistorias' && <Inspections query={inspections} params={params} setParams={setParams} />}
-    {activeSection === 'mapa' && <MapModule query={map} />}
-    {activeSection === 'agendamentos' && <OperationsState query={operations}>{(value) => <Appointments operations={value} />}</OperationsState>}
-    {activeSection === 'documentos' && <OperationsState query={operations}>{(value) => <Documents customerId={decodedCustomerId} userId={userId} operations={value} />}</OperationsState>}
-    {activeSection === 'acesso' && <OperationsState query={operations}>{(value) => <Access customerId={decodedCustomerId} userId={userId} summary={data} operations={value} />}</OperationsState>}
-  </section>;
+  return (
+    <section className="page-stack">
+      <PageHeader
+        eyebrow={data.agent.customerName}
+        title={data.agent.name}
+        description={`${ptBrLabel(data.agent.role, 'Papel não informado')} · ${data.agent.planName || 'Plano não informado'} · último acesso ${formatDate(data.agent.lastLogin)}`}
+        actions={<><StatusBadge value={data.agent.membershipStatus} /><StatusBadge value={data.agent.effectiveAccess} /></>}
+      />
+      <Button asChild variant="ghost" size="sm" className="w-fit px-0">
+        <Link to={`/app/clientes/${encodeURIComponent(decodedCustomerId)}/usuarios`}><ArrowLeft />Voltar aos usuários</Link>
+      </Button>
+      {!data.canViewSensitive && (
+        <Alert variant="warning" role="status">
+          <AlertTriangle className="h-4 w-4" /><AlertTitle>Dados sensíveis protegidos</AlertTitle>
+          <AlertDescription>Endereços, coordenadas, contato e downloads exigem acesso de suporte auditado.</AlertDescription>
+        </Alert>
+      )}
+      <AgentFilterBar params={params} onChange={updateFilter} />
+      <nav
+        className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1 sm:flex-nowrap sm:overflow-x-auto"
+        aria-label="Módulos do agente"
+      >
+        {sections.map(([key, label]) => (
+          <Link
+            key={key}
+            to={{ pathname: `${base}/${key}`, search: params.toString() }}
+            aria-current={activeSection === key ? 'page' : undefined}
+            className={cn(
+              'min-h-10 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              activeSection === key
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+            )}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+      {activeSection === 'resumo' && <Overview summary={data} />}
+      {activeSection === 'vistorias' && <Inspections query={inspections} params={params} setParams={setParams} />}
+      {activeSection === 'mapa' && <MapModule query={map} />}
+      {activeSection === 'agendamentos' && <OperationsState query={operations}>{(value) => <Appointments operations={value} />}</OperationsState>}
+      {activeSection === 'documentos' && <OperationsState query={operations}>{(value) => <Documents customerId={decodedCustomerId} userId={userId} operations={value} />}</OperationsState>}
+      {activeSection === 'acesso' && <OperationsState query={operations}>{(value) => <Access customerId={decodedCustomerId} userId={userId} summary={data} operations={value} />}</OperationsState>}
+    </section>
+  );
 }
 
 function AgentFilterBar({ params, onChange }: { params: URLSearchParams; onChange: (name: string, value: string) => void }) {
   const period = params.get('period') || '30';
-  return <div className="grid gap-3 rounded-xl border bg-card p-4 shadow-card sm:grid-cols-2 xl:grid-cols-6" aria-label="Filtros compartilhados do agente">
-    <Filter label="Período"><select value={period} onChange={(event) => onChange('period', event.target.value)}><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option><option value="custom">Personalizado</option></select></Filter>
-    {period === 'custom' && <><Filter label="De"><input type="date" value={params.get('from') || ''} onChange={(event) => onChange('from', event.target.value)} /></Filter><Filter label="Até"><input type="date" value={params.get('to') || ''} onChange={(event) => onChange('to', event.target.value)} /></Filter></>}
-    <Filter label="Risco"><select value={params.get('risk') || ''} onChange={(event) => onChange('risk', event.target.value)}><option value="">Todos</option>{['r1', 'r2', 'r3', 'r4'].map((risk) => <option key={risk}>{risk}</option>)}</select></Filter>
-    <Filter label="Status"><input value={params.get('status') || ''} onChange={(event) => onChange('status', event.target.value)} placeholder="Todos" /></Filter>
-    <Filter label="Formulário"><input value={params.get('form') || ''} onChange={(event) => onChange('form', event.target.value)} placeholder="Todos" /></Filter>
-    <Filter label="Protocolo ou endereço"><input value={params.get('q') || ''} onChange={(event) => onChange('q', event.target.value)} placeholder="Buscar" /></Filter>
-  </div>;
+  return (
+    <div
+      className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 xl:grid-cols-6"
+      aria-label="Filtros compartilhados do agente"
+    >
+      <Filter label="Período">
+        <select value={period} onChange={(event) => onChange('period', event.target.value)}>
+          <option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option><option value="custom">Personalizado</option>
+        </select>
+      </Filter>
+      {period === 'custom' && (
+        <>
+          <Filter label="De"><input type="date" value={params.get('from') || ''} onChange={(event) => onChange('from', event.target.value)} /></Filter>
+          <Filter label="Até"><input type="date" value={params.get('to') || ''} onChange={(event) => onChange('to', event.target.value)} /></Filter>
+        </>
+      )}
+      <Filter label="Risco">
+        <select value={params.get('risk') || ''} onChange={(event) => onChange('risk', event.target.value)}>
+          <option value="">Todos</option>{['r1', 'r2', 'r3', 'r4'].map((risk) => <option key={risk}>{risk}</option>)}
+        </select>
+      </Filter>
+      <Filter label="Status"><input value={params.get('status') || ''} onChange={(event) => onChange('status', event.target.value)} placeholder="Todos" /></Filter>
+      <Filter label="Formulário"><input value={params.get('form') || ''} onChange={(event) => onChange('form', event.target.value)} placeholder="Todos" /></Filter>
+      <Filter label="Protocolo ou endereço"><input value={params.get('q') || ''} onChange={(event) => onChange('q', event.target.value)} placeholder="Buscar" /></Filter>
+    </div>
+  );
 }
 
 function Filter({ label, children }: { label: string; children: React.ReactElement }) {
-  return <label className="text-xs font-semibold text-muted-foreground"><span className="mb-1.5 block">{label}</span><span className="[&>*]:h-10 [&>*]:w-full [&>*]:rounded-lg [&>*]:border [&>*]:border-input [&>*]:bg-background [&>*]:px-3 [&>*]:text-sm [&>*]:outline-none [&>*]:focus:ring-2 [&>*]:focus:ring-ring">{children}</span></label>;
+  return (
+    <label className="text-xs font-semibold text-muted-foreground">
+      <span className="mb-1.5 block">{label}</span>
+      <span className="[&>*]:h-10 [&>*]:w-full [&>*]:rounded-lg [&>*]:border [&>*]:border-input [&>*]:bg-background [&>*]:px-3 [&>*]:text-sm [&>*]:outline-none [&>*]:focus:ring-2 [&>*]:focus:ring-ring">{children}</span>
+    </label>
+  );
 }
 
 function Overview({ summary }: { summary: AgentSummary }) {
   const { metrics } = summary;
   const change = metrics.previousInspections === 0 ? null : Math.round((metrics.inspections - metrics.previousInspections) * 100 / metrics.previousInspections);
   const maxDay = Math.max(1, ...summary.activityByDay.map((item) => item.total));
-  return <div className="space-y-4">
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Vistorias" value={metrics.inspections} icon={FileCheck2} trend={change ?? undefined} hint={change === null ? 'Sem base anterior' : 'vs. período anterior'} /><MetricCard label="Dias ativos" value={metrics.activeDays} icon={CalendarDays} hint={`Última: ${formatDate(metrics.lastInspectionAt)}`} /><MetricCard label="Geolocalizadas" value={`${metrics.geolocatedPercent}%`} icon={MapPin} hint={`${metrics.geolocated} registros`} /><MetricCard label="Documentos completos" value={`${metrics.documentCompletePercent}%`} icon={ShieldCheck} hint={`${metrics.documentComplete} vistorias`} /></div>
-    <div className="grid gap-4 lg:grid-cols-2"><Panel title="Distribuição de risco"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{(['r1', 'r2', 'r3', 'r4'] as const).map((risk) => <div key={risk} className="rounded-lg bg-secondary p-3 text-center"><RiskBadge risk={risk.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4'} /><p className="mt-3 text-xl font-bold">{metrics.risks[risk]}</p></div>)}</div></Panel><Panel title="Atividade por dia">{!summary.activityByDay.length ? <p className="text-sm text-muted-foreground">Sem atividade no período.</p> : <div className="flex h-32 items-end gap-1" aria-label="Atividade diária">{summary.activityByDay.map((item) => <div key={item.day} className="min-w-2 flex-1 rounded-t bg-primary" style={{ height: `${Math.max(8, item.total * 100 / maxDay)}%` }} title={`${item.day}: ${item.total}`} />)}</div>}</Panel></div>
-    <div className="grid gap-4 lg:grid-cols-2"><Panel title="Sessão recente"><Definition label="Dispositivo" value={summary.lastSession?.deviceName || summary.lastSession?.platform} /><Definition label="Última atividade" value={formatDate(summary.lastSession?.lastHeartbeatAt)} /><Definition label="Situação" value={ptBrLabel(summary.lastSession?.status)} /></Panel><Panel title="Atividade técnica"><Definition label="Versão" value={summary.lastTechnicalActivity?.appVersion || 'Não informado'} /><Definition label="Plataforma" value={summary.lastTechnicalActivity?.platform || 'Desconhecido'} /><Definition label="Último evento" value={formatDate(summary.lastTechnicalActivity?.occurredAt)} /></Panel></div>
-  </div>;
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Vistorias" value={metrics.inspections} icon={FileCheck2} trend={change ?? undefined} hint={change === null ? 'Sem base anterior' : 'vs. período anterior'} />
+        <MetricCard label="Dias ativos" value={metrics.activeDays} icon={CalendarDays} hint={`Última: ${formatDate(metrics.lastInspectionAt)}`} />
+        <MetricCard label="Geolocalizadas" value={`${metrics.geolocatedPercent}%`} icon={MapPin} hint={`${metrics.geolocated} registros`} />
+        <MetricCard label="Documentos completos" value={`${metrics.documentCompletePercent}%`} icon={ShieldCheck} hint={`${metrics.documentComplete} vistorias`} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Distribuição de risco">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(['r1', 'r2', 'r3', 'r4'] as const).map((risk) => (
+              <div key={risk} className="rounded-lg bg-muted p-3 text-center">
+                <RiskBadge risk={risk.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4'} />
+                <p className="mt-3 text-xl font-bold">{metrics.risks[risk]}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Atividade por dia">
+          {!summary.activityByDay.length ? (
+            <p className="text-sm text-muted-foreground">Sem atividade no período.</p>
+          ) : (
+            <div className="flex h-32 items-end gap-1" aria-label="Atividade diária">
+              {summary.activityByDay.map((item) => (
+                <div
+                  key={item.day}
+                  className="min-w-2 flex-1 rounded-t bg-primary"
+                  style={{ height: `${Math.max(8, item.total * 100 / maxDay)}%` }}
+                  title={`${item.day}: ${item.total}`}
+                />
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Sessão recente">
+          <Definition label="Dispositivo" value={summary.lastSession?.deviceName || summary.lastSession?.platform} />
+          <Definition label="Última atividade" value={formatDate(summary.lastSession?.lastHeartbeatAt)} />
+          <Definition label="Situação" value={ptBrLabel(summary.lastSession?.status)} />
+        </Panel>
+        <Panel title="Atividade técnica">
+          <Definition label="Versão" value={summary.lastTechnicalActivity?.appVersion || 'Não informado'} />
+          <Definition label="Plataforma" value={summary.lastTechnicalActivity?.platform || 'Desconhecido'} />
+          <Definition label="Último evento" value={formatDate(summary.lastTechnicalActivity?.occurredAt)} />
+        </Panel>
+      </div>
+    </div>
+  );
 }
 
 function Inspections({ query, params, setParams }: { query: ReturnType<typeof useAgentInspections>; params: URLSearchParams; setParams: ReturnType<typeof useSearchParams>[1] }) {
@@ -130,12 +225,59 @@ function Inspections({ query, params, setParams }: { query: ReturnType<typeof us
   if (!page.items.length) return <EmptyState title="Nenhuma vistoria" description="Não há registros para os filtros e a página selecionados." />;
   function next() { if (!page.nextCursor) return; const next = new URLSearchParams(params); next.set('cursorAt', page.nextCursor.occurredAt); next.set('cursorId', page.nextCursor.id); setParams(next); }
   function first() { const next = new URLSearchParams(params); next.delete('cursorAt'); next.delete('cursorId'); setParams(next); }
-  return <div className="space-y-4">
-    <Card><CardContent className="p-4"><DataTableToolbar query={params.get('q') || ''} onQueryChange={(value) => { const nextParams = new URLSearchParams(params); if (value) nextParams.set('q', value); else nextParams.delete('q'); nextParams.delete('cursorAt'); nextParams.delete('cursorId'); setParams(nextParams, { replace: true }); }} placeholder="Buscar protocolo ou endereço…" filters={<label className="flex items-center gap-2 text-sm text-muted-foreground">Itens <select aria-label="Itens por página" value={page.pageSize} onChange={(event) => { const nextParams = new URLSearchParams(params); nextParams.set('size', event.target.value); nextParams.delete('cursorAt'); nextParams.delete('cursorId'); setParams(nextParams); }} className="h-9 rounded-lg border border-input bg-background px-2 text-foreground"><option>25</option><option>50</option><option>100</option></select></label>} /></CardContent></Card>
-    <p className="text-sm text-muted-foreground">{page.total} vistorias no conjunto filtrado</p>
-    <DataTable headers={['Protocolo', 'Risco', 'Data', 'Formulário', 'Endereço', 'Documentos']} minWidth={900}>{page.items.map((item) => <tr key={item.id} className="border-t"><td className="p-3 font-mono text-xs">{item.protocol || item.id.slice(0, 8)}</td><td className="p-3">{item.risk ? <RiskBadge risk={item.risk.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4'} /> : <StatusBadge value={item.risk} />}</td><td className="p-3">{formatDate(item.occurredAt)}</td><td className="p-3">{item.formId || 'Não informado'}</td><td className="p-3">{item.address || 'Dado protegido'}</td><td className="p-3 text-xs">{Object.entries(item.documents).filter(([, ready]) => ready).map(([kind]) => kind).join(', ') || 'Nenhum'}</td></tr>)}</DataTable>
-    <div className="flex justify-end gap-2">{params.has('cursorAt') && <Button variant="outline" onClick={first}>Primeira página</Button>}<Button disabled={!page.nextCursor} onClick={next}>Próxima</Button></div>
-  </div>;
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-4">
+          <DataTableToolbar
+            query={params.get('q') || ''}
+            onQueryChange={(value) => {
+              const nextParams = new URLSearchParams(params);
+              if (value) nextParams.set('q', value); else nextParams.delete('q');
+              nextParams.delete('cursorAt'); nextParams.delete('cursorId');
+              setParams(nextParams, { replace: true });
+            }}
+            placeholder="Buscar protocolo ou endereço…"
+            filters={(
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                Itens
+                <select
+                  aria-label="Itens por página"
+                  value={page.pageSize}
+                  onChange={(event) => {
+                    const nextParams = new URLSearchParams(params);
+                    nextParams.set('size', event.target.value);
+                    nextParams.delete('cursorAt'); nextParams.delete('cursorId');
+                    setParams(nextParams);
+                  }}
+                  className="h-9 rounded-lg border border-input bg-background px-2 text-foreground"
+                >
+                  <option>25</option><option>50</option><option>100</option>
+                </select>
+              </label>
+            )}
+          />
+        </CardContent>
+      </Card>
+      <p className="text-sm text-muted-foreground">{page.total} vistorias no conjunto filtrado</p>
+      <DataTable headers={['Protocolo', 'Risco', 'Data', 'Formulário', 'Endereço', 'Documentos']} minWidth={900}>
+        {page.items.map((item) => (
+          <tr key={item.id} className="border-t">
+            <td className="p-3 font-mono text-xs">{item.protocol || item.id.slice(0, 8)}</td>
+            <td className="p-3">{item.risk ? <RiskBadge risk={item.risk.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4'} /> : <StatusBadge value={item.risk} />}</td>
+            <td className="p-3">{formatDate(item.occurredAt)}</td>
+            <td className="p-3">{item.formId || 'Não informado'}</td>
+            <td className="p-3">{item.address || 'Dado protegido'}</td>
+            <td className="p-3 text-xs">{Object.entries(item.documents).filter(([, ready]) => ready).map(([kind]) => kind).join(', ') || 'Nenhum'}</td>
+          </tr>
+        ))}
+      </DataTable>
+      <div className="flex justify-end gap-2">
+        {params.has('cursorAt') && <Button variant="outline" onClick={first}>Primeira página</Button>}
+        <Button disabled={!page.nextCursor} onClick={next}>Próxima</Button>
+      </div>
+    </div>
+  );
 }
 
 function MapModule({ query }: { query: ReturnType<typeof useAgentMap> }) {
@@ -144,7 +286,25 @@ function MapModule({ query }: { query: ReturnType<typeof useAgentMap> }) {
   const data: AgentMapResult = query.data;
   if (!data.canViewSensitive) return <EmptyState title="Coordenadas protegidas" description={`${data.geolocatedTotal} vistorias possuem localização, mas o acesso sensível precisa ser renovado para exibir o mapa.`} />;
   const points: CustomerMapPoint[] = data.points.map((point) => ({ id: point.id, protocol: `${point.count} vistoria${point.count === 1 ? '' : 's'}`, risk: dominantRisk(point.risks), status: 'cluster', occurred_at: point.occurredAt, latitude: point.latitude, longitude: point.longitude, address: null }));
-  return <div className="space-y-4"><div className="flex flex-wrap gap-3 text-sm"><span className="rounded-lg bg-status-success px-3 py-2 text-success">{data.geolocatedTotal} com localização</span><span className="rounded-lg bg-status-warning px-3 py-2 text-warning">{data.withoutCoordinates} sem localização</span></div>{points.length ? <CustomerMap points={points} /> : <EmptyState title="Sem pontos no mapa" description="Nenhuma vistoria filtrada possui coordenadas válidas." />}<Panel title="Alternativa textual ao mapa"><div className="space-y-2">{data.points.map((point) => <div key={point.id} className="flex flex-col justify-between gap-1 border-b py-2 text-sm sm:flex-row"><span>{point.count} vistoria(s) · risco predominante {dominantRisk(point.risks)}</span><span className="font-mono text-xs text-muted-foreground">{point.latitude.toFixed(4)}, {point.longitude.toFixed(4)}</span></div>)}</div></Panel></div>;
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 text-sm">
+        <span className="rounded-lg bg-success-soft px-3 py-2 text-primary">{data.geolocatedTotal} com localização</span>
+        <span className="rounded-lg bg-warning-soft px-3 py-2 text-warning">{data.withoutCoordinates} sem localização</span>
+      </div>
+      {points.length ? <CustomerMap points={points} /> : <EmptyState title="Sem pontos no mapa" description="Nenhuma vistoria filtrada possui coordenadas válidas." />}
+      <Panel title="Alternativa textual ao mapa">
+        <div className="space-y-2">
+          {data.points.map((point) => (
+            <div key={point.id} className="flex flex-col justify-between gap-1 border-b py-2 text-sm sm:flex-row">
+              <span>{point.count} vistoria(s) · risco predominante {dominantRisk(point.risks)}</span>
+              <span className="font-mono text-xs text-muted-foreground">{point.latitude.toFixed(4)}, {point.longitude.toFixed(4)}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
 }
 
 function OperationsState({ query, children }: { query: ReturnType<typeof useAgentOperations>; children: (value: AgentOperations) => React.ReactNode }) {
@@ -155,34 +315,166 @@ function OperationsState({ query, children }: { query: ReturnType<typeof useAgen
 
 function Appointments({ operations }: { operations: AgentOperations }) {
   if (!operations.appointments.length) return <EmptyState title="Sem agendamentos" description="Nenhum agendamento está vinculado ao agente." />;
-  return <DataTable headers={['Agendamento', 'Data', 'Endereço', 'Status']}>{operations.appointments.map((item) => <tr key={item.id} className="border-t"><td className="p-3 font-semibold">{item.title}</td><td className="p-3">{formatDate(item.scheduledAt)}</td><td className="p-3">{item.address || 'Dado protegido'}</td><td className="p-3"><StatusBadge value={item.status} /></td></tr>)}</DataTable>;
+  return (
+    <DataTable headers={['Agendamento', 'Data', 'Endereço', 'Status']}>
+      {operations.appointments.map((item) => (
+        <tr key={item.id} className="border-t">
+          <td className="p-3 font-semibold">{item.title}</td>
+          <td className="p-3">{formatDate(item.scheduledAt)}</td>
+          <td className="p-3">{item.address || 'Dado protegido'}</td>
+          <td className="p-3"><StatusBadge value={item.status} /></td>
+        </tr>
+      ))}
+    </DataTable>
+  );
 }
 
 function Documents({ customerId, userId, operations }: { customerId: string; userId: string; operations: AgentOperations }) {
-  const [error, setError] = useState<string | null>(null); const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   async function openDocument(document: AgentDocument) {
-    const popup = window.open('', '_blank', 'noopener,noreferrer'); setBusy(document.documentId); setError(null);
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
+    setBusy(document.documentId); setError(null);
     const { data, error: invokeError } = await supabase.functions.invoke('internal-agent-document', { body: { customer_id: customerId, user_id: userId, inspection_id: document.inspectionId, kind: document.kind } });
     setBusy(null);
     if (invokeError || !data?.signed_url) { popup?.close(); setError(invokeError?.message || 'Não foi possível autorizar o documento.'); return; }
     if (popup) popup.location.href = data.signed_url; else window.location.assign(data.signed_url);
   }
   if (!operations.documents.length) return <EmptyState title="Sem documentos" description="Nenhum laudo, relatório ou termo foi gerado." />;
-  return <div>{error && <Alert variant="destructive" className="mb-3"><AlertTitle>Documento indisponível</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}<DataTable headers={['Documento', 'Protocolo', 'Geração', 'Armazenamento', 'Ação']}>{operations.documents.map((item) => <tr key={item.documentId} className="border-t"><td className="p-3 font-semibold capitalize">{item.kind}</td><td className="p-3 font-mono text-xs">{item.protocol || item.inspectionId.slice(0, 8)}</td><td className="p-3">{formatDate(item.generatedAt)}</td><td className="p-3">{item.storageLocation || 'Não informado'}</td><td className="p-3"><Button variant="outline" size="sm" disabled={!item.downloadable || busy === item.documentId} onClick={() => void openDocument(item)}><Download />{item.downloadable ? 'Abrir por 60s' : 'Indisponível'}</Button></td></tr>)}</DataTable></div>;
+  return (
+    <div>
+      {error && (
+        <Alert variant="destructive" className="mb-3">
+          <AlertTitle>Documento indisponível</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <DataTable headers={['Documento', 'Protocolo', 'Geração', 'Armazenamento', 'Ação']}>
+        {operations.documents.map((item) => (
+          <tr key={item.documentId} className="border-t">
+            <td className="p-3 font-semibold capitalize">{item.kind}</td>
+            <td className="p-3 font-mono text-xs">{item.protocol || item.inspectionId.slice(0, 8)}</td>
+            <td className="p-3">{formatDate(item.generatedAt)}</td>
+            <td className="p-3">{item.storageLocation || 'Não informado'}</td>
+            <td className="p-3">
+              <Button variant="outline" size="sm" disabled={!item.downloadable || busy === item.documentId} onClick={() => void openDocument(item)}>
+                <Download />{item.downloadable ? 'Abrir por 60s' : 'Indisponível'}
+              </Button>
+            </td>
+          </tr>
+        ))}
+      </DataTable>
+    </div>
+  );
 }
 
 function Access({ customerId, userId, summary, operations }: { customerId: string; userId: string; summary: AgentSummary; operations: AgentOperations }) {
-  const { can } = useAuth(); const [pending, setPending] = useState<AccessAction | null>(null); const [password, setPassword] = useState('');
+  const { can } = useAuth();
+  const [pending, setPending] = useState<AccessAction | null>(null);
+  const [password, setPassword] = useState('');
   const mutation = useAdministrativeMutation<AccessAction & { reason: string }, unknown>({
-    mutationFn: async (input, operationId) => { const { data, error } = await supabase.rpc('mutate_internal_agent_access', { p_customer_id: customerId, p_user_id: userId, p_action: input.action, p_session_id: input.sessionId || null, p_new_password: input.action === 'reset_password' ? password : null, p_reason: input.reason, p_operation_id: operationId }); if (error) throw error; return data; },
+    mutationFn: async (input, operationId) => {
+      const { data, error } = await supabase.rpc('mutate_internal_agent_access', {
+        p_customer_id: customerId, p_user_id: userId, p_action: input.action,
+        p_session_id: input.sessionId || null, p_new_password: input.action === 'reset_password' ? password : null,
+        p_reason: input.reason, p_operation_id: operationId,
+      });
+      if (error) throw error;
+      return data;
+    },
     invalidate: [agentKeys.root(customerId, userId)],
   });
   const ownerActions = can('customer.write');
-  return <div className="space-y-4"><Panel title="Acesso efetivo"><Definition label="Situação" value={ptBrLabel(summary.agent.effectiveAccess)} /><Definition label="Vínculo" value={ptBrLabel(summary.agent.membershipStatus)} /><Definition label="Contato" value={summary.agent.email || 'Dado protegido'} />{ownerActions && <div className="mt-4 flex flex-wrap gap-2">{summary.agent.effectiveAccess === 'active' ? <Action icon={<LockKeyhole className="h-4 w-4" />} label="Bloquear agente" onClick={() => setPending({ action: 'block' })} /> : <Action icon={<UnlockKeyhole className="h-4 w-4" />} label="Liberar agente" onClick={() => setPending({ action: 'unblock' })} />}<label className="flex min-w-64 flex-1 items-center gap-2"><span className="sr-only">Nova senha temporária</span><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Senha temporária forte" className="min-w-0 flex-1" /><Action disabled={password.length < 12} icon={<KeyRound className="h-4 w-4" />} label="Redefinir senha" onClick={() => setPending({ action: 'reset_password' })} /></label></div>}</Panel><Panel title="Sessões e dispositivos">{!operations.sessions.length ? <p className="text-sm text-muted-foreground">Nenhuma sessão registrada.</p> : <div className="space-y-3">{operations.sessions.map((session) => <div key={session.id} className="flex flex-wrap items-center gap-3 border-b pb-3"><div className="min-w-0 flex-1"><p className="font-semibold">{session.deviceName || session.platform}</p><p className="text-xs text-muted-foreground">{formatDate(session.lastHeartbeatAt)}</p></div><StatusBadge value={session.status} />{ownerActions && session.status === 'active' && <Action icon={<LogOut className="h-4 w-4" />} label="Encerrar" onClick={() => setPending({ action: 'terminate_session', sessionId: session.id })} />}</div>)}</div>}</Panel><Panel title="Atividade técnica permitida">{!operations.technicalActivity.length ? <p className="text-sm text-muted-foreground">Não informado.</p> : <div className="space-y-2">{operations.technicalActivity.map((event) => <div key={`${event.id}-${event.occurredAt}`} className="flex flex-wrap gap-2 border-b py-2 text-sm"><StatusBadge value={event.severity} /><span>{event.category} · {event.summary || 'Evento técnico'}</span><time className="ml-auto text-xs text-muted-foreground">{formatDate(event.occurredAt)}</time></div>)}</div>}</Panel><HighRiskDialog open={Boolean(pending)} title="Confirmar alteração de acesso" description="A operação exige MFA, justificativa e será auditada. Sessões aplicáveis serão revogadas." confirmLabel="Confirmar operação" onClose={() => setPending(null)} onConfirm={async (reason) => { if (!pending) return; const result = await mutation.mutateAsync({ ...pending, reason }); if (!result.ok) throw new Error(result.error); setPending(null); setPassword(''); }} /></div>;
+  return (
+    <div className="space-y-4">
+      <Panel title="Acesso efetivo">
+        <Definition label="Situação" value={ptBrLabel(summary.agent.effectiveAccess)} />
+        <Definition label="Vínculo" value={ptBrLabel(summary.agent.membershipStatus)} />
+        <Definition label="Contato" value={summary.agent.email || 'Dado protegido'} />
+        {ownerActions && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {summary.agent.effectiveAccess === 'active'
+              ? <Action icon={<LockKeyhole className="h-4 w-4" />} label="Bloquear agente" onClick={() => setPending({ action: 'block' })} />
+              : <Action icon={<UnlockKeyhole className="h-4 w-4" />} label="Liberar agente" onClick={() => setPending({ action: 'unblock' })} />}
+            <label className="flex min-w-64 flex-1 items-center gap-2">
+              <span className="sr-only">Nova senha temporária</span>
+              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Senha temporária forte" className="min-w-0 flex-1" />
+              <Action disabled={password.length < 12} icon={<KeyRound className="h-4 w-4" />} label="Redefinir senha" onClick={() => setPending({ action: 'reset_password' })} />
+            </label>
+          </div>
+        )}
+      </Panel>
+      <Panel title="Sessões e dispositivos">
+        {!operations.sessions.length ? (
+          <p className="text-sm text-muted-foreground">Nenhuma sessão registrada.</p>
+        ) : (
+          <div className="space-y-3">
+            {operations.sessions.map((session) => (
+              <div key={session.id} className="flex flex-wrap items-center gap-3 border-b pb-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{session.deviceName || session.platform}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(session.lastHeartbeatAt)}</p>
+                </div>
+                <StatusBadge value={session.status} />
+                {ownerActions && session.status === 'active' && <Action icon={<LogOut className="h-4 w-4" />} label="Encerrar" onClick={() => setPending({ action: 'terminate_session', sessionId: session.id })} />}
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+      <Panel title="Atividade técnica permitida">
+        {!operations.technicalActivity.length ? (
+          <p className="text-sm text-muted-foreground">Não informado.</p>
+        ) : (
+          <div className="space-y-2">
+            {operations.technicalActivity.map((event) => (
+              <div key={`${event.id}-${event.occurredAt}`} className="flex flex-wrap gap-2 border-b py-2 text-sm">
+                <StatusBadge value={event.severity} />
+                <span>{event.category} · {event.summary || 'Evento técnico'}</span>
+                <time className="ml-auto text-xs text-muted-foreground">{formatDate(event.occurredAt)}</time>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+      <HighRiskDialog
+        open={Boolean(pending)}
+        title="Confirmar alteração de acesso"
+        description="A operação exige MFA, justificativa e será auditada. Sessões aplicáveis serão revogadas."
+        confirmLabel="Confirmar operação"
+        onClose={() => setPending(null)}
+        onConfirm={async (reason) => {
+          if (!pending) return;
+          const result = await mutation.mutateAsync({ ...pending, reason });
+          if (!result.ok) throw new Error(result.error);
+          setPending(null); setPassword('');
+        }}
+      />
+    </div>
+  );
 }
 
-function Action({ icon, label, onClick, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) { return <Button type="button" variant="outline" disabled={disabled} onClick={onClick}>{icon}{label}</Button>; }
-function Panel({ title, children }: { title: string; children: React.ReactNode }) { return <Card><CardHeader><CardTitle>{title}</CardTitle></CardHeader><CardContent>{children}</CardContent></Card>; }
-function Definition({ label, value }: { label: string; value: string | null | undefined }) { return <div className="mb-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value || 'Não informado'}</p></div>; }
+function Action({ icon, label, onClick, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
+  return <Button type="button" variant="outline" disabled={disabled} onClick={onClick}>{icon}{label}</Button>;
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
+
+function Definition({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="mb-3">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium">{value || 'Não informado'}</p>
+    </div>
+  );
+}
+
 function formatDate(value: string | null | undefined) { return value ? new Date(value).toLocaleString('pt-BR') : 'Não informado'; }
 function dominantRisk(risks: Record<'r1' | 'r2' | 'r3' | 'r4', number>) { return (Object.entries(risks) as [keyof typeof risks, number][]).sort((a, b) => b[1] - a[1])[0]?.[0] || 'r1'; }

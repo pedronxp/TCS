@@ -93,16 +93,16 @@ export function PortalMap({ points }: { points: PortalMapPoint[] }) {
     return <div className="grid min-h-80 place-items-center rounded-lg border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">Nenhuma vistoria com coordenadas neste escopo.</div>;
   }
   return (
-    <section className="overflow-hidden rounded-lg border bg-card shadow-card" aria-label="Mapa de vistorias">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
-        <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-md bg-info-soft text-info"><Layers3 className="h-4 w-4" /></span><div><p className="text-sm font-semibold">Cobertura territorial</p><p className="text-xs text-muted-foreground">{located.length} pontos autorizados</p></div></div>
+    <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Mapa de vistorias">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+        <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-md bg-success-soft text-primary"><Layers3 className="h-4 w-4" /></span><div><p className="text-sm font-semibold">Cobertura territorial</p><p className="text-xs text-muted-foreground">{located.length} pontos autorizados</p></div></div>
         <Button variant="outline" size="sm" className="min-h-11" onClick={fit}><Maximize2 />Enquadrar</Button>
       </header>
       <div className="relative">
         <div ref={container} className="portal-map h-[520px] min-h-[360px] w-full bg-secondary" data-map-ready={ready} />
-        {!ready && !failed && <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background/60"><span className="rounded-full border bg-card px-4 py-2 text-xs font-semibold">Carregando mapa…</span></div>}
-        {failed && <p className="absolute inset-x-4 top-4 rounded-md border border-warning/25 bg-status-warning p-3 text-sm text-foreground">O mapa-base não respondeu. Use a lista textual abaixo.</p>}
-        <p className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border bg-card/95 px-3 py-2 text-xs shadow-card"><MapPin className="h-4 w-4 text-primary" />Selecione um marcador para detalhes</p>
+        {!ready && !failed && <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background/60"><span className="rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold">Carregando mapa…</span></div>}
+        {failed && <p className="absolute inset-x-4 top-4 rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-warning">O mapa-base não respondeu. Use a lista textual abaixo.</p>}
+        <p className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-border bg-card/95 px-3 py-2 text-xs"><MapPin className="h-4 w-4 text-primary" />Selecione um marcador para detalhes</p>
       </div>
     </section>
   );

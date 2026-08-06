@@ -65,11 +65,11 @@ describe('Dashboard executivo', () => {
   it('reproduz a composição executiva aprovada', () => {
     render(<MemoryRouter><DashboardHome /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Visão executiva do negócio' })).toBeVisible();
-    expect(screen.getByText('Clientes cadastrados')).toBeVisible();
+    // O hero saúda o usuário pelo nome (saudação varia por horário).
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.getByText('Clientes')).toBeVisible();
     expect(screen.getByText('Assinaturas vigentes')).toBeVisible();
     expect(screen.getByText('Prefeitura de Aurora')).toBeVisible();
-    expect(screen.getByText('Saúde da operação')).toBeVisible();
     expect(screen.getByText('Ações rápidas')).toBeVisible();
   });
 
@@ -102,10 +102,13 @@ describe('Dashboard executivo', () => {
 
     render(<MemoryRouter><DashboardHome /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Painel de desenvolvimento' })).toBeVisible();
-    expect(screen.getByText('Linha de versões')).toBeVisible();
-    expect(screen.getByText('2.17.0')).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    // As três primeiras métricas técnicas aparecem como números monumentais
+    expect(screen.getByText('Builds em execução')).toBeVisible();
+    expect(screen.getByText('Builds com falha')).toBeVisible();
+    expect(screen.getByText('Sincronização')).toBeVisible();
+    // Atenções recentes e atalhos também estão presentes
     expect(screen.getByText('Falha ao sincronizar lote')).toBeVisible();
-    expect(screen.getByText('Atalhos operacionais')).toBeVisible();
+    expect(screen.getByText('Ações rápidas')).toBeVisible();
   });
 });

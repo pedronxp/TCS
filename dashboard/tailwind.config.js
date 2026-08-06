@@ -18,6 +18,7 @@ export default {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
+          hover: 'hsl(var(--primary-hover))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -26,6 +27,15 @@ export default {
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
+          soft: 'hsl(var(--destructive-soft))',
+        },
+        /* Alias deprecated: danger-* mapeia para destructive-*.
+           Mantido para compatibilidade com páginas ainda não migradas. */
+        danger: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+          soft: 'hsl(var(--danger-soft))',
+          'soft-foreground': 'hsl(var(--destructive))',
         },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
@@ -46,24 +56,37 @@ export default {
         success: {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',
+          soft: 'hsl(var(--success-soft))',
+          'soft-foreground': 'hsl(var(--success-soft-foreground))',
         },
         warning: {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))',
+          soft: 'hsl(var(--warning-soft))',
+          'soft-foreground': 'hsl(var(--warning-soft-foreground))',
         },
         info: {
-          DEFAULT: 'hsl(var(--info-strong))',
+          DEFAULT: 'hsl(var(--info))',
           foreground: 'hsl(var(--info-foreground))',
           soft: 'hsl(var(--info-soft))',
+          'soft-foreground': 'hsl(var(--info-soft-foreground))',
+          /* alias deprecated: mapeia para --info (mesmo tom) */
+          strong: 'hsl(var(--info-strong))',
+          'strong-foreground': 'hsl(var(--info-foreground))',
         },
-        warm: {
-          DEFAULT: 'hsl(var(--warm))',
-          foreground: 'hsl(var(--warm-foreground))',
-        },
+        /* Status backgrounds — mantidos para compatibilidade com Tailwind */
         status: {
           success: 'hsl(var(--success-soft))',
           warning: 'hsl(var(--warning-soft))',
-          danger: 'hsl(var(--danger-soft))',
+          danger: 'hsl(var(--destructive-soft))',
+        },
+        /* === Aliases deprecated (compatibilidade) ===
+           Mapeiam nomes antigos para os novos tokens em index.css.
+           Não usar em código novo; remover conforme migração das páginas. */
+        warm: {
+          DEFAULT: 'hsl(var(--warm))',
+          foreground: 'hsl(var(--warm-foreground))',
+          soft: 'hsl(var(--warm-soft))',
         },
         ink: {
           DEFAULT: 'hsl(var(--ink))',

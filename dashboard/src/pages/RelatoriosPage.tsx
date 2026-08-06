@@ -26,10 +26,10 @@ type FiltroPeriodo = '7d' | '30d' | '90d' | 'todos';
 // ─── Cores ────────────────────────────────────────────────────────────────────
 
 const RISCO_COR: Record<string, string> = {
-  r1: '#10b981',
-  r2: '#f59e0b',
-  r3: '#f97316',
-  r4: '#ef4444',
+  r1: 'hsl(var(--risk-r1))',
+  r2: 'hsl(var(--risk-r2))',
+  r3: 'hsl(var(--risk-r3))',
+  r4: 'hsl(var(--risk-r4))',
 };
 
 const RISCO_LABEL: Record<string, string> = {
@@ -100,7 +100,7 @@ function exportarCSV(vistorias: VistoriaRow[], periodo: string) {
 
 function CardResumo({ label, valor, cor }: { label: string; valor: number; cor: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
+    <div className="bg-card border border-border rounded-xl p-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
       <p className={cn('text-2xl font-bold', cor)}>{valor}</p>
     </div>
@@ -112,8 +112,8 @@ function CardResumo({ label, valor, cor }: { label: string; valor: number; cor: 
 function TooltipCustom({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-md">
-      <p className="font-semibold text-slate-800 mb-1">{label}</p>
+    <div className="bg-card border border-border rounded-lg px-3 py-2 text-xs shadow-sm">
+      <p className="font-semibold text-foreground mb-1">{label}</p>
       <p className="text-muted-foreground">{payload[0].value} vistoria{payload[0].value !== 1 ? 's' : ''}</p>
     </div>
   );
@@ -193,7 +193,7 @@ export function RelatoriosPage() {
     <div>
       <div className="mb-6 flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Relatórios</h1>
+          <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Estatísticas e exportação de vistorias por período
           </p>
@@ -219,8 +219,8 @@ export function RelatoriosPage() {
               className={cn(
                 'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
                 periodo === p.key
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border hover:bg-secondary'
               )}
             >
               {p.label}
@@ -232,7 +232,7 @@ export function RelatoriosPage() {
             value={municipioFiltro}
             onChange={(e) => setMunicipioFiltro(e.target.value)}
             placeholder="Filtrar município..."
-            className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring w-44"
+            className="h-8 px-3 rounded-lg border border-border bg-card text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-44"
           />
         )}
       </div>
@@ -245,7 +245,7 @@ export function RelatoriosPage() {
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
-          <AlertCircle className="w-8 h-8 text-red-400" />
+          <AlertCircle className="w-8 h-8 text-destructive" />
           <p>Falha ao carregar relatórios.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             Tentar novamente
@@ -260,17 +260,17 @@ export function RelatoriosPage() {
         <div className="space-y-6">
           {/* Cards de resumo */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <CardResumo label="Total de vistorias" valor={vistorias.length} cor="text-slate-900" />
-            <CardResumo label="Alto risco (R3 + R4)" valor={alto} cor="text-red-600" />
-            <CardResumo label="Médio risco (R2)" valor={medio} cor="text-amber-600" />
-            <CardResumo label="Baixo risco (R1)" valor={baixo} cor="text-emerald-600" />
+            <CardResumo label="Total de vistorias" valor={vistorias.length} cor="text-foreground" />
+            <CardResumo label="Alto risco (R3 + R4)" valor={alto} cor="text-risk-r4" />
+            <CardResumo label="Médio risco (R2)" valor={medio} cor="text-risk-r2" />
+            <CardResumo label="Baixo risco (R1)" valor={baixo} cor="text-risk-r1" />
           </div>
 
           {/* Gráficos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Barras */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <h2 className="font-semibold text-slate-900 mb-4 text-sm">Vistorias por nível de risco</h2>
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h2 className="font-semibold text-foreground mb-4 text-sm">Vistorias por nível de risco</h2>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={dadosBarras} barSize={40}>
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -286,8 +286,8 @@ export function RelatoriosPage() {
             </div>
 
             {/* Pizza */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <h2 className="font-semibold text-slate-900 mb-4 text-sm">Distribuição proporcional</h2>
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h2 className="font-semibold text-foreground mb-4 text-sm">Distribuição proporcional</h2>
               {dadosPizza.length === 0 ? (
                 <div className="flex items-center justify-center h-[220px] text-muted-foreground text-sm">
                   Sem dados
@@ -325,8 +325,8 @@ export function RelatoriosPage() {
 
           {/* Ranking de agentes */}
           {rankingAgentes.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <h2 className="font-semibold text-slate-900 mb-4 text-sm">Ranking de agentes</h2>
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h2 className="font-semibold text-foreground mb-4 text-sm">Ranking de agentes</h2>
               <div className="space-y-2">
                 {rankingAgentes.map((a, i) => {
                   const pct = Math.round((a.total / vistorias.length) * 100);
@@ -337,12 +337,12 @@ export function RelatoriosPage() {
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm text-slate-800 truncate">{a.nome}</span>
+                          <span className="text-sm text-foreground truncate">{a.nome}</span>
                           <span className="text-xs text-muted-foreground shrink-0 ml-2">
                             {a.total} ({pct}%)
                           </span>
                         </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full bg-primary rounded-full transition-all"
                             style={{ width: `${pct}%` }}

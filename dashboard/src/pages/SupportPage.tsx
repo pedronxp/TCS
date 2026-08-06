@@ -161,7 +161,7 @@ export function SupportPage() {
     <section className="page-stack max-w-[1094px]">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-info-strong">Central de suporte</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Central de suporte</p>
           <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Suporte</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Priorize chamados por risco de SLA e mantenha o contexto do cliente sempre visível.
@@ -271,9 +271,9 @@ function TicketColumn({
   tone: 'danger' | 'warning' | 'info';
   onSelect: (id: string) => void;
 }) {
-  const line = { danger: 'border-t-destructive', warning: 'border-t-warning', info: 'border-t-info-strong' };
+  const line = { danger: 'border-t-destructive', warning: 'border-t-warning', info: 'border-t-primary' };
   return (
-    <section className={cn('min-h-[518px] rounded-[14px] border border-t-4 bg-secondary/60 p-3', line[tone])}>
+    <section className={cn('min-h-[518px] rounded-lg border border-t-4 bg-secondary/60 p-3', line[tone])}>
       <div className="flex items-center justify-between px-1 py-2">
         <h3 className="text-[13px] font-bold">{title}</h3>
         <span className="rounded-full bg-card px-3 py-1 text-[11px] font-semibold">{tickets.length}</span>
@@ -292,7 +292,7 @@ function TicketColumn({
             <p className="mt-4 text-xs font-semibold">{ticket.customerName}</p>
             <p className="mt-2 text-[13px] leading-5">{ticket.subject}</p>
             <div className="mt-5 flex items-center gap-3">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-info-soft text-[9px] font-bold text-info-strong">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-info-soft text-[9px] font-bold text-info">
                 {initials(ticket.assignedName)}
               </span>
               <span className={cn('text-[10px] font-semibold', ticket.breached ? 'text-destructive' : 'text-muted-foreground')}>
@@ -313,25 +313,25 @@ function SlaTower({ tickets }: { tickets: Ticket[] }) {
   const priorities = ['critical', 'high', 'normal', 'low'];
   const categories = Array.from(new Set(tickets.filter((ticket) => ticket.priority === 'critical').map((ticket) => ticket.category).filter(Boolean)));
   return (
-    <aside className="rounded-[14px] bg-ink-panel p-6 text-white">
-      <p className="text-[10px] font-bold uppercase text-warm">Torre de SLA</p>
+    <aside className="rounded-lg bg-foreground p-6 text-background">
+      <p className="text-[10px] font-bold uppercase text-primary">Torre de SLA</p>
       <strong className="mt-4 block text-[30px]">{percent}%</strong>
-      <p className="text-[11px] text-white/60">da fila aberta dentro do prazo</p>
+      <p className="text-[11px] text-background/60">da fila aberta dentro do prazo</p>
       <dl className="mt-7">
         {priorities.map((priority) => {
           const matching = tickets.filter((ticket) => ticket.priority === priority);
           return (
-            <div key={priority} className="grid grid-cols-[1fr_auto] border-b border-white/10 py-4 text-xs first:pt-0">
+            <div key={priority} className="grid grid-cols-[1fr_auto] border-b border-background/10 py-4 text-xs first:pt-0">
               <dt className="font-semibold">{ptBrLabel(priority)}</dt>
               <dd className="font-semibold">{matching.length}</dd>
-              <dd className="col-span-2 mt-2 text-[10px] text-white/50">{minimumDue(matching)}</dd>
+              <dd className="col-span-2 mt-2 text-[10px] text-background/50">{minimumDue(matching)}</dd>
             </div>
           );
         })}
       </dl>
       <div className="mt-7">
-        <p className="text-xs font-semibold text-warm">Insight da fila</p>
-        <p className="mt-3 text-xs leading-5 text-white/80">
+        <p className="text-xs font-semibold text-primary">Insight da fila</p>
+        <p className="mt-3 text-xs leading-5 text-background/80">
           {categories.length
             ? `Chamados críticos concentrados em ${categories.map((item) => ptBrLabel(item)).join(', ')}.`
             : 'Nenhuma concentração crítica foi identificada nos dados retornados.'}
@@ -347,7 +347,7 @@ function TicketList({ tickets, onSelect, canWrite }: { tickets: Ticket[]; onSele
       {tickets.map((ticket) => (
         <tr
           key={ticket.id}
-          className={cn('cursor-pointer border-t hover:bg-secondary/60', ticket.breached && 'bg-danger-soft/50')}
+          className={cn('cursor-pointer border-t hover:bg-secondary/60', ticket.breached && 'bg-destructive-soft/50')}
           onClick={() => onSelect(ticket.id)}
           tabIndex={0}
           onKeyDown={(event) => {
@@ -463,7 +463,7 @@ function ViewToggle({ value, onChange }: { value: 'board' | 'list' | 'metrics'; 
       {views.map(([key, label]) => (
         <button
           key={key}
-          className={cn('h-8 rounded-full px-4 text-[11px] font-semibold', value === key ? 'bg-ink text-white' : 'text-muted-foreground')}
+          className={cn('h-8 rounded-full px-4 text-[11px] font-semibold', value === key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}
           onClick={() => onChange(key)}
           aria-pressed={value === key}
         >
@@ -476,19 +476,19 @@ function ViewToggle({ value, onChange }: { value: 'board' | 'list' | 'metrics'; 
 
 function SupportMetric({ code, label, value, detail, tone }: { code: string; label: string; value: number; detail: string; tone: 'info' | 'warning' | 'danger' }) {
   const tones = {
-    info: 'bg-info-soft text-info-strong',
+    info: 'bg-info-soft text-info',
     warning: 'bg-warning-soft text-warning',
-    danger: 'bg-danger-soft text-destructive',
+    danger: 'bg-destructive-soft text-destructive',
   };
   return (
     <Card className="min-h-[104px] shadow-none">
       <CardContent className="flex items-center gap-4 p-4">
-        <span className={cn('grid h-9 w-9 place-items-center rounded-[10px] text-xs font-bold', tones[tone])}>{code}</span>
+        <span className={cn('grid h-9 w-9 place-items-center rounded-lg text-xs font-bold', tones[tone])}>{code}</span>
         <div>
           <p className="text-xs text-muted-foreground">{label}</p>
           <div className="mt-1 flex items-baseline gap-5">
             <strong className="text-[22px]">{value}</strong>
-            <span className={cn('text-[10px] font-semibold', tone === 'danger' ? 'text-destructive' : tone === 'warning' ? 'text-warning' : 'text-info-strong')}>{detail}</span>
+            <span className={cn('text-[10px] font-semibold', tone === 'danger' ? 'text-destructive' : tone === 'warning' ? 'text-warning' : 'text-info')}>{detail}</span>
           </div>
         </div>
       </CardContent>
@@ -547,7 +547,7 @@ function TicketDialog({
             {assignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </FilterSelect>
         </div>
-        <div className={cn('rounded-xl border p-4 text-sm', ticket.breached || ticket.escalated ? 'border-destructive/20 bg-danger-soft text-destructive' : 'bg-secondary')}>
+        <div className={cn('rounded-xl border p-4 text-sm', ticket.breached || ticket.escalated ? 'border-destructive/20 bg-destructive-soft text-destructive' : 'bg-secondary')}>
           <strong>SLA:</strong> resposta {date(ticket.responseDue)} · resolução {date(ticket.resolutionDue)} · escalonamento {date(ticket.escalateAt)}
         </div>
         {canWrite && (
@@ -556,7 +556,7 @@ function TicketDialog({
             <Composer icon={<StickyNote />} title="Nota interna" value={note} onChange={setNote} onSend={() => void act('note', '', note)} disabled={busy} />
           </div>
         )}
-        {error && <p className="rounded-lg bg-danger-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
+        {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
         <SupportEvents ticketId={ticket.id} />
       </DialogContent>
     </Dialog>

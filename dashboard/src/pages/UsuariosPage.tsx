@@ -44,16 +44,16 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  agent: 'bg-blue-100 text-blue-700',
-  supervisor: 'bg-purple-100 text-purple-700',
-  admin: 'bg-amber-100 text-amber-700',
-  master_admin: 'bg-red-100 text-red-700',
+  agent: 'bg-secondary text-secondary-foreground',
+  supervisor: 'bg-secondary text-secondary-foreground',
+  admin: 'bg-warning-soft text-warning',
+  master_admin: 'bg-destructive-soft text-destructive',
 };
 
 function tempoRestante(expiresAt: string | null): { texto: string; cor: string; expirado: boolean } {
-  if (!expiresAt) return { texto: 'Sem prazo', cor: 'text-slate-500', expirado: false };
+  if (!expiresAt) return { texto: 'Sem prazo', cor: 'text-muted-foreground', expirado: false };
   const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return { texto: 'Expirado', cor: 'text-red-500', expirado: true };
+  if (diff <= 0) return { texto: 'Expirado', cor: 'text-destructive', expirado: true };
   const horas = Math.floor(diff / 3_600_000);
   const mins = Math.floor((diff % 3_600_000) / 60_000);
   const dias = Math.floor(horas / 24);
@@ -61,10 +61,10 @@ function tempoRestante(expiresAt: string | null): { texto: string; cor: string; 
     dias > 0 ? `${dias}d ${horas % 24}h` : horas > 0 ? `${horas}h ${mins}min` : `${mins}min`;
   const cor =
     diff < 2 * 3_600_000
-      ? 'text-red-500'
+      ? 'text-destructive'
       : diff < 24 * 3_600_000
-        ? 'text-amber-500'
-        : 'text-emerald-600';
+        ? 'text-warning'
+        : 'text-success';
   return { texto, cor, expirado: false };
 }
 
@@ -99,29 +99,29 @@ function ModalResetSenha({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+    <div className="fixed inset-0 z-50 bg-foreground/50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-lg w-full max-w-sm p-6 border border-border">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 grid place-items-center">
-            <Key className="w-5 h-5 text-slate-600" />
+          <div className="w-10 h-10 rounded-lg bg-secondary grid place-items-center">
+            <Key className="w-5 h-5 text-muted-foreground" />
           </div>
           <div>
-            <h2 className="font-bold text-slate-900">Redefinir Senha</h2>
+            <h2 className="font-bold text-foreground">Redefinir Senha</h2>
             <p className="text-xs text-muted-foreground">{user.name}</p>
           </div>
-          <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {ok ? (
-          <div className="flex items-center gap-2 text-emerald-600 font-medium">
+          <div className="flex items-center gap-2 text-success font-medium">
             <Check className="w-5 h-5" /> Senha alterada com sucesso!
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Nova senha</label>
+              <label className="text-sm font-medium text-foreground block mb-1.5">Nova senha</label>
               <Input
                 type="password"
                 value={senha}
@@ -145,7 +145,7 @@ function ModalResetSenha({
               </Button>
             </div>
             {reset.isError && (
-              <p className="text-xs text-red-500">Erro ao redefinir senha. Tente novamente.</p>
+              <p className="text-xs text-destructive">Erro ao redefinir senha. Tente novamente.</p>
             )}
           </form>
         )}
@@ -203,14 +203,14 @@ function ModalNovoToken({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+    <div className="fixed inset-0 z-50 bg-foreground/50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-lg w-full max-w-sm p-6 border border-border">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 grid place-items-center">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 grid place-items-center">
             <Plus className="w-5 h-5 text-primary" />
           </div>
-          <h2 className="font-bold text-slate-900">Novo Token de Convite</h2>
-          <button onClick={() => onClose()} className="ml-auto text-slate-400 hover:text-slate-600">
+          <h2 className="font-bold text-foreground">Novo Token de Convite</h2>
+          <button onClick={() => onClose()} className="ml-auto text-muted-foreground hover:text-foreground">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -218,16 +218,16 @@ function ModalNovoToken({
         {codigoGerado ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Token criado com sucesso! Compartilhe:</p>
-            <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-3">
-              <span className="flex-1 font-mono font-bold text-slate-900 tracking-widest text-sm">
+            <div className="flex items-center gap-2 bg-muted rounded-lg p-3">
+              <span className="flex-1 font-mono font-bold text-foreground tracking-widest text-sm">
                 {codigoGerado}
               </span>
               <button
                 onClick={copiar}
-                className="text-slate-500 hover:text-slate-800 transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 {copied ? (
-                  <Check className="w-4 h-4 text-emerald-600" />
+                  <Check className="w-4 h-4 text-success" />
                 ) : (
                   <Copy className="w-4 h-4" />
                 )}
@@ -240,7 +240,7 @@ function ModalNovoToken({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Perfil</label>
+              <label className="text-sm font-medium text-foreground block mb-1.5">Perfil</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
@@ -256,9 +256,9 @@ function ModalNovoToken({
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Município</label>
+              <label className="text-sm font-medium text-foreground block mb-1.5">Município</label>
               {municipioPadrao ? (
-                <Input value={municipioPadrao} readOnly className="bg-slate-50 text-slate-500" />
+                <Input value={municipioPadrao} readOnly className="bg-muted text-muted-foreground" />
               ) : (
                 <select
                   value={municipio}
@@ -277,7 +277,7 @@ function ModalNovoToken({
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">
+              <label className="text-sm font-medium text-foreground block mb-1.5">
                 Validade: <span className="text-primary font-bold">{horas}h</span>
               </label>
               <input
@@ -307,7 +307,7 @@ function ModalNovoToken({
               </Button>
             </div>
             {criar.isError && (
-              <p className="text-xs text-red-500">Erro ao criar token. Tente novamente.</p>
+              <p className="text-xs text-destructive">Erro ao criar token. Tente novamente.</p>
             )}
           </form>
         )}
@@ -351,7 +351,7 @@ function AbaUsuarios() {
           {busca && (
             <button
               onClick={() => setBusca('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="w-4 h-4" />
             </button>
@@ -365,8 +365,8 @@ function AbaUsuarios() {
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium border transition-colors whitespace-nowrap',
                 filtro === f.key
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border hover:bg-secondary'
               )}
             >
               {f.label}
@@ -383,7 +383,7 @@ function AbaUsuarios() {
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-          <AlertCircle className="w-8 h-8 text-red-400" />
+          <AlertCircle className="w-8 h-8 text-destructive" />
           <p>Falha ao carregar usuários.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RotateCcw className="w-4 h-4" /> Tentar novamente
@@ -406,7 +406,7 @@ function AbaUsuarios() {
             return (
               <div
                 key={u.uid}
-                className="bg-white border border-slate-200 rounded-xl overflow-hidden"
+                className="bg-card border border-border rounded-lg overflow-hidden"
               >
                 {/* Linha principal */}
                 <div className="flex items-center gap-4 p-4">
@@ -416,7 +416,7 @@ function AbaUsuarios() {
                       'w-10 h-10 rounded-xl shrink-0 grid place-items-center font-bold text-sm',
                       u.isApproved
                         ? 'bg-primary/10 text-primary'
-                        : 'bg-slate-100 text-slate-500'
+                        : 'bg-muted text-muted-foreground'
                     )}
                   >
                     {iniciais(u.name)}
@@ -425,19 +425,19 @@ function AbaUsuarios() {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-900 text-sm truncate">
+                      <span className="font-semibold text-foreground text-sm truncate">
                         {u.name}
                       </span>
                       <span
                         className={cn(
                           'text-xs px-2 py-0.5 rounded-full font-medium',
-                          ROLE_COLORS[u.role] ?? 'bg-slate-100 text-slate-600'
+                          ROLE_COLORS[u.role] ?? 'bg-muted text-muted-foreground'
                         )}
                       >
                         {ROLE_LABELS[u.role] ?? u.role}
                       </span>
                       {isMaster && u.municipio && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
                           {u.municipio}
                         </span>
                       )}
@@ -451,15 +451,15 @@ function AbaUsuarios() {
                       className={cn(
                         'text-xs font-semibold px-2.5 py-1 rounded-full',
                         u.isApproved
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-amber-50 text-amber-700'
+                          ? 'bg-success-soft text-success'
+                          : 'bg-warning-soft text-warning'
                       )}
                     >
                       {u.isApproved ? 'Ativo' : 'Pendente'}
                     </span>
                     <button
                       onClick={() => setExpandido(isExpanded ? null : u.uid)}
-                      className="text-slate-400 hover:text-slate-600"
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       {isExpanded ? (
                         <ChevronUp className="w-4 h-4" />
@@ -472,7 +472,7 @@ function AbaUsuarios() {
 
                 {/* Ações (expandido) */}
                 {isExpanded && (
-                  <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 flex flex-wrap items-center gap-3">
+                  <div className="border-t border-border bg-muted px-4 py-3 flex flex-wrap items-center gap-3">
                     {/* Toggle aprovação */}
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">
@@ -485,13 +485,13 @@ function AbaUsuarios() {
                         disabled={aprovando}
                         className={cn(
                           'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
-                          u.isApproved ? 'bg-primary' : 'bg-slate-300',
+                          u.isApproved ? 'bg-primary' : 'bg-secondary',
                           aprovando && 'opacity-50 cursor-not-allowed'
                         )}
                       >
                         <span
                           className={cn(
-                            'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
+                            'inline-block h-4 w-4 rounded-full bg-background shadow transition-transform duration-200',
                             u.isApproved ? 'translate-x-4' : 'translate-x-0'
                           )}
                         />
@@ -564,22 +564,22 @@ function AbaTokens() {
     }
 
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4">
+      <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-mono font-bold text-slate-900 text-sm tracking-wide">
+            <span className="font-mono font-bold text-foreground text-sm tracking-wide">
               {t.codigo}
             </span>
             <span
               className={cn(
                 'text-xs px-2 py-0.5 rounded-full font-medium',
-                ROLE_COLORS[t.role] ?? 'bg-slate-100 text-slate-600'
+                ROLE_COLORS[t.role] ?? 'bg-muted text-muted-foreground'
               )}
             >
               {ROLE_LABELS[t.role] ?? t.role}
             </span>
             {t.municipio && (
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
                 {t.municipio}
               </span>
             )}
@@ -594,11 +594,11 @@ function AbaTokens() {
           {secao === 'ativo' && (
             <button
               onClick={copiar}
-              className="text-slate-400 hover:text-slate-700 transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
               title="Copiar código"
             >
               {copied ? (
-                <Check className="w-4 h-4 text-emerald-600" />
+                <Check className="w-4 h-4 text-success" />
               ) : (
                 <Copy className="w-4 h-4" />
               )}
@@ -608,7 +608,7 @@ function AbaTokens() {
             <button
               onClick={() => cancelar.mutate(t.codigo)}
               disabled={cancelar.isPending}
-              className="text-slate-400 hover:text-red-500 transition-colors"
+              className="text-muted-foreground hover:text-destructive transition-colors"
               title="Cancelar token"
             >
               <Trash2 className="w-4 h-4" />
@@ -633,7 +633,7 @@ function AbaTokens() {
     return (
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
             {titulo}{' '}
             <span className="font-normal text-muted-foreground normal-case">({lista.length})</span>
           </h3>
@@ -641,7 +641,7 @@ function AbaTokens() {
             <button
               onClick={() => limpar.mutate(podeLimpar)}
               disabled={limpar.isPending}
-              className="text-xs text-muted-foreground hover:text-red-500 flex items-center gap-1 transition-colors"
+              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors"
             >
               <Trash2 className="w-3 h-3" />
               Limpar todos
@@ -681,7 +681,7 @@ function AbaTokens() {
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-          <AlertCircle className="w-8 h-8 text-red-400" />
+          <AlertCircle className="w-8 h-8 text-destructive" />
           <p>Falha ao carregar tokens.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RotateCcw className="w-4 h-4" /> Tentar novamente
@@ -721,14 +721,14 @@ export function UsuariosPage() {
     <div>
       {/* Cabeçalho */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Usuários</h1>
+        <h1 className="text-2xl font-bold text-foreground">Usuários</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Gerencie usuários e tokens de convite do sistema
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-200 mb-6">
+      <div className="flex gap-1 border-b border-border mb-6">
         {abas.map((a) => (
           <button
             key={a.key}
@@ -737,7 +737,7 @@ export function UsuariosPage() {
               'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
               aba === a.key
                 ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-slate-700'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             <a.icon className="w-4 h-4" />

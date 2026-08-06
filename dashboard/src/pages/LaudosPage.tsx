@@ -29,10 +29,10 @@ type VistoriaLaudo = {
 type FiltroPeriodo = '7d' | '30d' | '90d' | 'todos';
 
 const RISCO_CONFIG: Record<string, { bg: string; text: string }> = {
-  r1: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
-  r2: { bg: 'bg-yellow-50',  text: 'text-yellow-700'  },
-  r3: { bg: 'bg-orange-50',  text: 'text-orange-700'  },
-  r4: { bg: 'bg-red-50',     text: 'text-red-700'     },
+  r1: { bg: 'bg-success-soft', text: 'text-success' },
+  r2: { bg: 'bg-warning-soft',  text: 'text-warning'  },
+  r3: { bg: 'bg-warning-soft',  text: 'text-warning'  },
+  r4: { bg: 'bg-destructive-soft',     text: 'text-destructive'     },
 };
 const RISCO_LABEL: Record<string, string> = {
   r1: 'R1', r2: 'R2', r3: 'R3', r4: 'R4',
@@ -104,12 +104,12 @@ function LinhaLaudo({ v, isMaster }: { v: VistoriaLaudo; isMaster: boolean }) {
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
       {/* Linha principal */}
       <div className="flex items-center gap-4 px-4 py-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <span className="font-semibold text-slate-900 text-sm truncate">
+            <span className="font-semibold text-foreground text-sm truncate">
               {endereco}
             </span>
             {rc && (
@@ -118,7 +118,7 @@ function LinhaLaudo({ v, isMaster }: { v: VistoriaLaudo; isMaster: boolean }) {
               </span>
             )}
             {isMaster && v.municipio && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
                 {v.municipio}
               </span>
             )}
@@ -139,14 +139,14 @@ function LinhaLaudo({ v, isMaster }: { v: VistoriaLaudo; isMaster: boolean }) {
           <DocBadge label="Termo" gerado={!!v.termo_gerado_em} />
         </div>
 
-        <button onClick={() => setExpandido(!expandido)} className="text-slate-400 hover:text-slate-600 shrink-0">
+        <button onClick={() => setExpandido(!expandido)} className="text-muted-foreground hover:text-foreground shrink-0">
           {expandido ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
       {/* Expandido */}
       {expandido && (
-        <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 space-y-3">
+        <div className="border-t border-border bg-secondary px-4 py-3 space-y-3">
           <div className="grid grid-cols-3 gap-3 text-xs">
             <DetalheDoc
               label="Laudo Técnico"
@@ -158,7 +158,7 @@ function LinhaLaudo({ v, isMaster }: { v: VistoriaLaudo; isMaster: boolean }) {
             <DetalheDoc label="Relatório de Vistoria" timestamp={v.relatorio_gerado_em} />
             <DetalheDoc label="Termo de Interdição" timestamp={v.termo_gerado_em} />
           </div>
-          {erro && <p className="text-xs text-red-500">{erro}</p>}
+          {erro && <p className="text-xs text-destructive">{erro}</p>}
         </div>
       )}
     </div>
@@ -169,7 +169,7 @@ function DocBadge({ label, gerado }: { label: string; gerado: boolean }) {
   return (
     <div className={cn(
       'flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
-      gerado ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'
+      gerado ? 'bg-success-soft text-success' : 'bg-secondary text-muted-foreground'
     )}>
       {gerado
         ? <CheckCircle2 className="w-3 h-3" />
@@ -189,10 +189,10 @@ function DetalheDoc({
   baixando?: boolean;
 }) {
   return (
-    <div className={cn('rounded-lg p-3 border', timestamp ? 'bg-white border-slate-200' : 'bg-slate-100 border-transparent')}>
+    <div className={cn('rounded-lg p-3 border', timestamp ? 'bg-card border-border' : 'bg-secondary border-transparent')}>
       <div className="flex items-center gap-1.5 mb-1">
-        <FileText className={cn('w-3.5 h-3.5', timestamp ? 'text-primary' : 'text-slate-400')} />
-        <span className={cn('font-semibold', timestamp ? 'text-slate-800' : 'text-slate-400')}>{label}</span>
+        <FileText className={cn('w-3.5 h-3.5', timestamp ? 'text-primary' : 'text-muted-foreground')} />
+        <span className={cn('font-semibold', timestamp ? 'text-foreground' : 'text-muted-foreground')}>{label}</span>
       </div>
       {timestamp ? (
         <>
@@ -209,7 +209,7 @@ function DetalheDoc({
           )}
         </>
       ) : (
-        <p className="text-slate-400">Não gerado</p>
+        <p className="text-muted-foreground">Não gerado</p>
       )}
     </div>
   );
@@ -248,7 +248,7 @@ export function LaudosPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Laudos</h1>
+        <h1 className="text-2xl font-bold text-foreground">Laudos</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Documentos gerados nas vistorias (laudo técnico, relatório e termo)
         </p>
@@ -265,7 +265,7 @@ export function LaudosPage() {
             className="pl-9"
           />
           {busca && (
-            <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-700">
+            <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               <X className="w-4 h-4" />
             </button>
           )}
@@ -278,8 +278,8 @@ export function LaudosPage() {
                 className={cn(
                   'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
                   periodo === p.key
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-card text-muted-foreground border-border hover:bg-secondary'
                 )}>
                 {p.label}
               </button>
@@ -291,7 +291,7 @@ export function LaudosPage() {
               value={municipioFiltro}
               onChange={(e) => setMunicipioFiltro(e.target.value)}
               placeholder="Filtrar município..."
-              className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring w-44"
+              className="h-8 px-3 rounded-lg border border-border bg-card text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-44"
             />
           )}
         </div>
@@ -305,7 +305,7 @@ export function LaudosPage() {
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
-          <AlertCircle className="w-8 h-8 text-red-400" />
+          <AlertCircle className="w-8 h-8 text-destructive" />
           <p>Falha ao carregar laudos.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RotateCcw className="w-4 h-4" /> Tentar novamente
