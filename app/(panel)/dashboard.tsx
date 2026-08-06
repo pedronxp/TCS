@@ -81,6 +81,7 @@ export default function DashboardScreen() {
     }
     if (!profile) return;
     if (profile.role === 'master_admin') { router.replace('/(panel)/master'); return; }
+    if (profile.role === 'owner') { router.replace('/(panel)/master'); return; }
     if (profile.role === 'admin') { router.replace('/(panel)/admin'); return; }
     if (profile.role === 'supervisor') { router.replace('/(panel)/supervisor'); return; }
     if (localTestMode) {

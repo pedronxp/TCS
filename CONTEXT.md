@@ -157,7 +157,7 @@ uid UUID PRIMARY KEY,       -- = auth.uid()
 email TEXT,
 name TEXT,                  -- NÃO full_name
 username TEXT NOT NULL,
-role TEXT,                  -- 'agent' | 'supervisor' | 'admin' | 'master_admin'
+role TEXT,                  -- 'agent' | 'supervisor' | 'admin' | 'master_admin' | 'owner'
 municipio TEXT,
 "isApproved" BOOLEAN,       -- camelCase!
 "lastLogin" TIMESTAMPTZ,
@@ -291,9 +291,11 @@ nivel TEXT
 ```typescript
 // dashboard.tsx faz redirect automático:
 if (role === 'master_admin') router.replace('/(panel)/master');
+if (role === 'owner')        router.replace('/(panel)/master'); // owner → mesmo painel que master_admin
 if (role === 'admin')        router.replace('/(panel)/admin');
 if (role === 'supervisor')   router.replace('/(panel)/supervisor');
 // agent: fica no dashboard normal
+// NOTA: owner não requer isApproved === true para autenticar (_layout.tsx trata role === 'owner' como autenticado)
 ```
 
 ### Offline-First (SQLite)
