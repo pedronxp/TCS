@@ -73,3 +73,6 @@ tmp/
 
 # Local Netlify folder
 .netlify
+
+# MCP configuration with secrets
+.mcp.json
