@@ -39,7 +39,7 @@ const calcularForca = (s: string): 0 | 1 | 2 => {
 const LGPD_SECTIONS = [
   {
     titulo: '1. Identificação do Controlador',
-    texto: 'O sistema TCS — Relatório e Risco é operado pela Defesa Civil Municipal, responsável pelo tratamento dos dados pessoais coletados neste aplicativo, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados — LGPD).',
+    texto: 'O sistema TCS — Relatório de Risco é operado pela Defesa Civil Municipal, responsável pelo tratamento dos dados pessoais coletados neste aplicativo, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados — LGPD).',
   },
   {
     titulo: '2. Dados Coletados',

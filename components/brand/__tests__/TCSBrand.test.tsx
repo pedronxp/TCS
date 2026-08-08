@@ -9,13 +9,13 @@ describe('TCS brand primitives', () => {
   it('renders the approved product hierarchy in the hero variant', () => {
     const view = render(<ProductIdentity variant="hero" />);
     expect(view.getAllByText('TCS').length).toBeGreaterThan(0);
-    expect(view.getByText('RELATÓRIO E RISCO')).toBeTruthy();
+    expect(view.getByText('RELATÓRIO DE RISCO')).toBeTruthy();
     expect(view.getByText('Plataforma de vistoria técnica para Defesa Civil')).toBeTruthy();
   });
 
   it('keeps the mark compact without municipal identity', () => {
     const view = render(<TCSMark size={48} />);
-    expect(view.getByLabelText('TCS Relatório e Risco')).toBeTruthy();
+    expect(view.getByLabelText('TCS Relatório de Risco')).toBeTruthy();
     expect(view.queryByText(/Municipal/i)).toBeNull();
   });
 
@@ -29,7 +29,7 @@ describe('TCS brand primitives', () => {
   it('renders branded boot feedback instead of a spinner-only screen', () => {
     const view = render(<OpeningBoot />);
     expect(view.getByLabelText('Inicializando TCS')).toBeTruthy();
-    expect(view.getByText('RELATÓRIO E RISCO')).toBeTruthy();
+    expect(view.getByText('RELATÓRIO DE RISCO')).toBeTruthy();
     expect(view.getByLabelText('Carregando')).toBeTruthy();
   });
 });

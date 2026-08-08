@@ -1,9 +1,19 @@
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Check, ClipboardCheck, Database, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { TcsMark } from '@/components/brand/TcsMark';
 import { AppExperienceShowcase } from '@/components/public/AppExperienceShowcase';
 import { PUBLIC_PLANS } from '@/config/publicPlans';
+import { supabase, supabaseConfigurationAvailable } from '@/lib/supabase';
+
+interface PublicMarketingSnapshot {
+  total_vistorias: number;
+  pendencias: number;
+  agentes: number;
+  latest_protocols: Array<{ protocolo: string; risco: string }>;
+  updated_at: string;
+}
 
 const benefits = [
   {
@@ -350,6 +360,9 @@ export function CommercialPage() {
 }
 
 function ProductPreview() {
+  const { snapshot, loading } = usePublicMarketingSnapshot();
+  const protocols = snapshot?.latest_protocols ?? [];
+
   return (
     <div
       aria-label="Prévia da operação municipal"
@@ -378,21 +391,21 @@ function ProductPreview() {
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-2.5">
-          <PreviewMetric value="248" label="Vistorias" />
-          <PreviewMetric value="12" label="Pendências" />
-          <PreviewMetric value="8" label="Equipes" />
+          <PreviewMetric value={formatMetric(snapshot?.total_vistorias, loading)} label="Vistorias" />
+          <PreviewMetric value={formatMetric(snapshot?.pendencias, loading)} label="Pendências" />
+          <PreviewMetric value={formatMetric(snapshot?.agentes, loading)} label="Agentes" />
         </div>
 
-        <div className="relative mt-5 h-[210px] overflow-hidden rounded-lg border bg-secondary">
+        <div className="relative mt-5 h-[210px] overflow-hidden rounded-lg border bg-secondary" aria-label="Protocolos recentes de vistoria">
           <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(hsl(var(--primary)/.09)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary)/.09)_1px,transparent_1px)] [background-size:32px_32px]" />
           <div className="absolute left-[8%] top-[58%] h-px w-[88%] -rotate-[12deg] bg-primary/25" />
           <div className="absolute left-[26%] top-[10%] h-[90%] w-px rotate-[18deg] bg-primary/20" />
-          <MapDot className="left-[18%] top-[58%]" />
-          <MapDot className="left-[42%] top-[34%]" />
-          <MapDot className="left-[63%] top-[62%]" emphasized />
-          <MapDot className="left-[80%] top-[28%]" />
+          <MapDot className="left-[18%] top-[58%]" item={protocols[3]} />
+          <MapDot className="left-[42%] top-[34%]" item={protocols[2]} labelAbove />
+          <MapDot className="left-[63%] top-[62%]" item={protocols[1]} />
+          <MapDot className="left-[80%] top-[28%]" item={protocols[0]} labelAbove alignEnd />
           <div className="absolute bottom-3 left-3 rounded-md bg-card/90 px-3 py-2 text-[10px] font-semibold text-muted-foreground ">
-            Cobertura territorial · 84%
+            {loading ? 'Atualizando dados oficiais…' : 'Dados oficiais · atualização automática'}
           </div>
         </div>
       </div>
@@ -400,14 +413,78 @@ function ProductPreview() {
   );
 }
 
-function MapDot({ className, emphasized = false }: { className: string; emphasized?: boolean }) {
+function MapDot({
+  className,
+  item,
+  labelAbove = false,
+  alignEnd = false,
+}: {
+  className: string;
+  item?: { protocolo: string; risco: string };
+  labelAbove?: boolean;
+  alignEnd?: boolean;
+}) {
+  if (!item) return null;
+  const riskColor = item.risco === 'r4'
+    ? 'bg-destructive'
+    : item.risco === 'r3'
+      ? 'bg-warning'
+      : item.risco === 'r2'
+        ? 'bg-primary'
+        : 'bg-success';
+
   return (
     <span
-      className={`absolute h-3 w-3 rounded-full border-2 border-card  ${
-        emphasized ? 'bg-success' : 'bg-primary'
-      } ${className}`}
-    />
+      className={`absolute flex flex-col items-center gap-1 ${labelAbove ? 'flex-col-reverse' : ''} ${className}`}
+      aria-label={`Ponto de vistoria ${item.protocolo.toUpperCase()}`}
+    >
+      <span className={`h-3 w-3 shrink-0 rounded-full border-2 border-card ${riskColor}`} />
+      <span className={`whitespace-nowrap rounded bg-card/95 px-1.5 py-1 text-[8px] font-bold leading-none text-foreground shadow-sm ${alignEnd ? '-translate-x-1/3' : ''}`}>
+        {item.protocolo.toUpperCase()}
+      </span>
+    </span>
   );
+}
+
+function formatMetric(value: number | undefined, loading: boolean) {
+  if (typeof value === 'number') return new Intl.NumberFormat('pt-BR').format(value);
+  return loading ? '…' : '—';
+}
+
+function usePublicMarketingSnapshot() {
+  const [snapshot, setSnapshot] = useState<PublicMarketingSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!supabaseConfigurationAvailable || import.meta.env.MODE === 'test') {
+      setLoading(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('public_marketing_snapshot')
+      .select('total_vistorias, pendencias, agentes, latest_protocols, updated_at')
+      .eq('id', true)
+      .maybeSingle();
+    if (!error && data && typeof data === 'object' && !Array.isArray(data)) {
+      setSnapshot(data as unknown as PublicMarketingSnapshot);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [refresh]);
+
+  return { snapshot, loading };
 }
 
 function PreviewMetric({ value, label }: { value: string; label: string }) {

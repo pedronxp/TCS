@@ -25,7 +25,7 @@ describe('public TCS entry', () => {
 
   it('shows the approved hierarchy and no personal credit', () => {
     const view = render(<WelcomeScreen />);
-    expect(view.getByText('RELATÓRIO E RISCO')).toBeTruthy();
+    expect(view.getByText('RELATÓRIO DE RISCO')).toBeTruthy();
     expect(view.getByText('Plataforma de vistoria técnica para Defesa Civil')).toBeTruthy();
     expect(view.queryByText(/Pedronxp/i)).toBeNull();
     expect(view.queryByText(/Defesa Civil Municipal/i)).toBeNull();

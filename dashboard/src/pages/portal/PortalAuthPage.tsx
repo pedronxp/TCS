@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { TcsMark } from '@/components/brand/TcsMark';
+import { GoogleMark } from '@/components/brand/GoogleMark';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -41,6 +42,20 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   async function useAnotherAccount() {
     await signOut();
     navigate('/entrar', { replace: true });
+  }
+
+  if (loading) {
+    return (
+      <AuthFrame>
+        <Card className="w-full max-w-[460px]">
+          <CardContent className="flex min-h-48 flex-col items-center justify-center gap-3 text-center" role="status">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="font-semibold">Confirmando seu acesso</p>
+            <p className="text-sm text-muted-foreground">Aguarde enquanto direcionamos sua conta para o ambiente correto.</p>
+          </CardContent>
+        </Card>
+      </AuthFrame>
+    );
   }
 
   if (!loading && session && (
@@ -263,6 +278,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
           </form>
           <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
           <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting}>
+            <GoogleMark />
             Continuar com Google
           </Button>
           <p className="mt-6 text-center text-sm text-muted-foreground">

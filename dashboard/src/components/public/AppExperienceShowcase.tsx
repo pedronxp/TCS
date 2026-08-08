@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Bell, CheckCircle2, ClipboardCheck, MapPin, ShieldCheck, UserRound } from 'lucide-react';
 import { TcsMark } from '@/components/brand/TcsMark';
+import { GoogleMark } from '@/components/brand/GoogleMark';
 
 export function AppExperienceShowcase() {
   return (
@@ -17,12 +18,12 @@ export function AppExperienceShowcase() {
             <div className="flex flex-col items-center px-5 pb-5 pt-8 text-center">
               <TcsMark size={68} />
               <p className="mt-4 text-xl font-bold text-foreground">Bem-vindo ao TCS</p>
-              <p className="mt-1 text-xs text-muted-foreground">Relatório e Risco</p>
+              <p className="mt-1 text-xs text-muted-foreground">Relatório de Risco</p>
               <div className="mt-6 w-full space-y-2">
                 <MockInput text="E-mail" />
                 <MockInput text="Senha" />
                 <div className="rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground">Entrar</div>
-                <div className="rounded-xl border px-4 py-3 text-xs font-semibold text-foreground">Continuar com Google</div>
+                <div className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-semibold text-foreground"><GoogleMark />Continuar com Google</div>
               </div>
               <p className="mt-5 text-[10px] text-muted-foreground">Criar conta · Recuperar senha</p>
             </div>

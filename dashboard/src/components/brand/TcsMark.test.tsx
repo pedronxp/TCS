@@ -7,7 +7,7 @@ import { TcsMark } from './TcsMark';
 describe('TcsMark', () => {
   it('usa a marca oficial do sistema', () => {
     render(<TcsMark />);
-    const logo = screen.getByRole('img', { name: 'TCS — Relatório e Risco' });
+    const logo = screen.getByRole('img', { name: 'TCS — Relatório de Risco' });
     expect(logo.querySelector('img')?.getAttribute('src')).toBe('/tcs-system-logo.png');
   });
 

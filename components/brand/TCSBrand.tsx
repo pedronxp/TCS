@@ -27,7 +27,7 @@ export function TCSMark({ size = 96 }: { size?: number }) {
   return (
     <View
       accessibilityRole="image"
-      accessibilityLabel="TCS Relatório e Risco"
+      accessibilityLabel="TCS Relatório de Risco"
       style={[
         styles.markFrame,
         {
@@ -64,7 +64,7 @@ export function ProductIdentity({ variant = 'hero' }: { variant?: BrandVariant }
         >
           TCS
         </Text>
-        <Text style={[styles.productName, { color: theme.primary }]}>RELATÓRIO E RISCO</Text>
+        <Text style={[styles.productName, { color: theme.primary }]}>RELATÓRIO DE RISCO</Text>
         {!compact && !boot ? (
           <Text style={[styles.descriptor, { color: theme.textSecondary }]}>Plataforma de vistoria técnica para Defesa Civil</Text>
         ) : null}

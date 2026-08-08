@@ -23,6 +23,7 @@ import {
   requestCustomerPasswordRecovery,
   translateCustomerIdentityError,
 } from '../../services/CustomerAuthService';
+import { GoogleMark } from '../../components/brand';
 
 const ROLE_LABELS: Record<string, string> = {
   agent: 'Agente de Campo',
@@ -368,6 +369,7 @@ export default function PerfilScreen() {
 
           <SettingsRow
             icon={googleLinked ? 'check-circle' : 'link-2'}
+            iconElement={googleLinked ? undefined : <GoogleMark size={20} />}
             title="Conta Google"
             description={
               googleLinked
@@ -501,6 +503,7 @@ function SettingsRow({
   loading = false,
   success = false,
   trailingIcon = 'chevron-right',
+  iconElement,
 }: {
   icon: React.ComponentProps<typeof Feather>['name'];
   title: string;
@@ -511,6 +514,7 @@ function SettingsRow({
   loading?: boolean;
   success?: boolean;
   trailingIcon?: React.ComponentProps<typeof Feather>['name'];
+  iconElement?: React.ReactNode;
 }) {
   const accent = success ? theme.success : theme.primary;
   return (
@@ -523,10 +527,15 @@ function SettingsRow({
       style={[styles.settingsRow, disabled && !success && styles.disabledRow]}
       onPress={onPress}
     >
-      <View style={[styles.rowIcon, { backgroundColor: `${accent}14` }]}>
+      <View style={[
+        styles.rowIcon,
+        iconElement
+          ? { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', borderWidth: 1 }
+          : { backgroundColor: `${accent}14` },
+      ]}>
         {loading
           ? <ActivityIndicator size="small" color={accent} />
-          : <Feather name={icon} size={18} color={accent} />}
+          : iconElement ?? <Feather name={icon} size={18} color={accent} />}
       </View>
       <View style={styles.rowCopy}>
         <Text style={[styles.rowTitle, { color: success ? theme.success : theme.text }]}>{title}</Text>

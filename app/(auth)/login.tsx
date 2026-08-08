@@ -7,7 +7,7 @@ import { supabase } from '../../utils/supabase';
 import { traduzirErroAuth } from '../../utils/authErrors';
 import { recordLoginAttempt, getLoginBlockedUntil, clearLoginAttempts } from '../../utils/loginRateLimit';
 import { registrarAuditoria } from '../../utils/auditLogger';
-import { ProductIdentity } from '../../components/brand';
+import { GoogleMark, ProductIdentity } from '../../components/brand';
 import { Button, Card, FormField, StateBanner } from '../../components/ui';
 import { useTheme } from '../../context/ThemeContext';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -233,7 +233,7 @@ export default function LoginScreen() {
                     loading={googleLoading}
                     disabled={googleLoading || loading}
                     onPress={handleGoogle}
-                    iconLeft={<Feather name="chrome" size={18} color={theme.primaryDark} />}
+                    iconLeft={<GoogleMark size={18} />}
                   >
                     Continuar com Google
                   </Button>
