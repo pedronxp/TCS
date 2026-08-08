@@ -4,6 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../utils/supabase';
 import { isDeveloperSession, isLocalTestSession } from '../utils/localTestMode';
 import { clearLocalTestSessionData } from '../services/LocalTestDataService';
+import {
+  buildInternalOwnerAppProfile,
+  type InternalStaffProfilePayload,
+} from '../services/AppProfileService';
 
 export interface UserProfile {
   uid: string;
@@ -82,6 +86,29 @@ async function fetchProfile(userId: string): Promise<FetchProfileResult> {
   }
 }
 
+async function fetchAuthorizedProfile(session: Session): Promise<FetchProfileResult> {
+  const legacyProfile = await fetchProfile(session.user.id);
+  if (legacyProfile !== null) return legacyProfile;
+
+  try {
+    const queryPromise = supabase.rpc('get_internal_staff_profile');
+    const timeoutPromise = new Promise<'timeout'>(resolve =>
+      setTimeout(() => resolve('timeout'), 10000)
+    );
+    const result = await Promise.race([queryPromise, timeoutPromise]);
+    if (result === 'timeout') return 'timeout';
+
+    const { data, error } = result;
+    if (error) return null;
+    return buildInternalOwnerAppProfile(
+      session,
+      data as InternalStaffProfilePayload | null,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -129,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         await prepareLocalSession(sess);
 
-        const profileResult = await fetchProfile(sess.user.id);
+        const profileResult = await fetchAuthorizedProfile(sess);
 
         if (profileResult === 'timeout') {
           // Offline ou rede indisponível — tentar cache
@@ -169,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async (event, sess) => {
         if (event === 'SIGNED_IN' && sess) {
           await prepareLocalSession(sess);
-          const profileResult = await fetchProfile(sess.user.id);
+          const profileResult = await fetchAuthorizedProfile(sess);
           if (profileResult === 'timeout') {
             const cached = await loadProfileFromCache(sess.user.id);
             if (cached?.isApproved) {
@@ -195,7 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.removeItem('@sync_user_name').catch(() => {});
         } else if (event === 'TOKEN_REFRESHED' && sess) {
           setSession(sess);
-          const profileResult = await fetchProfile(sess.user.id);
+          const profileResult = await fetchAuthorizedProfile(sess);
           if (profileResult === 'timeout') {
             // Offline: manter perfil atual
           } else if (profileResult) {
@@ -225,7 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async () => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession) return;
-    const profileResult = await fetchProfile(currentSession.user.id);
+    const profileResult = await fetchAuthorizedProfile(currentSession);
     if (profileResult && profileResult !== 'timeout') {
       setProfile(profileResult);
       if (profileResult.isApproved) await saveProfileToCache(profileResult);
