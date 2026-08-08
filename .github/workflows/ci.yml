@@ -41,7 +41,7 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key' }}
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage
@@ -157,7 +157,7 @@ jobs:
         run: npm run test:visual
 
       - name: Upload visual regression diagnostics
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure() && steps.dashboard_changes.outputs.changed == 'true'
         with:
           name: dashboard-visual-regression
