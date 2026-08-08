@@ -24,6 +24,10 @@ import { useSubscription } from '../../../context/SubscriptionContext';
 import { FontSize, FontWeight } from '../../../constants/Typography';
 import { Spacing, SpacingAlias } from '../../../constants/Spacing';
 
+function colorWithAlpha(color: string, alpha: string): string {
+  return /^#[0-9A-Fa-f]{6}$/.test(color) ? `${color}${alpha}` : color;
+}
+
 // ─── Built-in JSON form catalog (mirrors formularios_list_screen.dart) ─────────
 const FORMULARIOS_BUILTIN = [
   {
@@ -118,7 +122,7 @@ const getFormIcon = (item: FormularioItem): string => {
 };
 
 export default function SelecaoFormularioScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { isTrainingActive, session: trainingSession } = useTraining();
@@ -292,19 +296,21 @@ export default function SelecaoFormularioScreen() {
 
         {builtinForms.map(f => {
           const sel = selected === f.id;
+          const accent = f.iconColor || theme.primary;
+          const iconBackground = colorWithAlpha(accent, isDark ? (sel ? '36' : '20') : (sel ? '24' : '14'));
           return (
             <Pressable key={f.id} onPress={() => setSelected(f.id)} accessibilityRole="radio" accessibilityState={{ checked: sel }}>
-              <Card style={{ ...styles.formCard, borderColor: sel ? theme.primary : theme.cardBorder, backgroundColor: sel ? theme.secondary : theme.surface }}>
+              <Card style={{ ...styles.formCard, borderColor: sel ? accent : theme.cardBorder, backgroundColor: sel ? colorWithAlpha(accent, isDark ? '14' : '0A') : theme.surface }}>
                 <View style={styles.formRow}>
-                  <View style={[styles.formIcon, { backgroundColor: sel ? theme.primary : theme.secondary }]}>
-                    <MaterialCommunityIcons name={f.icon as any} size={25} color={sel ? theme.onPrimary : theme.primary} />
+                  <View style={[styles.formIcon, { backgroundColor: iconBackground }]}>
+                    <MaterialCommunityIcons name={f.icon as any} size={25} color={accent} />
                   </View>
                   <View style={styles.formCopy}>
                     <Text style={[styles.formTitle, { color: theme.text }]}>{f.titulo}</Text>
                     <Text style={[styles.formDescription, { color: theme.textSecondary }]}>{f.descricao}</Text>
                   </View>
                   {sel
-                    ? <View style={[styles.selectedMark, { backgroundColor: theme.primary }]}><Feather name="check" size={16} color={theme.onPrimary} /></View>
+                    ? <View style={[styles.selectedMark, { backgroundColor: accent }]}><Feather name="check" size={16} color={theme.onPrimary} /></View>
                     : <View style={[styles.unselectedMark, { borderColor: theme.border }]} />
                   }
                 </View>

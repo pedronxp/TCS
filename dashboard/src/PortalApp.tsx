@@ -19,6 +19,7 @@ import { PortalAgendaPage } from '@/pages/portal/PortalAgendaPage';
 import { PortalTeamPage } from '@/pages/portal/PortalTeamPage';
 import { PortalSettingsPage } from '@/pages/portal/PortalSettingsPage';
 import { PortalPasswordRecoveryPage } from '@/pages/portal/PortalPasswordRecoveryPage';
+import { DocumentAcknowledgementLinkPage } from '@/pages/public/DocumentAcknowledgementLinkPage';
 import type { PortalAccountKind } from '@/types/portal';
 
 const portalQueryClient = new QueryClient({
@@ -54,6 +55,7 @@ export default function PortalApp() {
         <Route path="/redefinir-senha" element={<PortalPasswordRecoveryPage mode="reset" />} />
         <Route path="/convite/:token" element={<InviteAcceptancePage />} />
         <Route path="/checkout/retorno" element={<CheckoutReturnPage />} />
+        <Route path="/ciencia/:token" element={<DocumentAcknowledgementLinkPage />} />
 
         <Route path="/portal/individual" element={shell('individual')}>
           <Route index element={<PortalDashboardPage />} />

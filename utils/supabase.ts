@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 const PUBLIC_SUPABASE_URL = 'https://vobcapzssxchdckazfnr.supabase.co';
 const PUBLIC_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZvYmNhcHpzc3hjaGRja2F6Zm5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NzEzMjQsImV4cCI6MjA4ODI0NzMyNH0.z53oQYEwdZYId2u59oSJromLN-618D-Y_zRh2QrTkv0';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || PUBLIC_SUPABASE_URL;
+export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {

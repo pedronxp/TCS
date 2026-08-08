@@ -101,7 +101,11 @@ function RootNavigator() {
   useEffect(() => {
     if (loading || trainingLoading || !appReady) return;
 
+    let cancelled = false;
     AsyncStorage.getItem('@onboarding_done').then(val => {
+      // Ignore an async routing decision started for a route that is no longer
+      // active. This prevents a stale storage read from undoing a newer route.
+      if (cancelled) return;
       const done = val === '1';
       const segs = segmentsRef.current;          // sempre atualizado via ref
       const isAuthenticated = !!session && (profile?.isApproved === true || profile?.role === 'owner');
@@ -115,6 +119,7 @@ function RootNavigator() {
         hasPendingCustomerSession,
         hasTrainingSession,
         hasExpiredTrainingSession,
+        trainingSessionMode: trainingSession?.mode ?? null,
       });
 
       // Encerra cache local se a sessao de treinamento expirou.
@@ -124,6 +129,10 @@ function RootNavigator() {
 
       if (redirect) router.replace(redirect);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [session, profile, loading, trainingLoading, trainingSession, isTrainingActive, appReady, segmentsKey, isExpired, exit]);
 
   if (loading || trainingLoading || !appReady) {

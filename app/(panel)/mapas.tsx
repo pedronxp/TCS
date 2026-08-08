@@ -258,6 +258,7 @@ export default function MapasScreen() {
   const markerRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState<string | null>(null);
   const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
   const [agendamentos, setAgendamentos] = useState<AgendamentoMarker[]>([]);
   const [filter, setFilter]             = useState<FilterKey>('todos');
@@ -365,6 +366,7 @@ export default function MapasScreen() {
       return;
     }
     setLoading(true);
+    setLoadError(null);
     refreshMarkerRendering();
     try {
       const isAdmin = ['admin', 'master_admin', 'supervisor'].includes(profile.role);
@@ -383,7 +385,11 @@ export default function MapasScreen() {
         }
 
         const { data, error } = await query.limit(500);
-        if (!error && data) {
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
           if (!mountedRef.current) return;
           const loaded: VistoriaMarker[] = data
             .filter((v: any) => hasValidCoordinates(v.latitude, v.longitude))
@@ -540,6 +546,9 @@ export default function MapasScreen() {
       }
     } catch (e) {
       logger.error('vistoria', 'Erro ao carregar marcadores do mapa', { erro: String(e) });
+      if (mountedRef.current) {
+        setLoadError('Não foi possível carregar as vistorias online. Tente atualizar o mapa.');
+      }
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -595,6 +604,20 @@ export default function MapasScreen() {
           description="Nenhuma vistoria ou tarefa com coordenadas está salva neste aparelho."
           actionLabel="Voltar ao painel"
           onAction={() => safeBack('/(panel)/dashboard')}
+        />
+      </View>
+    );
+  }
+
+  if (loadError && filteredMarkers.length === 0 && agendamentos.length === 0) {
+    return (
+      <View style={[styles.fullCenter, { backgroundColor: theme.background }]}>
+        <EmptyState
+          icon="alert-circle"
+          title="Não foi possível carregar o mapa"
+          description={loadError}
+          actionLabel="Tentar novamente"
+          onAction={loadMarkers}
         />
       </View>
     );

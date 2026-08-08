@@ -3,6 +3,12 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
+// expo-sqlite on web loads its database engine as WebAssembly.
+// Metro does not include `.wasm` in the default asset extensions.
+if (!config.resolver.assetExts.includes('wasm')) {
+  config.resolver.assetExts.push('wasm');
+}
+
 const escapePath = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const pathToBlockListPattern = (dir) => {
   const absolutePath = path.resolve(__dirname, dir);

@@ -137,8 +137,8 @@ export default function WizardAvaliacaoScreen() {
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile, localTestMode } = useAuth();
   const { session: trainingSession, trainingProfile, isTrainingActive, isExpired, exit, revalidate } = useTraining();
-  const activeProfile = profile || trainingProfile;
-  const formalTrainingMode = !profile && isTrainingActive && !!trainingProfile;
+  const activeProfile = trainingProfile || profile;
+  const formalTrainingMode = isTrainingActive && !!trainingProfile;
   const isolatedMode = localTestMode || formalTrainingMode;
 
   const [perguntas, setPerguntas] = useState<PerguntaModel[]>([]);

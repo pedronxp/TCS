@@ -12,12 +12,28 @@ const RECOVERY_WINDOW_MS = 20 * 60 * 1000;
 const callbackOperations = new Map<string, Promise<{ session: Session | null; recovery: boolean }>>();
 const completedCallbacks = new Map<string, { session: Session | null; recovery: boolean }>();
 
-export const CUSTOMER_AUTH_CALLBACK = Linking.createURL('auth/callback', {
-  scheme: 'tcs',
-});
-export const PASSWORD_RECOVERY_CALLBACK = Linking.createURL('auth/reset-password', {
-  scheme: 'tcs',
-});
+type AuthCallbackPath = 'auth/callback' | 'auth/reset-password';
+
+function currentWebOrigin(): string {
+  const origin = (globalThis as typeof globalThis & {
+    location?: { origin?: string };
+  }).location?.origin;
+  return origin || 'https://tcsvisto.netlify.app';
+}
+
+export function buildCustomerAuthCallback(
+  path: AuthCallbackPath,
+  targetPlatform = Platform.OS,
+  webOrigin = currentWebOrigin(),
+): string {
+  if (targetPlatform === 'web') {
+    return `${webOrigin.replace(/\/$/, '')}/${path}`;
+  }
+  return Linking.createURL(path, { scheme: 'tcs' });
+}
+
+export const CUSTOMER_AUTH_CALLBACK = buildCustomerAuthCallback('auth/callback');
+export const PASSWORD_RECOVERY_CALLBACK = buildCustomerAuthCallback('auth/reset-password');
 
 export interface PublicAuthCapabilities {
   googleAuth: boolean;
@@ -121,6 +137,7 @@ async function exchangeCustomerAuthCallback(url: string): Promise<{
   session: Session | null;
   recovery: boolean;
 }> {
+  const callbackUrl = new URL(url);
   const params = parseCallbackParams(url);
   const callbackError = params.get('error_description') ?? params.get('error');
   if (callbackError) throw new Error(callbackError);
@@ -142,6 +159,15 @@ async function exchangeCustomerAuthCallback(url: string): Promise<{
     });
     if (error) throw error;
     session = data.session;
+  }
+
+  // O código PKCE é temporário e não é um token de acesso municipal. Na web,
+  // remova-o da barra de endereço assim que a troca segura for concluída.
+  if (Platform.OS === 'web' && session) {
+    const history = (globalThis as typeof globalThis & {
+      history?: { replaceState: (data: unknown, unused: string, url?: string) => void };
+    }).history;
+    history?.replaceState({}, '', callbackUrl.pathname);
   }
 
   if (session && recovery) {

@@ -8,7 +8,7 @@ export function TcsMark({ className, decorative = false, size = 42 }: TcsMarkPro
   return (
     <span
       aria-hidden={decorative || undefined}
-      aria-label={decorative ? undefined : 'TCS — Relatório e Risco'}
+      aria-label={decorative ? undefined : 'TCS — Relatório de Risco'}
       className={`relative inline-flex shrink-0 items-center justify-center ${className ?? ''}`}
       role={decorative ? undefined : 'img'}
       style={{ height: size, width: size }}

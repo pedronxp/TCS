@@ -131,6 +131,18 @@ export const routeManifest = [
     template: 'authentication',
     penpot: '32 · Conta, planos e checkout',
   }),
+  route({
+    id: 'document-acknowledgement-link',
+    path: '/ciencia/:token',
+    audience: ['anonymous'],
+    permission: null,
+    template: 'public-page',
+    penpot: '34 · Ciência eletrônica por link',
+    approvalStatus: 'approved-in-penpot',
+    automatedVisualBaselines: null,
+    visualSource: 'Penpot/TCS — Web Dashboard/34 · Ciência eletrônica por link',
+    states: ['loading', 'error', 'success'],
+  }),
   portalRoute({
     id: 'portal-individual-dashboard',
     path: '/portal/individual',

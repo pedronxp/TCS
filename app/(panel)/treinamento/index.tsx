@@ -5,16 +5,20 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../context/ThemeContext';
 import { useTraining } from '../../../context/TrainingContext';
+import { useAuth } from '../../../context/AuthContext';
 import { getTrainingVistoriasByAgente, VistoriaLocal } from '../../../utils/database';
+import { claimPublicPreviewAttempt, getPublicPreviewAccess, PublicPreviewAccess } from '../../../services/PreviewAccessService';
 import { AppHeader, Card, EmptyState, MetricCard, StateBanner } from '../../../components/ui';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 
 export default function TrainingDashboardScreen() {
   const { theme } = useTheme();
+  const { session: authSession } = useAuth();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
   const { session, trainingProfile, exit, isExpired, revalidate } = useTraining();
   const [history, setHistory] = useState<VistoriaLocal[]>([]);
+  const [previewAccess, setPreviewAccess] = useState<PublicPreviewAccess | null>(null);
   const [startingInspection, setStartingInspection] = useState(false);
   const startingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkingSessionRef = useRef(false);
@@ -28,6 +32,12 @@ export default function TrainingDashboardScreen() {
     setHistory(getTrainingVistoriasByAgente(trainingProfile.uid));
   }, [trainingProfile?.uid]);
 
+  const entryRoute = session?.mode === 'preview'
+    ? '/(auth)/preview'
+    : authSession
+      ? '/(panel)/treinamento/acesso'
+      : '/(auth)/treinamento';
+
   useFocusEffect(useCallback(() => {
     let alive = true;
 
@@ -35,7 +45,7 @@ export default function TrainingDashboardScreen() {
       if (checkingSessionRef.current) return;
       if (!session || !trainingProfile || isExpired()) {
         await exit();
-        if (alive) router.replace('/(auth)/treinamento');
+        if (alive) router.replace(entryRoute as any);
         return;
       }
 
@@ -44,11 +54,16 @@ export default function TrainingDashboardScreen() {
         loadHistory();
         const ok = await revalidate();
         if (!ok) {
-          if (alive) router.replace('/(auth)/treinamento');
+          if (alive) router.replace(entryRoute as any);
           return;
         }
 
-        if (alive) loadHistory();
+        if (alive) {
+          loadHistory();
+          if (session.mode === 'preview') {
+            void getPublicPreviewAccess(session.deviceId).then(setPreviewAccess).catch(() => null);
+          }
+        }
       } finally {
         checkingSessionRef.current = false;
       }
@@ -56,12 +71,14 @@ export default function TrainingDashboardScreen() {
 
     void checkSession();
     return () => { alive = false; };
-  }, [session?.participantId, trainingProfile?.uid, loadHistory, revalidate, exit, isExpired]));
+  }, [session?.participantId, session?.mode, session?.deviceId, trainingProfile?.uid, loadHistory, revalidate, exit, isExpired, entryRoute]));
 
   const sair = () => {
     Alert.alert(
-      'Sair do treinamento?',
-      'O acesso da turma será encerrado neste aparelho. As vistorias locais continuam salvas no histórico local enquanto o app mantiver os dados.',
+      session?.mode === 'preview' ? 'Sair do preview?' : 'Sair do treinamento?',
+      session?.mode === 'preview'
+        ? 'Você voltará à apresentação do TCS. As demonstrações permanecem somente neste aparelho.'
+        : 'O acesso da turma será encerrado neste aparelho. As vistorias locais continuam salvas no histórico local enquanto o app mantiver os dados.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Sair', style: 'destructive', onPress: () => exit().finally(() => router.replace('/(auth)')) },
@@ -69,13 +86,28 @@ export default function TrainingDashboardScreen() {
     );
   };
 
-  const iniciarVistoria = () => {
+  const iniciarVistoria = async () => {
     if (startingInspection) return;
     if (!session || !trainingProfile || isExpired()) {
-      void exit().finally(() => router.replace('/(auth)/treinamento'));
+      void exit().finally(() => router.replace(entryRoute as any));
       return;
     }
     setStartingInspection(true);
+    if (session.mode === 'preview') {
+      try {
+        const access = await claimPublicPreviewAttempt(session.deviceId);
+        setPreviewAccess(access);
+        if (!access.allowed) {
+          Alert.alert('Preview concluído', 'O limite de 2 vistorias de demonstração já foi utilizado nesta rede ou aparelho.');
+          setStartingInspection(false);
+          return;
+        }
+      } catch {
+        Alert.alert('Preview indisponível', 'Não foi possível validar a demonstração agora. Verifique a conexão e tente novamente.');
+        setStartingInspection(false);
+        return;
+      }
+    }
     router.push({
       pathname: '/(panel)/inspecoes/dados-iniciais',
       params: { treinamento: '1' },
@@ -84,7 +116,7 @@ export default function TrainingDashboardScreen() {
     startingTimerRef.current = setTimeout(() => setStartingInspection(false), 1000);
     void revalidate().then(ok => {
       if (!ok) {
-        return exit().finally(() => router.replace('/(auth)/treinamento'));
+        return exit().finally(() => router.replace(entryRoute as any));
       }
       return undefined;
     });
@@ -107,21 +139,23 @@ export default function TrainingDashboardScreen() {
       <View style={{ paddingTop: insets.top }}>
         <AppHeader
           title={`Olá, ${session.participantName.split(' ')[0]}`}
-          subtitle={`${session.className} · modo treinamento`}
+          subtitle={session.mode === 'preview' ? 'Demonstração segura · dados locais' : `${session.className} · modo treinamento`}
           actionIcon="log-out"
-          actionLabel="Sair do treinamento"
+          actionLabel={session.mode === 'preview' ? 'Sair do preview' : 'Sair do treinamento'}
           onAction={sair}
         />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}>
         <StateBanner
-          variant="success"
-          title="Aula ativa"
-          description={`Acesso disponível até ${expira}. Os dados permanecem somente neste aparelho.`}
+          variant={session.mode === 'preview' ? 'info' : 'success'}
+          title={session.mode === 'preview' ? 'Preview do TCS' : 'Aula ativa'}
+          description={session.mode === 'preview'
+            ? `${previewAccess?.remaining ?? Math.max(0, 2 - history.length)} tentativa(s) disponível(is). Nada será enviado à operação oficial.`
+            : `Acesso disponível até ${expira}. Os dados permanecem somente neste aparelho.`}
         />
 
-        <View style={[styles.statusPanel, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
+        {session.mode === 'training' && <View style={[styles.statusPanel, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.statusHeader}>
             <View style={[styles.statusIcon, { backgroundColor: theme.successLight }]}>
               <Feather name="users" size={18} color={theme.success} />
@@ -138,7 +172,7 @@ export default function TrainingDashboardScreen() {
             <Text style={[styles.metaText, { color: theme.textSecondary }]}>{Math.round(progress)}% da capacidade</Text>
             <Text style={[styles.metaText, { color: theme.success }]}>Dados locais</Text>
           </View>
-        </View>
+        </View>}
 
         <View style={styles.statsGrid}>
           <MetricCard value={history.length} label="Vistorias locais" tone="primary" style={styles.metricCard} />
@@ -159,7 +193,9 @@ export default function TrainingDashboardScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.primaryTitle, { color: theme.onPrimary }]}>Nova Vistoria</Text>
-            <Text style={[styles.primarySub, { color: `${theme.onPrimary}C7` }]}>Fluxo completo com os 2 formulários da turma</Text>
+            <Text style={[styles.primarySub, { color: `${theme.onPrimary}C7` }]}>
+              {session.mode === 'preview' ? 'Conheça o fluxo completo de demonstração' : 'Fluxo completo com os formulários da turma'}
+            </Text>
           </View>
             <Feather name="arrow-right" size={18} color={`${theme.onPrimary}C2`} />
         </TouchableOpacity>

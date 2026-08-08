@@ -2430,6 +2430,33 @@ export type Database = {
           },
         ]
       }
+      public_marketing_snapshot: {
+        Row: {
+          agentes: number
+          id: boolean
+          latest_protocols: Json
+          pendencias: number
+          total_vistorias: number
+          updated_at: string
+        }
+        Insert: {
+          agentes?: number
+          id?: boolean
+          latest_protocols?: Json
+          pendencias?: number
+          total_vistorias?: number
+          updated_at?: string
+        }
+        Update: {
+          agentes?: number
+          id?: boolean
+          latest_protocols?: Json
+          pendencias?: number
+          total_vistorias?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       notifications: {

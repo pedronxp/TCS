@@ -39,7 +39,7 @@ const calcularForca = (s: string): 0 | 1 | 2 => {
 const LGPD_SECTIONS = [
   {
     titulo: '1. Identificação do Controlador',
-    texto: 'O sistema TCS — Relatório e Risco é operado pela Defesa Civil Municipal, responsável pelo tratamento dos dados pessoais coletados neste aplicativo, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados — LGPD).',
+    texto: 'O sistema TCS — Relatório de Risco é operado pela Defesa Civil Municipal, responsável pelo tratamento dos dados pessoais coletados neste aplicativo, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados — LGPD).',
   },
   {
     titulo: '2. Dados Coletados',
@@ -81,6 +81,7 @@ const LGPD_SECTIONS = [
 
 // ─── Tipo de etapa ────────────────────────────────────────────────────────────
 type Etapa = 'form' | 'termos' | 'permissoes' | 'sucesso';
+type AccountKind = 'individual' | 'municipal';
 
 // ─── Permissão helper ─────────────────────────────────────────────────────────
 type PermStatus = 'pendente' | 'concedida' | 'negada';
@@ -103,6 +104,7 @@ export default function RegisterScreen() {
 
   // Etapa atual
   const [etapa, setEtapa] = useState<Etapa>('form');
+  const [accountKind, setAccountKind] = useState<AccountKind>('individual');
 
   // Dados do formulário
   const [token, setToken]                   = useState('');
@@ -238,17 +240,23 @@ export default function RegisterScreen() {
       setError('As senhas não coincidem. Verifique e tente novamente.');
       return;
     }
+    if (accountKind === 'municipal' && token.trim().length !== 14) {
+      setError('O convite municipal é obrigatório para este tipo de acesso.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
     try {
       let tokenData = tokenDataRef.current;
-      const codigoNorm = token.trim().toUpperCase().replace(/\s/g, ''); // mantém traços
+      const codigoNorm = accountKind === 'municipal'
+        ? token.trim().toUpperCase().replace(/\s/g, '')
+        : '';
 
       // Convites antigos permanecem opcionais durante a janela de
       // compatibilidade. Sem convite, a identidade nasce neutra e segue para
       // a escolha individual/organização no onboarding server-side.
-      if (codigoNorm && !tokenData) {
+      if (accountKind === 'municipal' && codigoNorm && !tokenData) {
         const { data: rawData2, error: valError } = await supabase
           .rpc('validate_invite_token', { p_codigo: codigoNorm })
           .single();
@@ -379,7 +387,7 @@ export default function RegisterScreen() {
       // todo o signup, sem identidade órfã e sem compensação no cliente.
 
       try {
-        if (tokenData.criadoPor) {
+        if (tokenData?.criadoPor) {
           const { data: adminData } = await supabase.rpc('get_push_token_by_uid', { p_uid: tokenData.criadoPor });
           if (adminData) {
             const { notificarNovoUsuarioCadastrado } = await import('../../services/NotificationService');
@@ -640,16 +648,42 @@ export default function RegisterScreen() {
 
           <View style={styles.titleSection}>
             <ProductIdentity variant="compact" />
-            <Text style={[styles.title, { color: theme.text }]}>Validação Segura</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Criar conta</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Crie sua conta para iniciar o onboarding. Se recebeu um convite antigo, informe-o abaixo.
+              Escolha uma conta profissional ou use o convite recebido da sua prefeitura.
             </Text>
           </View>
 
           <View style={styles.form}>
+            <View style={styles.accountChoiceGrid}>
+              <TouchableOpacity
+                style={[styles.accountChoice, { borderColor: accountKind === 'individual' ? theme.primary : theme.border, backgroundColor: theme.surfaceHighlight }]}
+                onPress={() => {
+                  setAccountKind('individual');
+                  setToken('');
+                  setTokenStatus(null);
+                  tokenDataRef.current = null;
+                  codigoNormRef.current = '';
+                  setError(null);
+                }}
+              >
+                <Feather name="user" size={21} color={theme.primary} />
+                <Text style={[styles.accountChoiceTitle, { color: theme.text }]}>Conta profissional</Text>
+                <Text style={[styles.accountChoiceText, { color: theme.textSecondary }]}>Não exige token.</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.accountChoice, { borderColor: accountKind === 'municipal' ? theme.primary : theme.border, backgroundColor: theme.surfaceHighlight }]}
+                onPress={() => { setAccountKind('municipal'); setError(null); }}
+              >
+                <Feather name="briefcase" size={21} color={theme.primary} />
+                <Text style={[styles.accountChoiceTitle, { color: theme.text }]}>Acesso municipal</Text>
+                <Text style={[styles.accountChoiceText, { color: theme.textSecondary }]}>Requer convite da organização.</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Token */}
-            <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Token de Acesso (opcional)</Text>
+            {accountKind === 'municipal' && <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Convite municipal</Text>
               <View style={[
                 styles.inputContainer,
                 {
@@ -715,7 +749,7 @@ export default function RegisterScreen() {
                   {tokenStatus.motivo}
                 </Text>
               )}
-            </View>
+            </View>}
 
             {/* Nome */}
             <View style={styles.fieldGroup}>
@@ -927,6 +961,10 @@ const styles = StyleSheet.create({
   },
   backButton: { width: 44, height: 44, justifyContent: 'center', borderRadius: 12, alignItems: 'center', borderWidth: 1 },
   titleSection: { marginBottom: 32, gap: 16 },
+  accountChoiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  accountChoice: { flex: 1, minWidth: 145, borderWidth: 1.5, borderRadius: 16, padding: 14, gap: 6 },
+  accountChoiceTitle: { fontSize: 14, fontWeight: '800' },
+  accountChoiceText: { fontSize: 12, lineHeight: 17 },
   title: { fontSize: 32, fontWeight: '700', letterSpacing: -1.0, lineHeight: 40 },
   subtitle: { fontSize: 15, fontWeight: '400', marginTop: 12, lineHeight: 22 },
   form: { gap: 20 },

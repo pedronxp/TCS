@@ -28,7 +28,7 @@ export function PublicLayout() {
             <span className="leading-none">
               <span className="block text-[15px] font-bold tracking-[-0.02em]">TCS</span>
               <span className="mt-1.5 block text-[9px] font-bold uppercase tracking-[0.13em] text-muted-foreground">
-                Relatório e Risco
+                Relatório de Risco
               </span>
             </span>
           </Link>

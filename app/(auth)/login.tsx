@@ -7,7 +7,7 @@ import { supabase } from '../../utils/supabase';
 import { traduzirErroAuth } from '../../utils/authErrors';
 import { recordLoginAttempt, getLoginBlockedUntil, clearLoginAttempts } from '../../utils/loginRateLimit';
 import { registrarAuditoria } from '../../utils/auditLogger';
-import { ProductIdentity } from '../../components/brand';
+import { GoogleMark, ProductIdentity } from '../../components/brand';
 import { Button, Card, FormField, StateBanner } from '../../components/ui';
 import { useTheme } from '../../context/ThemeContext';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -16,6 +16,7 @@ import {
   getPublicAuthCapabilities,
   signInCustomerWithGoogle,
 } from '../../services/CustomerAuthService';
+import { isNeutralCustomerProfile } from '../../services/AppProfileService';
 
 export default function LoginScreen() {
   const { theme } = useTheme();
@@ -77,13 +78,34 @@ export default function LoginScreen() {
 
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('isApproved, role')
+        .select('isApproved, role, municipio, organization_id')
         .eq('uid', data.user.id)
-        .single();
+        .maybeSingle();
+
+      if (userError) {
+        await supabase.auth.signOut();
+        throw new Error('Não foi possível validar o perfil desta conta. Tente novamente.');
+      }
 
       // Conta owner não requer aprovação manual — é aprovada pelo sistema de onboarding
       const isOwnerRole = userData?.role === 'owner';
-      if (userError || (!userData?.isApproved && !isOwnerRole)) {
+      const isNeutralCustomer = isNeutralCustomerProfile(userData);
+
+      // Proprietários criados no console web vivem em internal_staff e não
+      // precisam de uma linha duplicada em public.users. A autorização continua
+      // sendo validada pelo RPC seguro do próprio usuário autenticado.
+      if (!userData) {
+        const { data: staffData, error: staffError } = await supabase.rpc('get_internal_staff_profile');
+        const staff = staffData as { role?: string; status?: string } | null;
+        if (staffError) {
+          await supabase.auth.signOut();
+          throw new Error('Não foi possível validar o perfil desta conta. Tente novamente.');
+        }
+        if (staff && (staff.role !== 'owner' || staff.status !== 'active')) {
+          await supabase.auth.signOut();
+          throw new Error('Esta conta não possui acesso operacional ao aplicativo.');
+        }
+      } else if (!userData.isApproved && !isOwnerRole && !isNeutralCustomer) {
         await supabase.auth.signOut();
         await recordLoginAttempt(emailNorm);
         registrarAuditoria({
@@ -211,9 +233,9 @@ export default function LoginScreen() {
                     loading={googleLoading}
                     disabled={googleLoading || loading}
                     onPress={handleGoogle}
-                    iconLeft={<Feather name="chrome" size={18} color={theme.primaryDark} />}
+                    iconLeft={<GoogleMark size={18} />}
                   >
-                    Continuar com Google
+                    Entrar ou criar com Google
                   </Button>
                 </>
               ) : null}
@@ -223,7 +245,7 @@ export default function LoginScreen() {
                   Recuperar senha
                 </Button>
                 <Button variant="secondary" style={styles.linkButton} onPress={() => router.push('/(auth)/register')}>
-                  Ativar acesso
+                  Criar conta
                 </Button>
               </View>
             </View>

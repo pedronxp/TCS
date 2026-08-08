@@ -1,0 +1,7 @@
+* @pedronxp
+
+# Áreas sensíveis exigem revisão explícita do responsável.
+/.github/ @pedronxp
+/supabase/ @pedronxp
+/app.json @pedronxp
+/eas.json @pedronxp

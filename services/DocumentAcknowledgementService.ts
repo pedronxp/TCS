@@ -1,7 +1,7 @@
 import { File } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
-import { supabase } from '../utils/supabase';
+import { supabase, supabaseUrl } from '../utils/supabase';
 import { generateUUID } from '../utils/uuid';
 import {
   canonicalize,
@@ -232,6 +232,55 @@ async function ensureDocumentUploaded(document: LocalGeneratedDocument): Promise
   );
   updateGeneratedDocumentRemote(document.id, path, 'pending_upload');
   return path;
+}
+
+/** Publica somente a versão imutável do documento, sem criar um evento de ciência. */
+export async function publishGeneratedDocument(document: LocalGeneratedDocument): Promise<void> {
+  if (document.trainingMode) throw new Error('training_document_cannot_be_shared');
+  const storagePath = await ensureDocumentUploaded(document);
+  const snapshot = JSON.parse(document.contentSnapshot) as DocumentContentSnapshot;
+  const { error } = await supabase.rpc('register_generated_document', {
+    p_payload: {
+      document_id: document.id,
+      vistoria_id: document.vistoriaId,
+      document_type: document.documentType,
+      document_version: document.documentVersion,
+      template_version: document.templateVersion,
+      content_snapshot: snapshot,
+      content_hash: document.contentHash,
+      pdf_hash: document.pdfHash,
+      storage_path: storagePath,
+      byte_size: document.byteSize,
+      supersedes_id: document.supersedesId,
+      training_mode: false,
+      document_created_at_device: document.createdAtDevice,
+    },
+  });
+  if (error) throw error;
+  updateGeneratedDocumentRemote(document.id, storagePath, 'available');
+}
+
+export async function createRemoteAcknowledgementLink(
+  document: LocalGeneratedDocument,
+  expiresInHours = 72,
+): Promise<{ token: string; expiresAt: string }> {
+  await publishGeneratedDocument(document);
+  const { data, error } = await supabase.rpc('create_document_acknowledgement_link', {
+    p_document_id: document.id,
+    p_expires_in_hours: expiresInHours,
+  });
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.token || !result?.expires_at) throw new Error('remote_link_creation_failed');
+  return {
+    token: result.token as string,
+    expiresAt: result.expires_at as string,
+  };
+}
+
+export function remoteAcknowledgementUrl(token: string): string {
+  const baseUrl = process.env.EXPO_PUBLIC_DOCUMENT_ACKNOWLEDGEMENT_BASE_URL || 'https://tcsvisto.netlify.app';
+  return `${baseUrl.replace(/\/$/, '')}/ciencia/${encodeURIComponent(token)}`;
 }
 
 async function cleanupConfirmedDocument(document: LocalGeneratedDocument, remotePath: string): Promise<void> {

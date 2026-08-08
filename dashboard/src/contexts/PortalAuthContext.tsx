@@ -60,6 +60,7 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    setLoading(true);
     try {
       const internalProfile = await fetchAuthenticatedInternalProfile();
       const internalEntryContext = parseInternalCustomerEntryContext(internalProfile);

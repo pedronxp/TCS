@@ -25,24 +25,28 @@ describe('public TCS entry', () => {
 
   it('shows the approved hierarchy and no personal credit', () => {
     const view = render(<WelcomeScreen />);
-    expect(view.getByText('RELATÓRIO E RISCO')).toBeTruthy();
+    expect(view.getByText('RELATÓRIO DE RISCO')).toBeTruthy();
     expect(view.getByText('Plataforma de vistoria técnica para Defesa Civil')).toBeTruthy();
     expect(view.queryByText(/Pedronxp/i)).toBeNull();
     expect(view.queryByText(/Defesa Civil Municipal/i)).toBeNull();
   });
 
-  it('maps all entry actions to their existing routes', () => {
+  it('maps the simplified entry actions to account, preview and product routes', () => {
     const view = render(<WelcomeScreen />);
     fireEvent.press(view.getByText('ACESSAR SISTEMA'));
-    fireEvent.press(view.getByText('Ativar acesso'));
-    fireEvent.press(view.getByText('Conhecer o TCS'));
-    fireEvent.press(view.getByText('CONHECER PLANOS'));
-    fireEvent.press(view.getByText('MODO TREINAMENTO'));
+    fireEvent.press(view.getByText('Criar conta'));
+    fireEvent.press(view.getByText('Conhecer planos'));
+    fireEvent.press(view.getByText('EXPERIMENTAR O TCS'));
+    fireEvent.press(view.getByText('CONHECER A PLATAFORMA'));
     expect(mockPush).toHaveBeenNthCalledWith(1, '/(auth)/login');
     expect(mockPush).toHaveBeenNthCalledWith(2, '/(auth)/register');
-    expect(mockPush).toHaveBeenNthCalledWith(3, '/onboarding');
-    expect(mockPush).toHaveBeenNthCalledWith(4, '/(auth)/planos');
-    expect(mockPush).toHaveBeenNthCalledWith(5, '/(auth)/treinamento');
+    expect(mockPush).toHaveBeenNthCalledWith(3, '/(auth)/planos');
+    expect(mockPush).toHaveBeenNthCalledWith(4, '/(auth)/preview');
+    expect(mockPush).toHaveBeenNthCalledWith(5, '/onboarding');
+    expect(view.queryByText('Vistoria')).toBeNull();
+    expect(view.queryByText('Território')).toBeNull();
+    expect(view.queryByText('Laudos')).toBeNull();
+    expect(view.queryByText('Offline')).toBeNull();
   });
 
   it('reports offline state without claiming the system is online', () => {

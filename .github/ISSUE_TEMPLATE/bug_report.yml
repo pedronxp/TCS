@@ -1,0 +1,57 @@
+name: Bug
+description: Registrar um comportamento incorreto ou regressão
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Obrigado por registrar o problema. Não inclua senhas, tokens ou dados pessoais.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Resumo
+      description: O que aconteceu e qual era o comportamento esperado?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Como reproduzir
+      description: Informe passos curtos e determinísticos.
+      placeholder: |
+        1. Abrir...
+        2. Tocar em...
+        3. Observar...
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Área afetada
+      options:
+        - App Android
+        - App iOS
+        - Dashboard web
+        - Supabase / banco de dados
+        - GitHub Actions / entrega
+        - Outra
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão ou commit
+      placeholder: 1.3.26 ou SHA do commit
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidências
+      description: Logs, capturas ou vídeos sem dados sensíveis.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceite
+      description: Como confirmar que o problema foi resolvido?
+    validations:
+      required: true

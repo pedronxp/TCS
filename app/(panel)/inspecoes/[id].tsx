@@ -39,7 +39,7 @@ export default function VistoriaDetalhesScreen() {
   const insets = useSafeAreaInsets();
   const { initReport } = useReport();
   const { profile } = useAuth();
-  const { isTrainingActive } = useTraining();
+  const { isTrainingActive, trainingProfile } = useTraining();
   const { isOnlineReal: isConnected } = useConnectivity();
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ export default function VistoriaDetalhesScreen() {
   const [acknowledgementHistory, setAcknowledgementHistory] = useState<ReturnType<typeof listAcknowledgementHistory>>([]);
 
   useEffect(() => {
-    if (!profile && isTrainingActive) {
+    if (isTrainingActive && trainingProfile) {
       router.replace('/(panel)/treinamento');
       return;
     }

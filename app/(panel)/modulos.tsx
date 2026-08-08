@@ -41,6 +41,13 @@ const profile: ModuleItem = {
   route: '/(panel)/perfil',
 };
 
+const trainingAccess: ModuleItem = {
+  title: 'Treinamento',
+  description: 'Entrar em uma turma com código',
+  icon: 'book-open',
+  route: '/(panel)/treinamento/acesso',
+};
+
 const baseOperation: ModuleItem[] = [
   { title: 'Vistorias', description: 'Histórico, evidências e laudos', icon: 'clipboard', route: '/(panel)/inspecoes' },
   { title: 'Mapa tático', description: 'Ocorrências georreferenciadas', icon: 'map-pin', route: '/(panel)/mapas' },
@@ -80,6 +87,7 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
       },
       {
         key: 'account', title: 'Conta e atendimento', description: 'Assinatura, planos e suporte', items: [
+          trainingAccess,
           subscription,
           { title: 'Planos', description: 'Catálogo comercial', icon: 'package', route: '/(panel)/planos' },
           { title: 'Suporte', description: 'Ajuda e atendimento', icon: 'help-circle', route: '/(panel)/suporte' },
@@ -108,7 +116,7 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
           { title: 'Logs', description: 'Auditoria do sistema', icon: 'terminal', route: '/(panel)/master/logs' },
         ],
       },
-      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [subscription, profile] },
+      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingAccess, subscription, profile] },
     ];
   }
 
@@ -130,7 +138,7 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
           { title: 'Logs', description: 'Atividades recentes', icon: 'terminal', route: '/(panel)/admin/logs' },
         ],
       },
-      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [subscription, profile] },
+      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingAccess, subscription, profile] },
     ];
   }
 
@@ -143,7 +151,7 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
           { title: 'Agenda', description: 'Distribuição de tarefas', icon: 'calendar', route: '/(panel)/agendamentos' },
         ],
       },
-      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [subscription, profile] },
+      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingAccess, subscription, profile] },
     ];
   }
 
@@ -155,7 +163,7 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
         { title: 'Agenda', description: 'Tarefas atribuídas', icon: 'calendar', route: '/(panel)/agendamentos' },
       ],
     },
-    { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [subscription, profile] },
+    { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingAccess, subscription, profile] },
   ];
 }
 
