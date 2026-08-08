@@ -56,6 +56,8 @@ export interface LaudoData {
   modoTreinamento?: boolean;
   /** Traço coletado no momento da emissão, incorporado à versão imutável do PDF. */
   agentSignatureStrokes?: SignatureStroke[] | null;
+  /** Imagem de assinatura escolhida pelo agente, incorporada somente na emissão atual. */
+  agentSignatureImageBase64?: string | null;
 }
 
 /** Dados extras para o Termo de Interdição (R3/R4) */
@@ -95,6 +97,13 @@ function signatureSvg(strokes: SignatureStroke[] | null | undefined): string {
   }).join('');
   if (!paths) return '';
   return `<svg viewBox="0 0 600 180" role="img" aria-label="Assinatura manuscrita do agente" style="display:block;width:100%;height:72px">${paths}</svg>`;
+}
+
+function agentSignatureMarkup(dados: Pick<LaudoData, 'agentSignatureStrokes' | 'agentSignatureImageBase64'>): string {
+  if (dados.agentSignatureImageBase64 && /^data:image\/(?:png|jpe?g|webp);base64,/i.test(dados.agentSignatureImageBase64)) {
+    return `<img src="${dados.agentSignatureImageBase64}" alt="Assinatura do agente" style="display:block;max-width:100%;width:280px;height:72px;margin:0 auto;object-fit:contain" />`;
+  }
+  return signatureSvg(dados.agentSignatureStrokes);
 }
 
 /**
@@ -317,7 +326,7 @@ export function buildTermoInterdicaoHtml(
   </div>
 
   <div class="assinatura-section">
-    <div class="assinatura-ink">${signatureSvg(laudo.agentSignatureStrokes)}</div>
+    <div class="assinatura-ink">${agentSignatureMarkup(laudo)}</div>
     <div class="assinatura-linha"></div>
     <div class="assinatura-nome">${escapeHtml(laudo.agenteNome || '-')}</div>
     <div class="assinatura-cargo">${escapeHtml(laudo.cargo || 'Vistoriador de Proteção e Defesa Civil')}</div>
@@ -1060,7 +1069,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   <!-- ASSINATURA -->
   <div class="footer-section" style="page-break-inside: avoid;">
     <div class="sig-block">
-      <div class="sig-ink">${signatureSvg(dados.agentSignatureStrokes)}</div>
+      <div class="sig-ink">${agentSignatureMarkup(dados)}</div>
       <div class="sig-line"></div>
       <div class="sig-name">${escapeHtml(dados.agenteNome || '-')}</div>
       <div class="sig-role">${escapeHtml(dados.cargo || 'Agente de Proteção e Defesa Civil')}</div>

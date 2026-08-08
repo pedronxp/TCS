@@ -8,6 +8,7 @@ import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useTraining } from '../../../context/TrainingContext';
@@ -111,6 +112,7 @@ export default function ResultadoScreen() {
   const [vistoria, setVistoria] = useState<ReturnType<typeof normalizar> | null>(null);
   const [acknowledgementHistory, setAcknowledgementHistory] = useState<ReturnType<typeof listAcknowledgementHistory>>([]);
   const [agentSignature, setAgentSignature] = useState<SignatureStroke[]>([]);
+  const [agentSignatureImage, setAgentSignatureImage] = useState<string | null>(null);
   const [showAgentSignatureModal, setShowAgentSignatureModal] = useState(false);
   const [pendingGenerationAction, setPendingGenerationAction] = useState<'generate' | 'print' | 'share' | 'term' | null>(null);
 
@@ -341,6 +343,7 @@ export default function ResultadoScreen() {
     fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
     modoTreinamento: isolatedMode,
     agentSignatureStrokes,
+    agentSignatureImageBase64: agentSignatureImage,
   });
 
   const ensureTrainingActionsAllowed = async () => {
@@ -620,8 +623,30 @@ export default function ResultadoScreen() {
     setShowAgentSignatureModal(true);
   };
 
+  const escolherAssinaturaDaGaleria = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permissão necessária', 'Permita o acesso às fotos para escolher a imagem da assinatura.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [3, 1],
+      quality: 0.9,
+      base64: true,
+    });
+    const asset = result.assets?.[0];
+    if (result.canceled || !asset?.base64) return;
+    const mimeType = ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType || '')
+      ? asset.mimeType!
+      : 'image/jpeg';
+    setAgentSignatureImage(`data:${mimeType};base64,${asset.base64}`);
+    setAgentSignature([]);
+  };
+
   const confirmarAssinaturaAgente = () => {
-    if (agentSignature.length === 0) {
+    if (agentSignature.length === 0 && !agentSignatureImage) {
       Alert.alert('Assinatura necessária', 'O agente responsável deve assinar antes da emissão deste documento.');
       return;
     }
@@ -695,16 +720,25 @@ export default function ResultadoScreen() {
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
         {/* Status Card */}
         <View style={[styles.statusCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-          <View style={[styles.statusIcon, { backgroundColor: `${cor}15` }]}>
-            <Feather name="file-text" size={32} color={cor} />
+          <View style={styles.statusHeading}>
+            <View style={[styles.statusIcon, { backgroundColor: `${cor}15` }]}>
+              <Feather name="file-text" size={28} color={cor} />
+            </View>
+            <View style={styles.statusHeadingText}>
+              <Text style={[styles.statusEyebrow, { color: theme.textSecondary }]}>REGISTRO SALVO</Text>
+              <Text style={[styles.statusTitle, { color: theme.text }]}>Vistoria concluída</Text>
+            </View>
           </View>
-          <Badge label={isAvaliacaoArvore ? label : `Risco ${label}`} variant={riskVariant} showDot />
-          <Text style={[styles.statusTitle, { color: theme.text }]}>Vistoria Concluída</Text>
+          <View style={styles.statusRiskRow}>
+            <Badge label={isAvaliacaoArvore ? label : `Risco ${label}`} variant={riskVariant} showDot />
+            <Text style={[styles.statusScore, { color: theme.textSecondary }]}>{formatarPontuacaoRisco(vistoria?.pontuacaoTotal ?? 0)} pontos</Text>
+          </View>
           <Text style={[styles.statusDesc, { color: theme.textSecondary }]}>
             {vistoria?.endereco
-              ? `${vistoria.endereco}\n${formatarPontuacaoRisco(vistoria.pontuacaoTotal)} pontos · ${vistoria.agenteNome}`
+              ? vistoria.endereco
               : 'Dados salvos localmente. PDF disponível após sincronização.'}
           </Text>
+          {vistoria?.endereco && <Text style={[styles.statusAgent, { color: theme.textSecondary }]}>{vistoria.agenteNome || activeProfile?.name || 'Agente responsável'}</Text>}
         </View>
 
         {isAvaliacaoArvore && (
@@ -748,28 +782,29 @@ export default function ResultadoScreen() {
         />
 
         {!formalTrainingMode && (
-          <ListRow
-            title="Evidências fotográficas"
-            subtitle={displayedEvidence.length > 0
-              ? `${displayedEvidence.length} de 3 fotos registradas`
-              : 'Adicionar fotos que sustentem a avaliação'}
-            icon="camera"
-            badge={displayedEvidence.length ? String(displayedEvidence.length) : undefined}
-            onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
-          />
-        )}
-
-        {!formalTrainingMode && displayedEvidence.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.evidenceStrip}>
-            {displayedEvidence.map((uri, index) => (
-              <TouchableOpacity
-                key={`${uri}-${index}`}
-                onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
-              >
-                <Image source={{ uri }} style={styles.evidenceThumb} resizeMode="cover" />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={styles.evidenceBlock}>
+            <ListRow
+              title="Evidências fotográficas"
+              subtitle={displayedEvidence.length > 0
+                ? `${displayedEvidence.length} de 3 fotos registradas`
+                : 'Adicionar fotos que sustentem a avaliação'}
+              icon="camera"
+              badge={displayedEvidence.length ? String(displayedEvidence.length) : undefined}
+              onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+            />
+            {displayedEvidence.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.evidenceStrip}>
+                {displayedEvidence.map((uri, index) => (
+                  <TouchableOpacity
+                    key={`${uri}-${index}`}
+                    onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+                  >
+                    <Image source={{ uri }} style={styles.evidenceThumb} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
         )}
 
         {currentAcknowledgements.length > 0 && (
@@ -1093,14 +1128,41 @@ export default function ResultadoScreen() {
               </View>
               <View style={styles.signatureModalContent}>
                 <Text style={[styles.signatureNotice, { color: theme.textSecondary }]}>Assine como agente responsável pela vistoria antes de gerar, imprimir ou compartilhar.</Text>
-                <SignaturePad
-                  value={agentSignature}
-                  onChange={setAgentSignature}
-                  color={theme.text}
-                  borderColor={theme.border}
-                  backgroundColor={theme.background}
-                  textColor={theme.textSecondary}
-                />
+                {agentSignatureImage ? (
+                  <View style={[styles.signatureImagePreview, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                    <Image source={{ uri: agentSignatureImage }} style={styles.signatureImage} resizeMode="contain" />
+                  </View>
+                ) : (
+                  <SignaturePad
+                    value={agentSignature}
+                    onChange={(value) => {
+                      if (value.length > 0) setAgentSignatureImage(null);
+                      setAgentSignature(value);
+                    }}
+                    color={theme.text}
+                    borderColor={theme.border}
+                    backgroundColor={theme.background}
+                    textColor={theme.textSecondary}
+                  />
+                )}
+                <View style={styles.signatureSourceActions}>
+                  <TouchableOpacity
+                    style={[styles.signatureSourceButton, { borderColor: theme.border }]}
+                    onPress={() => void escolherAssinaturaDaGaleria()}
+                  >
+                    <Feather name="image" size={16} color={theme.primary} />
+                    <Text style={[styles.signatureSourceText, { color: theme.primary }]}>Usar imagem da assinatura</Text>
+                  </TouchableOpacity>
+                  {agentSignatureImage && (
+                    <TouchableOpacity
+                      style={[styles.signatureSourceButton, { borderColor: theme.border }]}
+                      onPress={() => setAgentSignatureImage(null)}
+                    >
+                      <Feather name="edit-3" size={16} color={theme.textSecondary} />
+                      <Text style={[styles.signatureSourceText, { color: theme.textSecondary }]}>Assinar à mão</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
               <View style={[styles.modalActions, { borderTopColor: theme.border }]}>
                 <Button label="Cancelar" variant="ghost" onPress={() => setShowAgentSignatureModal(false)} style={{ flex: 1 }} />
@@ -1129,19 +1191,23 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   scrollContent: { padding: 24, paddingBottom: 100 },
   statusCard: {
-    padding: 22, borderRadius: 20, borderWidth: 1,
-    alignItems: 'center', marginBottom: 24,
+    padding: 20, borderRadius: 20, borderWidth: 1, marginBottom: 24,
   },
+  statusHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statusHeadingText: { flex: 1 },
   statusIcon: {
-    width: 72, height: 72, borderRadius: 20,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
+    width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
   },
+  statusEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  statusRiskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
+  statusScore: { fontSize: 13, fontWeight: '600' },
   nivelBadge: {
     paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 12,
   },
   nivelText: { color: '#FFF', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  statusTitle: { fontSize: 22, fontWeight: '800', marginBottom: 6 },
-  statusDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20, maxWidth: 320 },
+  statusTitle: { fontSize: 21, fontWeight: '800', marginTop: 2 },
+  statusDesc: { fontSize: 15, fontWeight: '600', lineHeight: 21, marginTop: 16 },
+  statusAgent: { fontSize: 13, lineHeight: 19, marginTop: 3 },
   condutaCard: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 18, alignItems: 'flex-start' },
   condutaTitle: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 },
   condutaText: { fontSize: 13, lineHeight: 20 },
@@ -1168,7 +1234,8 @@ const styles = StyleSheet.create({
   reportBtnText: { flex: 1 },
   reportBtnTitle: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   reportBtnDesc: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 },
-  evidenceStrip: { gap: 10, paddingTop: 2, paddingBottom: 14 },
+  evidenceBlock: { marginBottom: 4 },
+  evidenceStrip: { gap: 10, paddingHorizontal: 16, paddingTop: 0, paddingBottom: 14, marginTop: -8 },
   evidenceThumb: { width: 92, height: 72, borderRadius: 12 },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
@@ -1220,6 +1287,11 @@ const styles = StyleSheet.create({
   modalScroll: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 10 },
   signatureModalContent: { padding: 20 },
   signatureNotice: { fontSize: 13, lineHeight: 19, marginBottom: 14 },
+  signatureImagePreview: { height: 180, borderRadius: 14, borderWidth: 1, overflow: 'hidden', justifyContent: 'center' },
+  signatureImage: { width: '100%', height: '100%' },
+  signatureSourceActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  signatureSourceButton: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 40, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12 },
+  signatureSourceText: { fontSize: 12, fontWeight: '700' },
   modalLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
   modalInput: {
     height: 52, borderRadius: 14, borderWidth: 1,

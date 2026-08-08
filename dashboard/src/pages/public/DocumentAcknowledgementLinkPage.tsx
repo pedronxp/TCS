@@ -1,6 +1,6 @@
 import { FormEvent, PointerEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle2, FileText, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ChevronDown, FileText, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { supabaseConfigurationAvailable } from '@/lib/supabase';
 
 type Outcome = 'acknowledged' | 'refused' | 'unable_to_sign';
@@ -31,6 +31,7 @@ export function DocumentAcknowledgementLinkPage() {
   const [accepted, setAccepted] = useState(false);
   const [reason, setReason] = useState('');
   const [signature, setSignature] = useState<SignatureStroke[]>([]);
+  const [showDocument, setShowDocument] = useState(true);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +73,12 @@ export function DocumentAcknowledgementLinkPage() {
     if (!context) return;
     const bounds = canvas.getBoundingClientRect();
     const scale = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(bounds.width * scale));
-    canvas.height = Math.max(1, Math.floor(bounds.height * scale));
+    const width = Math.max(1, Math.floor(bounds.width * scale));
+    const height = Math.max(1, Math.floor(bounds.height * scale));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, bounds.width, bounds.height);
     context.strokeStyle = '#172033';
@@ -91,7 +96,12 @@ export function DocumentAcknowledgementLinkPage() {
     });
   }, []);
 
-  useEffect(() => { draw(signature); }, [draw, signature]);
+  useEffect(() => {
+    draw(signature);
+    const observer = new ResizeObserver(() => draw(signature));
+    if (canvasRef.current) observer.observe(canvasRef.current);
+    return () => observer.disconnect();
+  }, [draw, signature]);
 
   const point = (event: PointerEvent<HTMLCanvasElement>): SignaturePoint => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -102,6 +112,7 @@ export function DocumentAcknowledgementLinkPage() {
   };
 
   const startSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     drawingRef.current = true;
     setSignature((previous) => [...previous, { points: [point(event)] }]);
@@ -109,6 +120,7 @@ export function DocumentAcknowledgementLinkPage() {
 
   const extendSignature = (event: PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current) return;
+    event.preventDefault();
     const nextPoint = point(event);
     setSignature((previous) => previous.map((stroke, index) => index === previous.length - 1
       ? { points: [...stroke.points, nextPoint] }
@@ -143,14 +155,42 @@ export function DocumentAcknowledgementLinkPage() {
   };
 
   if (loading) return <main className="mx-auto flex min-h-screen max-w-2xl items-center justify-center p-6 text-muted-foreground"><LoaderCircle className="mr-3 h-5 w-5 animate-spin" />Carregando documento seguro…</main>;
-  if (protocol) return <main className="mx-auto flex min-h-screen max-w-2xl items-center p-6"><section className="w-full rounded-2xl border bg-card p-8 text-center shadow-sm"><CheckCircle2 className="mx-auto h-11 w-11 text-emerald-600" /><h1 className="mt-4 text-2xl font-bold">Ciência registrada</h1><p className="mt-2 text-muted-foreground">Protocolo: <strong className="text-foreground">{protocol}</strong></p><p className="mt-4 text-sm text-muted-foreground">Este link foi encerrado e não pode ser utilizado novamente.</p></section></main>;
-  if (error && !document) return <main className="mx-auto flex min-h-screen max-w-2xl items-center p-6"><section className="w-full rounded-2xl border border-destructive/30 bg-destructive/5 p-7 text-center"><h1 className="text-xl font-bold">Link indisponível</h1><p className="mt-2 text-muted-foreground">{error}</p></section></main>;
+  if (protocol) return <main className="bg-muted/30 p-4 sm:p-8"><section className="mx-auto flex min-h-[70vh] max-w-lg items-center"><div className="w-full rounded-3xl border bg-card p-8 text-center shadow-sm"><CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" /><h1 className="mt-4 text-2xl font-bold">Ciência registrada</h1><p className="mt-2 text-muted-foreground">Protocolo: <strong className="text-foreground">{protocol}</strong></p><p className="mt-4 text-sm text-muted-foreground">Este link foi encerrado e não pode ser utilizado novamente.</p></div></section></main>;
+  if (error && !document) return <main className="bg-muted/30 p-4 sm:p-8"><section className="mx-auto flex min-h-[70vh] max-w-lg items-center"><div className="w-full rounded-3xl border border-destructive/30 bg-destructive/5 p-7 text-center"><h1 className="text-xl font-bold">Link indisponível</h1><p className="mt-2 text-muted-foreground">{error}</p></div></section></main>;
 
-  return <main className="min-h-screen bg-muted/30 py-8"><section className="mx-auto max-w-2xl px-4"><p className="text-xs font-extrabold tracking-[0.14em] text-primary">TCS · DEFESA CIVIL</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Ciência eletrônica</h1><p className="mt-2 text-sm text-muted-foreground">Leia o documento e registre o recebimento. O link é individual e tem uso único.</p>
-    <div className="mt-5 rounded-2xl border bg-card p-5 shadow-sm"><div className="flex gap-3"><div className="rounded-xl bg-primary/10 p-3 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-bold">{document?.type === 'interdiction_term' ? 'Termo de interdição' : 'Relatório de vistoria'}</h2><p className="mt-1 text-sm text-muted-foreground">{[document?.protocol, document?.address].filter(Boolean).join(' · ')}</p></div></div>{signedUrl && <iframe className="mt-5 h-[470px] w-full rounded-xl border bg-white" title="Documento apresentado" src={signedUrl} />}</div>
-    <form onSubmit={submit} className="mt-5 rounded-2xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-bold">Resultado da apresentação</h2><div className="mt-4 grid grid-cols-3 gap-2">{(['acknowledged', 'refused', 'unable_to_sign'] as Outcome[]).map((value) => <button key={value} type="button" onClick={() => setOutcome(value)} className={`rounded-xl border px-2 py-3 text-sm font-bold ${outcome === value ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-muted-foreground'}`}>{outcomeLabel(value)}</button>)}</div>
-      <label className="mt-5 block text-sm font-bold">Nome do destinatário<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-xl border bg-background px-3 py-3 font-normal" /></label><label className="mt-4 block text-sm font-bold">Relação com o atendimento<input required value={relationship} onChange={(event) => setRelationship(event.target.value)} className="mt-2 w-full rounded-xl border bg-background px-3 py-3 font-normal" /></label>
-      {outcome === 'acknowledged' ? <><label className="mt-5 flex gap-3 rounded-xl border bg-muted/40 p-4 text-sm leading-5 text-muted-foreground"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-1 h-4 w-4" />{DECLARATION}</label><label className="mt-5 block text-sm font-bold">Assinatura manuscrita</label><canvas ref={canvasRef} onPointerDown={startSignature} onPointerMove={extendSignature} onPointerUp={() => { drawingRef.current = false; }} onPointerCancel={() => { drawingRef.current = false; }} className="mt-2 h-44 w-full touch-none rounded-xl border bg-white" /><button type="button" onClick={() => setSignature([])} className="mt-2 text-sm font-bold text-destructive">Limpar assinatura</button></> : <label className="mt-5 block text-sm font-bold">Motivo<textarea required value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border bg-background px-3 py-3 font-normal" /></label>}
-      {error && <p role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm font-semibold text-destructive">{error}</p>}<div className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="h-4 w-4 text-primary" />O registro será vinculado à versão exibida acima.</div><button disabled={submitting} className="mt-4 flex w-full items-center justify-center rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:opacity-60">{submitting ? <LoaderCircle className="h-5 w-5 animate-spin" /> : 'Registrar ciência'}</button>
-    </form></section></main>;
+  return <main className="min-h-screen bg-muted/30 py-5 sm:py-10">
+    <section className="mx-auto max-w-6xl px-4 sm:px-6">
+      <p className="text-xs font-extrabold tracking-[0.14em] text-primary">TCS · DEFESA CIVIL</p>
+      <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Ciência eletrônica</h1>
+      <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">Leia o documento e registre o recebimento. O link é individual, protegido e pode ser usado uma única vez.</p>
+
+      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(21rem,.85fr)]">
+        <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <button type="button" onClick={() => setShowDocument((value) => !value)} className="flex w-full items-center gap-3 p-4 text-left hover:bg-muted/40 sm:p-5" aria-expanded={showDocument}>
+            <div className="rounded-xl bg-primary/10 p-3 text-primary"><FileText className="h-5 w-5" /></div>
+            <div className="min-w-0 flex-1"><h2 className="font-bold">{document?.type === 'interdiction_term' ? 'Termo de interdição' : 'Relatório de vistoria'}</h2><p className="mt-1 truncate text-sm text-muted-foreground">{[document?.protocol, document?.address].filter(Boolean).join(' · ')}</p></div>
+            <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${showDocument ? 'rotate-180' : ''}`} />
+          </button>
+          {showDocument && <div className="border-t bg-muted/20 p-3 sm:p-4"><iframe className="h-[52vh] min-h-[340px] w-full rounded-xl border bg-white sm:h-[580px]" title="Documento apresentado" src={signedUrl || undefined} /></div>}
+        </section>
+
+        <form onSubmit={submit} className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <h2 className="text-lg font-bold">Registrar recebimento</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Escolha o resultado da apresentação e confirme os dados de quem recebeu.</p>
+          <div className="mt-4 grid grid-cols-3 gap-2">{(['acknowledged', 'refused', 'unable_to_sign'] as Outcome[]).map((value) => <button key={value} type="button" onClick={() => setOutcome(value)} className={`min-h-16 rounded-xl border px-2 py-3 text-xs font-bold sm:text-sm ${outcome === value ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-muted-foreground hover:bg-muted/40'}`}>{outcomeLabel(value)}</button>)}</div>
+          <label className="mt-5 block text-sm font-bold">Nome do destinatário<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-xl border bg-background px-3 py-3 font-normal outline-none ring-primary focus:ring-2" /></label>
+          <label className="mt-4 block text-sm font-bold">Relação com o atendimento<input required value={relationship} onChange={(event) => setRelationship(event.target.value)} className="mt-2 w-full rounded-xl border bg-background px-3 py-3 font-normal outline-none ring-primary focus:ring-2" /></label>
+          {outcome === 'acknowledged' ? <>
+            <label className="mt-5 flex gap-3 rounded-xl border bg-muted/40 p-4 text-sm leading-5 text-muted-foreground"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-1 h-4 w-4 shrink-0" />{DECLARATION}</label>
+            <div className="mt-5 flex items-center justify-between gap-3"><label className="text-sm font-bold">Assinatura manuscrita</label><button type="button" onClick={() => setSignature([])} className="text-xs font-bold text-destructive">Limpar</button></div>
+            <canvas ref={canvasRef} onPointerDown={startSignature} onPointerMove={extendSignature} onPointerUp={() => { drawingRef.current = false; }} onPointerLeave={() => { drawingRef.current = false; }} onPointerCancel={() => { drawingRef.current = false; }} className="mt-2 h-40 w-full touch-none rounded-xl border bg-white [touch-action:none]" aria-label="Área para assinatura manuscrita" />
+            <p className="mt-2 text-xs text-muted-foreground">Assine com o dedo, caneta ou mouse dentro da área branca.</p>
+          </> : <label className="mt-5 block text-sm font-bold">Motivo<textarea required value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border bg-background px-3 py-3 font-normal outline-none ring-primary focus:ring-2" /></label>}
+          {error && <p role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm font-semibold text-destructive">{error}</p>}
+          <div className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />O registro será vinculado à versão exibida deste documento.</div>
+          <button disabled={submitting} className="mt-4 flex w-full items-center justify-center rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground transition-opacity disabled:opacity-60">{submitting ? <LoaderCircle className="h-5 w-5 animate-spin" /> : 'Registrar ciência'}</button>
+        </form>
+      </div>
+    </section>
+  </main>;
 }
