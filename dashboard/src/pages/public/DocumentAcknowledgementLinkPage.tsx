@@ -14,6 +14,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { TcsMark } from '@/components/brand/TcsMark';
 import { supabaseConfigurationAvailable } from '@/lib/supabase';
 
 type Outcome = 'acknowledged' | 'refused' | 'unable_to_sign';
@@ -212,7 +213,7 @@ export function DocumentAcknowledgementLinkPage() {
     <header className="border-b bg-card">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground"><FileCheck2 className="h-6 w-6" /></div>
+          <TcsMark decorative size={48} />
           <div><p className="text-xs font-extrabold tracking-[0.14em] text-primary">TCS · DEFESA CIVIL</p><p className="mt-0.5 text-sm font-semibold text-muted-foreground">Recebimento seguro de documento</p></div>
         </div>
         <div className="hidden items-center gap-2 text-xs font-semibold text-muted-foreground sm:flex"><ShieldCheck className="h-4 w-4 text-primary" />Link individual · uso único</div>
