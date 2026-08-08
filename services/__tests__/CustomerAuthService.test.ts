@@ -43,6 +43,7 @@ jest.mock('../../utils/supabase', () => {
 
 import * as WebBrowser from 'expo-web-browser';
 import {
+  buildCustomerAuthCallback,
   completeCustomerAuthCallback,
   completeCustomerPasswordRecovery,
   signInCustomerWithGoogle,
@@ -59,6 +60,19 @@ describe('CustomerAuthService Google', () => {
   it('traduz conflito sem sugerir que papéis ou contas foram mesclados', () => {
     expect(translateCustomerIdentityError(new Error('identity_already_exists')))
       .toContain('já está vinculada a outro acesso');
+  });
+
+  it('usa a origem atual no retorno da versão web', () => {
+    expect(buildCustomerAuthCallback(
+      'auth/callback',
+      'web',
+      'https://deploy-preview-32--tcsvisto.netlify.app/',
+    )).toBe('https://deploy-preview-32--tcsvisto.netlify.app/auth/callback');
+  });
+
+  it('mantém o esquema do aplicativo no retorno nativo', () => {
+    expect(buildCustomerAuthCallback('auth/reset-password', 'ios'))
+      .toBe('tcs://auth/reset-password');
   });
 
   it('torna callback PKCE repetido idempotente', async () => {

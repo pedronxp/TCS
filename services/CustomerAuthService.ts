@@ -12,12 +12,28 @@ const RECOVERY_WINDOW_MS = 20 * 60 * 1000;
 const callbackOperations = new Map<string, Promise<{ session: Session | null; recovery: boolean }>>();
 const completedCallbacks = new Map<string, { session: Session | null; recovery: boolean }>();
 
-export const CUSTOMER_AUTH_CALLBACK = Linking.createURL('auth/callback', {
-  scheme: 'tcs',
-});
-export const PASSWORD_RECOVERY_CALLBACK = Linking.createURL('auth/reset-password', {
-  scheme: 'tcs',
-});
+type AuthCallbackPath = 'auth/callback' | 'auth/reset-password';
+
+function currentWebOrigin(): string {
+  const origin = (globalThis as typeof globalThis & {
+    location?: { origin?: string };
+  }).location?.origin;
+  return origin || 'https://tcsvisto.netlify.app';
+}
+
+export function buildCustomerAuthCallback(
+  path: AuthCallbackPath,
+  targetPlatform = Platform.OS,
+  webOrigin = currentWebOrigin(),
+): string {
+  if (targetPlatform === 'web') {
+    return `${webOrigin.replace(/\/$/, '')}/${path}`;
+  }
+  return Linking.createURL(path, { scheme: 'tcs' });
+}
+
+export const CUSTOMER_AUTH_CALLBACK = buildCustomerAuthCallback('auth/callback');
+export const PASSWORD_RECOVERY_CALLBACK = buildCustomerAuthCallback('auth/reset-password');
 
 export interface PublicAuthCapabilities {
   googleAuth: boolean;
