@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -47,10 +48,12 @@ import {
 import {
   createAcknowledgementEvent,
   appendAcknowledgementCorrection,
+  createRemoteAcknowledgementLink,
   fetchRemoteAcknowledgementHistory,
   RemoteAcknowledgementHistoryEvent,
   syncPendingDocumentAcknowledgements,
   verifyDocumentIntegrity,
+  remoteAcknowledgementUrl,
 } from '../../../services/DocumentAcknowledgementService';
 import {
   buildAcknowledgementReceiptHtml,
@@ -97,6 +100,7 @@ export default function ElectronicAcknowledgementScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [remoteHistory, setRemoteHistory] = useState<RemoteAcknowledgementHistoryEvent[]>([]);
   const [correctionReason, setCorrectionReason] = useState('');
+  const [sharingRemoteLink, setSharingRemoteLink] = useState(false);
 
   const reload = useCallback(() => {
     if (!documentId) return;
@@ -197,6 +201,29 @@ export default function ElectronicAcknowledgementScreen() {
     );
   };
 
+  const shareRemoteLink = async () => {
+    if (!document || document.trainingMode) return;
+    if (!isOnlineReal) {
+      Alert.alert('Conexão necessária', 'Conecte-se à internet para publicar o documento e gerar o link seguro.');
+      return;
+    }
+    setSharingRemoteLink(true);
+    try {
+      const link = await createRemoteAcknowledgementLink(document);
+      const url = remoteAcknowledgementUrl(link.token);
+      await Share.share({
+        title: 'TCS — ciência eletrônica',
+        message: `Acesse o documento e registre sua ciência até ${formatarDataHora(link.expiresAt)}:\n${url}`,
+      });
+      Alert.alert('Link pronto', 'O link é individual, expira em 72 horas e deixa de funcionar depois do registro.');
+    } catch (error) {
+      Alert.alert('Não foi possível criar o link', error instanceof Error ? error.message : 'Tente novamente após sincronizar o documento.');
+    } finally {
+      setSharingRemoteLink(false);
+      reload();
+    }
+  };
+
   const correctEvent = async (action: 'corrected' | 'invalidated') => {
     if (!event) return;
     setSubmitting(true);
@@ -262,6 +289,17 @@ export default function ElectronicAcknowledgementScreen() {
           iconLeft={<Feather name="shield" size={17} color={theme.primaryDark} />}
           fullWidth
         />
+        {!event && !document.trainingMode && (
+          <Button
+            label="Enviar link para ciência"
+            variant="secondary"
+            onPress={shareRemoteLink}
+            loading={sharingRemoteLink}
+            disabled={!isOnlineReal}
+            iconLeft={<Feather name="link" size={17} color={theme.primaryDark} />}
+            fullWidth
+          />
+        )}
 
         {event ? (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>

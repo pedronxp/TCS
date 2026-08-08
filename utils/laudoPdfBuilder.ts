@@ -30,6 +30,7 @@ import {
   opcaoAcionaObservacaoCondicionalRisco,
   PerguntaModel,
 } from './formulariosAssets';
+import { SignatureStroke } from '../types/documentAcknowledgement';
 
 export interface LaudoData {
   id: string;
@@ -53,6 +54,8 @@ export interface LaudoData {
   bairro?: string;
   responsavelNome?: string;
   modoTreinamento?: boolean;
+  /** Traço coletado no momento da emissão, incorporado à versão imutável do PDF. */
+  agentSignatureStrokes?: SignatureStroke[] | null;
 }
 
 /** Dados extras para o Termo de Interdição (R3/R4) */
@@ -79,6 +82,19 @@ function dataExtenso(iso: string | null | undefined): string {
   } catch {
     return '-';
   }
+}
+
+function signatureSvg(strokes: SignatureStroke[] | null | undefined): string {
+  if (!strokes?.length) return '';
+  const paths = strokes.map(stroke => {
+    const points = (stroke.points || [])
+      .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
+      .map(point => `${Math.round(Math.max(0, Math.min(1, point.x)) * 600)},${Math.round(Math.max(0, Math.min(1, point.y)) * 180)}`)
+      .join(' ');
+    return points ? `<polyline points="${points}" fill="none" stroke="${PDF_COLORS.navy}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />` : '';
+  }).join('');
+  if (!paths) return '';
+  return `<svg viewBox="0 0 600 180" role="img" aria-label="Assinatura manuscrita do agente" style="display:block;width:100%;height:72px">${paths}</svg>`;
 }
 
 /**
@@ -216,6 +232,7 @@ export function buildTermoInterdicaoHtml(
     width: 280px;
     margin: 0 auto 8px;
   }
+  .assinatura-ink { width: 280px; min-height: 72px; margin: 0 auto -4px; }
   .assinatura-nome {
     font-size: 10pt;
     font-weight: bold;
@@ -300,6 +317,7 @@ export function buildTermoInterdicaoHtml(
   </div>
 
   <div class="assinatura-section">
+    <div class="assinatura-ink">${signatureSvg(laudo.agentSignatureStrokes)}</div>
     <div class="assinatura-linha"></div>
     <div class="assinatura-nome">${escapeHtml(laudo.agenteNome || '-')}</div>
     <div class="assinatura-cargo">${escapeHtml(laudo.cargo || 'Vistoriador de Proteção e Defesa Civil')}</div>
@@ -917,6 +935,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     width: 100%;
     margin: 48px 0 12px;
   }
+  .sig-ink { min-height: 72px; margin: 0 auto -4px; }
   .sig-name {
     font-size: 9.5pt;
     font-weight: 700;
@@ -1041,6 +1060,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   <!-- ASSINATURA -->
   <div class="footer-section" style="page-break-inside: avoid;">
     <div class="sig-block">
+      <div class="sig-ink">${signatureSvg(dados.agentSignatureStrokes)}</div>
       <div class="sig-line"></div>
       <div class="sig-name">${escapeHtml(dados.agenteNome || '-')}</div>
       <div class="sig-role">${escapeHtml(dados.cargo || 'Agente de Proteção e Defesa Civil')}</div>

@@ -47,5 +47,8 @@ minimum_password_length = 8
 enabled = true
 policy = "oneshot"
 
+[functions.remote-document-acknowledgement]
+verify_jwt = false
+
 [analytics]
 enabled = false

@@ -29,8 +29,9 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { safeBack } from '../../../utils/navigationUtils';
 import { logger } from '../../../utils/logger';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
-import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
+import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled, SignatureStroke } from '../../../types/documentAcknowledgement';
 import { listAcknowledgementEventsForDocument, listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
+import { SignaturePad } from '../../../components/SignaturePad';
 import {
   AppHeader,
   Badge,
@@ -109,6 +110,9 @@ export default function ResultadoScreen() {
   const [gerando, setGerando] = useState(false);
   const [vistoria, setVistoria] = useState<ReturnType<typeof normalizar> | null>(null);
   const [acknowledgementHistory, setAcknowledgementHistory] = useState<ReturnType<typeof listAcknowledgementHistory>>([]);
+  const [agentSignature, setAgentSignature] = useState<SignatureStroke[]>([]);
+  const [showAgentSignatureModal, setShowAgentSignatureModal] = useState(false);
+  const [pendingGenerationAction, setPendingGenerationAction] = useState<'generate' | 'print' | 'share' | 'term' | null>(null);
 
   // Modal Termo de Interdição
   const [showTermoModal, setShowTermoModal] = useState(false);
@@ -317,7 +321,7 @@ export default function ResultadoScreen() {
     }));
   };
 
-  const buildDados = (): LaudoData => ({
+  const buildDados = (agentSignatureStrokes: SignatureStroke[] | null = agentSignature): LaudoData => ({
     id: vistoria?.id || '',
     protocolo: vistoria?.protocolo || generateProtocolo(
       vistoria?.id || '',
@@ -336,6 +340,7 @@ export default function ResultadoScreen() {
     foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
     fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
     modoTreinamento: isolatedMode,
+    agentSignatureStrokes,
   });
 
   const ensureTrainingActionsAllowed = async () => {
@@ -451,7 +456,7 @@ export default function ResultadoScreen() {
     }
   };
 
-  const gerarPdf = async () => {
+  const gerarPdf = async (agentSignatureStrokes?: SignatureStroke[]) => {
     if (generationLockRef.current) return;
     generationLockRef.current = true;
     try {
@@ -466,7 +471,7 @@ export default function ResultadoScreen() {
       }
 
       setGerando(true);
-      const dados = buildDados();
+      const dados = buildDados(agentSignatureStrokes);
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
@@ -505,12 +510,12 @@ export default function ResultadoScreen() {
     }
   };
 
-  const imprimir = async () => {
+  const imprimir = async (agentSignatureStrokes?: SignatureStroke[]) => {
     if (!(await ensureTrainingActionsAllowed())) return;
 
     setGerando(true);
     try {
-      const html = await buildLaudoHtml(buildDados());
+      const html = await buildLaudoHtml(buildDados(agentSignatureStrokes));
       await Print.printAsync({ html });
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
@@ -519,12 +524,12 @@ export default function ResultadoScreen() {
     }
   };
 
-  const compartilhar = async () => {
+  const compartilhar = async (agentSignatureStrokes?: SignatureStroke[]) => {
     if (!(await ensureTrainingActionsAllowed())) return;
 
     setGerando(true);
     try {
-      const dados = buildDados();
+      const dados = buildDados(agentSignatureStrokes);
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
@@ -569,7 +574,7 @@ export default function ResultadoScreen() {
   };
 
   /** Gera o Termo de Interdição */
-  const gerarTermoInterdicao = async () => {
+  const gerarTermoInterdicao = async (agentSignatureStrokes?: SignatureStroke[]) => {
     if (!(await ensureTrainingActionsAllowed())) return;
 
     if (!termoForm.nomeNotificado.trim()) {
@@ -583,7 +588,7 @@ export default function ResultadoScreen() {
     await new Promise(resolve => setTimeout(resolve, 300));
     setGerando(true);
     try {
-      const dados = buildDados();
+      const dados = buildDados(agentSignatureStrokes);
       const html = buildTermoInterdicaoHtml(dados, termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('interdiction_term', { ...dados, notified: termoForm }, html, uri);
@@ -607,6 +612,27 @@ export default function ResultadoScreen() {
     } finally {
       setGerando(false);
     }
+  };
+
+  const solicitarAssinaturaAgente = (action: 'generate' | 'print' | 'share' | 'term') => {
+    if (gerando) return;
+    setPendingGenerationAction(action);
+    setShowAgentSignatureModal(true);
+  };
+
+  const confirmarAssinaturaAgente = () => {
+    if (agentSignature.length === 0) {
+      Alert.alert('Assinatura necessária', 'O agente responsável deve assinar antes da emissão deste documento.');
+      return;
+    }
+    const action = pendingGenerationAction;
+    const signatureForDocument = agentSignature;
+    setShowAgentSignatureModal(false);
+    setPendingGenerationAction(null);
+    if (action === 'generate') void gerarPdf(signatureForDocument);
+    if (action === 'print') void imprimir(signatureForDocument);
+    if (action === 'share') void compartilhar(signatureForDocument);
+    if (action === 'term') void gerarTermoInterdicao(signatureForDocument);
   };
 
   if (loading) {
@@ -808,7 +834,7 @@ export default function ResultadoScreen() {
         {vistoria?.laudo_url && laudoExpirado() && (
           <TouchableOpacity
             style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.warning }]}
-            onPress={gerarPdf}
+            onPress={() => solicitarAssinaturaAgente('generate')}
             disabled={gerando}
           >
             <View style={[styles.exportIcon, { backgroundColor: theme.warning }]}>
@@ -829,7 +855,7 @@ export default function ResultadoScreen() {
           style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.primary }]}
           onPress={activeReportNeedsAttention
             ? () => router.push(`/(panel)/inspecoes/ciencia?documentId=${activeReportAcknowledgement.document.id}`)
-            : gerarPdf}
+            : () => solicitarAssinaturaAgente('generate')}
           disabled={gerando}
         >
           <View style={[styles.exportIcon, { backgroundColor: theme.primary }]}>
@@ -862,7 +888,7 @@ export default function ResultadoScreen() {
 
         <TouchableOpacity
           style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={imprimir}
+          onPress={() => solicitarAssinaturaAgente('print')}
           disabled={gerando}
         >
           <View style={[styles.exportIcon, { backgroundColor: theme.iconBackground }]}>
@@ -876,7 +902,7 @@ export default function ResultadoScreen() {
 
         <TouchableOpacity
           style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={compartilhar}
+          onPress={() => solicitarAssinaturaAgente('share')}
           disabled={gerando}
         >
           <View style={[styles.exportIcon, { backgroundColor: theme.iconBackground }]}>
@@ -1033,11 +1059,52 @@ export default function ResultadoScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalGerarBtn, { backgroundColor: theme.error }]}
-                  onPress={gerarTermoInterdicao}
+                  onPress={() => solicitarAssinaturaAgente('term')}
                 >
                   <Feather name="file-text" size={18} color="#FFF" />
                   <Text style={styles.modalGerarText}>Gerar Termo</Text>
                 </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showAgentSignatureModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAgentSignatureModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKav}>
+            <View style={[styles.signatureModalCard, { backgroundColor: theme.surfaceHighlight }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <View style={[styles.modalHeaderIcon, { backgroundColor: theme.secondary }]}>
+                  <Feather name="edit-3" size={20} color={theme.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>Assinatura do agente</Text>
+                  <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>Será incorporada à versão imutável do documento.</Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowAgentSignatureModal(false)} accessibilityLabel="Fechar">
+                  <Feather name="x" size={22} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.signatureModalContent}>
+                <Text style={[styles.signatureNotice, { color: theme.textSecondary }]}>Assine como agente responsável pela vistoria antes de gerar, imprimir ou compartilhar.</Text>
+                <SignaturePad
+                  value={agentSignature}
+                  onChange={setAgentSignature}
+                  color={theme.text}
+                  borderColor={theme.border}
+                  backgroundColor={theme.background}
+                  textColor={theme.textSecondary}
+                />
+              </View>
+              <View style={[styles.modalActions, { borderTopColor: theme.border }]}>
+                <Button label="Cancelar" variant="ghost" onPress={() => setShowAgentSignatureModal(false)} style={{ flex: 1 }} />
+                <Button label="Assinar e continuar" onPress={confirmarAssinaturaAgente} style={{ flex: 2 }} />
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -1062,19 +1129,19 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   scrollContent: { padding: 24, paddingBottom: 100 },
   statusCard: {
-    padding: 28, borderRadius: 20, borderWidth: 1,
+    padding: 22, borderRadius: 20, borderWidth: 1,
     alignItems: 'center', marginBottom: 24,
   },
   statusIcon: {
     width: 72, height: 72, borderRadius: 20,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
   nivelBadge: {
-    paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 16,
+    paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 12,
   },
   nivelText: { color: '#FFF', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  statusTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
-  statusDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  statusTitle: { fontSize: 22, fontWeight: '800', marginBottom: 6 },
+  statusDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20, maxWidth: 320 },
   condutaCard: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 18, alignItems: 'flex-start' },
   condutaTitle: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 },
   condutaText: { fontSize: 13, lineHeight: 20 },
@@ -1101,7 +1168,7 @@ const styles = StyleSheet.create({
   reportBtnText: { flex: 1 },
   reportBtnTitle: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   reportBtnDesc: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 },
-  evidenceStrip: { gap: 10, paddingBottom: 22 },
+  evidenceStrip: { gap: 10, paddingTop: 2, paddingBottom: 14 },
   evidenceThumb: { width: 92, height: 72, borderRadius: 12 },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
@@ -1134,6 +1201,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     maxHeight: '90%',
   },
+  signatureModalCard: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: '94%',
+  },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16,
@@ -1147,6 +1218,8 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: '700' },
   modalSubtitle: { fontSize: 12, fontWeight: '500', marginTop: 2 },
   modalScroll: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 10 },
+  signatureModalContent: { padding: 20 },
+  signatureNotice: { fontSize: 13, lineHeight: 19, marginBottom: 14 },
   modalLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 12 },
   modalInput: {
     height: 52, borderRadius: 14, borderWidth: 1,
