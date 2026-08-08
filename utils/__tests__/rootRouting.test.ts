@@ -130,4 +130,26 @@ describe('resolveRootRedirect', () => {
       hasExpiredTrainingSession: true,
     })).toBe('/(auth)/treinamento');
   });
+
+  it('sends an expired public preview back to the preview entry', () => {
+    expect(resolveRootRedirect({
+      segments: ['(panel)', 'treinamento'],
+      onboardingDone: true,
+      isAuthenticated: false,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: true,
+      trainingSessionMode: 'preview',
+    })).toBe('/(auth)/preview');
+  });
+
+  it('keeps formal training entry inside an authenticated account', () => {
+    expect(resolveRootRedirect({
+      segments: ['(panel)', 'treinamento'],
+      onboardingDone: true,
+      isAuthenticated: true,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: true,
+      trainingSessionMode: 'training',
+    })).toBe('/(panel)/treinamento/acesso');
+  });
 });

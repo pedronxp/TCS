@@ -119,6 +119,7 @@ function RootNavigator() {
         hasPendingCustomerSession,
         hasTrainingSession,
         hasExpiredTrainingSession,
+        trainingSessionMode: trainingSession?.mode ?? null,
       });
 
       // Encerra cache local se a sessao de treinamento expirou.

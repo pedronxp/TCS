@@ -110,6 +110,7 @@ function PanelContent() {
         <Stack.Screen name="admin/editor-perguntas" />
         <Stack.Screen name="inspecoes/laudo" />
         <Stack.Screen name="treinamento/index" />
+        <Stack.Screen name="treinamento/acesso" />
         <Stack.Screen name="master/index" />
         <Stack.Screen name="master/municipios" />
         <Stack.Screen name="master/treinamentos" />

@@ -1,7 +1,9 @@
 export type RootRedirectTarget =
   | '/onboarding'
   | '/(auth)/treinamento'
+  | '/(auth)/preview'
   | '/(panel)/treinamento'
+  | '/(panel)/treinamento/acesso'
   | '/(panel)/dashboard'
   | '/(auth)/customer-onboarding'
   | '/(auth)';
@@ -21,6 +23,7 @@ export function resolveRootRedirect(input: {
   hasPendingCustomerSession?: boolean;
   hasTrainingSession: boolean;
   hasExpiredTrainingSession: boolean;
+  trainingSessionMode?: 'training' | 'preview' | null;
 }): RootRedirectTarget | null {
   const {
     segments,
@@ -29,6 +32,7 @@ export function resolveRootRedirect(input: {
     hasPendingCustomerSession = false,
     hasTrainingSession,
     hasExpiredTrainingSession,
+    trainingSessionMode = null,
   } = input;
   const inPanel = segments[0] === '(panel)';
   const inAuth = segments[0] === '(auth)';
@@ -50,7 +54,12 @@ export function resolveRootRedirect(input: {
   if (!onboardingDone) return inOnboarding ? null : '/onboarding';
 
   if (hasExpiredTrainingSession) {
-    return inAuth ? null : '/(auth)/treinamento';
+    const destination = trainingSessionMode === 'preview'
+      ? '/(auth)/preview'
+      : isAuthenticated
+        ? '/(panel)/treinamento/acesso'
+        : '/(auth)/treinamento';
+    return segments.join('/') === destination.replace(/^\//, '') ? null : destination;
   }
 
   if (hasTrainingSession) {

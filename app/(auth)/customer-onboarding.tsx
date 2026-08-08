@@ -12,67 +12,62 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card } from '../../components/ui';
+import { Button, Card, StateBanner } from '../../components/ui';
 import { ProductIdentity } from '../../components/brand';
 import { useAuth } from '../../context/AuthContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import { useTheme } from '../../context/ThemeContext';
 import {
+  acceptMunicipalCustomerInvite,
   bootstrapIndividualCustomer,
-  bootstrapMunicipalCustomer,
-  customerLifecycleMessage,
   getCustomerOnboardingContext,
   recordCustomerOnboardingEvent,
   type CustomerOnboardingContext,
 } from '../../services/CustomerOnboardingService';
+import { Spacing, SpacingAlias } from '../../constants/Spacing';
 
 const TERMS_VERSION = 'customer-terms-2026-08';
-type AccountKind = 'individual' | 'organization';
+type AccountKind = 'individual' | 'municipal';
+
+const inviteReasons: Record<string, string> = {
+  invalid: 'Convite inválido. Confira o código recebido.',
+  expired: 'Este convite expirou. Solicite outro à prefeitura.',
+  already_used: 'Este convite já foi utilizado.',
+  membership_conflict: 'Esta conta já pertence a uma organização.',
+  subscription_inactive: 'A operação municipal não está ativa.',
+  limit_reached: 'A organização atingiu o limite de usuários.',
+};
 
 export default function CustomerOnboardingScreen() {
   const { theme } = useTheme();
   const { isConnected } = useConnectivity();
-  const { session, profile, refreshProfile, signOut } = useAuth();
+  const { session, refreshProfile, signOut } = useAuth();
   const [context, setContext] = useState<CustomerOnboardingContext | null>(null);
-  const [kind, setKind] = useState<AccountKind | null>(null);
-  const [displayName, setDisplayName] = useState('');
-  const [municipalityName, setMunicipalityName] = useState('');
-  const [stateCode, setStateCode] = useState('');
-  const [responsibleName, setResponsibleName] = useState(profile?.name ?? '');
+  const [kind, setKind] = useState<AccountKind>('individual');
+  const [inviteToken, setInviteToken] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadContext = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const nextContext = await getCustomerOnboardingContext();
-      setContext(nextContext);
-      if (nextContext.account_kind === 'individual' || nextContext.account_kind === 'organization') {
-        setKind(nextContext.account_kind);
-      }
-      void recordCustomerOnboardingEvent(nextContext.onboarding ? 'onboarding_resumed' : 'onboarding_viewed');
-    } catch {
-      setError(isConnected
-        ? 'Não foi possível carregar seu onboarding. Tente novamente.'
-        : 'Você está offline. Conecte-se para retomar o cadastro salvo na sua conta.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadContext();
-  }, []);
+    getCustomerOnboardingContext()
+      .then((next) => {
+        setContext(next);
+        void recordCustomerOnboardingEvent(next.onboarding ? 'onboarding_resumed' : 'onboarding_viewed');
+      })
+      .catch(() => setError(isConnected
+        ? 'Não foi possível carregar as opções de cadastro.'
+        : 'Conecte-se à internet para concluir o cadastro.'))
+      .finally(() => setLoading(false));
+  }, [isConnected]);
 
   const finish = async () => {
     await refreshProfile();
     router.replace('/(panel)/dashboard');
   };
 
-  const submitIndividual = async () => {
+  const submit = async () => {
     if (!session || !termsAccepted) {
       setError('Aceite os termos para continuar.');
       return;
@@ -81,157 +76,103 @@ export default function CustomerOnboardingScreen() {
     setError(null);
     try {
       void recordCustomerOnboardingEvent('bootstrap_submitted');
-      setContext(await bootstrapIndividualCustomer(session.user.id, TERMS_VERSION));
-      await finish();
-    } catch {
-      setError('Não foi possível ativar o acesso individual. Revise os dados ou tente novamente.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const submitMunicipal = async () => {
-    if (!session || !termsAccepted) {
-      setError('Aceite os termos para continuar.');
-      return;
-    }
-    if (!displayName.trim() || !municipalityName.trim() || stateCode.trim().length !== 2 || !responsibleName.trim()) {
-      setError('Preencha organização, município, UF e responsável.');
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      void recordCustomerOnboardingEvent('bootstrap_submitted');
-      setContext(await bootstrapMunicipalCustomer(session.user.id, {
-        displayName,
-        municipalityName,
-        stateCode,
-        responsibleName,
-        termsVersion: TERMS_VERSION,
-      }));
+      if (kind === 'individual') {
+        await bootstrapIndividualCustomer(session.user.id, TERMS_VERSION);
+      } else {
+        const result = await acceptMunicipalCustomerInvite(inviteToken);
+        if (!result.accepted) {
+          setError(inviteReasons[result.reason || 'invalid'] || 'Não foi possível aceitar este convite.');
+          return;
+        }
+      }
       await finish();
     } catch (cause) {
-      const duplicate = cause instanceof Error && cause.message.includes('municipality_onboarding_exists');
-      setError(duplicate
-        ? 'Esse município já possui onboarding. Solicite um convite ao administrador existente.'
-        : 'Não foi possível criar o onboarding municipal. Revise os dados ou tente novamente.');
+      const message = cause instanceof Error ? cause.message.toLowerCase() : '';
+      setError(message.includes('email_mismatch')
+        ? 'O convite foi emitido para outro e-mail. Entre com a conta correta.'
+        : 'Não foi possível concluir o cadastro agora. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const selectKind = (nextKind: AccountKind) => {
-    setKind(nextKind);
-    setError(null);
-    void recordCustomerOnboardingEvent('account_kind_selected');
-    if (nextKind === 'organization') void recordCustomerOnboardingEvent('details_started');
-  };
-
-  const toggleTerms = () => {
-    const accepted = !termsAccepted;
-    setTermsAccepted(accepted);
-    if (accepted) void recordCustomerOnboardingEvent('terms_accepted');
-  };
-
-  const individualEnabled = context?.features?.individual_bootstrap === true;
-  const municipalEnabled = context?.features?.municipal_bootstrap === true;
+  const individualEnabled = context?.features?.individual_bootstrap !== false;
+  const canSubmit = termsAccepted
+    && !loading
+    && (kind === 'individual' ? individualEnabled : inviteToken.length === 14);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <ProductIdentity variant="compact" />
-          <Text style={[styles.title, { color: theme.text }]}>Configure seu acesso</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}> 
-            Sua identidade foi verificada. Agora escolha como você usará o TCS. Essa decisão fica salva na sua conta.
-          </Text>
+          <View style={styles.heading}>
+            <Text style={[styles.eyebrow, { color: theme.primary }]}>ÚLTIMA ETAPA</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Concluir cadastro</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Sua conta Google já foi verificada. Agora informe apenas o tipo de acesso.</Text>
+          </View>
 
-          {context?.lifecycle_state && (
-            <Card>
-              <Text style={[styles.choiceTitle, { color: theme.text }]}>Situação do cadastro</Text>
-              <Text style={[styles.statusText, { color: theme.textSecondary }]}> 
-                {customerLifecycleMessage(context.lifecycle_state)}
-              </Text>
-              {context.onboarding && (
-                <Text style={[styles.progressText, { color: theme.primary }]}> 
-                  {context.onboarding.completed_items ?? 0} de {context.onboarding.total_items ?? 0} etapas concluídas
-                </Text>
-              )}
+          <View style={styles.choiceGrid}>
+            <ChoiceCard
+              title="Conta profissional"
+              description="Uso individual, sem token municipal."
+              icon="user"
+              selected={kind === 'individual'}
+              onPress={() => { setKind('individual'); setError(null); }}
+            />
+            <ChoiceCard
+              title="Acesso municipal"
+              description="Para quem recebeu convite de uma prefeitura."
+              icon="briefcase"
+              selected={kind === 'municipal'}
+              onPress={() => { setKind('municipal'); setError(null); }}
+            />
+          </View>
+
+          {kind === 'municipal' && (
+            <Card style={styles.inviteCard}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Convite municipal</Text>
+              <View style={[styles.inputRow, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
+                <Feather name="key" size={19} color={theme.textSecondary} />
+                <TextInput
+                  value={inviteToken}
+                  onChangeText={(value) => {
+                    const raw = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 12);
+                    setInviteToken((raw.match(/.{1,4}/g) || []).join('-'));
+                    setError(null);
+                  }}
+                  placeholder="XXXX-XXXX-XXXX"
+                  placeholderTextColor={theme.textSecondary}
+                  autoCapitalize="characters"
+                  maxLength={14}
+                  style={[styles.input, { color: theme.text }]}
+                />
+              </View>
             </Card>
           )}
 
-          {loading ? (
-            <Text style={[styles.statusText, { color: theme.textSecondary }]}>Carregando opções...</Text>
-          ) : (
-            <View style={styles.choiceGrid}>
-              <ChoiceCard
-                title="Uso individual"
-                description="Para profissional autônomo, sem equipe municipal."
-                icon="user"
-                selected={kind === 'individual'}
-                disabled={!individualEnabled}
-                onPress={() => selectKind('individual')}
-              />
-              <ChoiceCard
-                title="Prefeitura ou município"
-                description="Cria onboarding provisório e você como primeiro administrador."
-                icon="users"
-                selected={kind === 'organization'}
-                disabled={!municipalEnabled}
-                onPress={() => selectKind('organization')}
-              />
-            </View>
+          {!individualEnabled && kind === 'individual' && (
+            <StateBanner variant="warning" title="Cadastro individual indisponível" description="Use um convite municipal ou fale com o suporte." />
           )}
+          {error && <StateBanner variant="danger" title="Cadastro não concluído" description={error} />}
 
-          {!loading && !individualEnabled && !municipalEnabled && (
-            <Card>
-              <Text style={[styles.statusText, { color: theme.textSecondary }]}>
-                O cadastro autônomo ainda está fechado para sua coorte. Se você recebeu um convite, volte ao login e use o token de acesso.
-              </Text>
-            </Card>
-          )}
-
-          {kind === 'organization' && municipalEnabled && (
-            <View style={styles.form}>
-              <Field label="Nome da organização" value={displayName} onChangeText={setDisplayName} placeholder="Prefeitura Municipal de..." />
-              <Field label="Município" value={municipalityName} onChangeText={setMunicipalityName} placeholder="Município" />
-              <Field label="UF" value={stateCode} onChangeText={value => setStateCode(value.toUpperCase().slice(0, 2))} placeholder="MG" />
-              <Field label="Responsável" value={responsibleName} onChangeText={setResponsibleName} placeholder="Nome completo" />
-            </View>
-          )}
-
-          {kind && (kind === 'individual' ? individualEnabled : municipalEnabled) && (
-            <>
-              <TouchableOpacity
-                style={styles.termsRow}
-                onPress={toggleTerms}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: termsAccepted }}
-              >
-                <Feather name={termsAccepted ? 'check-square' : 'square'} size={22} color={theme.primary} />
-                <Text style={[styles.termsText, { color: theme.textSecondary }]}>
-                  Li e aceito os termos de uso e privacidade ({TERMS_VERSION}).
-                </Text>
-              </TouchableOpacity>
-              <Button
-                variant="primary"
-                loading={submitting}
-                disabled={submitting || !termsAccepted}
-                onPress={kind === 'individual' ? submitIndividual : submitMunicipal}
-              >
-                {kind === 'individual' ? 'Ativar acesso individual' : 'Iniciar onboarding municipal'}
-              </Button>
-            </>
-          )}
-
-          {error && <Text style={styles.errorText}>{error}</Text>}
-          <TouchableOpacity onPress={loadContext} disabled={loading}>
-            <Text style={[styles.link, { color: theme.primary }]}>Tentar novamente</Text>
+          <TouchableOpacity
+            style={styles.termsRow}
+            onPress={() => {
+              setTermsAccepted((accepted) => !accepted);
+              if (!termsAccepted) void recordCustomerOnboardingEvent('terms_accepted');
+            }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: termsAccepted }}
+          >
+            <Feather name={termsAccepted ? 'check-square' : 'square'} size={22} color={theme.primary} />
+            <Text style={[styles.termsText, { color: theme.textSecondary }]}>Li e aceito os termos de uso e privacidade.</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={signOut}>
-            <Text style={[styles.link, { color: theme.textSecondary }]}>Sair desta conta</Text>
-          </TouchableOpacity>
+
+          <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={!canSubmit || submitting} onPress={submit}>
+            {kind === 'individual' ? 'CRIAR CONTA PROFISSIONAL' : 'ATIVAR ACESSO MUNICIPAL'}
+          </Button>
+          <Button variant="ghost" fullWidth onPress={signOut}>Usar outra conta</Button>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -243,68 +184,45 @@ function ChoiceCard(props: {
   description: string;
   icon: React.ComponentProps<typeof Feather>['name'];
   selected: boolean;
-  disabled: boolean;
   onPress: () => void;
 }) {
   const { theme } = useTheme();
   return (
     <TouchableOpacity
-      style={[
-        styles.choice,
-        { backgroundColor: theme.surfaceHighlight, borderColor: props.selected ? theme.primary : theme.border },
-        props.disabled && styles.disabled,
-      ]}
+      style={[styles.choice, { backgroundColor: theme.surfaceHighlight, borderColor: props.selected ? theme.primary : theme.border }]}
       onPress={props.onPress}
-      disabled={props.disabled}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: props.selected }}
     >
-      <Feather name={props.icon} size={24} color={props.disabled ? theme.textSecondary : theme.primary} />
-      <Text style={[styles.choiceTitle, { color: theme.text }]}>{props.title}</Text>
-      <Text style={[styles.choiceDescription, { color: theme.textSecondary }]}>{props.description}</Text>
-      {props.disabled && <Text style={[styles.unavailable, { color: theme.textSecondary }]}>Indisponível nesta fase</Text>}
+      <View style={[styles.choiceIcon, { backgroundColor: props.selected ? theme.successLight : theme.surface }]}>
+        <Feather name={props.icon} size={21} color={theme.primary} />
+      </View>
+      <View style={styles.choiceCopy}>
+        <Text style={[styles.choiceTitle, { color: theme.text }]}>{props.title}</Text>
+        <Text style={[styles.choiceDescription, { color: theme.textSecondary }]}>{props.description}</Text>
+      </View>
+      <Feather name={props.selected ? 'check-circle' : 'circle'} size={20} color={props.selected ? theme.primary : theme.border} />
     </TouchableOpacity>
-  );
-}
-
-function Field(props: {
-  label: string;
-  value: string;
-  placeholder: string;
-  onChangeText: (value: string) => void;
-}) {
-  const { theme } = useTheme();
-  return (
-    <View style={styles.fieldGroup}>
-      <Text style={[styles.label, { color: theme.textSecondary }]}>{props.label}</Text>
-      <TextInput
-        style={[styles.input, { color: theme.text, backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}
-        value={props.value}
-        placeholder={props.placeholder}
-        placeholderTextColor={theme.textSecondary}
-        onChangeText={props.onChangeText}
-      />
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { paddingHorizontal: 28, paddingVertical: 32, gap: 20 },
-  title: { fontSize: 30, lineHeight: 38, fontWeight: '800' },
+  content: { paddingHorizontal: Spacing[6], paddingVertical: Spacing[6], gap: Spacing[5], width: '100%', maxWidth: 620, alignSelf: 'center' },
+  heading: { gap: Spacing[2] },
+  eyebrow: { fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
+  title: { fontSize: 31, lineHeight: 38, fontWeight: '900', letterSpacing: -0.7 },
   subtitle: { fontSize: 15, lineHeight: 22 },
-  choiceGrid: { gap: 12 },
-  choice: { borderWidth: 1.5, borderRadius: 16, padding: 18, gap: 7 },
-  disabled: { opacity: 0.5 },
-  choiceTitle: { fontSize: 17, fontWeight: '700' },
-  choiceDescription: { fontSize: 13, lineHeight: 19 },
-  unavailable: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  form: { gap: 14 },
-  fieldGroup: { gap: 7 },
-  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-  input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, height: 54, fontSize: 15 },
-  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  termsText: { flex: 1, fontSize: 13, lineHeight: 19 },
-  statusText: { fontSize: 14, lineHeight: 21 },
-  progressText: { fontSize: 12, lineHeight: 18, fontWeight: '700', marginTop: 8 },
-  errorText: { color: '#EF4444', fontSize: 14, lineHeight: 20 },
-  link: { textAlign: 'center', fontSize: 14, fontWeight: '600', paddingVertical: 4 },
+  choiceGrid: { gap: Spacing[3] },
+  choice: { minHeight: 84, borderWidth: 1.5, borderRadius: SpacingAlias.radiusLg, padding: Spacing[3], flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  choiceIcon: { width: 44, height: 44, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center' },
+  choiceCopy: { flex: 1 },
+  choiceTitle: { fontSize: 16, fontWeight: '800' },
+  choiceDescription: { fontSize: 12, lineHeight: 17, marginTop: 3 },
+  inviteCard: { padding: Spacing[4], gap: Spacing[3] },
+  label: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7 },
+  inputRow: { minHeight: 58, borderWidth: 1, borderRadius: SpacingAlias.radiusMd, paddingHorizontal: Spacing[4], flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  input: { flex: 1, fontSize: 17, letterSpacing: 2, fontWeight: '700' },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
+  termsText: { flex: 1, fontSize: 13, lineHeight: 20 },
 });

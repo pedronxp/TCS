@@ -50,5 +50,8 @@ policy = "oneshot"
 [functions.remote-document-acknowledgement]
 verify_jwt = false
 
+[functions.public-preview-access]
+verify_jwt = false
+
 [analytics]
 enabled = false

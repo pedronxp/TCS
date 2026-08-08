@@ -99,8 +99,8 @@ export default function ResultadoScreen() {
   const bottomPad = useBottomTabPadding();
   const { profile, localTestMode } = useAuth();
   const { trainingProfile, isTrainingActive, isExpired, exit, revalidate, loading: trainingLoading } = useTraining();
-  const activeProfile = profile || trainingProfile;
-  const requestedTrainingMode = treinamento === '1' || (!profile && isTrainingActive && !!trainingProfile);
+  const activeProfile = trainingProfile || profile;
+  const requestedTrainingMode = treinamento === '1' || (isTrainingActive && !!trainingProfile);
   const formalTrainingMode = requestedTrainingMode && isTrainingActive && !!trainingProfile;
   const isolatedMode = localTestMode || formalTrainingMode;
   const { isOnlineReal: isConnected } = useConnectivity();

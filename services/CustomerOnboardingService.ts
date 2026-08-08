@@ -61,6 +61,13 @@ export interface MunicipalBootstrapInput {
   termsVersion: string;
 }
 
+export interface MunicipalInviteAcceptance {
+  accepted: boolean;
+  reason?: string;
+  organization_id?: string;
+  role?: string;
+}
+
 export const CUSTOMER_ONBOARDING_ITEMS: Array<{
   key: CustomerOnboardingItem;
   label: string;
@@ -121,6 +128,24 @@ export async function bootstrapMunicipalCustomer(
   return (data ?? {}) as CustomerOnboardingContext;
 }
 
+export async function acceptMunicipalCustomerInvite(token: string): Promise<MunicipalInviteAcceptance> {
+  const normalized = token.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  if (normalized.length < 12) return { accepted: false, reason: 'invalid' };
+  const { data, error } = await supabase.rpc('portal_accept_organization_invite', {
+    p_token: normalized,
+  });
+  if (error) throw error;
+  const modern = (data ?? { accepted: false, reason: 'invalid' }) as MunicipalInviteAcceptance;
+  if (modern.accepted || modern.reason !== 'invalid') return modern;
+
+  const { data: legacyData, error: legacyError } = await supabase.rpc(
+    'accept_legacy_municipal_invite',
+    { p_token: normalized },
+  );
+  if (legacyError) throw legacyError;
+  return (legacyData ?? modern) as MunicipalInviteAcceptance;
+}
+
 export async function updateCustomerOnboardingItem(
   item: 'team' | 'configuration',
   completed = true,
@@ -162,4 +187,3 @@ export function customerLifecycleMessage(state?: CustomerLifecycleState): string
   };
   return state ? messages[state] : messages.creating;
 }
-

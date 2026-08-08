@@ -12,13 +12,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { Spacing, SpacingAlias } from '../../constants/Spacing';
 
-const CAPABILITIES = [
-  { icon: 'clipboard' as const, title: 'Vistoria', caption: 'Coleta guiada', tone: 'primary' as const },
-  { icon: 'map-pin' as const, title: 'Território', caption: 'GPS e ocorrências', tone: 'warning' as const },
-  { icon: 'file-text' as const, title: 'Laudos', caption: 'Documento técnico', tone: 'primary' as const },
-  { icon: 'wifi-off' as const, title: 'Offline', caption: 'Operação em campo', tone: 'success' as const },
-];
-
 export default function WelcomeScreen() {
   const { theme } = useTheme();
   const { isConnected, isOnlineReal } = useConnectivity();
@@ -28,10 +21,6 @@ export default function WelcomeScreen() {
     : isOnlineReal
       ? { label: 'CONEXÃO DISPONÍVEL', color: theme.success, icon: 'wifi' as const }
       : { label: 'CONEXÃO LIMITADA', color: theme.warning, icon: 'alert-circle' as const };
-
-  const toneColor = (tone: 'primary' | 'warning' | 'success') => (
-    tone === 'warning' ? theme.warning : tone === 'success' ? theme.success : theme.primary
-  );
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -55,21 +44,7 @@ export default function WelcomeScreen() {
         <View style={styles.hero}>
           <ProductIdentity variant="hero" />
           <RiskBar labelled width={236} />
-        </View>
-
-        <View style={styles.capabilityGrid}>
-          {CAPABILITIES.map(item => {
-            const color = toneColor(item.tone);
-            return (
-              <Card key={item.title} variant="outlined" style={styles.capabilityCard}>
-                <View style={[styles.capabilityIcon, { backgroundColor: `${color}14` }]}>
-                  <Feather name={item.icon} size={20} color={color} />
-                </View>
-                <Text style={[styles.capabilityTitle, { color: theme.text }]}>{item.title}</Text>
-                <Text style={[styles.capabilityCaption, { color: theme.textSecondary }]}>{item.caption}</Text>
-              </Card>
-            );
-          })}
+          <Text style={[styles.heroCopy, { color: theme.textSecondary }]}>Vistorias técnicas e gestão de risco em um só lugar.</Text>
         </View>
 
         <View style={styles.actions}>
@@ -86,31 +61,31 @@ export default function WelcomeScreen() {
 
           <View style={styles.secondaryGrid}>
             <Button variant="secondary" onPress={() => router.push('/(auth)/register')} style={styles.secondaryAction}>
-              Ativar acesso
+              Criar conta
             </Button>
-            <Button variant="ghost" onPress={() => router.push('/onboarding')} style={styles.secondaryAction}>
-              Conhecer o TCS
+            <Button variant="ghost" onPress={() => router.push('/(auth)/planos')} style={styles.secondaryAction}>
+              Conhecer planos
             </Button>
           </View>
 
           <Card
             variant="variant"
-            style={styles.trainingCard}
-            onPress={() => router.push('/(auth)/treinamento')}
-            accessibilityLabel="Abrir modo treinamento"
+            style={styles.previewCard}
+            onPress={() => router.push('/(auth)/preview')}
+            accessibilityLabel="Experimentar o preview do TCS"
           >
-            <View style={[styles.trainingIcon, { backgroundColor: theme.surface }]}>
-              <Feather name="book-open" size={20} color={theme.primary} />
+            <View style={[styles.previewIcon, { backgroundColor: theme.surface }]}>
+              <Feather name="play-circle" size={21} color={theme.primary} />
             </View>
-            <View style={styles.trainingCopy}>
-              <Text style={[styles.trainingTitle, { color: theme.text }]}>MODO TREINAMENTO</Text>
-              <Text style={[styles.trainingCaption, { color: theme.textSecondary }]}>Explore o fluxo sem afetar dados reais</Text>
+            <View style={styles.previewCopy}>
+              <Text style={[styles.previewTitle, { color: theme.text }]}>EXPERIMENTAR O TCS</Text>
+              <Text style={[styles.previewCaption, { color: theme.textSecondary }]}>Preview com até 2 vistorias, sem afetar dados reais</Text>
             </View>
             <Feather name="chevron-right" size={20} color={theme.primary} />
           </Card>
 
-          <Button variant="ghost" onPress={() => router.push('/(auth)/planos')} fullWidth>
-              CONHECER PLANOS
+          <Button variant="ghost" onPress={() => router.push('/onboarding')} fullWidth>
+            CONHECER A PLATAFORMA
           </Button>
         </View>
 
@@ -125,25 +100,21 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
-  content: { flexGrow: 1, paddingHorizontal: Spacing[5], gap: Spacing[6] },
+  content: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: Spacing[5], gap: Spacing[6] },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   connectionChip: { minHeight: 34, borderRadius: SpacingAlias.radiusFull, borderWidth: 1, paddingHorizontal: Spacing[3], flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   connectionText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   version: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
-  hero: { alignItems: 'center', gap: Spacing[5], paddingTop: Spacing[2] },
-  capabilityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[3] },
-  capabilityCard: { width: '48%', flexGrow: 1, minWidth: 142, padding: Spacing[3] },
-  capabilityIcon: { width: 40, height: 40, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[3] },
-  capabilityTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold },
-  capabilityCaption: { fontSize: FontSize.xs, marginTop: 3 },
+  hero: { alignItems: 'center', gap: Spacing[4], paddingVertical: Spacing[2] },
+  heroCopy: { maxWidth: 320, textAlign: 'center', fontSize: FontSize.sm, lineHeight: 21 },
   actions: { gap: Spacing[3], width: '100%', maxWidth: 520, alignSelf: 'center' },
   secondaryGrid: { flexDirection: 'row', gap: Spacing[3] },
   secondaryAction: { flex: 1 },
-  trainingCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], padding: Spacing[3] },
-  trainingIcon: { width: 42, height: 42, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center' },
-  trainingCopy: { flex: 1 },
-  trainingTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold },
-  trainingCaption: { fontSize: FontSize.xs, marginTop: 2 },
+  previewCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], padding: Spacing[3] },
+  previewIcon: { width: 44, height: 44, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center' },
+  previewCopy: { flex: 1 },
+  previewTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold },
+  previewCaption: { fontSize: FontSize.xs, lineHeight: 17, marginTop: 2 },
   footer: { borderTopWidth: 1, paddingTop: Spacing[4], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing[2] },
   footerText: { fontSize: FontSize.xs },
 });

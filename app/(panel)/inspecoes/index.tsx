@@ -131,8 +131,8 @@ export default function InspecoesListScreen() {
   const { isOnlineReal: isConnected } = useConnectivity();
   const { profile, localTestMode } = useAuth();
   const { trainingProfile, isTrainingActive } = useTraining();
-  const activeProfile = profile || trainingProfile;
-  const formalTrainingMode = !profile && isTrainingActive && !!trainingProfile;
+  const activeProfile = trainingProfile || profile;
+  const formalTrainingMode = isTrainingActive && !!trainingProfile;
   const isolatedMode = localTestMode || formalTrainingMode;
   const [loading, setLoading] = useState(true);
   const [vistorias, setVistorias] = useState<VistoriaLocal[]>([]);

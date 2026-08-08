@@ -235,7 +235,7 @@ export default function LoginScreen() {
                     onPress={handleGoogle}
                     iconLeft={<GoogleMark size={18} />}
                   >
-                    Continuar com Google
+                    Entrar ou criar com Google
                   </Button>
                 </>
               ) : null}
@@ -245,7 +245,7 @@ export default function LoginScreen() {
                   Recuperar senha
                 </Button>
                 <Button variant="secondary" style={styles.linkButton} onPress={() => router.push('/(auth)/register')}>
-                  Ativar acesso
+                  Criar conta
                 </Button>
               </View>
             </View>

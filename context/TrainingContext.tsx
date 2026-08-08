@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateUUID } from '../utils/uuid';
 import { enterTrainingClass, leaveTrainingClass, TrainingEntryResult, TRAINING_ALLOWED_FORMS } from '../services/TrainingService';
+import { getPublicPreviewAccess, PublicPreviewAccess } from '../services/PreviewAccessService';
 
 const TRAINING_SESSION_KEY = '@training_session_v1';
 const TRAINING_DEVICE_KEY = '@training_device_id_v1';
@@ -31,7 +32,7 @@ async function safeRemoveStorageItem(key: string): Promise<void> {
 }
 
 export interface TrainingSession {
-  mode: 'training';
+  mode: 'training' | 'preview';
   classId: string;
   className: string;
   token: string;
@@ -60,6 +61,7 @@ interface TrainingContextData {
     isApproved: boolean;
   } | null;
   enter: (input: { nome: string; token: string }) => Promise<TrainingEntryResult>;
+  enterPreview: (name?: string) => Promise<PublicPreviewAccess>;
   exit: () => Promise<void>;
   revalidate: () => Promise<boolean>;
   refreshFromStorage: () => Promise<void>;
@@ -73,6 +75,7 @@ const TrainingContext = createContext<TrainingContextData>({
   isTrainingActive: false,
   trainingProfile: null,
   enter: async () => ({ ok: false, status: 'error' }),
+  enterPreview: async () => ({ allowed: false, used: 2, limit: 2, remaining: 0 }),
   exit: async () => {},
   revalidate: async () => false,
   refreshFromStorage: async () => {},
@@ -179,9 +182,38 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, []);
 
+  const enterPreview = useCallback(async (name = 'Visitante') => {
+    const id = deviceIdRef.current || await getOrCreateTrainingDeviceId();
+    deviceIdRef.current = id;
+    setDeviceId(id);
+    const access = await getPublicPreviewAccess(id);
+    if (!access.allowed) return access;
+
+    const now = new Date();
+    const next: TrainingSession = {
+      mode: 'preview',
+      classId: 'public-preview',
+      className: 'Preview do TCS',
+      token: '',
+      participantId: `preview-${id}`,
+      participantName: name.trim() || 'Visitante',
+      participantCount: access.used,
+      participantLimit: access.limit,
+      startsAt: now.toISOString(),
+      endsAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      allowedForms: [...TRAINING_ALLOWED_FORMS],
+      deviceId: id,
+      createdAt: now.toISOString(),
+    };
+    await safeSetStorageItem(TRAINING_SESSION_KEY, JSON.stringify(next));
+    sessionRef.current = next;
+    setSession(next);
+    return access;
+  }, []);
+
   const exit = useCallback(async () => {
     const activeSession = sessionRef.current;
-    if (activeSession?.classId && activeSession.deviceId) {
+    if (activeSession?.mode === 'training' && activeSession.classId && activeSession.deviceId) {
       try {
         await leaveTrainingClass({ classId: activeSession.classId, deviceId: activeSession.deviceId });
       } catch {
@@ -198,6 +230,8 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
       await clearSession();
       return false;
     }
+
+    if (activeSession.mode === 'preview') return true;
 
     try {
       const currentDeviceId = activeSession.deviceId || deviceIdRef.current || await getOrCreateTrainingDeviceId();
@@ -262,7 +296,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
       name: session.participantName,
       email: '',
       role: 'agent' as const,
-      municipio: 'Treinamento',
+      municipio: session.mode === 'preview' ? 'Demonstração' : 'Treinamento',
       isApproved: true,
     };
   }, [session]);
@@ -275,6 +309,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
       isTrainingActive: !!trainingProfile,
       trainingProfile,
       enter,
+      enterPreview,
       exit,
       revalidate,
       refreshFromStorage,

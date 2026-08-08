@@ -43,7 +43,7 @@ export default function DadosIniciaisScreen() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { trainingProfile } = useTraining();
-  const activeProfile = profile || trainingProfile;
+  const activeProfile = trainingProfile || profile;
   const backFallback = trainingProfile ? '/(panel)/treinamento' : '/(panel)/inspecoes';
   const isMasterAdmin = activeProfile?.role === 'master_admin';
   const params = useLocalSearchParams<{
