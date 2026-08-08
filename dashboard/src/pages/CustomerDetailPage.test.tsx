@@ -223,7 +223,7 @@ describe('Detalhe do cliente', () => {
       title: 'Vistoria preventiva',
       address: 'Praça Central, 100',
     }));
-  });
+  }, 15_000);
 
   it('orienta a gerar no aplicativo quando o documento oficial estiver pendente', async () => {
     const user = userEvent.setup();

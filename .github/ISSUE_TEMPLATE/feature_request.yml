@@ -1,0 +1,42 @@
+name: Melhoria ou tarefa
+description: Planejar uma melhoria, manutenção ou nova funcionalidade
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema ou oportunidade
+      description: Explique o motivo da mudança antes da solução.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado esperado
+      description: Descreva o comportamento final para o usuário ou para a equipe.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Escopo
+      description: Liste o que entra e o que não entra nesta entrega.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceite
+      placeholder: |
+        - [ ] Cenário principal funciona
+        - [ ] Testes automatizados cobrem a mudança
+        - [ ] Documentação foi atualizada quando necessário
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Riscos e dependências
+      description: Serviços externos, migrações, segredos ou decisões pendentes.

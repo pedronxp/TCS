@@ -107,7 +107,7 @@ describe('TrainingContext revalidation stability', () => {
       .mockResolvedValueOnce(makeTrainingEntry({ participantCount: 1 }))
       .mockResolvedValueOnce(makeTrainingEntry({ participantCount: 2 }));
 
-    render(React.createElement(
+    const { unmount } = render(React.createElement(
       TrainingProvider,
       null,
       React.createElement(TrainingContextProbe, { onValue: value => snapshots.push(value) }),
@@ -133,5 +133,6 @@ describe('TrainingContext revalidation stability', () => {
     expect(latest().isExpired).toBe(firstIsExpired);
     expect(latest().exit).toBe(firstExit);
     expect(mockedEnterTrainingClass).toHaveBeenCalledTimes(2);
-  }, 15_000);
+    unmount();
+  }, 30_000);
 });

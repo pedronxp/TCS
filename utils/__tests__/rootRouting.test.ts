@@ -11,6 +11,35 @@ describe('resolveRootRedirect', () => {
     })).toBe('/onboarding');
   });
 
+  it('keeps an authenticated first installation on onboarding until it is completed', () => {
+    expect(resolveRootRedirect({
+      segments: ['onboarding'],
+      onboardingDone: false,
+      isAuthenticated: true,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    })).toBeNull();
+  });
+
+  it('does not loop between onboarding and the authenticated panel', () => {
+    const firstRedirect = resolveRootRedirect({
+      segments: ['(panel)', 'dashboard'],
+      onboardingDone: false,
+      isAuthenticated: true,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    });
+
+    expect(firstRedirect).toBe('/onboarding');
+    expect(resolveRootRedirect({
+      segments: ['onboarding'],
+      onboardingDone: false,
+      isAuthenticated: true,
+      hasTrainingSession: false,
+      hasExpiredTrainingSession: false,
+    })).toBeNull();
+  });
+
   it('routes a returning unauthenticated user to the public auth entry', () => {
     expect(resolveRootRedirect({
       segments: [],

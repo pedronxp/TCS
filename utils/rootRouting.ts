@@ -43,7 +43,11 @@ export function resolveRootRedirect(input: {
   const inResetFlow = inAuth && (segments[1] === 'verify-otp' || segments[1] === 'reset-password');
   if (inResetFlow) return null;
 
-  if (!onboardingDone && !inOnboarding) return '/onboarding';
+  // On first use, onboarding is the only stable destination. Previously an
+  // authenticated session was redirected from onboarding to the dashboard,
+  // while the dashboard redirected back to onboarding, creating an endless
+  // horizontal transition loop.
+  if (!onboardingDone) return inOnboarding ? null : '/onboarding';
 
   if (hasExpiredTrainingSession) {
     return inAuth ? null : '/(auth)/treinamento';

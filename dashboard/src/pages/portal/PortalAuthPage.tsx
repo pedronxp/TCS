@@ -45,7 +45,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   if (!loading && session && (
     entryContext?.accountKind === 'internal'
-    || (!access && (!entryContext || entryContext.accountKind === null))
+    || (!access && !entryContext)
   )) {
     return <Navigate to="/login" replace />;
   }
