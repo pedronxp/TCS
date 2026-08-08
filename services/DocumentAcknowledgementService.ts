@@ -279,7 +279,7 @@ export async function createRemoteAcknowledgementLink(
 }
 
 export function remoteAcknowledgementUrl(token: string): string {
-  const baseUrl = process.env.EXPO_PUBLIC_DOCUMENT_ACKNOWLEDGEMENT_BASE_URL || 'https://tcsvisto.netlify.app';
+  const baseUrl = process.env.EXPO_PUBLIC_DOCUMENT_ACKNOWLEDGEMENT_BASE_URL || 'https://tcsvistoria.netlify.app';
   return `${baseUrl.replace(/\/$/, '')}/ciencia/${encodeURIComponent(token)}`;
 }
 
