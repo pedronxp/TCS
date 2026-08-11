@@ -22,9 +22,12 @@ const events = [
 ];
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: events, isLoading: false, error: null, refetch: vi.fn() }),
+  useQuery: () => ({ data: events, isLoading: false, isFetching: false, error: null, refetch: vi.fn() }),
 }));
 vi.mock('@/lib/supabase', () => ({ supabase: {} }));
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ can: () => false, user: { id: 'staff-1' }, profile: { role: 'developer' } }),
+}));
 
 afterEach(cleanup);
 
@@ -35,6 +38,8 @@ describe('Eventos técnicos unificados', () => {
     expect(screen.getByText('Filtros da investigação')).toBeVisible();
     expect(screen.queryByLabelText('Filtrar categoria')).not.toBeInTheDocument();
     expect(screen.getByText('Conflito resolvido pelo servidor')).toBeVisible();
+    expect(screen.getByText('Defesa Civil')).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Defesa Civil' })).not.toBeInTheDocument();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

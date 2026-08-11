@@ -87,7 +87,7 @@ function parseForms(value: Json | null): FormRow[] {
 }
 
 export function FormsPage() {
-  const { can } = useAuth();
+  const { can, user, profile } = useAuth();
   const [editing, setEditing] = useState<FormRow | 'new' | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [selectedId, setSelectedId] = useState('');
@@ -95,7 +95,7 @@ export function FormsPage() {
   const [scope, setScope] = useState<'all' | 'global' | 'municipal'>('all');
 
   const query = useQuery({
-    queryKey: ['internal-forms'],
+    queryKey: ['internal-forms', user?.id, profile?.role],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('list_internal_forms');
       if (error) throw error;
@@ -136,7 +136,7 @@ export function FormsPage() {
       return matchesSearch && matchesScope;
     });
   }, [forms, scope, search]);
-  const selected = forms.find((form) => form.id === selectedId) || filteredForms[0] || forms[0] || null;
+  const selected = filteredForms.find((form) => form.id === selectedId) || filteredForms[0] || null;
   const published = forms.filter((form) => form.status === 'publicado').length;
   const drafts = forms.filter((form) => form.status === 'rascunho').length;
   const global = forms.filter((form) => !form.municipality).length;
@@ -360,7 +360,7 @@ function FormPreview({
       <h2 id="form-preview-title" className="mt-3 text-lg font-bold">{form.title}</h2>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <StatusBadge value={form.status} />
-        <span className="text-xs text-primary">v{form.version}</span>
+        <span className="text-xs text-foreground">v{form.version}</span>
       </div>
 
       <div className="my-6 h-px bg-border" />
@@ -468,7 +468,8 @@ function FormEditorContent({
   const [questions, setQuestions] = useState(JSON.stringify(form?.questions ?? [], null, 2));
   const [classification, setClassification] = useState(JSON.stringify(form?.classification ?? {}, null, 2));
   const [phases, setPhases] = useState(JSON.stringify(form?.phases ?? [], null, 2));
-  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const preview = useMemo(() => questionPreviewFromStrings(phases, questions), [phases, questions]);
 
@@ -491,9 +492,22 @@ function FormEditorContent({
     };
   }
 
+  async function saveDraft() {
+    try {
+      const nextPayload = payload();
+      if (reason.trim().length < 8) throw new Error('Informe uma justificativa com pelo menos 8 caracteres.');
+      setError(null);
+      setSaving(true);
+      await onSave(nextPayload, reason.trim());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível salvar o rascunho.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <>
-      <Dialog open={open} onOpenChange={(next) => { if (!next && !confirming) onClose(); }}>
+      <Dialog open={open} onOpenChange={(next) => { if (!next && !saving) onClose(); }}>
         <DialogContent className="max-w-6xl">
           <DialogHeader>
             <DialogTitle>{form ? 'Editar formulário' : 'Novo formulário'}</DialogTitle>
@@ -504,7 +518,13 @@ function FormEditorContent({
             <div className="min-w-0 space-y-5">
               <div className="grid gap-4 md:grid-cols-3">
                 <EditorField id="form-title" label="Título" value={title} onChange={setTitle} />
-                <EditorField id="form-municipality" label="Município (vazio = global)" value={municipality} onChange={setMunicipality} />
+                <EditorField
+                  id="form-municipality"
+                  label="Município (vazio = global)"
+                  value={municipality}
+                  onChange={setMunicipality}
+                  disabled={Boolean(form)}
+                />
                 <div>
                   <Label htmlFor="form-calculation">Tipo de cálculo</Label>
                   <select
@@ -527,6 +547,20 @@ function FormEditorContent({
                 <JsonField id="form-phases" label="Fases" value={phases} onChange={setPhases} />
                 <JsonField id="form-classification" label="Classificação" value={classification} onChange={setClassification} />
               </div>
+              {form ? (
+                <p className="text-xs text-muted-foreground">O escopo municipal é imutável depois da criação. Para outro escopo, crie um novo formulário.</p>
+              ) : null}
+              <div>
+                <Label htmlFor="form-reason">Justificativa auditada</Label>
+                <Textarea
+                  id="form-reason"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  rows={3}
+                  className="mt-2"
+                  placeholder="Explique a criação ou alteração deste rascunho"
+                />
+              </div>
             </div>
 
             <aside className="rounded-xl border bg-secondary/35 p-4" aria-label="Pré-visualização das perguntas">
@@ -546,36 +580,15 @@ function FormEditorContent({
             </aside>
           </div>
 
-          {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
+          {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-foreground" role="alert">{error}</p>}
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={() => {
-              try {
-                payload();
-                setError(null);
-                setConfirming(true);
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : 'JSON inválido.');
-              }
-            }}>
-              Salvar rascunho
+            <Button variant="outline" disabled={saving} onClick={onClose}>Cancelar</Button>
+            <Button disabled={saving} onClick={() => void saveDraft()}>
+              {saving ? 'Salvando…' : 'Salvar rascunho'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <HighRiskDialog
-        open={confirming}
-        title="Confirmar rascunho"
-        description="O conteúdo será validado e uma nova versão ficará disponível no histórico."
-        confirmLabel="Salvar versão"
-        onClose={() => setConfirming(false)}
-        onConfirm={async (reason) => {
-          await onSave(payload(), reason);
-          setConfirming(false);
-        }}
-      />
-    </>
   );
 }
 
@@ -584,16 +597,18 @@ function EditorField({
   label,
   value,
   onChange,
+  disabled,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div>
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2" />
+      <Input id={id} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="mt-2" />
     </div>
   );
 }

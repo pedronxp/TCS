@@ -36,7 +36,7 @@ export function StyleGuidePage() {
       <section aria-labelledby="guide-foundations" className="space-y-5">
         <div>
           <h2 id="guide-foundations" className="text-[22px] font-semibold">Foundations</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Cores semânticas, tipografia, espaçamento e forma.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Cores semânticas, tipografia, espaçamento e forma. Os hexadecimais abaixo são a referência do tema claro; a interface usa tokens adaptativos.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {tokenSwatches.map((token) => (
@@ -85,6 +85,31 @@ export function StyleGuidePage() {
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      <section aria-labelledby="guide-motion" className="space-y-5">
+        <div>
+          <h2 id="guide-motion" className="text-[22px] font-semibold">Motion</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Movimento comunica estado e continuidade; não decora dados, leitura ou navegação frequente.</p>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Curvas e durações</CardTitle>
+            <CardDescription>Use propriedades compostas de transform e opacidade, com saída mais curta que entrada.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <MotionRule label="Feedback" value="150 ms" detail="Botões, tabs, hover e foco" token="--motion-ease-out" />
+            <MotionRule label="Presença" value="200 ms" detail="Dialog, sheet e mudança de etapa" token="--motion-ease-out" />
+            <MotionRule label="Drawer" value="200 / 150 ms" detail="Entrada / saída interrompível" token="--motion-ease-drawer" />
+          </CardContent>
+        </Card>
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>Redução de movimento é parte do contrato</AlertTitle>
+          <AlertDescription>
+            Spinners param, skeletons deixam de pulsar e transições espaciais são removidas com <code>prefers-reduced-motion</code>, sem esconder estado ou feedback textual.
+          </AlertDescription>
+        </Alert>
       </section>
 
       <section aria-labelledby="guide-components" className="space-y-5">
@@ -150,7 +175,7 @@ export function StyleGuidePage() {
             </Card>
             <Card className="bg-info-soft">
               <CardHeader>
-                <CardTitle className="text-info">Card informativo</CardTitle>
+                <CardTitle className="text-foreground">Card informativo</CardTitle>
                 <CardDescription>Contexto de apoio em azul suave.</CardDescription>
               </CardHeader>
             </Card>
@@ -193,14 +218,25 @@ export function StyleGuidePage() {
           </CardContent>
         </Card>
 
-        <Alert className="bg-info-soft text-info">
+        <Alert className="bg-info-soft text-foreground">
           <Info className="h-4 w-4" />
           <AlertTitle>Informação operacional</AlertTitle>
-          <AlertDescription className="text-info/80">
+          <AlertDescription className="text-foreground/80">
             Use mensagens curtas, acionáveis e vinculadas ao contexto atual.
           </AlertDescription>
         </Alert>
       </section>
+    </div>
+  );
+}
+
+function MotionRule({ label, value, detail, token }: { label: string; value: string; detail: string; token: string }) {
+  return (
+    <div className="rounded-lg border bg-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-2 text-lg font-bold">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+      <code className="mt-3 block text-xs text-foreground">{token}</code>
     </div>
   );
 }

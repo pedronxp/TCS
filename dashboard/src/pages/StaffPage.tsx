@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAdministrativeMutation } from '@/hooks/useAdministrativeMutation';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -38,8 +39,9 @@ interface StaffRow {
 export function StaffPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const { user, profile } = useAuth();
   const query = useQuery({
-    queryKey: ['internal-staff'],
+    queryKey: ['internal-staff', user?.id, profile?.role],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('internal_staff')
@@ -87,7 +89,7 @@ export function StaffPage() {
         <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Organização interna</p>
         <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Equipe interna</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Papéis, capacidade e responsabilidade em uma visão humana da operação.
+          Papéis, capacidade e responsabilidade em uma visão humana da operação. Mudanças em Owner ou Developer são de alto risco: exigem MFA e justificativa auditada.
         </p>
         <Button className="mt-4 sm:hidden" onClick={openNewMember}>
           <Plus />
@@ -105,7 +107,7 @@ export function StaffPage() {
       >
         <section className="grid min-h-[174px] gap-6 rounded-lg border border-info/20 bg-info-soft p-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <p className="text-[10px] font-bold uppercase text-info">Time em destaque</p>
+            <p className="text-[10px] font-bold uppercase text-foreground">Time em destaque</p>
             <h2 className="mt-4 text-2xl font-bold">
               {stats.active} {stats.active === 1 ? 'pessoa conectada' : 'pessoas conectadas'} à operação
             </h2>
@@ -138,7 +140,7 @@ export function StaffPage() {
                       'grid h-11 w-11 place-items-center rounded-full text-[11px] font-bold',
                       member.role === 'owner'
                         ? 'bg-primary text-primary-foreground'
-                        : 'bg-info-soft text-info',
+                        : 'bg-info-soft text-foreground',
                     )}>
                       {initials(member.display_name)}
                     </span>
@@ -203,7 +205,7 @@ export function StaffPage() {
         <HighRiskDialog
           open={confirming}
           title="Confirmar alteração de acesso"
-          description="A alteração exige MFA e será registrada com estado anterior e posterior."
+          description="A alteração exige MFA e será registrada na auditoria com estado anterior e posterior, horário e justificativa."
           confirmLabel="Salvar membro"
           onClose={() => setConfirming(false)}
           onConfirm={async (reason) => {
@@ -340,7 +342,7 @@ function StateRow({ label, value, tone = 'default' }: { label: string; value: nu
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
-      <strong className={cn(tone === 'warning' && 'text-warning', tone === 'danger' && 'text-destructive')}>{value}</strong>
+      <strong className={cn(tone !== 'default' && 'text-foreground')}>{value}</strong>
     </div>
   );
 }

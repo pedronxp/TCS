@@ -4,11 +4,10 @@ import { TcsMark } from '@/components/brand/TcsMark';
 import { CookieConsent } from '@/components/public/CookieConsent';
 
 const publicLinks = [
-  ['Produto', '/#produto'],
-  ['Soluções', '/#solucoes'],
-  ['Planos', '/planos'],
+  ['Como funciona', '/#solucoes'],
+  ['Individual', '/planos#individual'],
+  ['Municipal', '/planos#municipal'],
   ['Segurança', '/#seguranca'],
-  ['Contato', '/#contato'],
 ] as const;
 
 export function PublicLayout() {
@@ -46,9 +45,7 @@ export function PublicLayout() {
               <Link to="/entrar">Entrar</Link>
             </Button>
             <Button asChild className="hidden h-[46px] px-5 sm:inline-flex">
-              <a href="mailto:comercial@tcs.app?subject=Solicitação%20de%20demonstração">
-                Solicitar demonstração
-              </a>
+              <Link to="/planos">Comparar planos</Link>
             </Button>
           </div>
         </div>
@@ -60,7 +57,7 @@ export function PublicLayout() {
 
       <footer className="border-t bg-card">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-[22px] text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12 xl:px-16">
-          <p>© {new Date().getFullYear()} TCS</p>
+          <p>© {new Date().getFullYear()} TCS · Vistorias e gestão territorial</p>
           <nav className="flex flex-wrap gap-x-6 gap-y-2" aria-label="Links institucionais">
             <a href="/#seguranca" className="inline-flex min-h-11 items-center hover:text-foreground">Segurança</a>
             <a href="mailto:privacidade@tcs.app" className="inline-flex min-h-11 items-center hover:text-foreground">Privacidade</a>

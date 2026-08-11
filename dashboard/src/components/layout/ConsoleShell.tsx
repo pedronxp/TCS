@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AppHeader } from './AppHeader';
 import { AppSidebar } from './AppSidebar';
@@ -14,6 +15,7 @@ export function ConsoleShell() {
     localStorage.getItem('tcs.console.density') === 'compact' ? 'compact' : 'comfortable',
   );
   const { pathname } = useLocation();
+  const { theme, setTheme } = useTheme();
   const compactBoardPadding = [
     '/app/clientes',
     '/app/sessoes',
@@ -46,6 +48,12 @@ export function ConsoleShell() {
 
   return (
     <div className="flex min-h-screen bg-background" data-density={density}>
+      <a
+        href="#console-content"
+        className="sr-only z-[100] rounded-md bg-primary px-4 py-3 font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Pular para o conteúdo
+      </a>
       <div className="sticky top-0 hidden h-screen shrink-0 lg:block">
         <AppSidebar collapsed={collapsed} onCollapsedChange={setCollapsed} />
       </div>
@@ -67,8 +75,10 @@ export function ConsoleShell() {
           onOpenMobile={() => setMobileOpen(true)}
           density={density}
           onDensityChange={setDensity}
+          theme={theme}
+          onThemeChange={setTheme}
         />
-        <main className={cn(
+        <main id="console-content" tabIndex={-1} aria-label="Conteúdo do console" className={cn(
           'w-full',
           density === 'compact'
             ? 'p-3 sm:p-5 lg:p-8'

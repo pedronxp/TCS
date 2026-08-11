@@ -85,6 +85,7 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     can: () => true,
+    user: { id: 'owner-1' },
     profile: { userId: 'owner-1', displayName: 'Pedro Paulo', role: 'owner' },
   }),
 }));
@@ -115,5 +116,17 @@ describe('Builds e pipelines', () => {
     const { container } = render(<BuildsPage />);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
+  });
+
+  it('não transforma URL de artefato não HTTPS em link executável', () => {
+    const previous = buildData.builds[0].apk_url;
+    buildData.builds[0].apk_url = 'javascript:alert(1)';
+    try {
+      render(<BuildsPage />);
+      expect(screen.getByText('Artefato bloqueado')).toBeVisible();
+      expect(screen.queryByRole('link', { name: 'Abrir APK' })).not.toBeInTheDocument();
+    } finally {
+      buildData.builds[0].apk_url = previous;
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -21,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { jsonArray, jsonObject, jsonString } from '@/lib/json';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Json } from '@/types/supabase';
 
 interface EventRow {
   id: string;
@@ -60,6 +62,7 @@ export function TechnicalEventsPage({
   category?: string;
   title: string;
 }) {
+  const { can, user, profile } = useAuth();
   const page = pageCopy[fixedCategory === 'sync' ? 'sync' : fixedCategory === 'storage' ? 'storage' : 'logs'];
   const [customer, setCustomer] = useState('');
   const [version, setVersion] = useState('');
@@ -68,13 +71,17 @@ export function TechnicalEventsPage({
   const [severity, setSeverity] = useState('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const deferredCustomer = useDeferredValue(customer);
+  const deferredVersion = useDeferredValue(version);
+  const invalidDateRange = Boolean(from && to && from > to);
 
   const query = useQuery({
-    queryKey: ['technical-events', fixedCategory || 'logs', customer, version, platform, category, severity, from, to],
+    queryKey: ['technical-events', user?.id, profile?.role, fixedCategory || 'logs', deferredCustomer, deferredVersion, platform, category, severity, from, to],
+    enabled: !invalidDateRange,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('list_internal_technical_events', {
-        p_customer_id: customer || undefined,
-        p_version: version || undefined,
+        p_customer_id: deferredCustomer || undefined,
+        p_version: deferredVersion || undefined,
         p_platform: platform === 'all' ? undefined : platform,
         p_category: category === 'all' ? undefined : category,
         p_severity: severity === 'all' ? undefined : severity,
@@ -83,30 +90,19 @@ export function TechnicalEventsPage({
         p_limit: 250,
       });
       if (error) throw error;
-      return jsonArray(data).map(jsonObject).filter(Boolean).map((row): EventRow => ({
-        id: jsonString(row?.id) || jsonString(row?.event_key) || crypto.randomUUID(),
-        version: jsonString(row?.app_version),
-        platform: jsonString(row?.platform) || 'unknown',
-        category: jsonString(row?.category) || 'runtime',
-        severity: jsonString(row?.severity) || 'info',
-        correlation: jsonString(row?.correlation_id),
-        summary: jsonString(row?.summary) || 'Evento técnico',
-        occurredAt: jsonString(row?.occurred_at) || new Date(0).toISOString(),
-        customerId: jsonString(row?.customer_id),
-        customerName: jsonString(row?.customer_name),
-      }));
+      return jsonArray(data).map(parseTechnicalEvent).filter((event): event is EventRow => event !== null);
     },
   });
 
   const metrics = useMemo(() => {
-    const events = query.data ?? [];
+    const events = invalidDateRange ? [] : query.data ?? [];
     return {
       total: events.length,
       critical: events.filter((event) => ['error', 'critical'].includes(event.severity)).length,
       warnings: events.filter((event) => event.severity === 'warning').length,
       customers: new Set(events.map((event) => event.customerId).filter(Boolean)).size,
     };
-  }, [query.data]);
+  }, [invalidDateRange, query.data]);
 
   const hasFilters = Boolean(customer || version || platform !== 'all' || severity !== 'all' || from || to || (!fixedCategory && category !== 'all'));
   function clearFilters() {
@@ -126,15 +122,15 @@ export function TechnicalEventsPage({
         title={title}
         description={page.description}
         actions={(
-          <Button variant="outline" onClick={() => void query.refetch()}>
-            <RefreshCw className="h-4 w-4" />
-            Atualizar
+          <Button variant="outline" disabled={query.isFetching || invalidDateRange} onClick={() => void query.refetch()}>
+            <RefreshCw className={query.isFetching ? 'h-4 w-4 animate-spin motion-reduce:animate-none' : 'h-4 w-4'} />
+            {query.isFetching ? 'Atualizando…' : 'Atualizar'}
           </Button>
         )}
       />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo dos eventos">
-        <MetricCard label="Eventos encontrados" value={metrics.total} icon={page.Icon} />
+        <MetricCard label="Eventos retornados" value={metrics.total} icon={page.Icon} />
         <MetricCard label="Erros críticos" value={metrics.critical} icon={AlertTriangle} />
         <MetricCard label="Avisos" value={metrics.warnings} icon={Boxes} />
         <MetricCard label="Clientes afetados" value={metrics.customers} icon={CheckCircle2} />
@@ -166,15 +162,21 @@ export function TechnicalEventsPage({
         </CardContent>
       </Card>
 
+      {invalidDateRange ? (
+        <p role="alert" className="rounded-lg border border-warning/30 bg-warning-soft p-4 text-sm text-foreground">
+          A data inicial deve ser anterior ou igual à data final. Corrija o período para consultar eventos.
+        </p>
+      ) : null}
+
       <AsyncBoundary
-        loading={query.isLoading}
+        loading={!invalidDateRange && query.isLoading}
         error={query.error}
         onRetry={() => void query.refetch()}
-        empty={Boolean(query.data && !query.data.length)}
+        empty={Boolean(!invalidDateRange && query.data && !query.data.length)}
         emptyTitle="Nenhum evento persistido"
         emptyDescription="A fonte respondeu sem eventos para os filtros selecionados."
       >
-        {query.data && (
+        {!invalidDateRange && query.data && (
           <section className="space-y-3" aria-label={`Eventos de ${title.toLowerCase()}`}>
             {query.data.map((event) => (
               <Card key={event.id}>
@@ -193,11 +195,11 @@ export function TechnicalEventsPage({
                     <span>Versão {event.version || '—'}</span>
                     <span aria-hidden="true" className="hidden sm:inline">·</span>
                     <span className="break-all">Correlação {event.correlation || event.id}</span>
-                    {event.customerId && (
+                    {event.customerId && can('customer.read') ? (
                       <Link className="font-semibold text-primary underline-offset-4 hover:underline" to={`/app/clientes/${encodeURIComponent(event.customerId)}`}>
                         {event.customerName || 'Abrir cliente'}
                       </Link>
-                    )}
+                    ) : event.customerId ? <span>{event.customerName || 'Cliente identificado'}</span> : null}
                   </div>
                 </CardContent>
               </Card>
@@ -207,6 +209,31 @@ export function TechnicalEventsPage({
       </AsyncBoundary>
     </div>
   );
+}
+
+function parseTechnicalEvent(value: Json): EventRow | null {
+  const row = jsonObject(value);
+  const id = jsonString(row?.id) || jsonString(row?.event_key);
+  const summary = jsonString(row?.summary);
+  const occurredAt = jsonString(row?.occurred_at);
+  const platform = jsonString(row?.platform);
+  const category = jsonString(row?.category);
+  const severity = jsonString(row?.severity);
+  if (!id || !summary || !occurredAt || !platform || !category || !severity || Number.isNaN(new Date(occurredAt).getTime())) {
+    return null;
+  }
+  return {
+    id,
+    version: jsonString(row?.app_version),
+    platform,
+    category,
+    severity,
+    correlation: jsonString(row?.correlation_id),
+    summary,
+    occurredAt,
+    customerId: jsonString(row?.customer_id),
+    customerName: jsonString(row?.customer_name),
+  };
 }
 
 function FilterSelect({

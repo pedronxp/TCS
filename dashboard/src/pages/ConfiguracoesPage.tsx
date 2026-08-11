@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/domain/PageHeader';
-import { EnvironmentBadge, StatusBadge } from '@/components/domain/Badges';
+import { EnvironmentBadge } from '@/components/domain/Badges';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Separator } from '@/components/ui/Separator';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const projectRef = supabaseUrl?.match(/^https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? 'não configurado';
+const projectRef = supabaseUrl?.match(/^https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? null;
 
 const integrations = [
   {
@@ -74,7 +74,7 @@ export function ConfiguracoesPage() {
           <CardContent className="grid gap-5 sm:grid-cols-2">
             <SystemItem label="Aplicativo" value="TCS — Relatório de Risco" />
             <SystemItem label="Console web" value="0.1.0" />
-            <SystemItem label="Projeto Supabase" value={projectRef} mono />
+            <SystemItem label="Projeto Supabase" value={projectRef || 'Referência não disponível'} mono />
             <SystemItem label="Fonte de configuração" value="Variáveis do ambiente" />
           </CardContent>
         </Card>
@@ -86,7 +86,7 @@ export function ConfiguracoesPage() {
           <CardContent>
             <div className="rounded-xl border border-dashed p-5 text-center">
               <CheckCircle2 className="mx-auto h-7 w-7 text-success" />
-              <p className="mt-3 font-semibold">Nenhuma fonte publicável disponível</p>
+              <p className="mt-3 font-semibold">Nenhum conjunto genérico publicável</p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 O estado permanece somente leitura até existir versionamento, revisão e rollback no backend.
               </p>
@@ -119,7 +119,7 @@ export function ConfiguracoesPage() {
             <h2 id="external-integrations" className="text-lg font-bold">Integrações externas</h2>
             <p className="mt-1 text-sm text-muted-foreground">Nomes necessários; valores nunca são retornados ao cliente.</p>
           </div>
-          <StatusBadge value="active" fallback="Protegido" />
+          <Badge variant="outline">Status não exposto ao cliente</Badge>
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
           {integrations.map(({ label, description, variables, link, Icon }) => (
@@ -137,7 +137,7 @@ export function ConfiguracoesPage() {
                   {variables.map((variable) => <Badge key={variable} variant="outline" className="font-mono">{variable}</Badge>)}
                 </div>
                 <Button asChild variant="ghost" size="sm" className="mt-4 px-0">
-                  <a href={link} target="_blank" rel="noreferrer">
+                  <a href={link} target="_blank" rel="noopener noreferrer">
                     Abrir provedor <ExternalLink className="h-4 w-4" />
                   </a>
                 </Button>
@@ -158,11 +158,17 @@ export function ConfiguracoesPage() {
               </p>
             </div>
           </div>
-          <Button asChild variant="outline">
-            <a href={`https://supabase.com/dashboard/project/${projectRef}/editor`} target="_blank" rel="noreferrer">
-              <KeyRound className="h-4 w-4" />Abrir Studio
-            </a>
-          </Button>
+          {projectRef ? (
+            <Button asChild variant="outline">
+              <a href={`https://supabase.com/dashboard/project/${projectRef}/editor`} target="_blank" rel="noopener noreferrer">
+                <KeyRound className="h-4 w-4" />Abrir Studio
+              </a>
+            </Button>
+          ) : (
+            <Button variant="outline" disabled title="A referência do projeto não está disponível neste ambiente">
+              <KeyRound className="h-4 w-4" />Studio indisponível
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

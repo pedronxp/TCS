@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Filter, Search } from 'lucide-react';
 import { PageHeader } from '@/components/domain/PageHeader';
@@ -13,6 +13,8 @@ import { jsonArray, jsonObject, jsonString } from '@/lib/json';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Json } from '@/types/supabase';
 
 interface AuditRow {
   source: string;
@@ -30,18 +32,20 @@ type TimeRange = 'today' | '7d' | '30d' | 'all';
 type Category = 'all' | 'access' | 'configuration';
 
 export function AuditPage() {
+  const { user, profile } = useAuth();
   const [search, setSearch] = useState('');
   const [source, setSource] = useState('all');
   const [result, setResult] = useState('all');
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
   const [category, setCategory] = useState<Category>('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const deferredSearch = useDeferredValue(search);
   const from = rangeStart(timeRange);
   const query = useQuery({
-    queryKey: ['audit-timeline', search, source, result, timeRange],
+    queryKey: ['audit-timeline', user?.id, profile?.role, deferredSearch, source, result, timeRange],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('list_internal_audit_timeline', {
-        p_search: search || undefined,
+        p_search: deferredSearch || undefined,
         p_source: source === 'all' ? undefined : source,
         p_result: result === 'all' ? undefined : result,
         p_from: from,
@@ -49,27 +53,14 @@ export function AuditPage() {
         p_limit: 250,
       });
       if (error) throw error;
-      return jsonArray(data)
-        .map(jsonObject)
-        .filter(Boolean)
-        .map((row): AuditRow => ({
-          source: jsonString(row?.source) || 'internal',
-          id: jsonString(row?.event_id) || crypto.randomUUID(),
-          type: jsonString(row?.event_type) || 'evento',
-          entity: jsonString(row?.entity_type) || '—',
-          entityId: jsonString(row?.entity_id),
-          actor: jsonString(row?.actor_name) || 'Sistema',
-          result: jsonString(row?.result) || 'allowed',
-          reason: jsonString(row?.reason),
-          createdAt: jsonString(row?.created_at) || new Date(0).toISOString(),
-        }));
+      return jsonArray(data).map(parseAuditRow).filter((row): row is AuditRow => row !== null);
     },
   });
   const rows = useMemo(
     () => (query.data ?? []).filter((row) => matchesCategory(row, category)),
     [category, query.data],
   );
-  const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
+  const selected = rows.find((row) => auditKey(row) === selectedKey) ?? rows[0] ?? null;
 
   return (
     <div className="page-stack">
@@ -211,14 +202,14 @@ export function AuditPage() {
                     <div className="min-w-0 px-2">
                       <h3 className="truncate text-[13px] font-bold">{humanize(row.type)}</h3>
                       <p className="mt-1 text-[11px] font-medium text-muted-foreground">{row.actor}</p>
-                      <p className="mt-1 truncate text-[11px] font-medium text-info">
+                      <p className="mt-1 truncate text-[11px] font-medium text-foreground">
                         {row.entity}{row.entityId ? ` · ${shortId(row.entityId)}` : ''}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSelectedId(row.id)}
-                      aria-pressed={selected?.id === row.id}
+                      onClick={() => setSelectedKey(auditKey(row))}
+                      aria-pressed={selected ? auditKey(selected) === auditKey(row) : false}
                       className="col-start-3 mt-3 justify-self-start text-[11px] font-semibold text-primary hover:underline sm:col-start-auto sm:mt-1 sm:justify-self-end"
                     >
                       Ver detalhes →
@@ -233,6 +224,35 @@ export function AuditPage() {
       </AsyncBoundary>
     </div>
   );
+}
+
+function parseAuditRow(value: Json): AuditRow | null {
+  const row = jsonObject(value);
+  const source = jsonString(row?.source);
+  const id = jsonString(row?.event_id);
+  const type = jsonString(row?.event_type);
+  const entity = jsonString(row?.entity_type);
+  const actor = jsonString(row?.actor_name);
+  const result = jsonString(row?.result);
+  const createdAt = jsonString(row?.created_at);
+  if (!source || !id || !type || !entity || !actor || !result || !createdAt || Number.isNaN(new Date(createdAt).getTime())) {
+    return null;
+  }
+  return {
+    source,
+    id,
+    type,
+    entity,
+    entityId: jsonString(row?.entity_id),
+    actor,
+    result,
+    reason: jsonString(row?.reason),
+    createdAt,
+  };
+}
+
+function auditKey(row: AuditRow) {
+  return `${row.source}:${row.id}`;
 }
 
 function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

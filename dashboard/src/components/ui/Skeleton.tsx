@@ -2,6 +2,6 @@ import { cn } from '@/lib/utils';
 
 export function Skeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('animate-pulse rounded-md bg-muted', className)} aria-hidden="true" />
+    <div className={cn('animate-pulse rounded-md bg-muted motion-reduce:animate-none', className)} aria-hidden="true" />
   );
 }

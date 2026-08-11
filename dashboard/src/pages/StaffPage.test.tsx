@@ -39,6 +39,10 @@ vi.mock('@/hooks/useAdministrativeMutation', () => ({
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }));
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'staff-1' }, profile: { role: 'owner' } }),
+}));
+
 afterEach(cleanup);
 
 describe('Equipe interna', () => {
@@ -56,5 +60,11 @@ describe('Equipe interna', () => {
     const { container } = render(<StaffPage />);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
+  });
+
+  it('sinaliza que mudanças em Owner/Developer são de alto risco e exigem MFA', () => {
+    render(<StaffPage />);
+    expect(screen.getByText(/exigem MFA/)).toBeVisible();
+    expect(screen.getByText(/alto risco/)).toBeVisible();
   });
 });

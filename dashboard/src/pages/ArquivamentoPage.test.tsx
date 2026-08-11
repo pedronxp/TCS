@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArquivamentoPage } from './ArquivamentoPage';
@@ -45,15 +46,15 @@ const lifecycle = {
 };
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: lifecycle, isLoading: false, error: null, refetch: vi.fn() }),
+  useQuery: () => ({ data: lifecycle, isLoading: false, isFetching: false, error: null, refetch: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
 }));
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'owner-1' }, profile: { assuranceLevel: 'aal2' }, refreshAssurance: vi.fn() }),
+  useAuth: () => ({ user: { id: 'owner-1' }, profile: { assuranceLevel: 'aal2', role: 'owner' }, refreshAssurance: vi.fn() }),
 }));
 vi.mock('@/lib/supabase', () => ({ supabase: {} }));
-vi.mock('sonner', () => ({ toast: { success: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 afterEach(cleanup);
 
@@ -70,5 +71,14 @@ describe('Arquivamento e restauração', () => {
     const { container } = render(<ArquivamentoPage />);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
+  });
+
+  it('permite ao segundo owner aprovar ou rejeitar o lote sem alterar a fila localmente', async () => {
+    const user = userEvent.setup();
+    render(<ArquivamentoPage />);
+    await user.click(screen.getByRole('tab', { name: 'Fila (1)' }));
+    expect(screen.getByRole('button', { name: 'Aprovar' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Rejeitar' })).toBeVisible();
+    expect(screen.getByText('Owner solicitante', { exact: false })).toBeVisible();
   });
 });

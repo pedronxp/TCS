@@ -60,12 +60,12 @@ export default function PrivateApp() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/app" element={<ProtectedConsole />}>
           <Route index element={<DashboardHome />} />
-          <Route path="clientes" element={<CustomersPage />} />
-          <Route path="clientes/:customerId/usuarios/:userId/:userSection?" element={<AgentDetailPage />} />
-          <Route path="clientes/:customerId/:section?" element={<CustomerDetailPage />} />
+          <Route path="clientes" element={<ProtectedRoute requirePermission="customer.read"><CustomersPage /></ProtectedRoute>} />
+          <Route path="clientes/:customerId/usuarios/:userId/:userSection?" element={<ProtectedRoute requirePermission="customer.read"><AgentDetailPage /></ProtectedRoute>} />
+          <Route path="clientes/:customerId/:section?" element={<ProtectedRoute requirePermission="customer.read"><CustomerDetailPage /></ProtectedRoute>} />
           <Route path="planos" element={<ProtectedRoute requirePermission="commercial.read"><PlansPage /></ProtectedRoute>} />
           <Route path="assinaturas" element={<ProtectedRoute requirePermission="commercial.read"><SubscriptionsPage /></ProtectedRoute>} />
-          <Route path="sessoes" element={<SessionsPage />} />
+          <Route path="sessoes" element={<ProtectedRoute requirePermission="session.read"><SessionsPage /></ProtectedRoute>} />
           <Route path="suporte" element={<SupportPage />} />
           <Route path="staff" element={<ProtectedRoute requirePermission="staff.read"><StaffPage /></ProtectedRoute>} />
           <Route path="auditoria" element={<ProtectedRoute requirePermission="audit.read"><AuditPage /></ProtectedRoute>} />

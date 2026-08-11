@@ -70,7 +70,7 @@ function parse(value: Json | null): RiskConfig[] {
 }
 
 export function RiskRulesPage() {
-  const { can } = useAuth();
+  const { can, user, profile } = useAuth();
   const [municipality, setMunicipality] = useState('');
   const [config, setConfig] = useState(JSON.stringify(defaultConfig, null, 2));
   const [action, setAction] = useState<'save_draft' | 'publish' | 'rollback'>('save_draft');
@@ -81,9 +81,11 @@ export function RiskRulesPage() {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [draftReason, setDraftReason] = useState('');
+  const [savingDraft, setSavingDraft] = useState(false);
 
   const query = useQuery({
-    queryKey: ['risk-configs'],
+    queryKey: ['risk-configs', user?.id, profile?.role],
     queryFn: async () => {
       const { data, error: queryError } = await supabase.rpc('list_internal_risk_configs');
       if (queryError) throw queryError;
@@ -112,6 +114,7 @@ export function RiskRulesPage() {
   }, [config]);
   const simulationRow = jsonObject(simulation);
   const simulatedLevel = normalizeLevel(jsonString(simulationRow?.nivel));
+  const simulationReady = Boolean(simulation && simulatedLevel);
 
   const mutation = useAdministrativeMutation<{
     municipality: string;
@@ -169,6 +172,7 @@ export function RiskRulesPage() {
     setSimulation(null);
     setTargetVersion(null);
     setError(null);
+    setDraftReason('');
   }
 
   function createConfiguration() {
@@ -177,6 +181,30 @@ export function RiskRulesPage() {
     setSimulation(null);
     setTargetVersion(null);
     setError(null);
+    setDraftReason('');
+  }
+
+  async function saveDraft() {
+    try {
+      if (!simulationReady) throw new Error('Execute uma simulação válida antes de salvar.');
+      if (municipality.trim().length < 2) throw new Error('Informe o município desta configuração.');
+      if (draftReason.trim().length < 8) throw new Error('Informe uma justificativa com pelo menos 8 caracteres.');
+      setError(null);
+      setSavingDraft(true);
+      const result = await mutation.mutateAsync({
+        municipality: municipality.trim(),
+        action: 'save_draft',
+        configuration: readConfig(),
+        targetVersion: null,
+        reason: draftReason.trim(),
+      });
+      if (!result.ok) throw new Error(result.error);
+      setDraftReason('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível salvar o rascunho.');
+    } finally {
+      setSavingDraft(false);
+    }
   }
 
   return (
@@ -214,7 +242,10 @@ export function RiskRulesPage() {
           <>
             <SimulationHero
               score={score}
-              onScoreChange={setScore}
+              onScoreChange={(value) => {
+                setScore(value);
+                setSimulation(null);
+              }}
               onSimulate={() => void simulate()}
               simulation={simulation}
               level={simulatedLevel}
@@ -250,15 +281,14 @@ export function RiskRulesPage() {
               <VersionPanel
                 municipality={municipality}
                 selected={selected}
-                simulationReady={Boolean(simulation)}
+                simulationReady={simulationReady}
                 canPrepare={can('configuration.prepare')}
                 canPublish={can('configuration.publish')}
                 targetVersion={targetVersion}
-                onSaveDraft={() => {
-                  setAction('save_draft');
-                  setTargetVersion(null);
-                  setConfirming(true);
-                }}
+                draftReason={draftReason}
+                savingDraft={savingDraft}
+                onDraftReasonChange={setDraftReason}
+                onSaveDraft={() => void saveDraft()}
                 onPublish={() => {
                   setAction('publish');
                   setTargetVersion(null);
@@ -282,13 +312,13 @@ export function RiskRulesPage() {
         )}
       </AsyncBoundary>
 
-      {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
+      {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-foreground" role="alert">{error}</p>}
 
       <HighRiskDialog
         open={confirming}
-        title={action === 'publish' ? 'Publicar regras de risco' : action === 'rollback' ? 'Restaurar regras de risco' : 'Salvar rascunho de risco'}
+        title={action === 'publish' ? 'Publicar regras de risco' : 'Restaurar regras de risco'}
         description="A configuração simulada será versionada e registrada na auditoria."
-        confirmLabel={action === 'save_draft' ? 'Salvar rascunho' : action === 'rollback' ? `Restaurar v${targetVersion}` : 'Publicar configuração'}
+        confirmLabel={action === 'rollback' ? `Restaurar v${targetVersion}` : 'Publicar configuração'}
         onClose={() => setConfirming(false)}
         onConfirm={async (reason) => {
           const result = await mutation.mutateAsync({
@@ -354,6 +384,14 @@ function SimulationHero({
             <div>
               <p className="text-sm font-semibold text-foreground">{jsonString(row?.label) || 'Classificação encontrada'}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{jsonString(row?.descricao) || 'Intervalo validado com sucesso.'}</p>
+            </div>
+          </div>
+        ) : simulation ? (
+          <div className="mt-3 flex items-center gap-3 text-xs text-foreground">
+            <ShieldAlert className="h-5 w-5 text-destructive" />
+            <div>
+              <p className="font-semibold">{jsonString(row?.label) || 'Fora dos intervalos'}</p>
+              <p className="mt-1 text-muted-foreground">Este resultado não libera versionamento ou publicação.</p>
             </div>
           </div>
         ) : (
@@ -473,7 +511,7 @@ function TierPanel({
           </div>
         ))}
         {!tiers.length && (
-          <p className="rounded-lg border border-destructive/25 bg-destructive-soft p-3 text-xs text-destructive">
+          <p className="rounded-lg border border-destructive/25 bg-destructive-soft p-3 text-xs text-foreground">
             O JSON atual ainda não forma faixas R1–R4 válidas.
           </p>
         )}
@@ -508,10 +546,13 @@ function VersionPanel({
   municipality,
   selected,
   simulationReady,
+  draftReason,
+  savingDraft,
   canPrepare,
   canPublish,
   targetVersion,
   onSaveDraft,
+  onDraftReasonChange,
   onPublish,
   onSelectVersion,
   onRollback,
@@ -519,10 +560,13 @@ function VersionPanel({
   municipality: string;
   selected: RiskConfig | null;
   simulationReady: boolean;
+  draftReason: string;
+  savingDraft: boolean;
   canPrepare: boolean;
   canPublish: boolean;
   targetVersion: number | null;
   onSaveDraft: () => void;
+  onDraftReasonChange: (value: string) => void;
   onPublish: () => void;
   onSelectVersion: (version: RiskVersion) => void;
   onRollback: () => void;
@@ -568,7 +612,21 @@ function VersionPanel({
       </div>
 
       <div className="mt-auto space-y-2 pt-6">
-        {canPrepare && <Button variant="secondary" className="w-full" disabled={!simulationReady || !municipality.trim()} onClick={onSaveDraft}>Salvar rascunho</Button>}
+        {canPrepare ? (
+          <div className="space-y-2">
+            <Label htmlFor="risk-draft-reason">Justificativa do rascunho</Label>
+            <Textarea
+              id="risk-draft-reason"
+              value={draftReason}
+              onChange={(event) => onDraftReasonChange(event.target.value)}
+              rows={3}
+              placeholder="Explique a alteração destas faixas"
+            />
+            <Button variant="secondary" className="w-full" disabled={!simulationReady || !municipality.trim() || savingDraft} onClick={onSaveDraft}>
+              {savingDraft ? 'Salvando…' : 'Salvar rascunho'}
+            </Button>
+          </div>
+        ) : null}
         {canPublish && <Button className="w-full" disabled={!simulationReady || !municipality.trim()} onClick={onPublish}>Publicar configuração</Button>}
         {canPublish && targetVersion && (
           <Button variant="outline" className="w-full" disabled={!simulationReady} onClick={onRollback}>
@@ -583,10 +641,10 @@ function VersionPanel({
 
 function RiskLevelBadge({ level }: { level: RiskTier['level'] }) {
   const classes = {
-    R1: 'bg-risk-r1/15 text-risk-r1',
-    R2: 'bg-risk-r2/15 text-warning',
-    R3: 'bg-risk-r3/15 text-risk-r3',
-    R4: 'bg-risk-r4/15 text-risk-r4',
+    R1: 'bg-risk-r1/15 text-foreground',
+    R2: 'bg-risk-r2/15 text-foreground',
+    R3: 'bg-risk-r3/15 text-foreground',
+    R4: 'bg-risk-r4/15 text-foreground',
   };
   return <span className={cn('grid h-9 w-12 shrink-0 place-items-center rounded-full text-xs font-extrabold', classes[level])}>{level}</span>;
 }
@@ -599,7 +657,7 @@ function currentConfiguration(item: RiskConfig): Json {
 }
 
 function parseTiers(value: Json): RiskTier[] {
-  return jsonArray(value).map((item) => {
+  const tiers = jsonArray(value).map((item) => {
     const row = jsonObject(item);
     const level = normalizeLevel(jsonString(row?.nivel));
     const min = jsonNumber(row?.minPontos);
@@ -613,6 +671,9 @@ function parseTiers(value: Json): RiskTier[] {
       max,
     };
   }).filter((tier): tier is RiskTier => Boolean(tier));
+  return tiers.every((tier, index) => tier.min <= tier.max && (index === 0 || tier.min > tiers[index - 1].max))
+    ? tiers
+    : [];
 }
 
 function normalizeLevel(value: string | null): RiskTier['level'] | null {

@@ -222,7 +222,8 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) throw signOutError;
     setSession(null);
     setAccess(null);
     setEntryContext(null);

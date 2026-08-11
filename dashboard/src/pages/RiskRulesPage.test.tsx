@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RiskRulesPage } from './RiskRulesPage';
+
+const { rpcMock } = vi.hoisted(() => ({ rpcMock: vi.fn() }));
 
 const configs = vi.hoisted(() => {
   const configuration = [
@@ -33,16 +35,19 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ can: () => true }),
+  useAuth: () => ({ can: () => true, user: { id: 'staff-1' }, profile: { role: 'developer' } }),
 }));
 
 vi.mock('@/hooks/useAdministrativeMutation', () => ({
   useAdministrativeMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-vi.mock('@/lib/supabase', () => ({ supabase: {} }));
+vi.mock('@/lib/supabase', () => ({ supabase: { rpc: rpcMock } }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  rpcMock.mockReset();
+});
 
 describe('Regras de risco', () => {
   it('reproduz simulação obrigatória, escopo, faixas e histórico', () => {
@@ -60,5 +65,19 @@ describe('Regras de risco', () => {
     const { container } = render(<RiskRulesPage />);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
+  });
+
+  it('não libera publicação quando a simulação fica fora dos intervalos', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: { nivel: 'unclassified', label: 'Fora dos intervalos', score: 10000 },
+      error: null,
+    });
+    render(<RiskRulesPage />);
+
+    fireEvent.change(screen.getByLabelText('Pontuação'), { target: { value: '10000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Simular' }));
+
+    expect(await screen.findByText('Fora dos intervalos')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Publicar configuração' })).toBeDisabled();
   });
 });

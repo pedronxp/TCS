@@ -36,6 +36,10 @@ vi.mock('@/lib/supabase', () => ({
   supabase: { rpc: vi.fn() },
 }));
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'staff-1' }, profile: { role: 'auditor' } }),
+}));
+
 afterEach(cleanup);
 
 describe('Timeline de auditoria', () => {

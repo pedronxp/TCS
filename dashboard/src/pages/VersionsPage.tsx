@@ -34,18 +34,19 @@ type VersionRow = {
 type ReleaseAction = 'set_development' | 'publish' | 'set_minimum';
 
 export function VersionsPage() {
-  const { can } = useAuth();
+  const { can, user, profile } = useAuth();
   const canPrepare = can('configuration.prepare') || can('configuration.publish');
   const [editing, setEditing] = useState(false);
   const [notesVersion, setNotesVersion] = useState<VersionRow | null>(null);
   const [version, setVersion] = useState('');
   const [changelog, setChangelog] = useState('');
+  const [reason, setReason] = useState('');
   const [action, setAction] = useState<ReleaseAction>('set_development');
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({
-    queryKey: ['release-catalog'],
+    queryKey: ['release-catalog', user?.id, profile?.role],
     queryFn: async () => {
       const [versions, settings, events] = await Promise.all([
         supabase
@@ -102,11 +103,15 @@ export function VersionsPage() {
   const adoptionPercent = totalAdoption && published
     ? Math.round(published.adoption * 100 / totalAdoption)
     : 0;
+  const belowMinimumCount = rows
+    .filter((row) => compareVersions(row.version, query.data?.settings.minimum_version || '') < 0)
+    .reduce((sum, row) => sum + row.adoption, 0);
 
   function openEditor() {
     setAction('set_development');
     setVersion(query.data?.settings.development_version || '');
     setChangelog(development?.changelog || '');
+    setReason('');
     setError(null);
     setConfirming(false);
     setEditing(true);
@@ -119,13 +124,35 @@ export function VersionsPage() {
     setError(null);
   }
 
-  function requestConfirmation() {
+  async function requestConfirmation() {
     if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version.trim())) {
       setError('Informe uma versão semântica válida.');
       return;
     }
+    if (action === 'set_development' && reason.trim().length < 8) {
+      setError('Informe uma justificativa com pelo menos 8 caracteres.');
+      return;
+    }
     setError(null);
-    setConfirming(true);
+    if (action !== 'set_development') {
+      setConfirming(true);
+      return;
+    }
+    try {
+      await applyRelease(reason.trim());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Não foi possível atualizar a versão.');
+    }
+  }
+
+  async function applyRelease(auditReason: string) {
+    const result = await mutation.mutateAsync({ action, version: version.trim(), changelog, reason: auditReason });
+    if (!result.ok) throw new Error(result.error);
+    setConfirming(false);
+    setEditing(false);
+    setVersion('');
+    setChangelog('');
+    setReason('');
   }
 
   return (
@@ -165,7 +192,7 @@ export function VersionsPage() {
           <>
             <ReleaseTrain
               development={query.data.settings.development_version}
-              candidate={candidateVersion(rows, query.data.settings.published_version, query.data.settings.development_version)}
+              minimum={query.data.settings.minimum_version}
               published={query.data.settings.published_version}
             />
 
@@ -173,19 +200,16 @@ export function VersionsPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <VersionSummaryCard
                   label="Publicada"
-                  tone="success"
                   version={published || fallbackVersion(query.data.settings.published_version, 'published')}
                   onOpen={setNotesVersion}
                 />
                 <VersionSummaryCard
-                  label="Candidata"
-                  tone="warning"
-                  version={candidateRow(rows, query.data.settings.published_version, query.data.settings.development_version)}
+                  label="Mínima suportada"
+                  version={minimum || fallbackVersion(query.data.settings.minimum_version, 'retired')}
                   onOpen={setNotesVersion}
                 />
                 <VersionSummaryCard
                   label="Desenvolvimento"
-                  tone="info"
                   version={development || fallbackVersion(query.data.settings.development_version, 'development')}
                   onOpen={setNotesVersion}
                 />
@@ -196,13 +220,13 @@ export function VersionsPage() {
                 publishedCount={published?.adoption || 0}
                 minimumVersion={query.data.settings.minimum_version}
                 minimumCount={minimum?.adoption || 0}
-                total={totalAdoption}
                 percent={adoptionPercent}
+                belowMinimum={belowMinimumCount}
               />
             </div>
 
             <CandidateChanges
-              version={candidateRow(rows, query.data.settings.published_version, query.data.settings.development_version)}
+              version={development || fallbackVersion(query.data.settings.development_version, 'development')}
             />
           </>
         )}
@@ -253,11 +277,25 @@ export function VersionsPage() {
                 placeholder="Uma mudança por linha"
               />
             </div>
+            {action === 'set_development' ? (
+              <div className="space-y-2">
+                <Label htmlFor="release-reason">Justificativa auditada</Label>
+                <Textarea
+                  id="release-reason"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  rows={3}
+                  placeholder="Explique por que esta versão deve entrar em desenvolvimento"
+                />
+              </div>
+            ) : null}
             {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeEditor}>Cancelar</Button>
-            <Button onClick={requestConfirmation}>Continuar</Button>
+            <Button disabled={mutation.isPending} onClick={() => void requestConfirmation()}>
+              {action === 'set_development' ? 'Salvar desenvolvimento' : 'Continuar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -265,16 +303,11 @@ export function VersionsPage() {
       <HighRiskDialog
         open={confirming}
         title="Confirmar alteração de versão"
-        description="A alteração será auditada; publicação e versão mínima exigem owner em MFA."
+        description="Publicação e versão mínima exigem permissão de publicação, MFA e justificativa auditada."
         confirmLabel="Aplicar versão"
         onClose={() => setConfirming(false)}
         onConfirm={async (reason) => {
-          const result = await mutation.mutateAsync({ action, version: version.trim(), changelog, reason });
-          if (!result.ok) throw new Error(result.error);
-          setConfirming(false);
-          setEditing(false);
-          setVersion('');
-          setChangelog('');
+          await applyRelease(reason);
         }}
       />
 
@@ -295,10 +328,10 @@ export function VersionsPage() {
   );
 }
 
-function ReleaseTrain({ development, candidate, published }: { development: string; candidate: string; published: string }) {
+function ReleaseTrain({ development, minimum, published }: { development: string; minimum: string; published: string }) {
   const stages = [
     { number: 1, label: 'Desenvolvimento', value: development, tone: 'bg-muted text-foreground' },
-    { number: 2, label: 'Homologação', value: candidate, tone: 'bg-muted text-foreground' },
+    { number: 2, label: 'Mínima suportada', value: minimum, tone: 'bg-muted text-foreground' },
     { number: 3, label: 'Produção', value: published, tone: 'bg-primary text-primary-foreground' },
   ];
   return (
@@ -326,19 +359,17 @@ function ReleaseTrain({ development, candidate, published }: { development: stri
 
 function VersionSummaryCard({
   label,
-  tone,
   version,
   onOpen,
 }: {
   label: string;
-  tone: 'success' | 'warning' | 'info';
   version: VersionRow;
   onOpen: (version: VersionRow) => void;
 }) {
   return (
     <Card className="min-h-[158px] shadow-none">
       <CardContent className="flex h-full flex-col p-4">
-        <StatusBadge value={tone === 'success' ? 'published' : tone === 'warning' ? 'candidate' : 'development'} />
+        <StatusBadge value={version.status} />
         <strong className="mt-5 text-[22px]">{version.version || '—'}</strong>
         <p className="mt-1 text-[11px] text-muted-foreground">
           {label} · {version.adoption} {version.adoption === 1 ? 'evento' : 'eventos'}
@@ -356,17 +387,16 @@ function AdoptionPanel({
   publishedCount,
   minimumVersion,
   minimumCount,
-  total,
   percent,
+  belowMinimum,
 }: {
   publishedVersion: string;
   publishedCount: number;
   minimumVersion: string;
   minimumCount: number;
-  total: number;
   percent: number;
+  belowMinimum: number;
 }) {
-  const belowMinimum = Math.max(0, total - publishedCount - minimumCount);
   return (
     <aside className="rounded-lg border border-border bg-muted p-6" aria-labelledby="adoption-title">
       <p id="adoption-title" className="text-[10px] font-bold uppercase tracking-wider text-primary">Adoção observada</p>
@@ -393,7 +423,7 @@ function CandidateChanges({ version }: { version: VersionRow }) {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-[10px] font-bold uppercase text-muted-foreground">Changelog persistido</p>
-            <h2 className="mt-1 text-[17px] font-bold">Mudanças da candidata</h2>
+            <h2 className="mt-1 text-[17px] font-bold">Mudanças em desenvolvimento</h2>
           </div>
           <span className="font-mono text-xs text-muted-foreground">{version.version || '—'}</span>
         </div>
@@ -420,10 +450,10 @@ function CandidateChanges({ version }: { version: VersionRow }) {
 
 function ChangeBadge({ kind }: { kind: ReturnType<typeof classifyChange> }) {
   const styles = {
-    new: 'bg-info-soft text-info',
+    new: 'bg-info-soft text-foreground',
     improvement: 'bg-secondary text-foreground',
-    fix: 'bg-destructive-soft text-destructive',
-    security: 'bg-warning-soft text-warning',
+    fix: 'bg-destructive-soft text-foreground',
+    security: 'bg-warning-soft text-foreground',
   };
   const labels = { new: 'Novo', improvement: 'Melhoria', fix: 'Correção', security: 'Segurança' };
   const Icon = kind === 'new' ? Rocket : CheckCircle2;
@@ -435,18 +465,19 @@ function ChangeBadge({ kind }: { kind: ReturnType<typeof classifyChange> }) {
   );
 }
 
-function candidateRow(rows: VersionRow[], published: string, development: string) {
-  return rows.find((row) => row.version !== published && row.version !== development && row.status !== 'retired')
-    || rows.find((row) => row.version === development)
-    || fallbackVersion(development, 'development');
-}
-
-function candidateVersion(rows: VersionRow[], published: string, development: string) {
-  return candidateRow(rows, published, development).version;
-}
-
 function fallbackVersion(version: string, status: string): VersionRow {
   return { version, status, changelog: '', published_at: null, updated_at: '', adoption: 0 };
+}
+
+function compareVersions(left: string, right: string) {
+  const parse = (value: string) => value.split(/[+-]/, 1)[0].split('.').map((part) => Number(part));
+  const leftParts = parse(left);
+  const rightParts = parse(right);
+  for (let index = 0; index < 3; index += 1) {
+    const difference = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (difference) return difference;
+  }
+  return 0;
 }
 
 function changelogEntries(changelog: string) {

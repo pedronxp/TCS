@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck, UserCog } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -14,7 +14,7 @@ type TeamItem = Record<string, unknown>;
 export function PortalTeamPage() {
   const { access, can } = usePortalAuth();
   const query = useQuery({
-    queryKey: ['portal', 'workspace', 'equipe', access?.organizationId],
+    queryKey: ['portal', 'workspace', 'equipe', access?.userId, access?.accountKind, access?.organizationId ?? null],
     queryFn: () => fetchPortalWorkspace('equipe'),
   });
   const [selected, setSelected] = useState<TeamItem | null>(null);
@@ -23,8 +23,12 @@ export function PortalTeamPage() {
   const [reason, setReason] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const mayManage = can('team.manage');
+  const manageTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const manageTitleRef = useRef<HTMLHeadingElement>(null);
+  const pageTitleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (!selected) return;
@@ -32,13 +36,35 @@ export function PortalTeamPage() {
     setStatus(String(selected.status ?? 'active'));
     setReason('');
     setConfirmation('');
+    window.setTimeout(() => manageTitleRef.current?.focus(), 0);
   }, [selected]);
+
+  useEffect(() => {
+    if (mayManage || !selected) return;
+    setSelected(null);
+    window.setTimeout(() => pageTitleRef.current?.focus(), 0);
+  }, [mayManage, selected]);
+
+  function selectMember(item: TeamItem, trigger: HTMLButtonElement) {
+    manageTriggerRef.current = trigger;
+    setSelected(item);
+  }
+
+  function closeManagement() {
+    setSelected(null);
+    window.setTimeout(() => manageTriggerRef.current?.focus(), 0);
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!selected || !mayManage) return;
+    if (!selected) return;
+    if (!mayManage) {
+      setErrorMessage('Sua permissão para gerenciar a equipe não está mais disponível.');
+      return;
+    }
     setSubmitting(true);
-    setMessage(null);
+    setErrorMessage(null);
+    setSuccessMessage(null);
     const { error } = await supabase.rpc('portal_update_organization_member', {
       p_member_id: String(selected.id),
       p_role: role,
@@ -48,29 +74,31 @@ export function PortalTeamPage() {
     });
     setSubmitting(false);
     if (error) {
-      setMessage('A alteração não foi concluída. Verifique a confirmação, a justificativa e as regras de coordenação.');
+      setErrorMessage('A alteração não foi concluída. Verifique a confirmação, a justificativa e as regras de coordenação.');
       return;
     }
-    setSelected(null);
-    setMessage('Membro atualizado e ação registrada na auditoria.');
+    closeManagement();
+    setSuccessMessage('Membro atualizado e ação registrada na auditoria.');
     void query.refetch();
   }
 
   return (
     <div className="page-stack">
+      <p className="rounded-md border border-border bg-secondary p-3 text-sm text-muted-foreground" role="status">{mayManage ? 'Selecione uma pessoa para revisar papel e status; nenhuma alteração ocorre sem confirmação.' : 'Você está em modo de consulta; papéis e status só podem ser alterados por um coordenador.'}</p>
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Administração municipal</p>
-        <h1 className="mt-2 text-3xl font-semibold">Equipe</h1>
+        <h1 ref={pageTitleRef} tabIndex={-1} className="mt-2 text-3xl font-semibold">Equipe</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Supervisores consultam a equipe do escopo. Coordenadores também podem alterar papel ou status com confirmação auditável.
         </p>
       </header>
-      {message && <p className="rounded-md border bg-card p-3 text-sm" role="status">{message}</p>}
+      {successMessage && <p className="rounded-md border bg-card p-3 text-sm" role="status">{successMessage}</p>}
+      {errorMessage && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{errorMessage}</p>}
       <Card>
         <CardHeader><CardTitle>Pessoas da organização</CardTitle></CardHeader>
         <CardContent>
           {query.isLoading && <p className="text-sm text-muted-foreground">Carregando equipe…</p>}
-          {query.isError && <p className="text-sm text-destructive">Não foi possível carregar a equipe.</p>}
+          {query.isError && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar a equipe.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
           <ul className="divide-y">
             {query.data?.items.map((item) => (
               <li key={String(item.id)} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -82,7 +110,7 @@ export function PortalTeamPage() {
                   </div>
                 </div>
                 {mayManage && String(item.user_id) !== access?.userId && (
-                  <Button variant="outline" onClick={() => setSelected(item)}><UserCog />Gerenciar</Button>
+                  <Button variant="outline" aria-expanded={String(selected?.id) === String(item.id)} aria-controls="portal-team-management" onClick={(event) => selectMember(item, event.currentTarget)}><UserCog />Gerenciar</Button>
                 )}
               </li>
             ))}
@@ -90,9 +118,9 @@ export function PortalTeamPage() {
           {query.data?.items.length === 0 && <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhum membro encontrado.</p>}
         </CardContent>
       </Card>
-      {selected && (
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck />Confirmar alteração de alto impacto</CardTitle></CardHeader>
+      {selected && mayManage && (
+        <Card id="portal-team-management">
+          <CardHeader><CardTitle ref={manageTitleRef} tabIndex={-1} className="flex items-center gap-2"><ShieldCheck />Confirmar alteração de alto impacto</CardTitle></CardHeader>
           <CardContent>
             <form className="grid gap-4" onSubmit={submit}>
               <p className="text-sm text-muted-foreground">Alterando {String(selected.title)}. O último coordenador ativo não pode ser removido ou rebaixado.</p>
@@ -119,8 +147,8 @@ export function PortalTeamPage() {
                 <Input className="mt-2" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" required />
               </label>
               <div className="flex flex-wrap gap-2">
-                <Button disabled={submitting || confirmation !== 'CONFIRMAR' || reason.trim().length < 10}>{submitting ? 'Salvando…' : 'Aplicar alteração'}</Button>
-                <Button type="button" variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
+                <Button disabled={!mayManage || submitting || confirmation !== 'CONFIRMAR' || reason.trim().length < 10}>{submitting ? 'Salvando…' : 'Aplicar alteração'}</Button>
+                <Button type="button" variant="outline" onClick={closeManagement}>Cancelar</Button>
               </div>
             </form>
           </CardContent>

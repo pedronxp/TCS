@@ -55,14 +55,16 @@ interface BuildEvent {
 }
 
 export function BuildsPage() {
-  const { can, profile } = useAuth();
+  const { can, profile, user } = useAuth();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [confirmingRequest, setConfirmingRequest] = useState(false);
   const [decision, setDecision] = useState<{ id: string; approve: boolean } | null>(null);
+  const [executingId, setExecutingId] = useState<string | null>(null);
+  const [executionError, setExecutionError] = useState<string | null>(null);
 
   const query = useQuery({
-    queryKey: ['internal-builds'],
+    queryKey: ['internal-builds', user?.id, profile?.role],
     queryFn: async () => {
       const [requests, builds, events] = await Promise.all([
         supabase.from('internal_build_requests').select('*').order('created_at', { ascending: false }).limit(100),
@@ -163,6 +165,19 @@ export function BuildsPage() {
     setConfirmingRequest(false);
   }
 
+  async function runExecute(requestId: string) {
+    if (executingId) return;
+    setExecutionError(null);
+    setExecutingId(requestId);
+    try {
+      await execute(requestId);
+    } catch (caught) {
+      setExecutionError(caught instanceof Error ? caught.message : 'Não foi possível executar o build aprovado.');
+    } finally {
+      setExecutingId(null);
+    }
+  }
+
   return (
     <section className="page-stack max-w-[1094px]" aria-labelledby="builds-title">
       <form
@@ -211,8 +226,15 @@ export function BuildsPage() {
               canApprove={can('build.approve')}
               currentUserId={profile?.userId}
               onDecision={setDecision}
-              onExecute={(id) => void execute(id)}
+              executingId={executingId}
+              onExecute={(id) => void runExecute(id)}
             />
+            {executionError ? (
+              <div role="alert" className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive-soft p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <p>{executionError}</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => setExecutionError(null)}>Fechar aviso</Button>
+              </div>
+            ) : null}
           </>
         )}
       </AsyncBoundary>
@@ -284,9 +306,9 @@ function CurrentBuildHero({ build, request }: { build: BuildRow | null; request:
               style={{ width: `${progress}%` }}
             />
           </div>
-          <strong className="text-xs text-primary">{progress}%</strong>
+          <strong className="text-xs text-foreground">{progress}%</strong>
         </div>
-        <p className="mt-3 text-xs font-semibold text-primary">{buildStageLabel(build?.status, request?.status)}</p>
+        <p className="mt-3 text-xs font-semibold text-foreground">{buildStageLabel(build?.status, request?.status)}</p>
       </div>
     </section>
   );
@@ -304,9 +326,7 @@ function PipelineStages({ build, request }: { build: BuildRow | null; request: B
               <p className="text-sm font-bold">{stage.label}</p>
               <p className={cn(
                 'mt-2 text-[10px] font-semibold',
-                stage.state === 'done' && 'text-success',
-                stage.state === 'active' && 'text-primary',
-                stage.state === 'error' && 'text-destructive',
+                stage.state !== 'waiting' && 'text-foreground',
                 stage.state === 'waiting' && 'text-muted-foreground',
               )}>
                 {stage.detail}
@@ -329,7 +349,7 @@ function PipelineIcon({ state }: { state: 'done' | 'active' | 'waiting' | 'error
   const Icon = state === 'done' ? Check : state === 'active' ? LoaderCircle : state === 'error' ? X : Circle;
   return (
     <span className={cn('grid h-7 w-7 shrink-0 place-items-center rounded-full', classes[state])}>
-      <Icon className={cn('h-3.5 w-3.5', state === 'active' && 'animate-spin')} aria-hidden="true" />
+      <Icon className={cn('h-3.5 w-3.5', state === 'active' && 'animate-spin motion-reduce:animate-none')} aria-hidden="true" />
     </span>
   );
 }
@@ -389,8 +409,11 @@ function BuildLogPanel({ events, build }: { events: BuildEvent[]; build: BuildRo
 }
 
 function ArtifactLink({ href, children }: { href: string; children: ReactNode }) {
+  if (!validArtifactUrl(href)) {
+    return <span className="font-semibold text-foreground">Artefato bloqueado</span>;
+  }
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-primary">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-bold text-primary">
       {children}<ExternalLink className="h-3 w-3" aria-hidden="true" />
     </a>
   );
@@ -400,12 +423,14 @@ function ApprovalQueue({
   requests,
   canApprove,
   currentUserId,
+  executingId,
   onDecision,
   onExecute,
 }: {
   requests: BuildRequestRow[];
   canApprove: boolean;
   currentUserId?: string;
+  executingId: string | null;
   onDecision: (decision: { id: string; approve: boolean }) => void;
   onExecute: (id: string) => void;
 }) {
@@ -438,8 +463,8 @@ function ApprovalQueue({
                       </>
                     )}
                     {request.status === 'approved' && canApprove && (
-                      <Button size="sm" variant="outline" onClick={() => onExecute(request.id)}>
-                        Executar <ArrowUpRight />
+                      <Button size="sm" variant="outline" disabled={executingId === request.id} onClick={() => onExecute(request.id)}>
+                        {executingId === request.id ? 'Executando…' : 'Executar'} <ArrowUpRight />
                       </Button>
                     )}
                   </div>
@@ -583,6 +608,14 @@ function buildDuration(build: BuildRow) {
 function artifactName(build: BuildRow | null) {
   if (!build) return 'Nenhum artefato';
   return build.apk_url ? `app-${build.profile}-${build.version}.apk` : `${build.profile} · ${build.version}`;
+}
+
+function validArtifactUrl(value: string) {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 function formatTime(value: string) {

@@ -14,7 +14,8 @@ describe('Configurações', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Configurações' })).toBeVisible();
     expect(screen.getByText('Configuração informativa nesta onda')).toBeVisible();
     expect(screen.getByText('Google Drive')).toBeVisible();
-    expect(screen.getByText('Nenhuma fonte publicável disponível')).toBeVisible();
+    expect(screen.getByText('Nenhum conjunto genérico publicável')).toBeVisible();
+    expect(screen.getByText('Status não exposto ao cliente')).toBeVisible();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

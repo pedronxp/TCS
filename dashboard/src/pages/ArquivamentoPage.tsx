@@ -130,16 +130,16 @@ function parseLifecycle(value: Json): LifecycleState {
 
 export function ArquivamentoPage() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [selectedArchiveIds, setSelectedArchiveIds] = useState<Set<string>>(new Set());
   const [selectedRestoreIds, setSelectedRestoreIds] = useState<Set<string>>(new Set());
   const [configurationOpen, setConfigurationOpen] = useState(false);
   const [configDraft, setConfigDraft] = useState<ArchiveConfig | null>(null);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
-  const [decisionTarget, setDecisionTarget] = useState<RestoreRequest | null>(null);
+  const [decisionTarget, setDecisionTarget] = useState<{ request: RestoreRequest; approve: boolean } | null>(null);
 
   const lifecycle = useQuery({
-    queryKey: ['archive-lifecycle'],
+    queryKey: ['archive-lifecycle', user?.id, profile?.role],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('list_internal_archive_lifecycle', { p_limit: 250 });
       if (error) throw error;
@@ -156,16 +156,26 @@ export function ArquivamentoPage() {
         body: { vistoria_ids: ids },
       });
       if (error) throw error;
-      return data;
+      const root = jsonObject(data);
+      if (root?.ok !== true) throw new Error(jsonString(root?.error) || 'O serviço não confirmou o arquivamento.');
+      const results = jsonArray(root.results).map(jsonObject).filter(Boolean);
+      const archived = results.filter((row) => jsonString(row?.status) === 'drive').length;
+      const failed = results.filter((row) => jsonString(row?.status) === 'failed').length;
+      if (archived + failed !== ids.length) throw new Error('A resposta do arquivamento não corresponde aos itens solicitados.');
+      return { archived, failed };
     },
-    onSuccess: async () => {
+    onSuccess: async ({ archived, failed }) => {
       setSelectedArchiveIds(new Set());
       await refresh();
-      toast.success('Arquivamento processado.');
+      if (failed) toast.error(`${failed} item(ns) falharam; ${archived} foram arquivados.`);
+      else toast.success(`${archived} item(ns) arquivados.`);
     },
   });
   const saveConfig = useMutation({
     mutationFn: async (next: ArchiveConfig) => {
+      if (!Number.isInteger(next.daysThreshold) || next.daysThreshold < 1 || next.daysThreshold > 365) {
+        throw new Error('A retenção deve ser um número inteiro entre 1 e 365 dias.');
+      }
       const { error } = await supabase.from('configuracoes').update({
         valor: { mode: next.mode, enabled: next.enabled, days_threshold: next.daysThreshold },
         atualizadoEm: new Date().toISOString(),
@@ -190,12 +200,13 @@ export function ArquivamentoPage() {
       if (error) throw error;
       const result = jsonObject(data);
       const requestIds = jsonArray(result?.request_ids).map((value) => typeof value === 'string' ? value : '').filter(Boolean);
-      const needsApproval = jsonBoolean(result?.requires_second_approval) ?? inspectionIds.length > 1;
+      const needsApproval = jsonBoolean(result?.requires_second_approval);
+      const status = jsonString(result?.status);
+      if (needsApproval === null || requestIds.length !== inspectionIds.length || status !== (needsApproval ? 'pending' : 'approved')) {
+        throw new Error('O servidor não confirmou todos os pedidos de restauração.');
+      }
       if (!needsApproval && requestIds[0]) {
-        const { error: invokeError } = await supabase.functions.invoke('restore-archive', {
-          body: { request_id: requestIds[0] },
-        });
-        if (invokeError) throw invokeError;
+        await invokeRestore(requestIds[0]);
       }
       return { needsApproval };
     },
@@ -206,10 +217,10 @@ export function ArquivamentoPage() {
     },
   });
   const decisionMutation = useMutation({
-    mutationFn: async ({ request, reason }: { request: RestoreRequest; reason: string }) => {
+    mutationFn: async ({ request, approve, reason }: { request: RestoreRequest; approve: boolean; reason: string }) => {
       const { data, error } = await supabase.rpc('decide_internal_archive_restore', {
         p_request_id: request.id,
-        p_approve: true,
+        p_approve: approve,
         p_reason: reason,
       });
       if (error) throw error;
@@ -217,25 +228,24 @@ export function ArquivamentoPage() {
       const requestIds = jsonArray(result?.request_ids)
         .map((value) => typeof value === 'string' ? value : '')
         .filter(Boolean);
-      for (const requestId of requestIds.length ? requestIds : [request.id]) {
-        const { error: invokeError } = await supabase.functions.invoke('restore-archive', {
-          body: { request_id: requestId },
-        });
-        if (invokeError) throw invokeError;
+      const expectedStatus = approve ? 'approved' : 'rejected';
+      if (jsonString(result?.status) !== expectedStatus || !requestIds.length) {
+        throw new Error('O servidor não confirmou a decisão do lote.');
       }
+      if (approve) {
+        for (const requestId of requestIds) await invokeRestore(requestId);
+      }
+      return { approve };
     },
-    onSuccess: async () => {
+    onSuccess: async ({ approve }) => {
       setDecisionTarget(null);
       await refresh();
-      toast.success('Pedido aprovado e restauração executada.');
+      toast.success(approve ? 'Lote aprovado e restauração executada.' : 'Lote rejeitado e registrado na auditoria.');
     },
   });
   const retryMutation = useMutation({
     mutationFn: async (requestId: string) => {
-      const { error } = await supabase.functions.invoke('restore-archive', {
-        body: { request_id: requestId },
-      });
-      if (error) throw error;
+      await invokeRestore(requestId);
     },
     onSuccess: async () => {
       await refresh();
@@ -259,7 +269,7 @@ export function ArquivamentoPage() {
         description={`Retenção no Google Drive após ${config.daysThreshold} dias, com restauração verificada e auditável.`}
         actions={(
           <>
-            <Button variant="outline" onClick={() => void lifecycle.refetch()}><RefreshCw className="h-4 w-4" />Atualizar</Button>
+            <Button variant="outline" disabled={lifecycle.isFetching} onClick={() => void lifecycle.refetch()}><RefreshCw className={lifecycle.isFetching ? 'h-4 w-4 animate-spin motion-reduce:animate-none' : 'h-4 w-4'} />{lifecycle.isFetching ? 'Atualizando…' : 'Atualizar'}</Button>
             <Button variant="outline" onClick={() => setConfigurationOpen((open) => !open)}><Settings2 className="h-4 w-4" />Política</Button>
           </>
         )}
@@ -289,7 +299,7 @@ export function ArquivamentoPage() {
               <Input id="archive-days" className="mt-2" type="number" min={1} max={365} value={config.daysThreshold} onChange={(event) => setConfigDraft({ ...config, daysThreshold: Number(event.target.value) })} />
             </div>
             <div className="flex flex-wrap gap-2 md:col-span-3">
-              <Button onClick={() => void saveConfig.mutateAsync(config)} disabled={saveConfig.isPending || !configDraft}>Salvar política</Button>
+              <Button onClick={() => void saveConfig.mutateAsync(config).catch(() => undefined)} disabled={saveConfig.isPending || !configDraft || !Number.isInteger(config.daysThreshold) || config.daysThreshold < 1 || config.daysThreshold > 365}>Salvar política</Button>
               <Button variant="ghost" onClick={() => { setConfigDraft(null); setConfigurationOpen(false); }}>Cancelar</Button>
             </div>
           </CardContent>
@@ -303,6 +313,12 @@ export function ArquivamentoPage() {
           Toda solicitação exige MFA e justificativa. Lotes exigem aprovação de outro owner; checksum e tamanho são verificados antes da troca de origem.
         </AlertDescription>
       </Alert>
+
+      {[archiveMutation.error, saveConfig.error, restoreMutation.error, decisionMutation.error, retryMutation.error].find(Boolean) ? (
+        <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive-soft p-4 text-sm text-foreground">
+          {mutationMessage([archiveMutation.error, saveConfig.error, restoreMutation.error, decisionMutation.error, retryMutation.error].find(Boolean))}
+        </p>
+      ) : null}
 
       <AsyncBoundary
         loading={lifecycle.isLoading}
@@ -326,7 +342,7 @@ export function ArquivamentoPage() {
                 items={state.pending}
                 selected={selectedArchiveIds}
                 onToggle={(id) => toggleSet(setSelectedArchiveIds, id)}
-                action={<Button disabled={!selectedArchiveIds.size || archiveMutation.isPending} onClick={() => void archiveMutation.mutateAsync([...selectedArchiveIds])}>{archiveMutation.isPending ? <Loader2 className="animate-spin" /> : <Archive />}Arquivar selecionados</Button>}
+                action={<Button disabled={!selectedArchiveIds.size || archiveMutation.isPending} onClick={() => void archiveMutation.mutateAsync([...selectedArchiveIds]).catch(() => undefined)}>{archiveMutation.isPending ? <Loader2 className="animate-spin motion-reduce:animate-none" /> : <Archive />}Arquivar selecionados</Button>}
               />
             </TabsContent>
 
@@ -349,8 +365,8 @@ export function ArquivamentoPage() {
                   request={request}
                   currentUserId={user?.id ?? ''}
                   busy={decisionMutation.isPending || retryMutation.isPending}
-                  onApprove={() => setDecisionTarget(request)}
-                  onRetry={() => void retryMutation.mutateAsync(request.id)}
+                  onDecision={(approve) => setDecisionTarget({ request, approve })}
+                  onRetry={() => void retryMutation.mutateAsync(request.id).catch(() => undefined)}
                 />
               ))}
             </TabsContent>
@@ -375,12 +391,12 @@ export function ArquivamentoPage() {
       <HighAssuranceDialog
         open={Boolean(decisionTarget)}
         onOpenChange={(open) => { if (!open) setDecisionTarget(null); }}
-        title="Aprovar restauração em lote"
-        impact="Você será registrado como segundo owner e a restauração será executada após a aprovação."
-        confirmLabel="Aprovar e executar"
+        title={decisionTarget?.approve ? 'Aprovar restauração em lote' : 'Rejeitar restauração em lote'}
+        impact={decisionTarget?.approve ? 'Você será registrado como segundo owner e a restauração será executada após a aprovação.' : 'O lote não será restaurado e a justificativa ficará registrada na auditoria.'}
+        confirmLabel={decisionTarget?.approve ? 'Aprovar e executar' : 'Rejeitar lote'}
         onConfirm={(reason) => {
           if (!decisionTarget) return Promise.resolve();
-          return decisionMutation.mutateAsync({ request: decisionTarget, reason });
+          return decisionMutation.mutateAsync({ ...decisionTarget, reason }).then(() => undefined);
         }}
       />
     </div>
@@ -444,13 +460,15 @@ function InspectionCard({ inspection }: { inspection: Inspection }) {
         <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{inspection.protocol || inspection.id.slice(0, 8)}</p><StatusBadge value={inspection.storageLocation} /></div>
         <p className="mt-1 text-sm text-muted-foreground">{inspection.municipality || 'Município não informado'} · Arquivado em {formatDate(inspection.archivedAt)}</p>
       </div>
-      {inspection.driveFolderUrl && <Button asChild variant="ghost" size="sm"><a href={inspection.driveFolderUrl} target="_blank" rel="noreferrer">Abrir Drive<ExternalLink /></a></Button>}
+      {inspection.driveFolderUrl && validDriveUrl(inspection.driveFolderUrl) ? (
+        <Button asChild variant="ghost" size="sm"><a href={inspection.driveFolderUrl} target="_blank" rel="noopener noreferrer">Abrir Drive<ExternalLink /></a></Button>
+      ) : inspection.driveFolderUrl ? <span className="text-xs font-semibold text-foreground">Link do Drive bloqueado</span> : null}
     </CardContent></Card>
   );
 }
 
-function RestoreRequestCard({ request, currentUserId, busy, onApprove, onRetry }: { request: RestoreRequest; currentUserId: string; busy: boolean; onApprove: () => void; onRetry: () => void }) {
-  const canApprove = request.status === 'pending' && request.requestedBy !== currentUserId;
+function RestoreRequestCard({ request, currentUserId, busy, onDecision, onRetry }: { request: RestoreRequest; currentUserId: string; busy: boolean; onDecision: (approve: boolean) => void; onRetry: () => void }) {
+  const canApprove = Boolean(currentUserId) && request.status === 'pending' && request.requestedBy !== currentUserId;
   return (
     <Card><CardContent className="p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
@@ -462,10 +480,11 @@ function RestoreRequestCard({ request, currentUserId, busy, onApprove, onRetry }
           {request.approvedByName && <p className="mt-2 text-xs text-muted-foreground">Aprovado por {request.approvedByName}</p>}
         </div>
         <div className="flex shrink-0 gap-2">
-          {canApprove && <Button size="sm" onClick={onApprove} disabled={busy}><CheckCircle2 />Aprovar</Button>}
+          {canApprove && <Button size="sm" onClick={() => onDecision(true)} disabled={busy}><CheckCircle2 />Aprovar</Button>}
+          {canApprove && <Button size="sm" variant="outline" onClick={() => onDecision(false)} disabled={busy}><XCircle />Rejeitar</Button>}
           {request.status === 'pending' && request.requestedBy === currentUserId && <Button size="sm" variant="outline" disabled><Clock3 />Outro owner</Button>}
           {request.status === 'failed' && <Button size="sm" variant="outline" onClick={onRetry} disabled={busy}><RefreshCw />Tentar novamente</Button>}
-          {request.status === 'restoring' && <Button size="sm" variant="outline" disabled><Loader2 className="animate-spin" />Restaurando</Button>}
+          {request.status === 'restoring' && <Button size="sm" variant="outline" disabled><Loader2 className="animate-spin motion-reduce:animate-none" />Restaurando</Button>}
           {request.status === 'restored' && <Button size="sm" variant="outline" disabled><FileCheck2 />Concluído</Button>}
           {request.status === 'rejected' && <Button size="sm" variant="outline" disabled><XCircle />Rejeitado</Button>}
         </div>
@@ -483,4 +502,28 @@ function formatDate(value: string | null | undefined) {
 }
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('pt-BR');
+}
+
+async function invokeRestore(requestId: string) {
+  const { data, error } = await supabase.functions.invoke('restore-archive', {
+    body: { request_id: requestId },
+  });
+  if (error) throw error;
+  const root = jsonObject(data);
+  if (root?.ok !== true || jsonString(root.request_id) !== requestId) {
+    throw new Error(jsonString(root?.error) || 'O serviço não confirmou a restauração.');
+  }
+}
+
+function mutationMessage(value: unknown) {
+  return value instanceof Error ? value.message : 'A operação não foi concluída. Tente novamente.';
+}
+
+function validDriveUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'drive.google.com' && url.pathname.startsWith('/drive/folders/');
+  } catch {
+    return false;
+  }
 }

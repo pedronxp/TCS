@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SupportPage } from './SupportPage';
@@ -57,10 +57,12 @@ const supportFixtures = vi.hoisted(() => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: ({ queryKey }: { queryKey: string[] }) => ({
+  useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({
     data: queryKey[0] === 'support-plans'
       ? [{ id: 'plan-1', name: 'Municipal Pro' }]
-      : supportFixtures.queue,
+      : queryKey[0] === 'support-events'
+        ? [{ id: 'event-1', event_type: 'note', message: 'Contexto validado', metadata: {}, actor_id: 'staff-123456789', created_at: '2026-07-26T13:00:00.000Z' }]
+        : supportFixtures.queue,
     isLoading: false,
     error: null,
     refetch: vi.fn(),
@@ -68,7 +70,7 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ can: () => true }),
+  useAuth: () => ({ can: () => true, user: { id: 'staff-1' }, profile: { role: 'owner' } }),
 }));
 
 vi.mock('@/hooks/useCustomers', () => ({
@@ -102,5 +104,18 @@ describe('Central de suporte', () => {
     const { container } = render(<SupportPage />);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
+  });
+
+  it('traça linha do tempo e indica a próxima ação honesta por coluna', () => {
+    render(<SupportPage />);
+    expect(screen.getByText(/linha do tempo com horário e responsável/)).toBeVisible();
+    // chamado em risco de SLA -> ação "Abrir" (prioridade), sem prometer resolução imediata
+    expect(screen.getByText('Abrir')).toBeVisible();
+    // chamado aguardando cliente -> ação "Responder"
+    expect(screen.getByText('Responder')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /SUP-1042/ }));
+    expect(screen.getByText('Responsável interno · staff-12…')).toBeVisible();
+    expect(screen.getByText('Contexto validado')).toBeVisible();
   });
 });

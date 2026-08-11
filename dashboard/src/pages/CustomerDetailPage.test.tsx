@@ -196,6 +196,8 @@ describe('Detalhe do cliente', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Prefeitura de Aurora' })).toBeVisible();
     expect(screen.getByRole('navigation', { name: 'Seções do cliente' })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Contexto persistente do cliente' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Abrir resumo de Prefeitura de Aurora' })).toHaveAttribute('href', '/app/clientes/organization%3Aaurora/resumo');
     expect(screen.getAllByText('Municipal Profissional')[0]).toBeVisible();
     expect(screen.getByText('Vistorias recentes')).toBeVisible();
     expect(screen.getByText('Atividade recente')).toBeVisible();

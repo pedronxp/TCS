@@ -13,6 +13,9 @@ export interface PortalMapPoint {
   longitude: number | null;
 }
 
+type LocatedPortalMapPoint = PortalMapPoint & { latitude: number; longitude: number };
+type MarkerEntry = { marker: maplibregl.Marker; signature: string };
+
 const rasterStyle: StyleSpecification = {
   version: 8,
   sources: {
@@ -28,74 +31,97 @@ const rasterStyle: StyleSpecification = {
 };
 
 export function PortalMap({ points }: { points: PortalMapPoint[] }) {
-  const container = useRef<HTMLDivElement>(null);
-  const map = useRef<maplibregl.Map | null>(null);
-  const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
   const located = useMemo(
-    () => points.filter((point): point is PortalMapPoint & { latitude: number; longitude: number } =>
-      typeof point.latitude === 'number' && typeof point.longitude === 'number'),
+    () => points.filter((point): point is LocatedPortalMapPoint =>
+      typeof point.latitude === 'number'
+      && Number.isFinite(point.latitude)
+      && point.latitude >= -90
+      && point.latitude <= 90
+      && typeof point.longitude === 'number'
+      && Number.isFinite(point.longitude)
+      && point.longitude >= -180
+      && point.longitude <= 180),
     [points],
   );
 
+  if (located.length === 0) {
+    return <div className="grid min-h-80 place-items-center rounded-lg border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">Nenhuma vistoria com coordenadas neste escopo.</div>;
+  }
+  return <PortalMapCanvas points={located} />;
+}
+
+function PortalMapCanvas({ points }: { points: LocatedPortalMapPoint[] }) {
+  const container = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const markers = useRef(new Map<string, MarkerEntry>());
+  const latestPoints = useRef(points);
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+
   useEffect(() => {
-    if (!container.current || located.length === 0) return;
+    latestPoints.current = points;
+  }, [points]);
+
+  useEffect(() => {
+    if (!container.current) return;
+    const firstPoint = latestPoints.current[0];
     const instance = new maplibregl.Map({
       container: container.current,
       style: rasterStyle,
-      center: [located[0].longitude, located[0].latitude],
+      center: [firstPoint.longitude, firstPoint.latitude],
       zoom: 12,
       attributionControl: false,
     });
     map.current = instance;
     instance.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     instance.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
-    const bounds = new maplibregl.LngLatBounds();
-    const markers = located.map((point) => {
-      const popup = document.createElement('div');
-      const title = document.createElement('strong');
-      const detail = document.createElement('p');
-      title.textContent = point.protocol;
-      detail.textContent = `${point.status} · ${point.address}`;
-      popup.append(title, detail);
-      bounds.extend([point.longitude, point.latitude]);
-      return new maplibregl.Marker({ color: '#2F708E', scale: 0.85 })
-        .setLngLat([point.longitude, point.latitude])
-        .setPopup(new maplibregl.Popup({ offset: 18 }).setDOMContent(popup))
-        .addTo(instance);
-    });
     instance.once('load', () => {
-      if (located.length > 1) instance.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 0 });
+      fitMapToPoints(instance, latestPoints.current);
       setReady(true);
       setFailed(false);
     });
     instance.on('error', () => setFailed(true));
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
+    const markerEntries = markers.current;
     return () => {
       observer.disconnect();
-      markers.forEach((marker) => marker.remove());
+      markerEntries.forEach(({ marker }) => marker.remove());
+      markerEntries.clear();
       instance.remove();
       map.current = null;
     };
-  }, [located]);
+  }, []);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    const visibleIds = new Set(points.map((point) => point.id));
+    markers.current.forEach(({ marker }, id) => {
+      if (visibleIds.has(id)) return;
+      marker.remove();
+      markers.current.delete(id);
+    });
+    points.forEach((point) => {
+      const signature = markerSignature(point);
+      const current = markers.current.get(point.id);
+      if (current?.signature === signature) return;
+      current?.marker.remove();
+      markers.current.set(point.id, {
+        marker: createMarker(point).addTo(instance),
+        signature,
+      });
+    });
+  }, [points]);
 
   function fit() {
-    if (!map.current || located.length === 0) return;
-    const bounds = located.reduce(
-      (next, point) => next.extend([point.longitude, point.latitude]),
-      new maplibregl.LngLatBounds(),
-    );
-    map.current.fitBounds(bounds, { padding: 64, maxZoom: 15 });
-  }
-
-  if (located.length === 0) {
-    return <div className="grid min-h-80 place-items-center rounded-lg border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">Nenhuma vistoria com coordenadas neste escopo.</div>;
+    if (!map.current) return;
+    fitMapToPoints(map.current, points);
   }
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Mapa de vistorias">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-        <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-md bg-success-soft text-primary"><Layers3 className="h-4 w-4" /></span><div><p className="text-sm font-semibold">Cobertura territorial</p><p className="text-xs text-muted-foreground">{located.length} pontos autorizados</p></div></div>
+        <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-md bg-success-soft text-primary"><Layers3 className="h-4 w-4" aria-hidden="true" /></span><div><p className="text-sm font-semibold">Cobertura territorial</p><p className="text-xs text-muted-foreground">{points.length} pontos autorizados</p></div></div>
         <Button variant="outline" size="sm" className="min-h-11" onClick={fit}><Maximize2 />Enquadrar</Button>
       </header>
       <div className="relative">
@@ -106,4 +132,32 @@ export function PortalMap({ points }: { points: PortalMapPoint[] }) {
       </div>
     </section>
   );
+}
+
+function createMarker(point: LocatedPortalMapPoint) {
+  const popup = document.createElement('div');
+  const title = document.createElement('strong');
+  const detail = document.createElement('p');
+  title.textContent = point.protocol;
+  detail.textContent = `${point.status} · ${point.address}`;
+  popup.append(title, detail);
+  return new maplibregl.Marker({ color: '#2F708E', scale: 0.85 })
+    .setLngLat([point.longitude, point.latitude])
+    .setPopup(new maplibregl.Popup({ offset: 18 }).setDOMContent(popup));
+}
+
+function markerSignature(point: LocatedPortalMapPoint) {
+  return [point.latitude, point.longitude, point.protocol, point.status, point.address].join('|');
+}
+
+function fitMapToPoints(instance: maplibregl.Map, points: LocatedPortalMapPoint[]) {
+  if (points.length === 1) {
+    instance.jumpTo({ center: [points[0].longitude, points[0].latitude], zoom: 12 });
+    return;
+  }
+  const bounds = points.reduce(
+    (next, point) => next.extend([point.longitude, point.latitude]),
+    new maplibregl.LngLatBounds(),
+  );
+  instance.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 0 });
 }

@@ -50,7 +50,7 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ can: () => true }),
+  useAuth: () => ({ can: () => true, user: { id: 'staff-1' }, profile: { role: 'developer' } }),
 }));
 
 vi.mock('@/hooks/useAdministrativeMutation', () => ({
@@ -68,7 +68,8 @@ describe('Gestão de versões', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Versões' })).toBeVisible();
     expect(screen.getByText('Release train')).toBeVisible();
     expect(screen.getByText('Adoção observada')).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Mudanças da candidata' })).toBeVisible();
+    expect(screen.getByText('Mínima suportada')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Mudanças em desenvolvimento' })).toBeVisible();
     expect(screen.getAllByText('2.17.0').length).toBeGreaterThan(0);
   });
 

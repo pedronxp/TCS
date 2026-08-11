@@ -12,7 +12,7 @@ export function AsyncBoundary({ loading, error, empty, onRetry, loadingLabel = '
 }
 
 export function AsyncLoading({ label = 'Carregando dados…', rows = 3 }: { label?: string; rows?: number }) {
-  return <div className="space-y-3 rounded-lg border border-border bg-card p-5" aria-busy="true" aria-live="polite"><span className="sr-only">{label}</span><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{label}</div>{Array.from({ length: rows }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div>;
+  return <div className="space-y-3 rounded-lg border border-border bg-card p-5" aria-busy="true" aria-live="polite"><span className="sr-only">{label}</span><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />{label}</div>{Array.from({ length: rows }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div>;
 }
 
 export function AsyncError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {

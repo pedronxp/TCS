@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Filter, Plus, Search } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
@@ -40,9 +39,11 @@ const statusFilters = [
 
 export function CustomersPage() {
   const [params, setParams] = useSearchParams();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState(() => params.get('status') || 'all');
-  const [page, setPage] = useState(0);
+  const search = params.get('q') ?? '';
+  const rawStatus = params.get('status') ?? 'all';
+  const status = ['all', 'active', 'onboarding', 'pilot', 'suspended', 'archived'].includes(rawStatus) ? rawStatus : 'all';
+  const rawPage = Number(params.get('page') ?? '0');
+  const page = Number.isInteger(rawPage) && rawPage >= 0 ? rawPage : 0;
   const navigate = useNavigate();
   const { can } = useAuth();
   const query = useCustomers(search, status === 'all' ? '' : status, page);
@@ -64,10 +65,25 @@ export function CustomersPage() {
     suspended: suspendedQuery.data?.total ?? 0,
   };
   const activePercent = totals.all > 0 ? Math.round((totals.active / totals.all) * 100) : 0;
-
   const setStatusFilter = (nextStatus: string) => {
-    setStatus(nextStatus);
-    setPage(0);
+    const next = new URLSearchParams(params);
+    if (nextStatus === 'all') next.delete('status');
+    else next.set('status', nextStatus);
+    next.delete('page');
+    setParams(next);
+  };
+  const setSearchFilter = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set('q', value);
+    else next.delete('q');
+    next.delete('page');
+    setParams(next, { replace: true });
+  };
+  const setPageFilter = (nextPage: number) => {
+    const next = new URLSearchParams(params);
+    if (nextPage > 0) next.set('page', String(nextPage));
+    else next.delete('page');
+    setParams(next);
   };
   const openCreate = (kind: 'municipal' | 'individual') => {
     const next = new URLSearchParams(params);
@@ -109,10 +125,7 @@ export function CustomersPage() {
             <Search className="pointer-events-none absolute left-4 top-3.5 h-4 w-4 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(0);
-              }}
+              onChange={(event) => setSearchFilter(event.target.value)}
               placeholder="Nome, município, contato ou identificador"
               className="h-11 border-0 bg-background pl-10"
             />
@@ -221,7 +234,7 @@ export function CustomersPage() {
                     size="icon"
                     className="h-10 w-10"
                     disabled={query.isFetching || page <= 0}
-                    onClick={() => setPage((current) => Math.max(0, current - 1))}
+                    onClick={() => setPageFilter(Math.max(0, page - 1))}
                     aria-label="Página anterior"
                   >
                     <ChevronLeft />
@@ -231,7 +244,7 @@ export function CustomersPage() {
                     size="icon"
                     className="h-10 w-10"
                     disabled={query.isFetching || page + 1 >= pageCount}
-                    onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
+                    onClick={() => setPageFilter(Math.min(pageCount - 1, page + 1))}
                     aria-label="Próxima página"
                   >
                     <ChevronRight />
@@ -239,7 +252,7 @@ export function CustomersPage() {
                 </div>
               </div>
             </Card>
-            <OnboardingRadar totals={totals} onOpenOnboarding={() => setStatusFilter('onboarding')} />
+            <OnboardingRadar totals={totals} />
           </div>
         ) : null}
       </AsyncBoundary>
@@ -287,10 +300,8 @@ function CustomerOverview({
 
 function OnboardingRadar({
   totals,
-  onOpenOnboarding,
 }: {
   totals: Record<'all' | 'onboarding' | 'pilot' | 'active' | 'suspended', number>;
-  onOpenOnboarding: () => void;
 }) {
   const journeyTotal = totals.onboarding + totals.pilot;
   const max = Math.max(totals.onboarding, totals.pilot, totals.active, totals.suspended, 1);
@@ -316,7 +327,7 @@ function OnboardingRadar({
               </div>
               <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
                 <div
-                  className={cn('h-full rounded-full transition-all duration-300 ease-out', stage.tone)}
+                  className={cn('h-full rounded-full', stage.tone)}
                   style={{ width: `${Math.max(stage.value > 0 ? 8 : 0, Math.round((stage.value / max) * 100))}%` }}
                 />
               </div>
@@ -325,8 +336,7 @@ function OnboardingRadar({
         </ul>
         <Link
           to="/app/clientes?status=onboarding"
-          onClick={onOpenOnboarding}
-          className="mt-9 inline-flex border-t border-border pt-6 text-xs font-semibold text-primary hover:opacity-70 transition-opacity"
+          className="mt-9 inline-flex border-t border-border pt-6 text-xs font-semibold text-primary transition-opacity duration-150 hover:opacity-70 motion-reduce:transition-none"
         >
           Abrir visão de onboarding →
         </Link>

@@ -31,4 +31,12 @@ describe('Catálogo de planos', () => {
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
   });
+
+  it('evidencia cobertura do catálogo e estados de versão sem inventar publicações', () => {
+    render(<PlansPage demo />);
+    // cobertura do catálogo agora mostra rascunhos em elaboração + planos registrados
+    expect(screen.getByText(/rascunhos em elaboração/)).toBeVisible();
+    // planos em rascunho não constam como publicados — estado honesto, sem mhprova fabricada
+    expect(screen.getByText('Ainda não há versões publicadas.')).toBeVisible();
+  });
 });

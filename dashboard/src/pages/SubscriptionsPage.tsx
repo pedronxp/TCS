@@ -107,7 +107,7 @@ export function SubscriptionsPage() {
         <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Receita recorrente</p>
         <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Assinaturas</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Acompanhe ativação, renovação, carência e risco financeiro ao longo do ciclo.
+          Acompanhe ativação, renovação, carência e risco financeiro ao longo do ciclo. Toda alteração em um plano, período ou status é registrada com motivo e horário.
         </p>
         {can('commercial.write') && (
           <Button className="mt-4 sm:hidden" onClick={openNewSubscription}>
@@ -211,6 +211,7 @@ function CycleFlow({ metrics }: { metrics: ReturnType<typeof subscriptionMetrics
           </div>
         ))}
       </div>
+      <p className="mt-6 text-center text-[11px] text-muted-foreground">Contagem real por estágio · nenhuma estimativa inferida</p>
     </section>
   );
 }
@@ -242,18 +243,22 @@ function RenewalRadar({ metrics }: { metrics: ReturnType<typeof subscriptionMetr
       <strong className="mt-4 block text-[24px]">{formatCompactCurrency(metrics.renewalCents)}</strong>
       <p className="mt-1 text-[11px] text-muted-foreground">em ciclos nos próximos 30 dias</p>
       <div className="mt-8 space-y-7">
-        {buckets.map(([label, value, bar, text]) => (
-          <div key={label}>
-            <div className="flex justify-between text-[11px] font-semibold">
-              <span>{label}</span>
-              <span className={text}>{value}</span>
+        {buckets.map(([label, value, bar]) => {
+          const pct = total ? Math.min(100, Math.round(value * 100 / total)) : 0;
+          return (
+            <div key={label}>
+              <div className="flex justify-between text-[11px] font-semibold">
+                <span>{label}</span>
+                <span className="text-foreground">{value} · {pct}%</span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-card">
+                <div className={cn('h-full rounded-full', bar)} style={{ width: `${pct}%` }} />
+              </div>
             </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-card">
-              <div className={cn('h-full rounded-full', bar)} style={{ width: `${value * 100 / total}%` }} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <p className="mt-7 text-[11px] text-muted-foreground">Partição sobre {metrics.renewals.length} {metrics.renewals.length === 1 ? 'ciclo próximo' : 'ciclos próximos'} · sem estimativas inferidas</p>
     </aside>
   );
 }
@@ -302,13 +307,40 @@ function SubscriptionDialog({
 
   const customer = customers.find((item) => item.customer_id === customerId);
   const compatiblePlans = plans.filter((plan) => plan.audience === (customer?.kind === 'organization' ? 'organization' : 'individual'));
+  const selectedPlan = plans.find((plan) => plan.id === planId);
+  const calculatedMrr = useMemo(() => {
+    if (!subscription) return null;
+    return monthlyPriceCents(subscription);
+  }, [subscription]);
+
   useEffect(() => {
     if (!compatiblePlans.some((plan) => plan.id === planId)) setPlanId(compatiblePlans[0]?.id || '');
   }, [compatiblePlans, planId]);
 
+  const daysToRenewal = useMemo(() => {
+    if (!periodEnd) return null;
+    return daysUntil(periodEnd);
+  }, [periodEnd]);
+
+  const riskLevel = useMemo(() => {
+    if (!daysToRenewal || daysToRenewal < 0) return null;
+    if (['grace', 'past_due', 'suspended'].includes(status)) return 'high';
+    if (daysToRenewal <= 7) return 'high';
+    if (daysToRenewal <= 14) return 'medium';
+    return 'low';
+  }, [daysToRenewal, status]);
+
   function requestSave() {
     if (!customerId || !planId) {
       setError('Selecione cliente e plano.');
+      return;
+    }
+    if (!startsAt || !periodStart) {
+      setError('Informe as datas de início.');
+      return;
+    }
+    if (status === 'trial' && !trialEndsAt) {
+      setError('Status trial exige data de término do trial.');
       return;
     }
     try {
@@ -322,51 +354,160 @@ function SubscriptionDialog({
     setConfirming(true);
   }
 
+  if (!open) return null;
+
   return (
     <>
-      <Dialog open={open && !confirming} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-        <DialogContent className="max-w-3xl">
+      <Dialog open={!confirming} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{subscription ? 'Editar assinatura' : 'Nova assinatura'}</DialogTitle>
-            <DialogDescription>Todas as alterações exigem MFA e justificativa auditável.</DialogDescription>
+            <DialogDescription>
+              {subscription ? 'Todas as alterações exigem MFA e justificativa auditável.' : 'Crie uma nova assinatura atribuindo um plano ao cliente.'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SelectField label="Cliente" value={customerId} disabled={Boolean(subscription)} onChange={setCustomerId}>
-              {customers.map((item) => <option key={item.customer_id} value={item.customer_id}>{item.display_name} · {ptBrLabel(item.kind)}</option>)}
-            </SelectField>
-            <SelectField label="Plano" value={planId} onChange={setPlanId}>
-              {compatiblePlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}{plan.status === 'draft' ? ' · rascunho' : ''}</option>)}
-            </SelectField>
-            <SelectField label="Status" value={status} onChange={setStatus}>
-              {statuses.map((item) => <option key={item} value={item}>{ptBrLabel(item)}</option>)}
-            </SelectField>
-            <DateField label="Início" value={startsAt} onChange={setStartsAt} />
-            <DateField label="Fim do trial" value={trialEndsAt} onChange={setTrialEndsAt} />
-            <DateField label="Início do período" value={periodStart} onChange={setPeriodStart} />
-            <DateField label="Fim do período" value={periodEnd} onChange={setPeriodEnd} />
-            <DateField label="Carência até" value={graceEndsAt} onChange={setGraceEndsAt} />
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="subscription-overrides">Overrides de recursos e limites (JSON)</Label>
-              <Textarea
-                id="subscription-overrides"
-                value={overrides}
-                onChange={(event) => setOverrides(event.target.value)}
-                rows={6}
-                className="font-mono text-xs"
-              />
-            </div>
+
+          <div className="space-y-6">
+            {/* Cliente e Plano */}
+            <section>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Cliente e Plano</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SelectField label="Cliente" value={customerId} disabled={Boolean(subscription)} onChange={setCustomerId} required>
+                  {customers.map((item) => (
+                    <option key={item.customer_id} value={item.customer_id}>
+                      {item.display_name} · {ptBrLabel(item.kind)}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField label="Plano" value={planId} onChange={setPlanId} required>
+                  {compatiblePlans.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.name}
+                      {plan.status === 'draft' ? ' (rascunho)' : ''}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+              {selectedPlan?.status === 'draft' && (
+                <p className="mt-2 text-xs text-foreground">⚠️ Este plano está em rascunho e pode não estar pronto para produção.</p>
+              )}
+            </section>
+
+            {/* Status e Datas Críticas */}
+            <section>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Status e Ciclo</h3>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <SelectField label="Status" value={status} onChange={setStatus} required>
+                  {statuses.map((item) => (
+                    <option key={item} value={item}>
+                      {ptBrLabel(item)}
+                    </option>
+                  ))}
+                </SelectField>
+                <DateField label="Início da assinatura" value={startsAt} onChange={setStartsAt} required />
+                {status === 'trial' && <DateField label="Fim do trial" value={trialEndsAt} onChange={setTrialEndsAt} required />}
+              </div>
+            </section>
+
+            {/* Período de Cobrança */}
+            <section>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Período de Cobrança Atual</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DateField label="Início do período" value={periodStart} onChange={setPeriodStart} required />
+                <DateField label="Fim do período" value={periodEnd} onChange={setPeriodEnd} />
+              </div>
+              {daysToRenewal !== null && daysToRenewal >= 0 && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                  <span
+                    className={cn(
+                      'inline-block h-2 w-2 rounded-full',
+                      riskLevel === 'high' && 'bg-destructive',
+                      riskLevel === 'medium' && 'bg-warning',
+                      riskLevel === 'low' && 'bg-success',
+                    )}
+                  />
+                  <span className="text-muted-foreground">
+                    Renovação em <strong className="text-foreground">{daysToRenewal} dias</strong>
+                    {riskLevel === 'high' && ' — atenção necessária'}
+                    {riskLevel === 'medium' && ' — acompanhar de perto'}
+                  </span>
+                </div>
+              )}
+            </section>
+
+            {/* Carência e Cancelamento */}
+            <section>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Carência e Cancelamento</h3>
+              <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
+                <DateField label="Carência até" value={graceEndsAt} onChange={setGraceEndsAt} />
+                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">Ao confirmar o status cancelado, o servidor registra automaticamente a data e preserva o estado anterior na auditoria.</p>
+              </div>
+            </section>
+
+            {/* MRR e Indicadores */}
+            {subscription && (
+              <section className="rounded-lg border bg-muted/30 p-4">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Indicadores</h3>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">MRR Calculado</p>
+                    <p className="mt-1 text-lg font-semibold">{formatCurrency(calculatedMrr)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Criado em</p>
+                    <p className="mt-1 text-sm">{new Date(subscription.created_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ID da Assinatura</p>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">{subscription.id.slice(0, 8)}</p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Overrides */}
+            <section>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Overrides de Recursos e Limites
+              </h3>
+              <div className="space-y-2">
+                <Label htmlFor="subscription-overrides">JSON de configuração personalizada</Label>
+                <Textarea
+                  id="subscription-overrides"
+                  value={overrides}
+                  onChange={(event) => setOverrides(event.target.value)}
+                  rows={8}
+                  placeholder='{\n  "storage_limit_gb": 100,\n  "inspections_limit": 5000\n}'
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use para sobrescrever limites do plano. Deixe <code>{'{}'}</code> para usar configurações padrão.
+                </p>
+              </div>
+            </section>
           </div>
-          {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
-          <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={requestSave}>Salvar assinatura</Button>
+
+          {error && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive-soft px-3 py-2.5 text-sm text-destructive" role="alert">
+              {error}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={requestSave} disabled={mutation.isPending}>
+              {subscription ? 'Salvar alterações' : 'Criar assinatura'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <HighRiskDialog
         open={confirming}
         title="Confirmar alteração comercial"
-        description="Plano, período, status e overrides serão preservados na auditoria."
+        description="Plano, período, status e overrides serão preservados na auditoria. A alteração fica registrada com motivo e horário, e o estado anterior permanece disponível."
         confirmLabel="Salvar assinatura"
         onClose={() => setConfirming(false)}
         onConfirm={async (reason) => {
@@ -395,27 +536,57 @@ function SubscriptionDialog({
   );
 }
 
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function DateField({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
   const id = `subscription-${label.toLowerCase().replace(/\s+/g, '-')}`;
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} type="datetime-local" value={value} onChange={(event) => onChange(event.target.value)} />
+      <Label htmlFor={id}>
+        {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </Label>
+      <Input id={id} type="datetime-local" value={value} onChange={(event) => onChange(event.target.value)} required={required} />
     </div>
   );
 }
 
-function SelectField({ label, value, disabled, onChange, children }: { label: string; value: string; disabled?: boolean; onChange: (value: string) => void; children: ReactNode }) {
+function SelectField({
+  label,
+  value,
+  disabled,
+  onChange,
+  required,
+  children,
+}: {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  required?: boolean;
+  children: ReactNode;
+}) {
   const id = `subscription-${label.toLowerCase().replace(/\s+/g, '-')}`;
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>
+        {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </Label>
       <select
         id={id}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-lg border bg-background px-3 text-sm disabled:bg-secondary"
+        className="h-11 w-full rounded-lg border bg-background px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
       >
         {children}
       </select>

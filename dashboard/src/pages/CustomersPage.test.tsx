@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -29,12 +30,15 @@ const customer = {
   last_activity_at: new Date().toISOString(),
 };
 
+const mocks = vi.hoisted(() => ({ calls: [] as Array<[string, string, number]> }));
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ can: () => true }),
 }));
 
 vi.mock('@/hooks/useCustomers', () => ({
-  useCustomers: (_search: string, status: string) => {
+  useCustomers: (search: string, status: string, page: number) => {
+    mocks.calls.push([search, status, page]);
     const totals: Record<string, number> = { '': 148, onboarding: 12, pilot: 4, active: 129, suspended: 7 };
     return {
       data: {
@@ -59,7 +63,7 @@ vi.mock('@/components/customers/IndividualClientDialog', () => ({
   IndividualClientDialog: () => null,
 }));
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); mocks.calls = []; });
 
 describe('Carteira de clientes', () => {
   it('reproduz indicadores, filtros, tabela e radar aprovados', () => {
@@ -76,5 +80,17 @@ describe('Carteira de clientes', () => {
     const { container } = render(<MemoryRouter initialEntries={['/app/clientes']}><CustomersPage /></MemoryRouter>);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
+  });
+
+  it('restaura busca, status e paginação pela URL e mantém os filtros ao reconsultar', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/app/clientes?q=Aurora&status=active&page=2']}><CustomersPage /></MemoryRouter>);
+
+    expect(screen.getByPlaceholderText('Nome, município, contato ou identificador')).toHaveValue('Aurora');
+    expect(screen.getByRole('button', { name: 'Ativos' })).toHaveAttribute('aria-pressed', 'true');
+    expect(mocks.calls).toContainEqual(['Aurora', 'active', 2]);
+
+    await user.click(screen.getByRole('button', { name: 'Onboarding' }));
+    expect(mocks.calls).toContainEqual(['Aurora', 'onboarding', 0]);
   });
 });
