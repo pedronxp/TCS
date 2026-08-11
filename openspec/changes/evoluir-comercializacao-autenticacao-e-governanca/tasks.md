@@ -12,6 +12,8 @@
 - [ ] 2.3 Criar séries, contadores e função idempotente de alocação de protocolo por organização.
 - [ ] 2.4 Migrar protocolos existentes sem renumeração, criar índices únicos e impedir reutilização de anulados.
 - [ ] 2.5 Alterar mobile/web para exibirem protocolo pendente até alocação autoritativa.
+
+> Em andamento: o app mobile deixou de gerar o fallback local nas telas de detalhe e resultado; a emissão oficial por organização ainda depende da alocação autoritativa no Supabase.
 - [ ] 2.6 Testar concorrência, offline, organizações na mesma cidade e isolamento por RLS.
 
 ## 3. Identidade e onboarding
