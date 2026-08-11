@@ -16,6 +16,7 @@ As decisões de produto são:
 - O TCS é a fonte de verdade. A agenda externa é uma cópia pessoal de conveniência, nunca o registro operacional.
 - A primeira versão reutiliza a equipe da organização e seus escopos atuais. Não cria grupos personalizados ainda.
 - Notificações de criação, alteração e cancelamento são entregues no app para responsável e participantes.
+- A agenda externa só é liberada depois que a equipe registra a confirmação do cliente.
 
 ## Abordagens avaliadas
 
@@ -48,7 +49,9 @@ Para `Individual`, apenas o responsável e participantes informados recebem o it
 
 ### Confirmação e agenda externa
 
-Depois de salvar, a confirmação informa que o agendamento já está disponível no app. Ela inclui a ação **Adicionar à agenda**, com:
+Depois de salvar, a confirmação informa que o agendamento está disponível no app e fica em **Aguardando confirmação do cliente**. A equipe pode copiar uma mensagem pronta e registrar uma das respostas: `Confirmado pelo cliente` ou `Recusado / remarcar`, sempre com data, canal e autor do registro.
+
+Enquanto estiver pendente ou recusado, as ações de agenda externa permanecem indisponíveis. Depois de confirmado, a tela libera a ação **Adicionar à agenda**, com:
 
 - Arquivo `.ics`, baseado no padrão aberto iCalendar, como alternativa universal.
 - Link preenchido para Google Agenda.
@@ -70,6 +73,7 @@ O modelo precisa evoluir a partir de `agendamentos` sem quebrar dados existentes
 
 - `scheduled_end_at` ou `duracao_minutos` para a duração/término.
 - `visibility` com valores controlados `individual` e `team`.
+- `client_confirmation_status` com valores controlados `pending`, `confirmed` e `declined`, além de data, canal e autor da resposta.
 - Relação de participantes em tabela própria, com uma linha por agendamento e usuário, para consulta e RLS segura.
 - Registros de notificação associados ao evento de agendamento e ao destinatário.
 
@@ -86,6 +90,7 @@ O responsável atual continua sendo a referência principal (`agente_uid`). As p
 ## Critérios de aceite
 
 - Não é possível criar um agendamento sem título, início futuro, duração e responsável.
+- Todo novo agendamento começa como pendente de confirmação do cliente; a exportação para agenda externa só é possível depois de confirmado.
 - Um participante pertence à organização, está ativo, não se repete e não substitui o responsável.
 - O console exibe a modalidade individual ou compartilhada sem esconder quem é responsável.
 - O app mostra corretamente itens próprios e compartilhados, sem ampliar acesso fora do escopo atual.
