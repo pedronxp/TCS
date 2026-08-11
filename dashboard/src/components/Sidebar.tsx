@@ -65,7 +65,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                   onClick={onClose}
                   className={({ isActive }) =>
                     cn(
-                      'mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                      'mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 motion-reduce:transition-none',
                       isActive
                         ? 'bg-success-soft text-primary'
                         : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground'

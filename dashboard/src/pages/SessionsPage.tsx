@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, LogOut } from 'lucide-react';
+import { AlertTriangle, LogOut, ShieldCheck } from 'lucide-react';
 import { HighAssuranceDialog } from '@/components/security/HighAssuranceDialog';
 import { PageHeader } from '@/components/domain/PageHeader';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent } from '@/components/ui/Card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,9 +46,12 @@ export function SessionsPage() {
   const [status, setStatus] = useState('active');
   const [platform, setPlatform] = useState('all');
   const [selected, setSelected] = useState<SessionRow | null>(null);
-  const { can } = useAuth();
+  const [reviewed, setReviewed] = useState<SessionRow | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const { can, user, profile } = useAuth();
   const query = useQuery({
-    queryKey: ['internal-sessions', status, platform],
+    queryKey: ['internal-sessions', user?.id, profile?.role, status, platform],
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
@@ -64,7 +68,7 @@ export function SessionsPage() {
     },
   });
   const overview = useQuery({
-    queryKey: ['internal-sessions-overview'],
+    queryKey: ['internal-sessions-overview', user?.id, profile?.role],
     queryFn: loadSessionOverview,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -102,7 +106,7 @@ export function SessionsPage() {
       <PageHeader
         eyebrow="Segurança de acesso"
         title="Sessões"
-        description="Visibilidade em tempo real sobre dispositivos, políticas e comportamentos incomuns."
+        description="Visibilidade em tempo real sobre dispositivos, políticas e comportamentos incomuns. Revogações remotas exigem confirmação e são registradas com motivo e horário."
       />
 
       <AsyncBoundary
@@ -122,7 +126,7 @@ export function SessionsPage() {
             <div className="mt-7 grid items-stretch gap-5 xl:grid-cols-[420px_300px_minmax(0,1fr)] xl:grid-rows-[300px]">
               <AnomalyMap sessions={overviewItems} anomalies={anomalies} />
               <PolicyCard policy={policy} />
-              <RiskAlert anomalies={anomalies} onSelect={setSelected} canTerminate={can('session.terminate')} />
+              <RiskAlert anomalies={anomalies} onSelect={(session) => void openReview(session)} />
             </div>
           </>
         ) : null}
@@ -156,6 +160,14 @@ export function SessionsPage() {
             </Select>
           </div>
         </div>
+        {reviewError ? (
+          <div role="alert" className="mx-6 mb-4 flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive-soft p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p>{reviewError}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => setReviewError(null)}>
+              Fechar aviso
+            </Button>
+          </div>
+        ) : null}
         <AsyncBoundary
           loading={query.isLoading}
           error={query.error}
@@ -191,19 +203,17 @@ export function SessionsPage() {
                           <span className="block text-[10px] uppercase">{session.platform}</span>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{relativeActivity(session.last_heartbeat_at)}</TableCell>
-                        <TableCell><Badge variant={risk ? 'warning' : 'success'}>{risk ? 'Revisar' : 'Normal'}</Badge></TableCell>
+                        <TableCell><Badge variant={risk ? 'warning' : 'success'}>{risk ? 'Revisar agora' : 'Normal'}</Badge></TableCell>
                         <TableCell>
-                          {can('session.terminate') && session.status === 'active' ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 text-destructive hover:bg-destructive-soft"
-                              onClick={() => setSelected(session)}
-                              aria-label={`Revogar sessão de ${shortId(session.user_id)}`}
-                            >
-                              <LogOut />
-                            </Button>
-                          ) : null}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary"
+                            disabled={reviewingId === session.id}
+                            onClick={() => void openReview(session)}
+                          >
+                            {reviewingId === session.id ? 'Registrando…' : 'Revisar'}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
@@ -211,7 +221,7 @@ export function SessionsPage() {
                 </TableBody>
               </Table>
               <p className="border-t px-6 py-4 text-[11px] text-muted-foreground">
-                Exibindo {query.data.items.length} de {query.data.total.toLocaleString('pt-BR')} sessões
+                Exibindo {query.data.items.length} de {query.data.total.toLocaleString('pt-BR')} sessões · revogação remota exige confirmação e motivo
               </p>
             </>
           ) : null}
@@ -221,7 +231,7 @@ export function SessionsPage() {
       <HighAssuranceDialog
         open={Boolean(selected)}
         title="Revogar sessão remotamente"
-        impact="O dispositivo perderá acesso imediatamente e a ação será registrada na auditoria."
+        impact="O dispositivo perderá acesso imediatamente. A revogação exige motivo e fica registrada na auditoria com estado anterior e horário."
         confirmLabel="Revogar sessão"
         onOpenChange={(open) => {
           if (!open) setSelected(null);
@@ -233,8 +243,31 @@ export function SessionsPage() {
           setSelected(null);
         }}
       />
+      <SessionReviewDialog
+        session={reviewed}
+        canTerminate={can('session.terminate')}
+        onClose={() => setReviewed(null)}
+        onTerminate={() => {
+          if (reviewed) setSelected(reviewed);
+          setReviewed(null);
+        }}
+      />
     </div>
   );
+
+  async function openReview(session: SessionRow) {
+    if (reviewingId) return;
+    setReviewError(null);
+    setReviewingId(session.id);
+    try {
+      await recordSessionReview(session.id);
+      setReviewed(session);
+    } catch {
+      setReviewError('Não foi possível registrar esta revisão na auditoria. Os detalhes permaneceram fechados. Tente novamente.');
+    } finally {
+      setReviewingId(null);
+    }
+  }
 }
 
 const sessionSelect = [
@@ -440,11 +473,9 @@ function PolicyCard({ policy }: { policy: PolicySummary }) {
 function RiskAlert({
   anomalies,
   onSelect,
-  canTerminate,
 }: {
   anomalies: SessionAnomaly[];
   onSelect: (session: SessionRow) => void;
-  canTerminate: boolean;
 }) {
   return (
     <Card className="border-destructive/25 bg-destructive-soft shadow-none">
@@ -462,26 +493,81 @@ function RiskAlert({
               <button
                 key={item.session.id}
                 type="button"
-                onClick={() => canTerminate && onSelect(item.session)}
-                className="flex w-full items-start gap-3 text-left disabled:cursor-default"
-                disabled={!canTerminate}
+                onClick={() => onSelect(item.session)}
+                className="flex w-full items-start gap-3 text-left"
               >
                 <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-background text-destructive">
                   <AlertTriangle className="h-3.5 w-3.5" />
                 </span>
                 <span className="min-w-0">
                   <strong className="block truncate text-[11px]">{shortId(item.session.user_id)}</strong>
-                  <span className="mt-0.5 block text-[10px] leading-4 text-destructive">{item.reason}</span>
+                  <span className="mt-0.5 block text-[10px] leading-4 text-foreground">{item.reason}</span>
                 </span>
               </button>
             ))}
           </div>
         ) : (
-          <p className="mt-7 text-xs font-medium text-success">Nenhuma anomalia detectada nos dados disponíveis.</p>
+          <p className="mt-7 text-xs font-medium text-foreground">Nenhuma anomalia detectada nos dados disponíveis.</p>
         )}
       </CardContent>
     </Card>
   );
+}
+
+function SessionReviewDialog({
+  session,
+  canTerminate,
+  onClose,
+  onTerminate,
+}: {
+  session: SessionRow | null;
+  canTerminate: boolean;
+  onClose: () => void;
+  onTerminate: () => void;
+}) {
+  if (!session) return null;
+  const risk = findSessionAnomalies([session])[0];
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Revisar sessão</DialogTitle>
+          <DialogDescription>
+            Esta consulta é registrada na auditoria. São exibidos apenas os dados necessários para avaliar o acesso.
+          </DialogDescription>
+        </DialogHeader>
+        <dl className="grid gap-4 text-sm">
+          <ReviewRow label="Identificador" value={shortId(session.user_id)} />
+          <ReviewRow label="Organização" value={session.organizations?.display_name || 'Não vinculada'} />
+          <ReviewRow label="Dispositivo" value={session.device_name || session.platform} />
+          <ReviewRow label="Última atividade" value={relativeActivity(session.last_heartbeat_at)} />
+          {risk && <ReviewRow label="Motivo da revisão" value={risk.reason} tone="warning" />}
+        </dl>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Fechar</Button>
+          {canTerminate && session.status === 'active' ? (
+            <Button type="button" variant="destructive" onClick={onTerminate}><LogOut />Revogar sessão</Button>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReviewRow({ label, value, tone }: { label: string; value: string; tone?: 'warning' }) {
+  return (
+    <div className="flex items-start justify-between gap-6 border-b pb-3 last:border-0 last:pb-0">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={cn('max-w-[65%] text-right font-medium', tone === 'warning' && 'text-foreground')}>{value}</dd>
+    </div>
+  );
+}
+
+async function recordSessionReview(sessionId: string) {
+  const { error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ error: { message: string } | null }>)('record_internal_session_review', {
+    p_session_id: sessionId,
+  });
+  if (error) throw error;
 }
 
 function mostCommon(values: string[]) {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { PortalModulePage } from './PortalModulePage';
@@ -10,14 +10,17 @@ const mocks = vi.hoisted(() => ({
   query: {
     data: undefined as { items: Array<Record<string, unknown>>; summary: Record<string, number | string | boolean | null> } | undefined,
     isLoading: false,
+    isFetching: false,
     isError: false,
     refetch: vi.fn(),
   },
   access: {
-    accountKind: 'individual' as const,
+    accountKind: 'individual' as 'individual' | 'organization',
     userId: 'user',
-    organizationId: null,
+    organizationId: null as string | null,
+    role: null as null | 'coordinator',
     features: { reports: true } as Record<string, boolean>,
+    permissions: ['inspection.read', 'appointment.read'] as string[],
     creationAllowed: true,
   },
 }));
@@ -29,55 +32,80 @@ vi.mock('@/lib/portal', async (importOriginal) => {
   return { ...original, fetchPortalWorkspace: vi.fn() };
 });
 
-function renderModule(section = 'vistorias') {
-  return render(<MemoryRouter><PortalModulePage section={section} /></MemoryRouter>);
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
+}
+
+function renderModule(section = 'vistorias', entry = '/portal/individual/vistorias') {
+  return render(<MemoryRouter initialEntries={[entry]}><PortalModulePage section={section} /><LocationProbe /></MemoryRouter>);
 }
 
 describe('estados dos módulos do portal', () => {
   beforeEach(() => {
     mocks.query.data = undefined;
     mocks.query.isLoading = false;
+    mocks.query.isFetching = false;
     mocks.query.isError = false;
     mocks.query.refetch.mockReset();
+    mocks.access.accountKind = 'individual';
+    mocks.access.organizationId = null;
+    mocks.access.role = null;
     mocks.access.features = { reports: true };
+    mocks.access.permissions = ['inspection.read', 'appointment.read'];
     mocks.access.creationAllowed = true;
   });
   afterEach(cleanup);
 
-  it('expõe estado de carregamento acessível', () => {
+  it('expõe carregamento acessível e respeita redução de movimento', () => {
     mocks.query.isLoading = true;
     const { container } = renderModule();
-    expect(container.querySelectorAll('[class*="animate-pulse"]')).toHaveLength(4);
+    expect(screen.getByRole('status', { name: 'Carregando itens' })).toBeVisible();
+    expect(container.querySelectorAll('.motion-reduce\\:animate-none')).toHaveLength(4);
   });
 
-  it('expõe erro recuperável', () => {
+  it('expõe erro recuperável sem estimar dados', () => {
     mocks.query.isError = true;
     renderModule();
-    expect(screen.getByText('Não foi possível carregar este módulo.')).toBeVisible();
-    screen.getByRole('button', { name: /tentar novamente/i }).click();
+    expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar este módulo');
+    fireEvent.click(screen.getByRole('button', { name: /tentar novamente/i }));
     expect(mocks.query.refetch).toHaveBeenCalledOnce();
   });
 
-  it('diferencia vazio de filtro sem resultado', () => {
+  it('diferencia escopo vazio de filtro sem resultado e persiste filtros na URL', () => {
     mocks.query.data = { items: [], summary: {} };
     const { rerender } = renderModule();
-    expect(screen.getByText('Quando houver registros neste escopo, eles aparecerão aqui.')).toBeVisible();
-    mocks.query.data = { items: [{ id: '1', title: 'Sem correspondência', status: 'pendente' }], summary: {} };
-    rerender(<MemoryRouter><PortalModulePage section="vistorias" /></MemoryRouter>);
-    expect(screen.getByText('Sem correspondência')).toBeVisible();
+    expect(screen.getByText('Nenhuma vistoria foi registrada neste escopo.')).toBeVisible();
+
+    mocks.query.data = { items: [{ id: '1', title: 'TCS-001', status: 'pendente' }], summary: {} };
+    rerender(<MemoryRouter initialEntries={['/portal/individual/vistorias']}><PortalModulePage section="vistorias" /><LocationProbe /></MemoryRouter>);
+    fireEvent.change(screen.getByPlaceholderText('Buscar em vistorias'), { target: { value: 'sem resultado' } });
+    expect(screen.getByText('Ajuste a busca ou o filtro sem perder sua posição na lista.')).toBeVisible();
+    expect(screen.getByTestId('location')).toHaveTextContent('/portal/individual/vistorias?busca=sem+resultado');
   });
 
-  it('preserva a explicação de bloqueio por plano e a comparação pública', () => {
+  it('preserva filtros ao abrir o detalhe da vistoria', () => {
+    mocks.query.data = { items: [{ id: 'inspection 1', title: 'TCS-001', status: 'concluida' }], summary: {} };
+    renderModule('vistorias', '/portal/individual/vistorias?status=concluida');
+    expect(screen.getByRole('link', { name: 'Ver detalhes' })).toHaveAttribute(
+      'href',
+      '/portal/individual/vistorias/inspection%201?returnTo=%2Fportal%2Findividual%2Fvistorias%3Fstatus%3Dconcluida',
+    );
+  });
+
+  it('explica o bloqueio por plano e direciona quem pode ler cobrança para a assinatura', () => {
+    mocks.access.accountKind = 'organization';
+    mocks.access.organizationId = 'org-1';
     mocks.access.features = { reports: false };
-    renderModule('relatorios');
-    expect(screen.getByRole('heading', { name: 'Recurso disponível em outro plano' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Comparar planos' })).toHaveAttribute('href', '/planos');
+    mocks.access.permissions = ['billing.read'];
+    renderModule('relatorios', '/portal/municipal/relatorios');
+    expect(screen.getByRole('heading', { name: 'Relatórios não incluídos neste plano' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Consultar assinatura' })).toHaveAttribute('href', '/portal/municipal/assinatura');
   });
 
   it('mantém o estado base sem violações automatizadas de acessibilidade', async () => {
     mocks.query.data = { items: [{ id: '1', title: 'TCS-001', status: 'concluida' }], summary: { inspections: 1 } };
     const { container } = renderModule();
-    const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
-    expect(result.violations).toEqual([]);
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

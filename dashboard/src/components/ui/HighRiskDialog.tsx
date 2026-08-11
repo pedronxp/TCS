@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { Loader2, ShieldCheck, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import { Label } from '@/components/ui/Label';
+import { Alert, AlertDescription } from '@/components/ui/Alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 
 interface Props {
   open: boolean;
@@ -29,20 +32,22 @@ export function HighRiskDialog({ open, title, description, confirmLabel, onClose
   const [busy, setBusy] = useState(false);
   const [hasVerifiedFactor, setHasVerifiedFactor] = useState<boolean | null>(null);
   const [enrollment, setEnrollment] = useState<TotpEnrollment | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
+    let cancelled = false;
+    setReason('');
+    setCode('');
+    setError(null);
+    setEnrollment(null);
+    setHasVerifiedFactor(null);
     void supabase.auth.mfa.listFactors().then(({ data, error: listError }) => {
+      if (cancelled) return;
       if (listError) setError(listError.message);
       setHasVerifiedFactor(Boolean(data?.totp.some((factor) => factor.status === 'verified')));
     });
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, open]);
+    return () => { cancelled = true; };
+  }, [open]);
   if (!open) return null;
 
   async function verifyMfa() {
@@ -88,45 +93,23 @@ export function HighRiskDialog({ open, title, description, confirmLabel, onClose
 
   const aal2 = profile?.assuranceLevel === 'aal2';
   return (
-    <div
-      className="fixed inset-0 z-[100] grid place-items-center bg-foreground/60 p-4"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="high-risk-title"
-        aria-describedby="high-risk-description"
-        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-card p-6 shadow-sm"
-      >
-        <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-warning-soft p-2 text-warning-soft-foreground">
-            <ShieldCheck className="h-5 w-5" />
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onClose(); }}>
+      <DialogContent className="max-w-md motion-reduce:animate-none">
+        <DialogHeader className="pr-8 text-left">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 rounded-full bg-muted p-1.5">
+              <ShieldCheck className="h-4 w-4 text-foreground" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription className="mt-1">{description}</DialogDescription>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <h2 id="high-risk-title" className="text-lg font-bold">{title}</h2>
-            <p id="high-risk-description" className="mt-1 text-sm text-muted-foreground">{description}</p>
-          </div>
-          <Button
-            ref={closeRef}
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Fechar confirmação"
-            className="h-9 w-9"
-          >
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
+        </DialogHeader>
 
         {aal2 ? (
-          <div className="mt-5">
-            <label className="text-sm font-semibold" htmlFor="high-risk-reason">Justificativa</label>
+          <div className="mt-6">
+            <Label htmlFor="high-risk-reason">Justificativa</Label>
             <Textarea
               id="high-risk-reason"
               value={reason}
@@ -137,74 +120,78 @@ export function HighRiskDialog({ open, title, description, confirmLabel, onClose
             />
             <Button
               type="button"
-              variant="destructive"
               disabled={busy}
               onClick={() => void confirm()}
-              className="mt-4 w-full"
+              className="mt-5 w-full bg-foreground text-background hover:bg-foreground/90"
             >
-              {busy && <Loader2 className="animate-spin" />}
+              {busy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
               {confirmLabel}
             </Button>
           </div>
         ) : (
-          <div className="mt-5 rounded-xl border border-info/20 bg-info-soft p-4">
-            <p className="text-sm font-semibold text-foreground">Confirmação forte necessária</p>
-            {hasVerifiedFactor === false && !enrollment ? (
-              <>
-                <p className="mt-1 text-xs text-info">
-                  Cadastre um aplicativo autenticador para proteger as operações administrativas.
-                </p>
-                <Button type="button" disabled={busy} onClick={() => void enrollMfa()} className="mt-3">
-                  Configurar autenticador
-                </Button>
-              </>
-            ) : (
-              <>
-                {enrollment && (
-                  <div className="mt-3 rounded-lg bg-card p-3">
-                    <img
-                      src={enrollment.qrCode}
-                      alt="QR code para cadastrar o TCS Console no autenticador"
-                      className="mx-auto h-44 w-44"
-                    />
-                    <p className="mt-2 text-center text-xs text-muted-foreground">
-                      Se não puder escanear, use o segredo:
-                    </p>
-                    <code className="mt-1 block break-all rounded bg-muted p-2 text-center text-xs">
-                      {enrollment.secret}
-                    </code>
-                  </div>
-                )}
-                <p className="mt-3 text-xs text-info">
-                  Digite o código de 6 dígitos do autenticador para elevar esta sessão a aal2.
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <Input
-                    value={code}
-                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    aria-label="Código do autenticador"
-                    className="min-w-0 flex-1 text-center font-mono tracking-[.3em]"
-                  />
+          <div className="mt-6 space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium">Confirmação forte necessária</p>
+              {hasVerifiedFactor === false && !enrollment ? (
+                <>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    Cadastre um aplicativo autenticador para proteger as operações administrativas.
+                  </p>
                   <Button
                     type="button"
-                    disabled={busy || code.length !== 6}
-                    onClick={() => void verifyMfa()}
+                    disabled={busy}
+                    onClick={() => void enrollMfa()}
+                    className="mt-4 w-full"
                   >
-                    Verificar
+                    {busy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+                    Configurar autenticador
                   </Button>
-                </div>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  {enrollment && (
+                    <div className="mt-4 rounded-md border bg-card p-4">
+                      <img
+                        src={enrollment.qrCode}
+                        alt="QR code para cadastrar o TCS Console no autenticador"
+                        className="mx-auto h-40 w-40 rounded"
+                      />
+                      <p className="mt-3 text-center text-xs text-muted-foreground">
+                        Ou use o código manualmente:
+                      </p>
+                      <code className="mt-2 block break-all rounded-md border bg-muted px-3 py-2 text-center text-xs font-mono">
+                        {enrollment.secret}
+                      </code>
+                    </div>
+                  )}
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Digite o código de 6 dígitos do autenticador para elevar esta sessão a aal2.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Input
+                      value={code}
+                      onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      aria-label="Código do autenticador"
+                      placeholder="000000"
+                      className="min-w-0 flex-1 text-center font-mono text-lg tracking-[0.25em]"
+                    />
+                    <Button
+                      type="button"
+                      disabled={busy || code.length !== 6}
+                      onClick={() => void verifyMfa()}
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : 'Verificar'}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
-        {error && (
-          <p className="mt-3 rounded-lg bg-destructive-soft p-3 text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-    </div>
+        {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
+      </DialogContent>
+    </Dialog>
   );
 }

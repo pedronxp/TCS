@@ -20,6 +20,8 @@ describe('referência da interface', () => {
 
     expect(screen.getByRole('heading', { name: 'Foundations' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Components' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Motion' })).toBeVisible();
+    expect(screen.getByText('--motion-ease-drawer')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Primário' })).toBeVisible();
     expect(screen.getByText('#FAFAFA')).toBeVisible();
     expect(screen.getByText('#15774A')).toBeVisible();

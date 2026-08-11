@@ -76,4 +76,11 @@ describe('Ciclos de assinatura', () => {
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
   });
+
+  it('sinaliza que mudanças são auditáveis e não infere estimativas no radar', () => {
+    render(<SubscriptionsPage />);
+    expect(screen.getByText(/registrada com motivo e horário/)).toBeVisible();
+    expect(screen.getByText('Contagem real por estágio · nenhuma estimativa inferida')).toBeVisible();
+    expect(screen.getByText(/sem estimativas inferidas/)).toBeVisible();
+  });
 });

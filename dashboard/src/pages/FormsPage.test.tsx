@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FormsPage } from './FormsPage';
@@ -54,7 +54,7 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ can: () => true }),
+  useAuth: () => ({ can: () => true, user: { id: 'staff-1' }, profile: { role: 'developer' } }),
 }));
 
 vi.mock('@/hooks/useAdministrativeMutation', () => ({
@@ -81,5 +81,17 @@ describe('Formulários versionados', () => {
     const { container } = render(<FormsPage />);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
+  });
+
+  it('mantém a prévia dentro do filtro e não promete editar um escopo imutável', () => {
+    render(<FormsPage />);
+
+    fireEvent.change(screen.getByLabelText('Buscar formulários'), { target: { value: 'resultado inexistente' } });
+    expect(screen.queryByRole('complementary', { name: 'Licenciamento urbano' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Buscar formulários'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    expect(screen.getByLabelText('Município (vazio = global)')).toBeDisabled();
+    expect(screen.getByText(/escopo municipal é imutável/)).toBeVisible();
   });
 });

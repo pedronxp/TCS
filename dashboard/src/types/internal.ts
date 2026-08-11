@@ -1,4 +1,4 @@
-export type InternalRole = 'owner' | 'developer';
+export type InternalRole = 'owner' | 'developer' | 'support' | 'auditor';
 export type StaffStatus = 'active' | 'suspended' | 'removed';
 export type AssuranceLevel = 'aal1' | 'aal2';
 

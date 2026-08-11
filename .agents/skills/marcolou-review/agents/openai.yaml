@@ -1,0 +1,4 @@
+interface:
+  display_name: "Marcolou Review"
+  short_description: "Revisa produto, conversao e clareza comercial"
+  default_prompt: "Use $marcolou-review para revisar esta tela como um produto memoravel, claro e orientado a conversao."

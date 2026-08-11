@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRight,
@@ -13,13 +13,17 @@ import {
   FileText,
   Globe2,
   Info,
+  KeyRound,
+  LockKeyhole,
   Loader2,
   Pencil,
   RefreshCw,
+  UnlockKeyhole,
 } from 'lucide-react';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { CustomerMap } from '@/components/customers/CustomerMap';
 import { StatusBadge } from '@/components/domain/Badges';
+import { CustomerContextBar } from '@/components/domain/CustomerContextBar';
 import { AsyncBoundary, AsyncEmpty, AsyncError, AsyncLoading } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -50,7 +54,10 @@ import {
   SelectValue,
 } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/Sheet';
+import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAdministrativeMutation } from '@/hooks/useAdministrativeMutation';
 import { useCustomerDetail } from '@/hooks/useCustomerDetail';
 import {
   useCreateCustomerAppointment,
@@ -59,7 +66,8 @@ import {
 import { supabase } from '@/lib/supabase';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { cn } from '@/lib/utils';
-import type { CustomerDetail, CustomerOperations } from '@/types/domain';
+import { toast } from 'sonner';
+import type { CustomerDetail, CustomerOperations, CustomerUser } from '@/types/domain';
 
 const primarySections = [
   ['resumo', 'Resumo'],
@@ -108,6 +116,7 @@ export function CustomerDetailPage() {
       operations={operations.data}
       operationsLoading={operations.isLoading}
       operationsError={operations.error}
+      onRetryOperations={() => void operations.refetch()}
       canEdit={can('customer.write')}
       onSaved={() => void query.refetch()}
     />
@@ -121,6 +130,7 @@ export function CustomerDetailWorkspace({
   operations,
   operationsLoading = false,
   operationsError = null,
+  onRetryOperations,
   canEdit = false,
   onSaved,
 }: {
@@ -130,6 +140,7 @@ export function CustomerDetailWorkspace({
   operations?: CustomerOperations;
   operationsLoading?: boolean;
   operationsError?: Error | null;
+  onRetryOperations?: () => void;
   canEdit?: boolean;
   onSaved?: () => void;
 }) {
@@ -188,6 +199,13 @@ export function CustomerDetailWorkspace({
         </div>
       </div>
 
+      <CustomerContextBar
+        customerId={customerId}
+        name={customer.display_name}
+        status={customer.status}
+        detail={[customer.municipality_name, customer.state_code].filter(Boolean).join(' · ') || 'Conta individual'}
+      />
+
       {!detail.can_view_sensitive && (
         <div
           role="status"
@@ -213,7 +231,8 @@ export function CustomerDetailWorkspace({
         ))}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
+              variant="ghost"
               className={cn(
                 'inline-flex min-h-[50px] shrink-0 items-center gap-1 border-b-2 px-4 text-xs font-medium',
                 isMoreSection
@@ -223,7 +242,7 @@ export function CustomerDetailWorkspace({
             >
               Mais
               <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
             {moreSections.map(([key, label]) => (
@@ -243,6 +262,7 @@ export function CustomerDetailWorkspace({
         operations={operations}
         operationsLoading={operationsLoading}
         operationsError={operationsError}
+        onRetryOperations={onRetryOperations}
       />
 
       <OrganizationFormDialog
@@ -282,12 +302,14 @@ function CustomerSection({
   operations,
   operationsLoading,
   operationsError,
+  onRetryOperations,
 }: {
   section: string;
   detail: CustomerDetail;
   operations?: CustomerOperations;
   operationsLoading: boolean;
   operationsError: Error | null;
+  onRetryOperations?: () => void;
 }) {
   if (section === 'resumo') return <Summary detail={detail} />;
   if (section === 'assinatura') return <Subscription detail={detail} />;
@@ -303,6 +325,7 @@ function CustomerSection({
     <AsyncBoundary
       loading={operationsLoading}
       error={operationsError}
+      onRetry={onRetryOperations}
       empty={!operations}
       emptyTitle="Operações indisponíveis"
       emptyDescription="A fonte não retornou dados operacionais para este cliente."
@@ -574,24 +597,24 @@ function Usage({ detail }: { detail: CustomerDetail }) {
 }
 
 function Users({ detail }: { detail: CustomerDetail }) {
-  const navigate = useNavigate();
+  const [selected, setSelected] = useState<CustomerUser | null>(null);
   if (!detail.users.length) {
     return <AsyncEmpty title="Nenhum usuário" description="Não há membros vinculados a este cliente." />;
   }
 
   return (
+    <>
     <DataTable headers={['Usuário', 'Papel', 'Status', 'Último acesso', 'Ação']}>
       {detail.users.map((user) => {
-        const href = `/app/clientes/${encodeURIComponent(detail.customer.customer_id)}/usuarios/${user.user_id}/resumo`;
         return (
           <tr
             key={user.user_id}
             tabIndex={0}
-            onClick={() => navigate(href)}
+            onClick={() => setSelected(user)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                navigate(href);
+                setSelected(user);
               }
             }}
             className="cursor-pointer border-t hover:bg-secondary/60 focus-visible:bg-secondary"
@@ -604,18 +627,112 @@ function Users({ detail }: { detail: CustomerDetail }) {
             <td className="p-3"><StatusBadge value={user.status} /></td>
             <td className="p-3">{formatDate(user.last_login)}</td>
             <td className="p-3">
-              <Button asChild variant="outline" size="sm">
-                <Link to={href} onClick={(event) => event.stopPropagation()}>
-                  Ver agente
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={(event) => { event.stopPropagation(); setSelected(user); }}
+              >
+                Gerenciar
+                <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </td>
           </tr>
         );
       })}
     </DataTable>
+    <UserManagementSheet
+      customerId={detail.customer.customer_id}
+      user={selected}
+      onOpenChange={(open) => { if (!open) setSelected(null); }}
+    />
+    </>
   );
+}
+
+function UserManagementSheet({ customerId, user, onOpenChange }: {
+  customerId: string;
+  user: CustomerUser | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { can } = useAuth();
+  const [password, setPassword] = useState('');
+  const [pendingAction, setPendingAction] = useState<'block' | 'unblock' | 'reset_password' | null>(null);
+  const mutation = useAdministrativeMutation<{ action: 'block' | 'unblock' | 'reset_password'; reason: string }, unknown>({
+    mutationFn: async ({ action, reason }, operationId) => {
+      if (!user) throw new Error('Usuário não selecionado.');
+      const { data, error } = await supabase.rpc('mutate_internal_agent_access', {
+        p_customer_id: customerId,
+        p_user_id: user.user_id,
+        p_action: action,
+        p_session_id: null,
+        p_new_password: action === 'reset_password' ? password : null,
+        p_reason: reason,
+        p_operation_id: operationId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    invalidate: [['internal-customer-detail', customerId]],
+  });
+  if (!user) return null;
+  const passwordValid = password.length >= 12 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password);
+  const canManage = can('customer.write');
+
+  async function execute(reason: string) {
+    if (!pendingAction) throw new Error('Ação de acesso não selecionada.');
+    const result = await mutation.mutateAsync({ action: pendingAction, reason });
+    if (!result.ok) throw new Error(result.error);
+    toast.success(pendingAction === 'reset_password' ? 'Senha redefinida e sessões encerradas.' : 'Acesso atualizado e auditado.');
+    if (pendingAction === 'reset_password') setPassword('');
+  }
+  const dialogCopy = accessActionCopy(pendingAction);
+
+  return (
+    <>
+      <Sheet open onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetHeader className="pr-8">
+          <SheetTitle>{user.name || 'Usuário sem nome'}</SheetTitle>
+          <SheetDescription>{user.email || 'E-mail protegido'} · {ptBrLabel(user.role, 'Sem papel')}</SheetDescription>
+        </SheetHeader>
+        <div className="mt-7 space-y-6">
+          <section className="rounded-xl border bg-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acesso</p>
+            <div className="mt-3 flex items-center justify-between gap-3"><StatusBadge value={user.status} /><span className="text-xs text-muted-foreground">Último acesso: {formatDate(user.last_login)}</span></div>
+            {canManage && <div className="mt-4">{user.status === 'active' ? <Button variant="outline" onClick={() => setPendingAction('block')} disabled={mutation.isPending}><LockKeyhole />Bloquear acesso</Button> : <Button onClick={() => setPendingAction('unblock')} disabled={mutation.isPending}><UnlockKeyhole />Liberar acesso</Button>}</div>}
+          </section>
+          {canManage && <section className="rounded-xl border bg-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Redefinir senha</p>
+            <Label htmlFor="customer-user-password" className="mt-3 block">Nova senha temporária</Label>
+            <Input id="customer-user-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" className="mt-2" />
+            <p className="mt-2 text-xs text-muted-foreground">Mínimo de 12 caracteres, com maiúscula, minúscula e número.</p>
+            <p className={cn('mt-2 text-xs', passwordValid ? 'text-success' : 'text-muted-foreground')}>{passwordValid ? '✓ Senha atende à política de segurança' : '• Complete todos os requisitos para continuar'}</p>
+            <Button className="mt-4" disabled={!passwordValid || mutation.isPending} onClick={() => setPendingAction('reset_password')}><KeyRound />Redefinir senha</Button>
+          </section>}
+          <p className="text-xs leading-5 text-muted-foreground">Alterações são registradas automaticamente na auditoria do console.</p>
+        </div>
+        </SheetContent>
+      </Sheet>
+      <HighRiskDialog
+        open={Boolean(pendingAction)}
+        title={dialogCopy.title}
+        description={dialogCopy.description}
+        confirmLabel={dialogCopy.confirmLabel}
+        onClose={() => setPendingAction(null)}
+        onConfirm={execute}
+      />
+    </>
+  );
+}
+
+function accessActionCopy(action: 'block' | 'unblock' | 'reset_password' | null) {
+  switch (action) {
+    case 'block': return { title: 'Bloquear acesso deste usuário?', description: 'O acesso será bloqueado e as sessões ativas serão encerradas. Informe uma justificativa auditável.', confirmLabel: 'Bloquear acesso' };
+    case 'unblock': return { title: 'Liberar acesso deste usuário?', description: 'O usuário voltará a acessar o escopo autorizado. Informe uma justificativa auditável.', confirmLabel: 'Liberar acesso' };
+    case 'reset_password': return { title: 'Redefinir senha deste usuário?', description: 'A senha será substituída e todas as sessões ativas serão encerradas.', confirmLabel: 'Redefinir senha' };
+    default: return { title: 'Confirmar ação', description: 'Revise a operação antes de continuar.', confirmLabel: 'Confirmar' };
+  }
 }
 
 function Sessions({ detail }: { detail: CustomerDetail }) {
@@ -879,7 +996,7 @@ function Appointments({ operations, detail }: { operations: CustomerOperations; 
             <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={createAppointment.isPending}>
-                {createAppointment.isPending && <Loader2 className="animate-spin" />}
+                {createAppointment.isPending && <Loader2 className="animate-spin motion-reduce:animate-none" />}
                 Criar e sincronizar
               </Button>
             </DialogFooter>
@@ -919,12 +1036,13 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
       },
     });
     setBusy('');
-    if (invokeError || !data?.signed_url) {
+    const authorizedUrl = validCustomerDocumentUrl(data, 'view');
+    if (invokeError || !authorizedUrl) {
       setError(invokeError?.message || 'Não foi possível autorizar a visualização do laudo.');
       return;
     }
     setPreviewTitle(document.protocol ? `Laudo ${document.protocol}` : 'Laudo técnico');
-    setPreviewUrl(data.signed_url);
+    setPreviewUrl(authorizedUrl);
   }
 
   function documentStatus(item: CustomerOperations['documents'][number]) {
@@ -962,7 +1080,7 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
           disabled={busy === item.id}
           onClick={() => void previewDocument(item)}
         >
-          {busy === item.id ? <Loader2 className="animate-spin" /> : <Eye />}
+          {busy === item.id ? <Loader2 className="animate-spin motion-reduce:animate-none" /> : <Eye />}
           Visualizar laudo
         </Button>
       );
@@ -1096,6 +1214,19 @@ function Documents({ operations, customerId }: { operations: CustomerOperations;
       </Dialog>
     </div>
   );
+}
+
+function validCustomerDocumentUrl(value: unknown, disposition: 'view' | 'download') {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as { ok?: unknown; signed_url?: unknown; disposition?: unknown; expires_in?: unknown };
+  if (candidate.ok !== true || candidate.disposition !== disposition || typeof candidate.signed_url !== 'string') return null;
+  if (typeof candidate.expires_in !== 'number' || !Number.isFinite(candidate.expires_in) || candidate.expires_in < 1 || candidate.expires_in > 60) return null;
+  try {
+    const url = new URL(candidate.signed_url);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function Reports({ operations }: { operations: CustomerOperations }) {

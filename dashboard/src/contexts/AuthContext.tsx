@@ -37,7 +37,7 @@ const internalPermissions = new Set<string>([
 ]);
 
 function isInternalRole(value: string | null): value is InternalRole {
-  return value === 'owner' || value === 'developer';
+  return value === 'owner' || value === 'developer' || value === 'support' || value === 'auditor';
 }
 
 function isStaffStatus(value: string | null): value is StaffStatus {

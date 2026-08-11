@@ -1,9 +1,9 @@
 import { NavLink } from 'react-router-dom';
 import { ChevronsLeft, ChevronsRight, LogOut } from 'lucide-react';
 import { TcsMark } from '@/components/brand/TcsMark';
+import { RoleBadge } from '@/components/domain/Badges';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveNavigation } from '@/config/navigation';
-import { ptBrLabel } from '@/lib/ptBrLabels';
 import { Button } from '@/components/ui/Button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
     items: group.items.filter((item) => can(item.permission)),
   }));
   const compact = collapsed && !mobile;
+  const consoleLabel = profile?.role === 'developer' ? 'Saúde técnica' : 'Visão executiva';
   const initials = profile?.displayName
     ?.split(/\s+/)
     .filter(Boolean)
@@ -39,7 +40,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'glass group/sidebar relative flex h-full flex-col text-foreground transition-[width] duration-200',
+          'bg-card border-r border-border group/sidebar relative flex h-full flex-col text-foreground',
           compact ? 'w-[88px]' : 'w-[232px]',
         )}
         aria-label="Navegação do console"
@@ -51,7 +52,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
               <span className="min-w-0 leading-none">
                 <strong className="block truncate text-base font-bold text-foreground">TCS Console</strong>
                 <span className="mt-1.5 block truncate text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                  Painel interno
+                  {consoleLabel}
                 </span>
               </span>
             )}
@@ -63,17 +64,22 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
             variant="outline"
             size="icon"
             className={cn(
-              'absolute -right-[17px] top-[23px] z-10 h-[34px] w-[34px] rounded-full border-border bg-card text-foreground shadow-sm transition-all hover:scale-105 hover:bg-secondary focus-visible:opacity-100 group-hover/sidebar:opacity-100',
+              'absolute -right-[17px] top-[23px] z-10 h-[34px] w-[34px] rounded-full border-border bg-card text-foreground shadow-sm transition-[background-color,border-color,color,box-shadow,opacity,transform] duration-150 [transition-timing-function:var(--motion-ease-out)] hover:bg-secondary focus-visible:opacity-100 group-hover/sidebar:opacity-100',
               compact ? 'opacity-100' : 'opacity-0',
             )}
             onClick={() => onCollapsedChange(!compact)}
             aria-label={compact ? 'Expandir navegação' : 'Recolher navegação'}
           >
-            {compact ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+            {compact ? <ChevronsRight className="h-4 w-4" aria-hidden="true" /> : <ChevronsLeft className="h-4 w-4" aria-hidden="true" />}
           </Button>
         )}
 
         <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 pb-5 pt-2">
+          {groups.length === 0 && !compact && (
+            <p className="rounded-md border border-dashed border-border px-3 py-4 text-xs leading-5 text-muted-foreground">
+              Nenhum módulo foi liberado para este perfil.
+            </p>
+          )}
           {groups.map((group) => (
             <div key={group.label} className="mb-6">
               {!compact && (
@@ -110,7 +116,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
                                 : 'bg-muted text-muted-foreground',
                             )}
                           >
-                            <item.icon className="h-4 w-4" />
+                            <item.icon className="h-4 w-4" aria-hidden="true" />
                           </span>
                           {!compact && <span className="truncate">{item.label}</span>}
                         </>
@@ -141,7 +147,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
                   onClick={() => void signOut()}
                   aria-label="Sair"
                 >
-                  <LogOut />
+                  <LogOut aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">Sair</TooltipContent>
@@ -153,7 +159,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
               </span>
               <div className="ml-3 min-w-0 flex-1">
                 <p className="truncate text-[13px] font-semibold text-foreground">{profile?.displayName}</p>
-                <p className="mt-1 truncate text-[11px] text-muted-foreground">{ptBrLabel(profile?.role)}</p>
+                {profile?.role && <RoleBadge role={profile.role} className="mt-1.5" />}
               </div>
               <button
                 type="button"
@@ -161,7 +167,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
                 className="rounded-md p-2 text-muted-foreground opacity-0 hover:bg-secondary hover:text-foreground focus-visible:opacity-100 group-hover/footer:opacity-100"
                 aria-label="Sair"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-4 w-4" aria-hidden="true" />
               </button>
             </>
           )}

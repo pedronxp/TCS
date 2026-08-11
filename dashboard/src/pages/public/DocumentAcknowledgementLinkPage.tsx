@@ -1,4 +1,4 @@
-import { FormEvent, PointerEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -21,6 +21,11 @@ type Outcome = 'acknowledged' | 'refused' | 'unable_to_sign';
 type SignaturePoint = { x: number; y: number };
 type SignatureStroke = { points: SignaturePoint[] };
 type LinkDocument = { type: string; protocol: string | null; address: string | null };
+type SubmissionResult = { protocol: string; outcome: Outcome };
+type DocumentView = { document: LinkDocument; signedUrl: string };
+
+const KEYBOARD_SIGNATURE_STEP = 0.06;
+const MIN_SIGNATURE_DISPLACEMENT = 0.02;
 
 const DECLARATION = 'Declaro que tive acesso ao documento apresentado, recebi as orientações nele registradas e estou ciente de seu conteúdo. Esta ciência registra o recebimento e não substitui assinatura digital qualificada.';
 
@@ -30,9 +35,9 @@ const OUTCOMES: Array<{
   description: string;
   icon: typeof Check;
 }> = [
-  { value: 'acknowledged', label: 'Ciente', description: 'Recebi e compreendi', icon: Check },
-  { value: 'refused', label: 'Recusa', description: 'Não aceito registrar', icon: X },
-  { value: 'unable_to_sign', label: 'Impossibilidade', description: 'Não foi possível assinar', icon: AlertCircle },
+  { value: 'acknowledged', label: 'Reconhecer ciência', description: 'Li e vou assinar', icon: Check },
+  { value: 'refused', label: 'Registrar recusa', description: 'Não reconheço a ciência', icon: X },
+  { value: 'unable_to_sign', label: 'Informar impossibilidade', description: 'Não foi possível assinar', icon: AlertCircle },
 ];
 
 function endpoint() {
@@ -57,6 +62,9 @@ export function DocumentAcknowledgementLinkPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
   const activePointerRef = useRef<number | null>(null);
+  const keyboardDrawingRef = useRef(false);
+  const keyboardPointRef = useRef<SignaturePoint>({ x: 0.5, y: 0.5 });
+  const keyboardStrokeStartRef = useRef<SignaturePoint | null>(null);
   const [document, setDocument] = useState<LinkDocument | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome>('acknowledged');
@@ -65,11 +73,12 @@ export function DocumentAcknowledgementLinkPage() {
   const [accepted, setAccepted] = useState(false);
   const [reason, setReason] = useState('');
   const [signature, setSignature] = useState<SignatureStroke[]>([]);
+  const [keyboardSignatureStatus, setKeyboardSignatureStatus] = useState('Assinatura por teclado pronta.');
   const [showDocument, setShowDocument] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [protocol, setProtocol] = useState<string | null>(null);
+  const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
 
   const request = useCallback(async (payload: Record<string, unknown>) => {
     const url = endpoint();
@@ -92,8 +101,9 @@ export function DocumentAcknowledgementLinkPage() {
     request({ action: 'view' })
       .then((result) => {
         if (!active) return;
-        setDocument(result.document as LinkDocument);
-        setSignedUrl(result.signed_url as string);
+        const view = parseDocumentView(result);
+        setDocument(view.document);
+        setSignedUrl(view.signedUrl);
       })
       .catch((cause: Error) => active && setError(cause.message === 'link_expired'
         ? 'Este link expirou. Solicite um novo ao agente responsável.'
@@ -163,15 +173,81 @@ export function DocumentAcknowledgementLinkPage() {
     if (activePointerRef.current !== event.pointerId) return;
     drawingRef.current = false;
     activePointerRef.current = null;
+    setSignature((previous) => {
+      const lastStroke = previous.at(-1);
+      return lastStroke && !isVisibleStroke(lastStroke) ? previous.slice(0, -1) : previous;
+    });
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const clearSignature = () => {
+    keyboardDrawingRef.current = false;
+    keyboardPointRef.current = { x: 0.5, y: 0.5 };
+    keyboardStrokeStartRef.current = null;
+    setSignature([]);
+    setKeyboardSignatureStatus('Assinatura limpa. Pressione Enter ou Espaço para iniciar um novo traço.');
+  };
+
+  const handleSignatureKeyDown = (event: KeyboardEvent<HTMLCanvasElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (keyboardDrawingRef.current) {
+        keyboardDrawingRef.current = false;
+        const start = keyboardStrokeStartRef.current;
+        keyboardStrokeStartRef.current = null;
+        if (!start || !hasMeaningfulDisplacement(start, keyboardPointRef.current)) {
+          setSignature((previous) => previous.slice(0, -1));
+          setKeyboardSignatureStatus('Traço sem deslocamento descartado. Use as setas para criar uma assinatura visível.');
+        } else {
+          setKeyboardSignatureStatus('Traço finalizado. Pressione Enter ou Espaço para iniciar outro traço.');
+        }
+      } else {
+        keyboardDrawingRef.current = true;
+        const start = keyboardPointRef.current;
+        keyboardStrokeStartRef.current = start;
+        setSignature((previous) => [...previous, { points: [start] }]);
+        setKeyboardSignatureStatus('Traço iniciado. Use as setas para estender e Enter ou Espaço para finalizar.');
+      }
+      return;
+    }
+
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      clearSignature();
+      return;
+    }
+
+    const directions: Record<string, SignaturePoint> = {
+      ArrowUp: { x: 0, y: -KEYBOARD_SIGNATURE_STEP },
+      ArrowDown: { x: 0, y: KEYBOARD_SIGNATURE_STEP },
+      ArrowLeft: { x: -KEYBOARD_SIGNATURE_STEP, y: 0 },
+      ArrowRight: { x: KEYBOARD_SIGNATURE_STEP, y: 0 },
+    };
+    const direction = directions[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    const current = keyboardPointRef.current;
+    const next = {
+      x: Math.max(0, Math.min(1, current.x + direction.x)),
+      y: Math.max(0, Math.min(1, current.y + direction.y)),
+    };
+    keyboardPointRef.current = next;
+    if (keyboardDrawingRef.current) {
+      setSignature((previous) => previous.map((stroke, index) => index === previous.length - 1
+        ? { points: [...stroke.points, next] }
+        : stroke));
+      setKeyboardSignatureStatus(`Traço estendido para ${Math.round(next.x * 100)}% horizontal e ${Math.round(next.y * 100)}% vertical.`);
+    } else {
+      setKeyboardSignatureStatus(`Cursor movido para ${Math.round(next.x * 100)}% horizontal e ${Math.round(next.y * 100)}% vertical.`);
     }
   };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    if (outcome === 'acknowledged' && (!accepted || signature.length === 0)) {
+    if (outcome === 'acknowledged' && (!accepted || !isVisibleSignature(signature))) {
       setError('Leia e aceite a declaração e faça a assinatura antes de continuar.');
       return;
     }
@@ -187,7 +263,9 @@ export function DocumentAcknowledgementLinkPage() {
         signature_strokes: outcome === 'acknowledged' ? signature : null,
         reason: outcome === 'acknowledged' ? null : reason,
       });
-      setProtocol(result.result?.protocol || null);
+      const nextProtocol = result.result?.protocol;
+      if (typeof nextProtocol !== 'string' || !nextProtocol) throw new Error('O servidor não retornou o protocolo do registro.');
+      setSubmissionResult({ protocol: nextProtocol, outcome });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível registrar a ciência.');
     } finally {
@@ -196,11 +274,12 @@ export function DocumentAcknowledgementLinkPage() {
   };
 
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center bg-muted/30 p-6 text-muted-foreground"><LoaderCircle className="mr-3 h-5 w-5 animate-spin" />Carregando documento seguro…</main>;
+    return <main className="flex min-h-screen items-center justify-center bg-muted/30 p-6 text-muted-foreground"><LoaderCircle className="mr-3 h-5 w-5 animate-spin motion-reduce:animate-none" />Carregando documento seguro…</main>;
   }
 
-  if (protocol) {
-    return <main className="flex min-h-screen items-center justify-center bg-muted/30 p-4 sm:p-8"><section className="w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-sm"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10"><CheckCircle2 className="h-9 w-9 text-primary" /></div><p className="mt-5 text-xs font-extrabold tracking-[0.14em] text-primary">TCS · DEFESA CIVIL</p><h1 className="mt-2 text-2xl font-bold">Ciência registrada</h1><p className="mt-3 text-muted-foreground">O recebimento foi registrado com sucesso.</p><div className="mt-6 rounded-xl border bg-muted/40 px-4 py-3 text-sm">Protocolo <strong>{protocol}</strong></div><p className="mt-5 text-xs leading-5 text-muted-foreground">Este link foi encerrado e não pode ser utilizado novamente.</p></section></main>;
+  if (submissionResult) {
+    const resultCopy = acknowledgementResultCopy(submissionResult.outcome);
+    return <main className="flex min-h-screen items-center justify-center bg-muted/30 p-4 sm:p-8"><section className="w-full max-w-lg rounded-2xl border bg-card p-8 text-center shadow-sm" role="status"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10"><CheckCircle2 className="h-8 w-8 text-primary" /></div><p className="mt-5 text-xs font-extrabold tracking-[0.14em] text-primary">TCS · DEFESA CIVIL</p><h1 className="mt-2 text-2xl font-bold">{resultCopy.title}</h1><p className="mt-3 leading-6 text-muted-foreground">{resultCopy.text}</p><dl className="mt-6 rounded-xl border bg-muted/40 px-4 py-3 text-sm"><dt className="text-xs text-muted-foreground">Protocolo auditável</dt><dd className="mt-1 font-bold">{submissionResult.protocol}</dd></dl><p className="mt-5 text-xs leading-5 text-muted-foreground">O resultado foi vinculado à versão exibida do documento. Este link foi encerrado e não pode ser utilizado novamente.</p></section></main>;
   }
 
   if (error && !document) {
@@ -208,6 +287,7 @@ export function DocumentAcknowledgementLinkPage() {
   }
 
   const documentTitle = document?.type === 'interdiction_term' ? 'Termo de interdição' : 'Relatório de vistoria';
+  const hasVisibleSignature = isVisibleSignature(signature);
 
   return <main className="min-h-screen bg-muted/30">
     <header className="border-b bg-card">
@@ -223,7 +303,7 @@ export function DocumentAcknowledgementLinkPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <div className="max-w-3xl">
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Ciência eletrônica</h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">Leia o documento, confirme seus dados e assine diretamente nesta página.</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">Confira a versão apresentada, identifique quem recebeu e registre ciência, recusa ou impossibilidade de assinatura.</p>
       </div>
 
       <ol className="mt-6 grid grid-cols-3 overflow-hidden rounded-2xl border bg-card" aria-label="Etapas da ciência eletrônica">
@@ -244,11 +324,11 @@ export function DocumentAcknowledgementLinkPage() {
             {document?.address && <p className="mt-4 rounded-xl bg-muted/50 px-4 py-3 text-sm font-medium">{document.address}</p>}
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               <a href={signedUrl || '#'} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><ExternalLink className="h-4 w-4" />Abrir documento</a>
-              <button type="button" onClick={() => setShowDocument((value) => !value)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm font-bold"><ChevronDown className={`h-4 w-4 transition-transform ${showDocument ? 'rotate-180' : ''}`} />{showDocument ? 'Ocultar prévia' : 'Ver prévia aqui'}</button>
+              <button type="button" onClick={() => setShowDocument((value) => !value)} aria-expanded={showDocument} aria-controls="document-preview" className="flex min-h-11 items-center justify-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm font-bold"><ChevronDown className={`h-4 w-4 ${showDocument ? 'rotate-180' : ''}`} />{showDocument ? 'Ocultar prévia' : 'Ver prévia aqui'}</button>
             </div>
-            <p className="mt-3 text-center text-xs text-muted-foreground">Visualização gratuita pelo navegador. Não exige Adobe nem assinatura paga.</p>
+            <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">A prévia e o formulário permanecem vinculados à mesma versão do documento durante todo o registro.</p>
           </div>
-          {showDocument && signedUrl && <div className="border-t bg-muted/30 p-2 sm:p-4"><iframe className="h-[58vh] min-h-[390px] w-full rounded-xl border bg-white lg:h-[680px]" title="Documento apresentado" src={signedUrl} /></div>}
+          <div id="document-preview" hidden={!showDocument} className="border-t bg-muted/30 p-2 sm:p-4">{signedUrl && <iframe className="h-[58vh] min-h-[390px] w-full rounded-xl border bg-white lg:h-[680px]" title="Documento apresentado" src={signedUrl} />}</div>
         </section>
 
         <form onSubmit={submit} className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -271,18 +351,20 @@ export function DocumentAcknowledgementLinkPage() {
             <div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground">3</span><div><h2 className="font-bold">{outcome === 'acknowledged' ? 'Declaração e assinatura' : 'Justificativa'}</h2><p className="text-xs text-muted-foreground">Finalize o registro de recebimento</p></div></div>
             {outcome === 'acknowledged' ? <>
               <label className="mt-5 flex cursor-pointer gap-3 rounded-xl border bg-muted/35 p-4 text-sm leading-5 text-muted-foreground"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-primary" /><span>{DECLARATION}</span></label>
-              <div className="mt-5 flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Assinatura manuscrita <span className="text-destructive">*</span></p><p className="mt-0.5 text-xs text-muted-foreground">Use o dedo, caneta ou mouse</p></div>{signature.length > 0 && <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary"><Check className="h-3.5 w-3.5" />Assinatura capturada</span>}</div>
+              <div className="mt-5 flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Assinatura manuscrita <span className="text-destructive">*</span></p><p className="mt-0.5 text-xs text-muted-foreground">Use o dedo, caneta, mouse ou teclado</p></div>{hasVisibleSignature && <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary"><Check className="h-3.5 w-3.5" />Assinatura capturada</span>}</div>
+              <p id="keyboard-signature-instructions" className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">Pelo teclado: foque a área de assinatura, pressione Enter ou Espaço para iniciar, use as setas para estender o traço e pressione Enter ou Espaço novamente para finalizar. Delete ou Backspace limpa todos os traços.</p>
               <div className="relative mt-3 overflow-hidden rounded-xl border-2 border-dashed border-primary/40 bg-white">
-                <canvas ref={canvasRef} onPointerDown={startSignature} onPointerMove={extendSignature} onPointerUp={finishSignature} onPointerCancel={finishSignature} className="block h-48 w-full cursor-crosshair touch-none [touch-action:none]" aria-label="Área para assinatura manuscrita" />
-                {signature.length === 0 && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="text-center text-muted-foreground"><PenLine className="mx-auto h-7 w-7" /><p className="mt-2 text-sm font-semibold">Assine dentro desta área</p></div></div>}
+                <canvas ref={canvasRef} role="application" tabIndex={0} aria-label="Área para assinatura manuscrita" aria-describedby="keyboard-signature-instructions" onKeyDown={handleSignatureKeyDown} onPointerDown={startSignature} onPointerMove={extendSignature} onPointerUp={finishSignature} onPointerCancel={finishSignature} className="block h-48 w-full cursor-crosshair touch-none outline-none ring-primary [touch-action:none] focus-visible:ring-2 focus-visible:ring-inset" />
+                {!hasVisibleSignature && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="text-center text-muted-foreground"><PenLine className="mx-auto h-7 w-7" /><p className="mt-2 text-sm font-semibold">Assine dentro desta área</p></div></div>}
                 <div className="pointer-events-none absolute bottom-8 left-8 right-8 border-b border-border" />
               </div>
-              <button type="button" onClick={() => setSignature([])} disabled={signature.length === 0} className="mt-2 text-xs font-bold text-destructive disabled:cursor-not-allowed disabled:opacity-40">Limpar assinatura</button>
+              <p className="sr-only" role="status" aria-live="polite">{keyboardSignatureStatus}</p>
+              <button type="button" onClick={clearSignature} disabled={signature.length === 0} className="mt-2 rounded-sm text-xs font-bold text-destructive outline-none ring-primary focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">Limpar assinatura</button>
             </> : <label className="mt-5 block text-sm font-bold">Informe o motivo <span className="text-destructive">*</span><textarea required value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Descreva o motivo do registro" className="mt-2 min-h-28 w-full resize-y rounded-xl border bg-background px-4 py-3 font-normal outline-none ring-primary focus:ring-2" /></label>}
 
             {error && <p role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-sm font-semibold text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</p>}
             <div className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />A assinatura e o resultado serão vinculados exclusivamente à versão do documento exibida nesta página.</div>
-            <button disabled={submitting} className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 font-bold text-primary-foreground disabled:opacity-60">{submitting ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <><FileCheck2 className="h-5 w-5" />Registrar ciência</>}</button>
+            <button disabled={submitting} className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 font-bold text-primary-foreground disabled:opacity-60">{submitting ? <LoaderCircle className="h-5 w-5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <><FileCheck2 className="h-5 w-5" aria-hidden="true" />{submissionActionLabel(outcome)}</>}</button>
           </section>
         </form>
       </div>
@@ -290,4 +372,81 @@ export function DocumentAcknowledgementLinkPage() {
       <footer className="mt-8 flex flex-col items-center justify-between gap-2 border-t pt-5 text-xs text-muted-foreground sm:flex-row"><span>TCS · Tecnologia para Defesa Civil</span><span>Registro eletrônico protegido e auditável</span></footer>
     </div>
   </main>;
+}
+
+function submissionActionLabel(outcome: Outcome) {
+  if (outcome === 'refused') return 'Registrar recusa';
+  if (outcome === 'unable_to_sign') return 'Registrar impossibilidade';
+  return 'Registrar ciência e assinatura';
+}
+
+function hasMeaningfulDisplacement(first: SignaturePoint, next: SignaturePoint) {
+  return Math.hypot(next.x - first.x, next.y - first.y) >= MIN_SIGNATURE_DISPLACEMENT;
+}
+
+function isVisibleStroke(stroke: SignatureStroke) {
+  if (stroke.points.length < 2) return false;
+  const first = stroke.points[0];
+  return stroke.points.slice(1).some((point) => hasMeaningfulDisplacement(first, point));
+}
+
+function isVisibleSignature(strokes: SignatureStroke[]) {
+  return strokes.some(isVisibleStroke);
+}
+
+function acknowledgementResultCopy(outcome: Outcome) {
+  if (outcome === 'refused') {
+    return {
+      title: 'Recusa registrada',
+      text: 'A recusa e a justificativa informada foram registradas pelo servidor.',
+    };
+  }
+  if (outcome === 'unable_to_sign') {
+    return {
+      title: 'Impossibilidade registrada',
+      text: 'A impossibilidade de assinatura e a justificativa informada foram registradas pelo servidor.',
+    };
+  }
+  return {
+    title: 'Ciência e assinatura registradas',
+    text: 'A declaração de ciência e a assinatura manuscrita foram registradas pelo servidor.',
+  };
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function parseDocumentView(value: unknown): DocumentView {
+  if (!value || typeof value !== 'object') throw new Error('invalid_document_response');
+  const response = value as Record<string, unknown>;
+  const candidate = response.document;
+  if (!candidate || typeof candidate !== 'object') throw new Error('invalid_document_response');
+  const document = candidate as Record<string, unknown>;
+  if (
+    typeof document.type !== 'string'
+    || document.type.trim().length === 0
+    || !isNullableString(document.protocol)
+    || !isNullableString(document.address)
+    || typeof response.signed_url !== 'string'
+  ) {
+    throw new Error('invalid_document_response');
+  }
+
+  let signedUrl: URL;
+  try {
+    signedUrl = new URL(response.signed_url);
+  } catch {
+    throw new Error('invalid_document_response');
+  }
+  if (signedUrl.protocol !== 'https:') throw new Error('invalid_document_response');
+
+  return {
+    document: {
+      type: document.type,
+      protocol: document.protocol,
+      address: document.address,
+    },
+    signedUrl: signedUrl.href,
+  };
 }

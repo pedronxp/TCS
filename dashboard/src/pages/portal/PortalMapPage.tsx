@@ -1,40 +1,122 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Filter, MapPin, RefreshCw, Search } from 'lucide-react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { PortalMap, type PortalMapPoint } from '@/components/portal/PortalMap';
-import { fetchPortalWorkspace } from '@/lib/portal';
+import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { fetchPortalWorkspace, portalHome } from '@/lib/portal';
 
-function numberOrNull(value: unknown) {
-  return typeof value === 'number' ? value : null;
+function coordinateOrNull(value: unknown, minimum: number, maximum: number) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum ? value : null;
 }
 
 export function PortalMapPage() {
-  const query = useQuery({ queryKey: ['portal', 'workspace', 'mapa'], queryFn: () => fetchPortalWorkspace('mapa') });
-  const points: PortalMapPoint[] = (query.data?.items ?? []).map((item) => ({
+  const { access } = usePortalAuth();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = useQuery({
+    queryKey: ['portal', 'workspace', 'mapa', access?.userId, access?.accountKind, access?.organizationId, access?.role],
+    queryFn: () => fetchPortalWorkspace('mapa'),
+    enabled: Boolean(access),
+  });
+  const root = portalHome(access?.accountKind);
+  const search = searchParams.get('busca') ?? '';
+  const status = searchParams.get('status') ?? 'all';
+  const points: PortalMapPoint[] = useMemo(() => (query.data?.items ?? []).map((item) => ({
     id: String(item.id),
     protocol: String(item.protocol ?? item.title ?? 'Vistoria'),
     status: String(item.status ?? 'Sem status'),
-    address: String(item.subtitle ?? 'Endereço não informado'),
-    latitude: numberOrNull(item.latitude),
-    longitude: numberOrNull(item.longitude),
-  }));
+    address: String(item.address ?? item.subtitle ?? 'Endereço não informado'),
+    latitude: coordinateOrNull(item.latitude, -90, 90),
+    longitude: coordinateOrNull(item.longitude, -180, 180),
+  })), [query.data?.items]);
+  const statusOptions = useMemo(() => Array.from(new Set(points.map((point) => point.status))).filter(Boolean), [points]);
+  const visiblePoints = points.filter((point) => {
+    const term = search.trim().toLocaleLowerCase('pt-BR');
+    const matchesSearch = `${point.protocol} ${point.address}`.toLocaleLowerCase('pt-BR').includes(term);
+    return matchesSearch && (status === 'all' || point.status === status);
+  });
+  const locatedCount = visiblePoints.filter((point) => point.latitude !== null && point.longitude !== null).length;
+
+  function updateFilter(key: 'busca' | 'status', value: string) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (!value || (key === 'status' && value === 'all')) next.delete(key);
+      else next.set(key, value);
+      return next;
+    }, { replace: true });
+  }
+
   return (
     <div className="page-stack">
-      <header><p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Território</p><h1 className="mt-2 text-3xl font-semibold">Mapa</h1><p className="mt-2 text-sm text-muted-foreground">Somente pontos autorizados pelo seu escopo server-side.</p></header>
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Território</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.025em]">Mapa de vistorias</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Localize os registros autorizados para seu escopo. A lista abaixo oferece a mesma informação sem depender do mapa.</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row" aria-label="Filtros do mapa">
+          <label className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">Buscar vistoria ou endereço</span>
+            <Input className="pl-9 sm:w-64" placeholder="Buscar vistoria ou endereço" value={search} onChange={(event) => updateFilter('busca', event.target.value)} />
+          </label>
+          <label className="relative">
+            <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">Filtrar mapa por status</span>
+            <select className="h-11 min-w-44 rounded-md border border-border bg-card pl-9 pr-8 text-sm" value={status} onChange={(event) => updateFilter('status', event.target.value)}>
+              <option value="all">Todos os status</option>
+              {statusOptions.map((option) => <option key={option} value={option}>{humanize(option)}</option>)}
+            </select>
+          </label>
+        </div>
+      </header>
+
       {query.isLoading ? (
-        <div className="h-[520px] animate-pulse rounded-lg bg-secondary" />
+        <div role="status" aria-label="Carregando mapa" className="space-y-4"><span className="sr-only">Carregando mapa…</span><Skeleton className="h-[520px] rounded-lg motion-reduce:animate-none" /></div>
       ) : query.isError ? (
         <Card>
-          <CardContent className="grid min-h-64 place-items-center p-8 text-center">
+          <CardContent className="grid min-h-72 place-items-center p-8 text-center" role="alert">
             <div>
-              <p className="font-semibold">Não foi possível carregar o mapa.</p>
-              <button className="mt-4 min-h-11 rounded-md border px-4 text-sm font-semibold" onClick={() => void query.refetch()}>
-                Tentar novamente
-              </button>
+              <p className="font-semibold">Não foi possível carregar as vistorias do mapa</p>
+              <p className="mt-2 text-sm text-muted-foreground">Nenhum ponto foi estimado ou exibido fora do seu escopo.</p>
+              <Button className="mt-4" variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>
             </div>
           </CardContent>
         </Card>
-      ) : <PortalMap points={points} />}
-      <Card><CardHeader><CardTitle>Alternativa textual do mapa</CardTitle></CardHeader><CardContent><ul className="divide-y">{points.map((point) => <li key={point.id} className="py-3 text-sm"><p className="font-semibold">{point.protocol}</p><p className="mt-1 text-muted-foreground">{point.status} · {point.address}{point.latitude !== null ? ` · ${point.latitude.toFixed(5)}, ${point.longitude?.toFixed(5)}` : ''}</p></li>)}</ul>{points.length === 0 && <p className="text-sm text-muted-foreground">Nenhum ponto disponível.</p>}</CardContent></Card>
+      ) : visiblePoints.length === 0 ? (
+        <Card><CardContent className="grid min-h-72 place-items-center p-8 text-center"><div><MapPin className="mx-auto h-8 w-8 text-primary" aria-hidden="true" /><h2 className="mt-4 font-semibold">{points.length === 0 ? 'Nenhuma vistoria no mapa' : 'Nenhum ponto corresponde aos filtros'}</h2><p className="mt-2 text-sm text-muted-foreground">{points.length === 0 ? 'Quando houver registros no seu escopo, eles aparecerão aqui.' : 'Ajuste a busca ou o status para ampliar o resultado.'}</p></div></CardContent></Card>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground" role="status">{locatedCount} de {visiblePoints.length} {visiblePoints.length === 1 ? 'vistoria possui' : 'vistorias possuem'} coordenadas disponíveis.</p>
+          <PortalMap points={visiblePoints} />
+        </>
+      )}
+
+      {!query.isLoading && !query.isError && visiblePoints.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>Lista das vistorias exibidas</CardTitle></CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {visiblePoints.map((point) => (
+                <li key={point.id} className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div><p className="font-semibold">{point.protocol}</p><p className="mt-1 leading-5 text-muted-foreground">{humanize(point.status)} · {point.address}{point.latitude !== null && point.longitude !== null ? ` · ${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}` : ' · Sem coordenadas'}</p></div>
+                  <Button asChild variant="ghost" size="sm" className="min-h-11"><Link to={`${root}/vistorias/${encodeURIComponent(point.id)}?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}>Ver vistoria</Link></Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
+}
+
+function humanize(value: string) {
+  const normalized = value.replace(/_/g, ' ');
+  return normalized.charAt(0).toLocaleUpperCase('pt-BR') + normalized.slice(1);
 }

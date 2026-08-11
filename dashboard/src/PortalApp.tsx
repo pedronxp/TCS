@@ -38,7 +38,7 @@ function shell(kind: PortalAccountKind) {
 function mapPage(kind: PortalAccountKind) {
   return (
     <PortalRoute kind={kind} permission="map.read">
-      <Suspense fallback={<div className="h-[520px] animate-pulse rounded-lg bg-secondary" />}>
+      <Suspense fallback={<div className="h-[520px] animate-pulse rounded-lg bg-secondary motion-reduce:animate-none" />}>
         <PortalMapPage />
       </Suspense>
     </PortalRoute>

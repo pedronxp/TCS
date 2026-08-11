@@ -122,6 +122,8 @@ describe('detalhe operacional do agente', () => {
     const { container } = renderRoute('/app/clientes/organization%3Aaurora/usuarios/agent-7/resumo?period=7&risk=r3');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Marina Alves' })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Contexto persistente do cliente' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Abrir resumo de Defesa Civil Aurora' })).toHaveAttribute('href', '/app/clientes/organization%3Aaurora/resumo');
     expect(screen.getByText('Dados sensíveis protegidos')).toBeVisible();
     expect(mocks.summaryHook).toHaveBeenCalledWith(
       'organization:aurora',
@@ -155,8 +157,6 @@ describe('detalhe operacional do agente', () => {
 
   it('solicita link assinado de curta duração com cliente, agente e documento corretos', async () => {
     const user = userEvent.setup();
-    const popup = { location: { href: '' }, close: vi.fn() };
-    vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
     mocks.summaryHook.mockReturnValue(query({ ...summaryData, canViewSensitive: true }));
     mocks.operationsHook.mockReturnValue(query({
       ...operationsData,
@@ -171,10 +171,10 @@ describe('detalhe operacional do agente', () => {
         downloadable: true,
       }],
     }));
-    mocks.invoke.mockResolvedValue({ data: { signed_url: 'https://signed.example/documento', expires_in: 60 }, error: null });
+    mocks.invoke.mockResolvedValue({ data: { ok: true, signed_url: 'https://signed.example/documento', expires_in: 60, disposition: 'view' }, error: null });
 
     renderRoute('/app/clientes/organization%3Aaurora/usuarios/agent-7/documentos');
-    await user.click(screen.getByRole('button', { name: 'Abrir por 60s' }));
+    await user.click(screen.getByRole('button', { name: 'Autorizar por 60s' }));
 
     await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('internal-agent-document', {
       body: {
@@ -182,8 +182,10 @@ describe('detalhe operacional do agente', () => {
         user_id: 'agent-7',
         inspection_id: 'inspection-1',
         kind: 'laudo',
+        mode: 'view',
       },
     }));
-    expect(popup.location.href).toBe('https://signed.example/documento');
+    expect(await screen.findByRole('link', { name: 'Abrir link autorizado' })).toHaveAttribute('href', 'https://signed.example/documento');
+    expect(screen.getByRole('link', { name: 'Abrir link autorizado' })).toHaveAttribute('rel', 'noopener noreferrer');
   });
 });

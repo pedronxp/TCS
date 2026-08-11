@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   BadgeDollarSign,
   Boxes,
   CalendarDays,
@@ -8,11 +9,11 @@ import {
   Edit3,
   Gauge,
   Headphones,
+  History,
   Loader2,
   LockKeyhole,
   Rocket,
   Save,
-  X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { jsonArray, jsonNumber, jsonObject, jsonString } from '@/lib/json';
@@ -20,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { usePlanMutation } from '@/hooks/usePlanMutation';
 import { Button } from '@/components/ui/Button';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/types/supabase';
@@ -317,10 +319,13 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
               </div>
               <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
             </div>
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 space-y-3">
               {publishedVersions.map(({ plan, version }) => (
-                <div key={`${plan.id}-${version.version}`} className="border-l-2 border-primary/25 pl-3">
-                  <p className="text-sm font-bold">{plan.name}</p>
+                <div key={`${plan.id}-${version.version}`} className="rounded-lg border-l-2 border-primary/40 bg-secondary/40 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-bold">{plan.name}</p>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-bold text-foreground"><Check className="h-2.5 w-2.5 text-success" aria-hidden="true" />Publicada</span>
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     v{version.version} · {formatDate(version.published_at)}
                   </p>
@@ -331,9 +336,9 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
               )}
             </div>
             <div className="mt-6 border-t pt-4">
-              <p className="text-xs font-semibold text-muted-foreground">Cobertura do catálogo</p>
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><History className="h-3.5 w-3.5" aria-hidden="true" />Cobertura do catálogo</p>
               <p className="mt-1 text-2xl font-black">{commercialPlans.length}</p>
-              <p className="text-xs text-muted-foreground">planos comerciais registrados</p>
+              <p className="text-xs text-muted-foreground">{draftCount} {draftCount === 1 ? 'rascunho' : 'rascunhos'} em elaboração · {commercialPlans.length} {commercialPlans.length === 1 ? 'plano comercial registrado' : 'planos comerciais registrados'}</p>
             </div>
           </aside>
         </div>
@@ -445,19 +450,23 @@ function PlanEditor({ plan, featureCatalog, saving, error, onClose, onSave }: {
   onClose: () => void;
   onSave: (draft: PlanDraft) => void;
 }) {
+  const baseline = useMemo(() => createDraft(plan, featureCatalog), [plan, featureCatalog]);
   const [draft, setDraft] = useState<PlanDraft>(() => createDraft(plan, featureCatalog));
   const set = <K extends keyof PlanDraft>(key: K, value: PlanDraft[K]) => setDraft(current => ({ ...current, [key]: value }));
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline);
+  const issues = collectValidation(draft);
+  const willPublish = draft.status === 'active';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/60 p-3 backdrop-blur-sm sm:p-8">
-      <div role="dialog" aria-modal="true" aria-labelledby="plan-editor-title" className="w-full max-w-6xl overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+      <DialogContent className="max-w-6xl gap-0 overflow-hidden p-0 motion-reduce:animate-none">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4 sm:px-7">
-          <div><p className="text-xs font-bold uppercase tracking-wider text-primary">Editor comercial • versão atual {plan.current_version}</p><h2 id="plan-editor-title" className="text-xl font-bold text-foreground">{plan.name}</h2></div>
-          <button onClick={onClose} disabled={saving} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" aria-label="Fechar editor"><X className="h-5 w-5" /></button>
+          <div className="min-w-0 pr-8"><p className="text-xs font-bold uppercase tracking-wider text-primary">Editor comercial • versão atual v{plan.current_version}</p><DialogTitle className="mt-0.5 text-xl font-bold text-foreground">{plan.name}</DialogTitle>{isDirty && <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-warning/12 px-2 py-0.5 text-[11px] font-semibold text-foreground"><span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />Alterações não salvas</span>}</div>
         </header>
 
         <div className="space-y-6 p-5 sm:p-7">
-          {error && <div className="rounded-lg border border-destructive/25 bg-destructive-soft p-4 text-sm text-destructive">{error}</div>}
+          {error && <div role="alert" className="flex items-start gap-3 rounded-lg border border-destructive/25 bg-destructive-soft p-4 text-sm text-destructive"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><div><p className="font-semibold">Não é possível salvar a proposta</p><p className="mt-0.5 text-destructive/80">{error}</p></div></div>}
+          {issues.length > 0 && !error && <p className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning-soft px-4 py-2.5 text-xs font-medium text-foreground"><AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />{issues.length} {issues.length === 1 ? 'campo exige atenção antes de salvar' : 'campos exigem atenção antes de salvar'}</p>}
 
           <EditorSection icon={<Edit3 />} title="Identificação da proposta" description="Nome, descrição e disponibilidade comercial.">
             <div className="grid gap-4 md:grid-cols-[1fr_220px]">
@@ -513,11 +522,11 @@ function PlanEditor({ plan, featureCatalog, saving, error, onClose, onSave }: {
         </div>
 
         <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-4 sm:px-7">
-          <p className="text-xs text-muted-foreground">Ao salvar, o sistema cria a versão {plan.current_version + 1} e registra a alteração na auditoria.</p>
-          <div className="flex gap-2"><button onClick={onClose} disabled={saving} className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary">Cancelar</button><button onClick={() => onSave(draft)} disabled={saving} className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? 'Salvando...' : 'Salvar nova versão'}</button></div>
+          <p className="text-xs text-muted-foreground">{willPublish ? `Cria e publica a versão v${plan.current_version + 1} para clientes ativos; a versão anterior permanece na auditoria.` : `Cria a versão v${plan.current_version + 1} como rascunho, sem publicar para clientes.`}</p>
+          <div className="flex gap-2"><Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button><Button type="button" onClick={() => onSave(draft)} disabled={saving || issues.length > 0}>{saving ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Save className="h-4 w-4" />}{saving ? 'Salvando...' : willPublish ? 'Salvar e publicar' : 'Salvar nova versão'}</Button></div>
         </footer>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -530,7 +539,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 function DemoBadge() {
-  return <span className="w-fit rounded-full border border-warning/25 bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning">Demonstração local</span>;
+  return <span className="w-fit rounded-full border border-warning/25 bg-warning-soft px-3 py-1.5 text-xs font-bold text-foreground">Demonstração local</span>;
 }
 
 const inputClass = 'w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-ring focus:ring-[3px] focus:ring-ring/20';
@@ -602,6 +611,26 @@ function createDraft(plan: PlanRow, featureCatalog: FeatureRow[]): PlanDraft {
     limits,
     sla,
   };
+}
+
+function collectValidation(draft: PlanDraft): string[] {
+  const out: string[] = [];
+  if (!draft.name.trim()) out.push('Informe o nome do plano.');
+  for (const [label, value] of [['Teste grátis', draft.trialDays], ['Carência', draft.graceDays]] as const) {
+    const number = Number(value);
+    if (!Number.isInteger(number) || number < 0 || number > 365) out.push(`${label} deve estar entre 0 e 365 dias.`);
+  }
+  for (const resource of RESOURCE_META) {
+    const limit = draft.limits[resource.code];
+    if (!limit.enabled) continue;
+    if (!limit.unlimited && (!Number.isInteger(Number(limit.hardLimit)) || Number(limit.hardLimit) < 0)) out.push(`Informe um limite válido para ${resource.label}.`);
+    if (!Number.isInteger(Number(limit.warningPercent)) || Number(limit.warningPercent) < 1 || Number(limit.warningPercent) > 100) out.push(`O alerta de ${resource.label} deve estar entre 1% e 100%.`);
+  }
+  for (const priority of PRIORITY_META) {
+    const sla = draft.sla[priority.code];
+    if (sla.enabled && (!sla.responseHours || Number(sla.responseHours) <= 0)) out.push(`Informe a primeira resposta do SLA ${priority.label}.`);
+  }
+  return out;
 }
 
 function validateDraft(draft: PlanDraft) {

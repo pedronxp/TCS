@@ -1,5 +1,6 @@
-import { Bell, Check, Download, LogOut, Menu, Pencil, Plus } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Bell, Check, Download, KeyRound, LogOut, Menu, Moon, Pencil, Plus, Sun } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { GlobalCustomerSearch } from '@/components/GlobalCustomerSearch';
 import { Button } from '@/components/ui/Button';
 import { EnvironmentBadge } from '@/components/domain/Badges';
@@ -12,46 +13,76 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { useAuth } from '@/contexts/AuthContext';
+import { ChangePasswordDialog } from '@/components/account/ChangePasswordDialog';
+import type { Theme } from '@/hooks/useTheme';
 import { ptBrLabel } from '@/lib/ptBrLabels';
-import { cn } from '@/lib/utils';
 
 type AppHeaderProps = {
   onOpenMobile: () => void;
   density: 'comfortable' | 'compact';
   onDensityChange: (density: 'comfortable' | 'compact') => void;
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
 };
 
-export function AppHeader({ onOpenMobile, density, onDensityChange }: AppHeaderProps) {
+type PageContext = {
+  eyebrow: string;
+  title: string;
+};
+
+const STATIC_PAGE_CONTEXTS: ReadonlyArray<{ prefix: string; context: PageContext }> = [
+  { prefix: '/app/desenvolvimento/versoes', context: { eyebrow: 'Desenvolvimento', title: 'Versões e canais' } },
+  { prefix: '/app/desenvolvimento/builds', context: { eyebrow: 'Desenvolvimento', title: 'Builds e pipelines' } },
+  { prefix: '/app/desenvolvimento/formularios', context: { eyebrow: 'Desenvolvimento', title: 'Formulários e versões' } },
+  { prefix: '/app/desenvolvimento/regras-risco', context: { eyebrow: 'Desenvolvimento', title: 'Regras e simulação' } },
+  { prefix: '/app/desenvolvimento/sincronizacao', context: { eyebrow: 'Desenvolvimento', title: 'Sincronização' } },
+  { prefix: '/app/desenvolvimento/armazenamento', context: { eyebrow: 'Desenvolvimento', title: 'Armazenamento' } },
+  { prefix: '/app/desenvolvimento/logs', context: { eyebrow: 'Desenvolvimento', title: 'Logs e erros' } },
+  { prefix: '/app/governanca/configuracoes', context: { eyebrow: 'Governança', title: 'Configurações do console' } },
+  { prefix: '/app/governanca/arquivamento', context: { eyebrow: 'Governança', title: 'Arquivamento e retenção' } },
+  { prefix: '/app/referencia-ui', context: { eyebrow: 'Referência', title: 'Interface do produto' } },
+  { prefix: '/app/planos', context: { eyebrow: 'Negócio', title: 'Planos e limites' } },
+  { prefix: '/app/assinaturas', context: { eyebrow: 'Negócio', title: 'Assinaturas e ciclos' } },
+  { prefix: '/app/sessoes', context: { eyebrow: 'Segurança', title: 'Sessões e dispositivos' } },
+  { prefix: '/app/suporte', context: { eyebrow: 'Suporte', title: 'Central de atendimento' } },
+  { prefix: '/app/staff', context: { eyebrow: 'Governança', title: 'Equipe e permissões' } },
+  { prefix: '/app/auditoria', context: { eyebrow: 'Governança', title: 'Auditoria e eventos' } },
+];
+
+function resolvePageContext(pathname: string, role: 'owner' | 'developer' | undefined): PageContext {
+  if (pathname === '/app' || pathname === '/app/') {
+    return role === 'developer'
+      ? { eyebrow: 'Desenvolvimento', title: 'Saúde técnica' }
+      : { eyebrow: 'Operação', title: 'Visão executiva' };
+  }
+
+  if (/^\/app\/clientes\/[^/]+\/usuarios\/[^/]+(?:\/|$)/.test(pathname)) {
+    return { eyebrow: 'Clientes / Agente', title: 'Detalhe do agente' };
+  }
+
+  if (/^\/app\/clientes\/[^/]+(?:\/|$)/.test(pathname)) {
+    return { eyebrow: 'Clientes / Detalhe', title: 'Detalhe do cliente' };
+  }
+
+  if (pathname === '/app/clientes' || pathname === '/app/clientes/') {
+    return { eyebrow: 'Clientes', title: 'Carteira e implantação' };
+  }
+
+  return STATIC_PAGE_CONTEXTS.find(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.context
+    ?? { eyebrow: 'TCS Console', title: 'Área interna' };
+}
+
+export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThemeChange }: AppHeaderProps) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { profile, can, signOut } = useAuth();
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const isCustomerDetail = /^\/app\/clientes\/[^/]+(?:\/|$)/.test(pathname)
     && !pathname.includes('/usuarios/');
-  const pageContext = isCustomerDetail
-    ? { eyebrow: 'Clientes / Detalhe', title: 'Detalhe do cliente' }
-    : pathname.startsWith('/app/clientes')
-      ? { eyebrow: 'Clientes', title: 'Carteira e implantação' }
-    : pathname.startsWith('/app/sessoes')
-      ? { eyebrow: 'TCS Console', title: 'Sessões e dispositivos' }
-      : pathname.startsWith('/app/auditoria')
-        ? { eyebrow: 'TCS Console', title: 'Auditoria e eventos' }
-        : pathname.startsWith('/app/planos')
-          ? { eyebrow: 'Negócio', title: 'Planos e limites' }
-          : pathname.startsWith('/app/assinaturas')
-            ? { eyebrow: 'TCS Console', title: 'Assinaturas e ciclos' }
-            : pathname.startsWith('/app/suporte')
-              ? { eyebrow: 'Suporte', title: 'Central de atendimento' }
-              : pathname.startsWith('/app/staff')
-                ? { eyebrow: 'TCS Console', title: 'Equipe e permissões' }
-                : pathname.startsWith('/app/desenvolvimento/versoes')
-                  ? { eyebrow: 'Desenvolvimento', title: 'Versões e canais' }
-                  : pathname.startsWith('/app/desenvolvimento/builds')
-                    ? { eyebrow: 'Desenvolvimento', title: 'Builds e pipelines' }
-                    : pathname.startsWith('/app/desenvolvimento/formularios')
-                      ? { eyebrow: 'Desenvolvimento', title: 'Formulários e versões' }
-                      : pathname.startsWith('/app/desenvolvimento/regras-risco')
-                        ? { eyebrow: 'Desenvolvimento', title: 'Regras e simulação' }
-        : null;
+  const pageContext = resolvePageContext(
+    pathname,
+    profile?.role === 'owner' || profile?.role === 'developer' ? profile.role : undefined,
+  );
   const initials = profile?.displayName
     ?.split(/\s+/)
     .filter(Boolean)
@@ -64,17 +95,15 @@ export function AppHeader({ onOpenMobile, density, onDensityChange }: AppHeaderP
     <header className="sticky top-0 z-30 h-[72px] border-b bg-card">
       <div className="flex h-full items-center gap-3 px-4 sm:px-6 lg:px-8">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onOpenMobile} aria-label="Abrir navegação">
-          <Menu />
+          <Menu aria-hidden="true" />
         </Button>
 
-        {pageContext && (
-          <div className="hidden w-[260px] shrink-0 xl:block">
-            <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">{pageContext.eyebrow}</p>
-            <p className="mt-1 truncate text-[13px] font-semibold">{pageContext.title}</p>
-          </div>
-        )}
+        <div className="hidden w-[260px] shrink-0 xl:block">
+          <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">{pageContext.eyebrow}</p>
+          <p className="mt-1 truncate text-[13px] font-semibold">{pageContext.title}</p>
+        </div>
 
-        <div className={cn('min-w-0 flex-1', pageContext ? 'xl:max-w-[390px]' : 'sm:max-w-[520px]')}>
+        <div className="min-w-0 flex-1 xl:max-w-[390px]">
           <GlobalCustomerSearch />
         </div>
 
@@ -89,9 +118,19 @@ export function AppHeader({ onOpenMobile, density, onDensityChange }: AppHeaderP
           <span className="hidden sm:inline-flex">
             <EnvironmentBadge environment={import.meta.env.MODE} />
           </span>
-          <Button variant="outline" size="icon" className="h-10 w-10 rounded-full" aria-label="Alertas">
-            <Bell className="h-4 w-4" />
-          </Button>
+          {profile?.role === 'developer' && can('technical.read') ? (
+            <Button asChild variant="outline" size="icon" className="h-10 w-10 rounded-full">
+              <Link to="/app/desenvolvimento/logs" aria-label="Abrir alertas técnicos">
+                <Bell className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : can('support.read') ? (
+            <Button asChild variant="outline" size="icon" className="h-10 w-10 rounded-full">
+              <Link to="/app/suporte" aria-label="Abrir fila de suporte">
+                <Bell className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : null}
           {isCustomerDetail && can('customer.write') ? (
             <Button
               type="submit"
@@ -205,6 +244,22 @@ export function AppHeader({ onOpenMobile, density, onDensityChange }: AppHeaderP
                 Compacta
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Tema</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => onThemeChange('light')}>
+                {theme === 'light' && <Check />}
+                <Sun className="h-4 w-4" />
+                Claro
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onThemeChange('dark')}>
+                {theme === 'dark' && <Check />}
+                <Moon className="h-4 w-4" />
+                Escuro
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setChangePasswordOpen(true)}>
+                <KeyRound />
+                Alterar minha senha
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void signOut()}>
                 <LogOut />
                 Sair
@@ -213,6 +268,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange }: AppHeaderP
           </DropdownMenu>
         </div>
       </div>
+      <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
     </header>
   );
 }

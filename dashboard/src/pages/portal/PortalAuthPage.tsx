@@ -1,14 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { TcsMark } from '@/components/brand/TcsMark';
+import { CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { GoogleMark } from '@/components/brand/GoogleMark';
+import { AuthFrame, AuthLoadingCard } from '@/components/auth/AuthFrame';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { safePortalDestination } from '@/lib/portal';
 
+
+const portalAside = {
+  asideLabel: 'Portal TCS',
+  asideHeadline: 'Seu trabalho de campo continua no portal.',
+  asideDescription: 'Entre no ambiente certo para acompanhar vistorias, documentos e operação conforme o seu vínculo.',
+  asideBullets: ['Acesso individual ou municipal', 'Permissões aplicadas ao seu vínculo', 'Continuidade da rota que você solicitou'],
+} as const;
 export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const {
     access, entryContext, session, loading, signIn, signUp, signInWithGoogle,
@@ -22,6 +29,8 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [accountSwitchError, setAccountSwitchError] = useState<string | null>(null);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
   const [success, setSuccess] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [accountKind, setAccountKind] = useState<'individual' | 'organization'>('individual');
@@ -39,23 +48,20 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     if (status === 'vinculo-inativo') setMessage('Seu vínculo municipal não está ativo. Fale com a coordenação.');
   }, [status]);
 
-  async function useAnotherAccount() {
-    await signOut();
-    navigate('/entrar', { replace: true });
+  async function handleUseAnotherAccount() {
+    setSwitchingAccount(true);
+    setAccountSwitchError(null);
+    try {
+      await signOut();
+      navigate('/entrar', { replace: true });
+    } catch {
+      setAccountSwitchError('Não foi possível sair. Esta sessão continua aberta; tente novamente.');
+      setSwitchingAccount(false);
+    }
   }
 
   if (loading) {
-    return (
-      <AuthFrame>
-        <Card className="w-full max-w-[460px]">
-          <CardContent className="flex min-h-48 flex-col items-center justify-center gap-3 text-center" role="status">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="font-semibold">Confirmando seu acesso</p>
-            <p className="text-sm text-muted-foreground">Aguarde enquanto direcionamos sua conta para o ambiente correto.</p>
-          </CardContent>
-        </Card>
-      </AuthFrame>
-    );
+    return <AuthLoadingCard />;
   }
 
   if (!loading && session && (
@@ -73,23 +79,22 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   if (!loading && session && access && status === 'vinculo-inativo') {
     return (
-      <AuthFrame>
+      <AuthFrame {...portalAside}>
         <Card className="w-full max-w-[460px]">
           <CardHeader>
-            <h1 className="min-w-0 text-[22px] font-semibold leading-[1.4]">Vínculo municipal inativo</h1>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-foreground">Acesso suspenso</p>
+            <h1 className="min-w-0 text-[24px] font-semibold leading-[1.3]">Vínculo municipal inativo</h1>
             <CardDescription>
               Seu acesso à organização está suspenso ou foi removido. Fale com a coordenação municipal antes de tentar novamente.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="rounded-md border border-warning/30 bg-warning-soft p-4 text-sm text-warning" role="status">
+            <p className="rounded-md border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="alert">
               Nenhum dado municipal foi carregado para esta sessão.
             </p>
-            <Button
-              className="w-full"
-              onClick={() => void useAnotherAccount()}
-            >
-              Sair e usar outra conta
+            {accountSwitchError && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{accountSwitchError}</p>}
+            <Button className="w-full" disabled={switchingAccount} onClick={() => void handleUseAnotherAccount()}>
+              {switchingAccount ? 'Saindo…' : 'Sair e usar outra conta'}
             </Button>
             <Button asChild variant="ghost" className="w-full"><Link to="/">Voltar ao site</Link></Button>
           </CardContent>
@@ -120,6 +125,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   async function google() {
     setSubmitting(true);
+    setMessage(null);
     const error = await signInWithGoogle();
     setSubmitting(false);
     if (error) setMessage(error);
@@ -150,47 +156,44 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   if (!loading && session && !access) {
     return (
-      <AuthFrame>
+      <AuthFrame {...portalAside}>
         <Card className="w-full max-w-[620px]">
           <CardHeader>
-            <h1 className="min-w-0 text-[22px] font-semibold leading-[1.4]">Configure seu acesso</h1>
-            <CardDescription>Sua identidade foi confirmada. Escolha como você utilizará o TCS; o portal complementa a operação do aplicativo.</CardDescription>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Etapa 2 de 2</p>
+            <h1 className="min-w-0 text-[26px] font-semibold leading-[1.3]">Defina como você usará a TCS</h1>
+            <CardDescription>Sua identidade já foi confirmada. Agora escolha o tipo de acesso para abrir o onboarding correto.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="rounded-md bg-secondary p-4 text-sm text-muted-foreground">
+            <p className="rounded-md border border-border bg-secondary p-4 text-sm text-muted-foreground" role="status">
               {lifecycleMessage(entryContext?.lifecycleState)} Se você recebeu convite municipal, abra novamente o link recebido.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Tipo de cliente">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={accountKind === 'individual'}
+            <fieldset className="grid gap-3 border-0 p-0 sm:grid-cols-2">
+              <legend className="sr-only">Tipo de cliente</legend>
+              <AccountKindOption
+                value="individual"
+                checked={accountKind === 'individual'}
                 disabled={entryContext?.individualBootstrapEnabled === false}
-                onClick={() => setAccountKind('individual')}
-                className={`rounded-md border p-4 text-left transition ${accountKind === 'individual' ? 'border-primary bg-secondary' : 'border-border'} disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                <span className="block font-semibold">Profissional individual</span>
-                <span className="mt-1 block text-xs text-muted-foreground">Trial individual, sem criar prefeitura.</span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={accountKind === 'organization'}
+                title="Profissional individual"
+                description="Acesso de avaliação para uso em nome próprio."
+                onChange={setAccountKind}
+              />
+              <AccountKindOption
+                value="organization"
+                checked={accountKind === 'organization'}
                 disabled={entryContext?.municipalBootstrapEnabled === false}
-                onClick={() => setAccountKind('organization')}
-                className={`rounded-md border p-4 text-left transition ${accountKind === 'organization' ? 'border-primary bg-secondary' : 'border-border'} disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                <span className="block font-semibold">Prefeitura ou município</span>
-                <span className="mt-1 block text-xs text-muted-foreground">Cria implantação provisória e o primeiro administrador.</span>
-              </button>
-            </div>
+                title="Prefeitura ou município"
+                description="Inicia uma implantação provisória com o primeiro administrador."
+                onChange={setAccountKind}
+              />
+            </fieldset>
             {accountKind === 'organization' && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm font-medium">Nome da organização<Input className="mt-2" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} required /></label>
+              <fieldset className="grid gap-3 rounded-md border border-border p-4 sm:grid-cols-2">
+                <legend className="px-1 text-sm font-semibold">Dados iniciais da implantação</legend>
+                <label className="text-sm font-medium">Nome da organização<Input className="mt-2" autoComplete="organization" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} required /></label>
                 <label className="text-sm font-medium">Município<Input className="mt-2" value={municipalityName} onChange={(event) => setMunicipalityName(event.target.value)} required /></label>
-                <label className="text-sm font-medium">UF<Input className="mt-2" value={stateCode} maxLength={2} onChange={(event) => setStateCode(event.target.value.toUpperCase())} required /></label>
-                <label className="text-sm font-medium">Responsável<Input className="mt-2" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} required /></label>
-              </div>
+                <label className="text-sm font-medium">UF<Input className="mt-2 uppercase" value={stateCode} maxLength={2} onChange={(event) => setStateCode(event.target.value.toUpperCase())} required /></label>
+                <label className="text-sm font-medium">Responsável<Input className="mt-2" autoComplete="name" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} required /></label>
+              </fieldset>
             )}
             <label className="flex items-start gap-3 text-sm text-muted-foreground">
               <input
@@ -202,8 +205,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               Aceito os Termos de Uso e a Política de Privacidade vigentes.
             </label>
             {message && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</p>}
+            {accountSwitchError && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{accountSwitchError}</p>}
             <Button
               className="w-full"
+              aria-busy={submitting}
               disabled={!termsAccepted || submitting || (
                 accountKind === 'individual'
                   ? entryContext?.individualBootstrapEnabled === false
@@ -211,17 +216,13 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               )}
               onClick={() => void activateCustomer()}
             >
-              {submitting ? 'Preparando…' : accountKind === 'individual' ? 'Iniciar acesso individual' : 'Iniciar implantação municipal'}
+              {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+              {submitting ? 'Preparando…' : accountKind === 'individual' ? 'Continuar com acesso individual' : 'Continuar com implantação municipal'}
             </Button>
-            <Button asChild variant="outline" className="w-full"><Link to="/#planos">Ver planos</Link></Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              disabled={submitting}
-              onClick={() => void useAnotherAccount()}
-            >
-              Sair e usar outra conta
+            <p className="text-center text-xs leading-5 text-muted-foreground">Você poderá consultar os planos antes da contratação definitiva.</p>
+            <Button asChild variant="outline" className="w-full"><Link to="/#planos">Consultar planos</Link></Button>
+            <Button type="button" variant="ghost" className="w-full" disabled={submitting || switchingAccount} onClick={() => void handleUseAnotherAccount()}>
+              {switchingAccount ? 'Saindo…' : 'Sair e usar outra conta'}
             </Button>
           </CardContent>
         </Card>
@@ -230,66 +231,119 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   }
 
   return (
-    <AuthFrame>
+    <AuthFrame {...portalAside}>
       <Card className="w-full max-w-[460px]">
         <CardHeader>
-          <h1 className="min-w-0 text-[22px] font-semibold leading-[1.4]">
-            {mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta'}
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
+            {mode === 'sign-in' ? 'Portal TCS' : 'Etapa 1 de 2'}
+          </p>
+          <h1 className="min-w-0 text-[28px] font-semibold leading-[1.3] tracking-[-0.02em]">
+            {mode === 'sign-in' ? 'Acesse seu portal' : 'Crie seu acesso'}
           </h1>
           <CardDescription>
             {mode === 'sign-in'
-              ? 'Use sua conta individual ou o e-mail do vínculo municipal.'
-              : 'Comece com uma identidade segura. O plano é escolhido depois da confirmação.'}
+              ? 'Entre com sua conta individual ou com o e-mail do seu vínculo municipal.'
+              : 'Informe seus dados de acesso. Depois de confirmar o e-mail, você escolherá o tipo de uso.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={submit}>
-            {mode === 'sign-up' && (
-              <label className="block text-sm font-medium">
-                Nome completo
-                <Input className="mt-2" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} required />
-              </label>
-            )}
-            <label className="block text-sm font-medium">
-              E-mail
-              <Input className="mt-2" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-            </label>
-            <label className="block text-sm font-medium">
-              Senha
-              <span className="relative mt-2 block">
-                <Input type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required />
-                <button type="button" className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </span>
-            </label>
-            {message && (
-              <div
-                className={`rounded-md border p-3 text-sm ${success ? 'border-primary/25 bg-success-soft text-primary' : 'border-destructive/30 bg-destructive-soft text-destructive'}`}
-                role={success ? 'status' : 'alert'}
-              >
-                {message}
+          {success ? (
+            <div className="space-y-5" role="status">
+              <div className="flex gap-3 rounded-md border border-primary/25 bg-success-soft p-4">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-foreground">Confirme seu e-mail</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{message}</p>
+                </div>
               </div>
-            )}
-            <Button type="submit" className="w-full" disabled={submitting || success}>
-              {submitting ? 'Aguarde…' : mode === 'sign-in' ? 'Entrar' : 'Criar conta'}
-            </Button>
-            {mode === 'sign-in' && <Link className="block text-center text-sm font-semibold text-primary hover:underline" to="/recuperar-senha">Esqueci minha senha</Link>}
-          </form>
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
-          <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting}>
-            <GoogleMark />
-            Continuar com Google
-          </Button>
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === 'sign-in' ? 'Ainda não tem uma conta? ' : 'Já possui uma conta? '}
-            <Link className="font-semibold text-primary hover:underline" to={mode === 'sign-in' ? '/criar-conta' : '/entrar'}>
-              {mode === 'sign-in' ? 'Criar conta' : 'Entrar'}
-            </Link>
-          </p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Abra a mensagem da TCS no mesmo dispositivo. Se não aparecer, confira a caixa de spam antes de tentar novamente.
+              </p>
+              <Button asChild className="w-full"><Link to={`/entrar${location.search}`}>Ir para o login</Link></Button>
+            </div>
+          ) : (
+            <>
+              <form className="space-y-4" onSubmit={submit} aria-busy={submitting}>
+                {mode === 'sign-up' && (
+                  <label className="block text-sm font-medium" htmlFor="portal-name">
+                    Nome completo
+                    <Input id="portal-name" className="mt-2" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} required />
+                  </label>
+                )}
+                <label className="block text-sm font-medium" htmlFor="portal-email">
+                  E-mail
+                  <Input id="portal-email" className="mt-2" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                </label>
+                <div>
+                  <label className="block text-sm font-medium" htmlFor="portal-password">Senha</label>
+                  <span className="relative mt-2 block">
+                    <Input id="portal-password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required />
+                    <button type="button" className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                      {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                    </button>
+                  </span>
+                  {mode === 'sign-up' && <span className="mt-2 block text-xs font-normal text-muted-foreground">Use pelo menos 8 caracteres.</span>}
+                </div>
+                {message && <div className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</div>}
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+                  {submitting ? 'Aguarde…' : mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta'}
+                </Button>
+                {mode === 'sign-in' && <Link className="block text-center text-sm font-semibold text-primary hover:underline" to={`/recuperar-senha${location.search}`}>Esqueci minha senha</Link>}
+              </form>
+              <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
+              <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting} aria-busy={submitting}>
+                <GoogleMark />
+                Continuar com Google
+              </Button>
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                {mode === 'sign-in' ? 'Ainda não tem uma conta? ' : 'Já possui uma conta? '}
+                <Link className="font-semibold text-primary hover:underline" to={`${mode === 'sign-in' ? '/criar-conta' : '/entrar'}${location.search}`}>
+                  {mode === 'sign-in' ? 'Criar conta' : 'Entrar'}
+                </Link>
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </AuthFrame>
+  );
+}
+
+function AccountKindOption({
+  value,
+  checked,
+  disabled,
+  title,
+  description,
+  onChange,
+}: {
+  value: 'individual' | 'organization';
+  checked: boolean;
+  disabled: boolean;
+  title: string;
+  description: string;
+  onChange: (value: 'individual' | 'organization') => void;
+}) {
+  return (
+    <label
+      className={`rounded-md border p-4 text-left outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${checked ? 'border-primary bg-secondary' : 'border-border'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+    >
+      <input
+        type="radio"
+        name="account-kind"
+        value={value}
+        checked={checked}
+        disabled={disabled}
+        onChange={() => onChange(value)}
+        className="sr-only"
+      />
+      <span className="flex items-center justify-between gap-3 font-semibold">
+        {title}
+        {checked && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
+      </span>
+      <span className="mt-1 block text-xs leading-5 text-muted-foreground">{description}</span>
+    </label>
   );
 }
 
@@ -303,33 +357,4 @@ function lifecycleMessage(state?: string) {
     blocked: 'O cadastro está bloqueado para novas alterações.',
   };
   return messages[state ?? 'creating'] ?? messages.creating;
-}
-
-function AuthFrame({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.72fr)]">
-      <a
-        href="#auth-content"
-        className="sr-only z-50 rounded-md bg-primary px-4 py-3 font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-      >
-        Pular para o conteúdo
-      </a>
-      <aside aria-label="Apresentação do portal TCS" className="glass relative hidden overflow-hidden p-12 text-foreground lg:flex lg:flex-col">
-        <Link to="/" className="flex items-center gap-3"><TcsMark decorative /><span className="font-bold">TCS</span></Link>
-        <div className="my-auto max-w-xl">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Operação em um só lugar</p>
-          <p className="mt-5 text-4xl font-semibold leading-tight tracking-[-0.02em]">Do território à decisão, com acesso seguro para cada papel.</p>
-          <ul className="mt-8 space-y-4 text-sm text-muted-foreground">
-            {['Vistorias, agenda e documentos conectados', 'Visão individual ou municipal conforme seu vínculo', 'Plano, permissões e consumo sempre transparentes'].map((item) => (
-              <li key={item} className="flex items-center gap-3"><span className="grid h-6 w-6 place-items-center rounded-full bg-success-soft"><Check className="h-3.5 w-3.5 text-primary" /></span><span className="text-foreground">{item}</span></li>
-            ))}
-          </ul>
-        </div>
-      </aside>
-      <main id="auth-content" tabIndex={-1} className="flex min-h-screen flex-col p-4 sm:p-8">
-        <div><Button asChild variant="ghost"><Link to="/"><ArrowLeft /> Voltar ao site</Link></Button></div>
-        <div className="flex flex-1 items-center justify-center py-8">{children}</div>
-      </main>
-    </div>
-  );
 }

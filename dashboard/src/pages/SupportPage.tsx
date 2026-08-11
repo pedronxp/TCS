@@ -86,7 +86,7 @@ function parseQueue(value: import('@/types/supabase').Json | null): Queue {
 }
 
 export function SupportPage() {
-  const { can } = useAuth();
+  const { can, user, profile } = useAuth();
   const [view, setView] = useState<'board' | 'list' | 'metrics'>('board');
   const [search, setSearch] = useState('');
   const [customer, setCustomer] = useState('');
@@ -98,7 +98,7 @@ export function SupportPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const customers = useCustomers('', '', 0, 100);
   const plans = useQuery({
-    queryKey: ['support-plans'],
+    queryKey: ['support-plans', user?.id, profile?.role],
     queryFn: async () => {
       const { data, error } = await supabase.from('plans').select('id,name').neq('status', 'retired').order('name');
       if (error) throw error;
@@ -106,7 +106,7 @@ export function SupportPage() {
     },
   });
   const query = useQuery({
-    queryKey: ['support-queue', search, customer, plan, priority, status, assignee, sla],
+    queryKey: ['support-queue', user?.id, profile?.role, search, customer, plan, priority, status, assignee, sla],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('list_internal_support_queue', {
         p_search: search || undefined,
@@ -164,7 +164,7 @@ export function SupportPage() {
           <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Central de suporte</p>
           <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Suporte</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Priorize chamados por risco de SLA e mantenha o contexto do cliente sempre visível.
+            Priorize chamados por risco de SLA e mantenha o contexto do cliente sempre visível. Cada interação é registrada na linha do tempo com horário e responsável.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -195,7 +195,9 @@ export function SupportPage() {
       <AsyncBoundary
         loading={query.isLoading || customers.isLoading || plans.isLoading}
         error={query.error || customers.error || plans.error}
-        onRetry={() => void query.refetch()}
+        onRetry={() => {
+          void Promise.all([query.refetch(), customers.refetch(), plans.refetch()]);
+        }}
         empty={Boolean(query.data && !tickets.length)}
         emptyTitle="Fila vazia"
         emptyDescription="Nenhum chamado corresponde aos filtros."
@@ -273,33 +275,39 @@ function TicketColumn({
 }) {
   const line = { danger: 'border-t-destructive', warning: 'border-t-warning', info: 'border-t-primary' };
   return (
-    <section className={cn('min-h-[518px] rounded-lg border border-t-4 bg-secondary/60 p-3', line[tone])}>
+    <section className={cn('min-h-[518px] rounded-lg border border-t-4 bg-card p-3', line[tone])}>
       <div className="flex items-center justify-between px-1 py-2">
         <h3 className="text-[13px] font-bold">{title}</h3>
         <span className="rounded-full bg-card px-3 py-1 text-[11px] font-semibold">{tickets.length}</span>
       </div>
       <div className="mt-3 space-y-4">
         {tickets.slice(0, 4).map((ticket) => (
-          <button
-            key={ticket.id}
-            className="w-full rounded-xl border bg-card p-4 text-left hover:border-primary/40"
-            onClick={() => onSelect(ticket.id)}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-[10px] font-semibold text-muted-foreground">{ticket.code}</span>
-              <StatusBadge value={ticket.priority} />
-            </div>
-            <p className="mt-4 text-xs font-semibold">{ticket.customerName}</p>
-            <p className="mt-2 text-[13px] leading-5">{ticket.subject}</p>
-            <div className="mt-5 flex items-center gap-3">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-info-soft text-[9px] font-bold text-info">
-                {initials(ticket.assignedName)}
-              </span>
-              <span className={cn('text-[10px] font-semibold', ticket.breached ? 'text-destructive' : 'text-muted-foreground')}>
-                {ticket.breached ? 'SLA violado' : timeUntil(ticket.responseDue)}
-              </span>
-            </div>
-          </button>
+          <div key={ticket.id}>
+            <button
+              className="w-full rounded-xl border bg-card p-4 text-left transition-[border-color] duration-150 hover:border-primary/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onSelect(ticket.id)}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">{ticket.code}</span>
+                <StatusBadge value={ticket.priority} />
+              </div>
+              <p className="mt-4 text-xs font-semibold">{ticket.customerName}</p>
+              <p className="mt-2 text-[13px] leading-5">{ticket.subject}</p>
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2">
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-info-soft text-[9px] font-bold text-info">
+                    {initials(ticket.assignedName)}
+                  </span>
+                  <span className="text-[10px] font-semibold text-foreground">
+                    {ticket.breached ? 'SLA violado' : timeUntil(ticket.responseDue)}
+                  </span>
+                </span>
+                <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold text-foreground', tone === 'danger' ? 'bg-destructive-soft' : tone === 'warning' ? 'bg-warning-soft' : 'bg-info-soft')}>
+                  {tone === 'danger' ? 'Abrir' : tone === 'warning' ? 'Responder' : 'Continuar'}
+                </span>
+              </div>
+            </button>
+          </div>
         ))}
         {!tickets.length && <p className="px-2 py-8 text-center text-xs text-muted-foreground">Nenhum chamado nesta etapa.</p>}
       </div>
@@ -316,7 +324,7 @@ function SlaTower({ tickets }: { tickets: Ticket[] }) {
     <aside className="rounded-lg bg-foreground p-6 text-background">
       <p className="text-[10px] font-bold uppercase text-primary">Torre de SLA</p>
       <strong className="mt-4 block text-[30px]">{percent}%</strong>
-      <p className="text-[11px] text-background/60">da fila aberta dentro do prazo</p>
+      <p className="text-[11px] text-background/60">{percent}% da fila aberta dentro do prazo · cálculo sobre {tickets.length} {tickets.length === 1 ? 'chamado' : 'chamados'}</p>
       <dl className="mt-7">
         {priorities.map((priority) => {
           const matching = tickets.filter((ticket) => ticket.priority === priority);
@@ -476,9 +484,9 @@ function ViewToggle({ value, onChange }: { value: 'board' | 'list' | 'metrics'; 
 
 function SupportMetric({ code, label, value, detail, tone }: { code: string; label: string; value: number; detail: string; tone: 'info' | 'warning' | 'danger' }) {
   const tones = {
-    info: 'bg-info-soft text-info',
-    warning: 'bg-warning-soft text-warning',
-    danger: 'bg-destructive-soft text-destructive',
+    info: 'bg-info-soft text-foreground',
+    warning: 'bg-warning-soft text-foreground',
+    danger: 'bg-destructive-soft text-foreground',
   };
   return (
     <Card className="min-h-[104px] shadow-none">
@@ -488,7 +496,7 @@ function SupportMetric({ code, label, value, detail, tone }: { code: string; lab
           <p className="text-xs text-muted-foreground">{label}</p>
           <div className="mt-1 flex items-baseline gap-5">
             <strong className="text-[22px]">{value}</strong>
-            <span className={cn('text-[10px] font-semibold', tone === 'danger' ? 'text-destructive' : tone === 'warning' ? 'text-warning' : 'text-info')}>{detail}</span>
+            <span className="text-[10px] font-semibold text-foreground">{detail}</span>
           </div>
         </div>
       </CardContent>
@@ -564,12 +572,13 @@ function TicketDialog({
 }
 
 function SupportEvents({ ticketId }: { ticketId: string }) {
+  const { user, profile } = useAuth();
   const query = useQuery({
-    queryKey: ['support-events', ticketId],
+    queryKey: ['support-events', user?.id, profile?.role, ticketId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('support_ticket_events')
-        .select('id,event_type,message,metadata,created_at')
+        .select('id,event_type,message,metadata,actor_id,created_at')
         .eq('ticket_id', ticketId)
         .order('created_at');
       if (error) throw error;
@@ -582,14 +591,20 @@ function SupportEvents({ ticketId }: { ticketId: string }) {
       {query.isLoading ? <AsyncLoading label="Carregando histórico…" /> : query.isError ? <AsyncError error={query.error} /> : !query.data?.length ? (
         <p className="text-sm text-muted-foreground">Sem eventos.</p>
       ) : (
-        <ol className="space-y-3">
+        <ol className="relative space-y-4 pl-5">
+          <span className="absolute left-[7px] top-1 bottom-1 w-px bg-border" aria-hidden="true" />
           {query.data.map((event) => (
-            <li key={event.id} className="rounded-lg bg-secondary p-3 text-sm">
+            <li
+              key={event.id}
+              className="relative rounded-lg bg-secondary p-3 text-sm"
+            >
+              <span className="absolute -left-[14px] top-3 grid h-3 w-3 place-items-center rounded-full bg-primary ring-2 ring-background" aria-hidden="true" />
               <div className="flex justify-between gap-3">
                 <strong>{ptBrLabel(event.event_type)}</strong>
                 <time className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString('pt-BR')}</time>
               </div>
-              {event.message && <p className="mt-1 whitespace-pre-wrap">{event.message}</p>}
+              <p className="mt-1 text-xs text-muted-foreground">Responsável interno · {shortActor(event.actor_id)}</p>
+              {event.message && <p className="mt-1 whitespace-pre-wrap text-foreground/80">{event.message}</p>}
             </li>
           ))}
         </ol>
@@ -683,6 +698,10 @@ function initials(value: string | null) {
     .map((part) => part[0])
     .join('')
     .toUpperCase() || '—';
+}
+
+function shortActor(value: string) {
+  return value.length > 12 ? `${value.slice(0, 8)}…` : value;
 }
 
 function date(value: string | null) {

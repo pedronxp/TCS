@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CalendarDays, Download, FileCheck2, KeyRound, LockKeyhole, LogOut, MapPin, ShieldCheck, UnlockKeyhole } from 'lucide-react';
 import { CustomerMap } from '@/components/customers/CustomerMap';
 import { PageHeader } from '@/components/domain/PageHeader';
+import { CustomerContextBar } from '@/components/domain/CustomerContextBar';
 import { MetricCard } from '@/components/domain/MetricCard';
 import { RiskBadge, StatusBadge } from '@/components/domain/Badges';
 import { DataTableToolbar } from '@/components/data/DataTablePrimitives';
@@ -10,14 +11,15 @@ import { EmptyState, ErrorState, LoadingState, DataTable } from '@/components/ui
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { Input } from '@/components/ui/Input';
+import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { agentKeys, useAgentInspections, useAgentMap, useAgentOperations, useAgentSummary } from '@/hooks/useAgentDetail';
 import { useAdministrativeMutation } from '@/hooks/useAdministrativeMutation';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { AgentDocument, AgentFilters, AgentInspectionPage, AgentMapResult, AgentOperations, AgentSummary } from '@/types/agent';
 import type { CustomerMapPoint } from '@/types/domain';
 
@@ -77,6 +79,11 @@ export function AgentDetailPage() {
   const base = `/app/clientes/${encodeURIComponent(decodedCustomerId)}/usuarios/${userId}`;
   return (
     <section className="page-stack">
+      <CustomerContextBar
+        customerId={decodedCustomerId}
+        name={data.agent.customerName}
+        detail={data.agent.planName || 'Plano não informado'}
+      />
       <PageHeader
         eyebrow={data.agent.customerName}
         title={data.agent.name}
@@ -332,13 +339,15 @@ function Appointments({ operations }: { operations: AgentOperations }) {
 function Documents({ customerId, userId, operations }: { customerId: string; userId: string; operations: AgentOperations }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  async function openDocument(document: AgentDocument) {
-    const popup = window.open('', '_blank', 'noopener,noreferrer');
+  const [authorizedDocument, setAuthorizedDocument] = useState<{ documentId: string; url: string } | null>(null);
+  async function authorizeDocument(document: AgentDocument) {
     setBusy(document.documentId); setError(null);
-    const { data, error: invokeError } = await supabase.functions.invoke('internal-agent-document', { body: { customer_id: customerId, user_id: userId, inspection_id: document.inspectionId, kind: document.kind } });
+    setAuthorizedDocument(null);
+    const { data, error: invokeError } = await supabase.functions.invoke('internal-agent-document', { body: { customer_id: customerId, user_id: userId, inspection_id: document.inspectionId, kind: document.kind, mode: 'view' } });
     setBusy(null);
-    if (invokeError || !data?.signed_url) { popup?.close(); setError(invokeError?.message || 'Não foi possível autorizar o documento.'); return; }
-    if (popup) popup.location.href = data.signed_url; else window.location.assign(data.signed_url);
+    const url = validAuthorizedDocumentUrl(data, 'view');
+    if (invokeError || !url) { setError(invokeError?.message || 'Não foi possível autorizar o documento.'); return; }
+    setAuthorizedDocument({ documentId: document.documentId, url });
   }
   if (!operations.documents.length) return <EmptyState title="Sem documentos" description="Nenhum laudo, relatório ou termo foi gerado." />;
   return (
@@ -357,9 +366,15 @@ function Documents({ customerId, userId, operations }: { customerId: string; use
             <td className="p-3">{formatDate(item.generatedAt)}</td>
             <td className="p-3">{item.storageLocation || 'Não informado'}</td>
             <td className="p-3">
-              <Button variant="outline" size="sm" disabled={!item.downloadable || busy === item.documentId} onClick={() => void openDocument(item)}>
-                <Download />{item.downloadable ? 'Abrir por 60s' : 'Indisponível'}
-              </Button>
+              {authorizedDocument?.documentId === item.documentId ? (
+                <Button asChild variant="outline" size="sm">
+                  <a href={authorizedDocument.url} target="_blank" rel="noopener noreferrer"><Download />Abrir link autorizado</a>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" disabled={!item.downloadable || busy === item.documentId} onClick={() => void authorizeDocument(item)}>
+                  <Download />{busy === item.documentId ? 'Autorizando…' : item.downloadable ? 'Autorizar por 60s' : 'Indisponível'}
+                </Button>
+              )}
             </td>
           </tr>
         ))}
@@ -370,8 +385,8 @@ function Documents({ customerId, userId, operations }: { customerId: string; use
 
 function Access({ customerId, userId, summary, operations }: { customerId: string; userId: string; summary: AgentSummary; operations: AgentOperations }) {
   const { can } = useAuth();
-  const [pending, setPending] = useState<AccessAction | null>(null);
   const [password, setPassword] = useState('');
+  const [pendingAction, setPendingAction] = useState<AccessAction | null>(null);
   const mutation = useAdministrativeMutation<AccessAction & { reason: string }, unknown>({
     mutationFn: async (input, operationId) => {
       const { data, error } = await supabase.rpc('mutate_internal_agent_access', {
@@ -385,6 +400,22 @@ function Access({ customerId, userId, summary, operations }: { customerId: strin
     invalidate: [agentKeys.root(customerId, userId)],
   });
   const ownerActions = can('customer.write');
+  const passwordPolicy = {
+    length: password.length >= 12,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+  };
+  const validPassword = Object.values(passwordPolicy).every(Boolean);
+
+  async function runAction(reason: string) {
+    if (!pendingAction) throw new Error('Ação de acesso não selecionada.');
+    const result = await mutation.mutateAsync({ ...pendingAction, reason });
+    if (!result.ok) throw new Error(result.error);
+    toast.success(pendingAction.action === 'reset_password' ? 'Senha redefinida e sessões encerradas.' : 'Acesso atualizado e registrado na auditoria.');
+    if (pendingAction.action === 'reset_password') setPassword('');
+  }
+  const dialogCopy = accessActionCopy(pendingAction);
   return (
     <div className="space-y-4">
       <Panel title="Acesso efetivo">
@@ -394,13 +425,22 @@ function Access({ customerId, userId, summary, operations }: { customerId: strin
         {ownerActions && (
           <div className="mt-4 flex flex-wrap gap-2">
             {summary.agent.effectiveAccess === 'active'
-              ? <Action icon={<LockKeyhole className="h-4 w-4" />} label="Bloquear agente" onClick={() => setPending({ action: 'block' })} />
-              : <Action icon={<UnlockKeyhole className="h-4 w-4" />} label="Liberar agente" onClick={() => setPending({ action: 'unblock' })} />}
-            <label className="flex min-w-64 flex-1 items-center gap-2">
-              <span className="sr-only">Nova senha temporária</span>
-              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Senha temporária forte" className="min-w-0 flex-1" />
-              <Action disabled={password.length < 12} icon={<KeyRound className="h-4 w-4" />} label="Redefinir senha" onClick={() => setPending({ action: 'reset_password' })} />
-            </label>
+              ? <Action icon={<LockKeyhole className="h-4 w-4" />} label="Bloquear acesso" onClick={() => setPendingAction({ action: 'block' })} />
+              : <Action icon={<UnlockKeyhole className="h-4 w-4" />} label="Liberar acesso" onClick={() => setPendingAction({ action: 'unblock' })} />}
+            <div className="min-w-64 flex-1 rounded-lg border border-border bg-muted/30 p-3">
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Nova senha</span>
+                <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Defina uma senha temporária" autoComplete="new-password" className="mt-2" />
+              </label>
+              <p className="mt-2 text-xs text-muted-foreground">Mínimo de 12 caracteres, com maiúscula, minúscula e número.</p>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground" aria-live="polite">
+                <span className={passwordPolicy.length ? 'text-success' : undefined}>{passwordPolicy.length ? '✓' : '•'} 12 caracteres</span>
+                <span className={passwordPolicy.upper ? 'text-success' : undefined}>{passwordPolicy.upper ? '✓' : '•'} Maiúscula</span>
+                <span className={passwordPolicy.lower ? 'text-success' : undefined}>{passwordPolicy.lower ? '✓' : '•'} Minúscula</span>
+                <span className={passwordPolicy.number ? 'text-success' : undefined}>{passwordPolicy.number ? '✓' : '•'} Número</span>
+              </div>
+              <div className="mt-3"><Action disabled={!validPassword || mutation.isPending} icon={<KeyRound className="h-4 w-4" />} label={mutation.isPending ? 'Salvando...' : 'Redefinir senha'} onClick={() => setPendingAction({ action: 'reset_password' })} /></div>
+            </div>
           </div>
         )}
       </Panel>
@@ -416,7 +456,7 @@ function Access({ customerId, userId, summary, operations }: { customerId: strin
                   <p className="text-xs text-muted-foreground">{formatDate(session.lastHeartbeatAt)}</p>
                 </div>
                 <StatusBadge value={session.status} />
-                {ownerActions && session.status === 'active' && <Action icon={<LogOut className="h-4 w-4" />} label="Encerrar" onClick={() => setPending({ action: 'terminate_session', sessionId: session.id })} />}
+                {ownerActions && session.status === 'active' && <Action icon={<LogOut className="h-4 w-4" />} label="Encerrar" onClick={() => setPendingAction({ action: 'terminate_session', sessionId: session.id })} />}
               </div>
             ))}
           </div>
@@ -438,20 +478,38 @@ function Access({ customerId, userId, summary, operations }: { customerId: strin
         )}
       </Panel>
       <HighRiskDialog
-        open={Boolean(pending)}
-        title="Confirmar alteração de acesso"
-        description="A operação exige MFA, justificativa e será auditada. Sessões aplicáveis serão revogadas."
-        confirmLabel="Confirmar operação"
-        onClose={() => setPending(null)}
-        onConfirm={async (reason) => {
-          if (!pending) return;
-          const result = await mutation.mutateAsync({ ...pending, reason });
-          if (!result.ok) throw new Error(result.error);
-          setPending(null); setPassword('');
-        }}
+        open={Boolean(pendingAction)}
+        title={dialogCopy.title}
+        description={dialogCopy.description}
+        confirmLabel={dialogCopy.confirmLabel}
+        onClose={() => setPendingAction(null)}
+        onConfirm={runAction}
       />
     </div>
   );
+}
+
+function validAuthorizedDocumentUrl(value: unknown, disposition: 'view' | 'download') {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as { ok?: unknown; signed_url?: unknown; disposition?: unknown; expires_in?: unknown };
+  if (candidate.ok !== true || candidate.disposition !== disposition || typeof candidate.signed_url !== 'string') return null;
+  if (typeof candidate.expires_in !== 'number' || !Number.isFinite(candidate.expires_in) || candidate.expires_in < 1 || candidate.expires_in > 60) return null;
+  try {
+    const url = new URL(candidate.signed_url);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function accessActionCopy(action: AccessAction | null) {
+  switch (action?.action) {
+    case 'block': return { title: 'Bloquear acesso do agente?', description: 'O agente perderá acesso e as sessões ativas serão encerradas. A justificativa ficará na auditoria.', confirmLabel: 'Bloquear acesso' };
+    case 'unblock': return { title: 'Liberar acesso do agente?', description: 'O agente voltará a acessar o escopo autorizado. Registre por que a liberação é necessária.', confirmLabel: 'Liberar acesso' };
+    case 'reset_password': return { title: 'Redefinir senha do agente?', description: 'A senha será substituída e todas as sessões ativas serão encerradas.', confirmLabel: 'Redefinir senha' };
+    case 'terminate_session': return { title: 'Encerrar esta sessão?', description: 'O registro selecionado será encerrado. Tokens de acesso já emitidos podem permanecer válidos até expirar.', confirmLabel: 'Encerrar sessão' };
+    default: return { title: 'Confirmar ação', description: 'Revise a operação antes de continuar.', confirmLabel: 'Confirmar' };
+  }
 }
 
 function Action({ icon, label, onClick, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
