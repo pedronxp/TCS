@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/domain/PageHeader';
-import { MetricCard } from '@/components/domain/MetricCard';
 import { StatusBadge } from '@/components/domain/Badges';
 import { HighAssuranceDialog } from '@/components/security/HighAssuranceDialog';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
@@ -275,26 +274,21 @@ export function ArquivamentoPage() {
         )}
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do arquivamento">
-        <MetricCard label="Prontos para arquivar" value={stats.ready} icon={Archive} />
-        <MetricCard label="Retidos no Drive" value={stats.archived} icon={HardDrive} />
-        <MetricCard label="Na fila de restauração" value={stats.queue} icon={CloudDownload} />
-        <MetricCard label="Restaurações com falha" value={stats.failed} icon={TriangleAlert} />
-      </section>
+      <ArchivePulse stats={stats} />
 
       {configurationOpen && (
-        <Card>
+        <Card className="border-primary/15 bg-muted/45 shadow-none">
           <CardHeader><CardTitle>Política de retenção</CardTitle></CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-3">
-            <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/85 bg-card p-4">
               <div><Label htmlFor="archive-enabled">Lifecycle ativo</Label><p className="mt-1 text-xs text-muted-foreground">Permite execução programada.</p></div>
               <Switch id="archive-enabled" checked={config.enabled} onCheckedChange={(enabled) => setConfigDraft({ ...config, enabled })} />
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/85 bg-card p-4">
               <div><Label htmlFor="archive-mode">Modo automático</Label><p className="mt-1 text-xs text-muted-foreground">Cron pode executar o lote elegível.</p></div>
               <Switch id="archive-mode" checked={config.mode === 'auto'} onCheckedChange={(auto) => setConfigDraft({ ...config, mode: auto ? 'auto' : 'manual' })} />
             </div>
-            <div className="rounded-xl border p-4">
+            <div className="rounded-2xl border border-border/85 bg-card p-4">
               <Label htmlFor="archive-days">Retenção no Storage (dias)</Label>
               <Input id="archive-days" className="mt-2" type="number" min={1} max={365} value={config.daysThreshold} onChange={(event) => setConfigDraft({ ...config, daysThreshold: Number(event.target.value) })} />
             </div>
@@ -306,7 +300,7 @@ export function ArquivamentoPage() {
         </Card>
       )}
 
-      <Alert>
+      <Alert className="border-primary/15 bg-success-soft/55">
         <ShieldCheck className="h-4 w-4" />
         <AlertTitle>Restauração protegida</AlertTitle>
         <AlertDescription>
@@ -411,6 +405,30 @@ function toggleSet(setter: React.Dispatch<React.SetStateAction<Set<string>>>, id
   });
 }
 
+function ArchivePulse({ stats }: { stats: { ready: number; archived: number; queue: number; failed: number } }) {
+  const metrics = [
+    { label: 'Prontos para arquivar', value: stats.ready, icon: Archive, tone: 'bg-info-soft text-info' },
+    { label: 'Retidos no Drive', value: stats.archived, icon: HardDrive, tone: 'bg-success-soft text-success' },
+    { label: 'Na fila de restauração', value: stats.queue, icon: CloudDownload, tone: 'bg-warning-soft text-warning' },
+    { label: 'Restaurações com falha', value: stats.failed, icon: TriangleAlert, tone: 'bg-destructive-soft text-destructive' },
+  ];
+  return (
+    <section className="rounded-2xl border border-border/85 bg-muted/45 p-3 sm:p-4" aria-label="Panorama do arquivamento">
+      <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+        {metrics.map(({ label, value, icon: Icon, tone }) => (
+          <div key={label} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-5 xl:first:pl-2">
+            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-4 w-4" /></span>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.03em]">{value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function InspectionSection({
   title,
   description,
@@ -429,14 +447,14 @@ function InspectionSection({
   showManifest?: boolean;
 }) {
   return (
-    <Card>
+    <Card className="bg-muted/35 shadow-none">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
         <div><CardTitle>{title}</CardTitle><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>
         {action}
       </CardHeader>
       <CardContent className="space-y-2">
         {!items.length ? <EmptyPanel title="Nenhum item disponível" description="Não há vistorias neste estado." /> : items.map((inspection) => (
-          <div key={inspection.id} className="flex items-start gap-3 rounded-xl border p-4">
+          <div key={inspection.id} className="flex items-start gap-3 rounded-2xl border border-border/85 bg-card p-4">
             <Checkbox checked={selected.has(inspection.id)} onCheckedChange={() => onToggle(inspection.id)} aria-label={`Selecionar ${inspection.protocol || inspection.id}`} className="mt-1" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -455,7 +473,7 @@ function InspectionSection({
 
 function InspectionCard({ inspection }: { inspection: Inspection }) {
   return (
-    <Card><CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+    <Card className="shadow-none"><CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{inspection.protocol || inspection.id.slice(0, 8)}</p><StatusBadge value={inspection.storageLocation} /></div>
         <p className="mt-1 text-sm text-muted-foreground">{inspection.municipality || 'Município não informado'} · Arquivado em {formatDate(inspection.archivedAt)}</p>
@@ -470,12 +488,12 @@ function InspectionCard({ inspection }: { inspection: Inspection }) {
 function RestoreRequestCard({ request, currentUserId, busy, onDecision, onRetry }: { request: RestoreRequest; currentUserId: string; busy: boolean; onDecision: (approve: boolean) => void; onRetry: () => void }) {
   const canApprove = Boolean(currentUserId) && request.status === 'pending' && request.requestedBy !== currentUserId;
   return (
-    <Card><CardContent className="p-4 sm:p-5">
+    <Card className="border-primary/10 bg-muted/30 shadow-none"><CardContent className="p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{request.protocol || request.inspectionId.slice(0, 8)}</p><StatusBadge value={request.status} /></div>
           <p className="mt-1 text-sm text-muted-foreground">{request.municipality || 'Município não informado'} · Solicitado por {request.requestedByName} em {formatDateTime(request.requestedAt)}</p>
-          <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-sm">“{request.reason}”</p>
+          <p className="mt-3 rounded-xl border border-border/80 bg-card px-3 py-2 text-sm">“{request.reason}”</p>
           {request.lastError && <p className="mt-2 text-sm text-destructive" role="alert">{request.lastError}</p>}
           {request.approvedByName && <p className="mt-2 text-xs text-muted-foreground">Aprovado por {request.approvedByName}</p>}
         </div>
@@ -494,7 +512,7 @@ function RestoreRequestCard({ request, currentUserId, busy, onDecision, onRetry 
 }
 
 function EmptyPanel({ title, description }: { title: string; description: string }) {
-  return <div className="rounded-xl border border-dashed p-8 text-center"><Archive className="mx-auto h-7 w-7 text-muted-foreground" /><p className="mt-3 font-semibold">{title}</p><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>;
+  return <div className="rounded-2xl border border-dashed p-8 text-center"><Archive className="mx-auto h-7 w-7 text-muted-foreground" /><p className="mt-3 font-semibold">{title}</p><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>;
 }
 
 function formatDate(value: string | null | undefined) {

@@ -110,7 +110,7 @@ describe('painel interno por perfil', () => {
     expect(screen.getByText('Clientes')).toBeVisible();
     expect(screen.getByText('Assinaturas em risco')).toBeVisible();
     expect(screen.getByText('Prefeitura de Aurora')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Abrir' })).toHaveAttribute('href', '/app/clientes/organization%3Aaurora');
+    expect(screen.getByRole('link', { name: 'Abrir' })).toHaveAttribute('href', '/app/clientes/organizacoes/aurora');
     expect(screen.getByRole('link', { name: /Abrir clientes/ })).toHaveAttribute('href', '/app/clientes');
     expect(screen.getByRole('link', { name: /Revisar assinaturas/ })).toHaveAttribute('href', '/app/assinaturas');
     expect(screen.queryByRole('link', { name: /Consultar auditoria/ })).not.toBeInTheDocument();

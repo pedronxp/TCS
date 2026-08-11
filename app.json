@@ -3,24 +3,24 @@
     "name": "TCS - Relatório de Risco",
     "slug": "tcs-relatorio-de-risco",
     "scheme": "tcs",
-    "version": "1.3.25",
+    "version": "1.3.26",
     "orientation": "portrait",
-    "icon": "./assets/brand/tcs-icon-v5.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/brand/tcs-mark-v5.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F7F8F7",
+      "backgroundColor": "#FFFFFF",
       "dark": {
-        "image": "./assets/brand/tcs-mark-v5.png",
+        "image": "./assets/splash-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#0F1411"
+        "backgroundColor": "#FFFFFF"
       }
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.tcs.relatorioderisco",
-      "buildNumber": "28",
+      "buildNumber": "29",
       "infoPlist": {
         "NSCameraUsageDescription": "O app precisa acessar a câmera para registrar evidências fotográficas das vistorias.",
         "NSPhotoLibraryUsageDescription": "O app precisa acessar a galeria para anexar fotos às vistorias.",
@@ -35,10 +35,11 @@
           "apiKey": "AIzaSyD9THUSNNwA0aQ54cacCs9o0-SloWA9hPY"
         }
       },
-      "versionCode": 31,
+      "versionCode": 32,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/brand/tcs-adaptive-foreground-v5.png",
-        "backgroundColor": "#EDF3F0"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#FFFFFF",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -49,11 +50,12 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.VIBRATE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
-      "favicon": "./assets/brand/tcs-favicon.png"
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-asset",
@@ -62,8 +64,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/brand/tcs-notification.png",
-          "color": "#2F6B5B",
+          "icon": "./assets/notification-icon.png",
+          "color": "#2F7D6D",
           "sounds": [],
           "mode": "production"
         }
@@ -103,11 +105,11 @@
       "expo-web-browser"
     ],
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "f0684d3e-3fc0-4605-a514-2fad941b1449"
-      },
-      "router": {}
+        "projectId": "87a0211d-3965-48dd-a3bd-4b737f844de1"
+      }
     },
-    "owner": "pedrontz"
+    "owner": "pedronxp"
   }
 }

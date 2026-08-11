@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Bell, Check, Download, KeyRound, LogOut, Menu, Moon, Pencil, Plus, Sun } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { GlobalCustomerSearch } from '@/components/GlobalCustomerSearch';
 import { Button } from '@/components/ui/Button';
-import { EnvironmentBadge } from '@/components/domain/Badges';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,10 +37,10 @@ const STATIC_PAGE_CONTEXTS: ReadonlyArray<{ prefix: string; context: PageContext
   { prefix: '/app/desenvolvimento/sincronizacao', context: { eyebrow: 'Desenvolvimento', title: 'Sincronização' } },
   { prefix: '/app/desenvolvimento/armazenamento', context: { eyebrow: 'Desenvolvimento', title: 'Armazenamento' } },
   { prefix: '/app/desenvolvimento/logs', context: { eyebrow: 'Desenvolvimento', title: 'Logs e erros' } },
-  { prefix: '/app/governanca/configuracoes', context: { eyebrow: 'Governança', title: 'Configurações do console' } },
   { prefix: '/app/governanca/arquivamento', context: { eyebrow: 'Governança', title: 'Arquivamento e retenção' } },
   { prefix: '/app/referencia-ui', context: { eyebrow: 'Referência', title: 'Interface do produto' } },
   { prefix: '/app/planos', context: { eyebrow: 'Negócio', title: 'Planos e limites' } },
+  { prefix: '/app/negocio/indicadores', context: { eyebrow: 'Negócio', title: 'Indicadores comerciais' } },
   { prefix: '/app/assinaturas', context: { eyebrow: 'Negócio', title: 'Assinaturas e ciclos' } },
   { prefix: '/app/sessoes', context: { eyebrow: 'Segurança', title: 'Sessões e dispositivos' } },
   { prefix: '/app/suporte', context: { eyebrow: 'Suporte', title: 'Central de atendimento' } },
@@ -56,12 +55,16 @@ function resolvePageContext(pathname: string, role: 'owner' | 'developer' | unde
       : { eyebrow: 'Operação', title: 'Visão executiva' };
   }
 
-  if (/^\/app\/clientes\/[^/]+\/usuarios\/[^/]+(?:\/|$)/.test(pathname)) {
-    return { eyebrow: 'Clientes / Agente', title: 'Detalhe do agente' };
+  if (/^\/app\/clientes\/organizacoes\/[^/]+(?:\/|$)/.test(pathname)) {
+    return { eyebrow: 'Clientes / Organização', title: 'Visão da organização' };
+  }
+
+  if (/^\/app\/clientes\/contas\/[^/]+(?:\/|$)/.test(pathname)) {
+    return { eyebrow: 'Clientes / Conta individual', title: 'Visão da pessoa' };
   }
 
   if (/^\/app\/clientes\/[^/]+(?:\/|$)/.test(pathname)) {
-    return { eyebrow: 'Clientes / Detalhe', title: 'Detalhe do cliente' };
+    return { eyebrow: 'Clientes / Redirecionamento', title: 'Abrindo registro' };
   }
 
   if (pathname === '/app/clientes' || pathname === '/app/clientes/') {
@@ -74,11 +77,11 @@ function resolvePageContext(pathname: string, role: 'owner' | 'developer' | unde
 
 export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThemeChange }: AppHeaderProps) {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { profile, can, signOut } = useAuth();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const isCustomerDetail = /^\/app\/clientes\/[^/]+(?:\/|$)/.test(pathname)
-    && !pathname.includes('/usuarios/');
+  const customerDetailKind = pathname.match(/^\/app\/clientes\/(organizacoes|contas)\/[^/]+(?:\/|$)/)?.[1];
+  const isCustomerDetail = Boolean(customerDetailKind);
+  const customerEditLabel = customerDetailKind === 'contas' ? 'Editar pessoa' : 'Editar organização';
   const pageContext = resolvePageContext(
     pathname,
     profile?.role === 'owner' || profile?.role === 'developer' ? profile.role : undefined,
@@ -115,9 +118,6 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
         </nav>
 
         <div className="ml-auto flex items-center gap-2.5">
-          <span className="hidden sm:inline-flex">
-            <EnvironmentBadge environment={import.meta.env.MODE} />
-          </span>
           {profile?.role === 'developer' && can('technical.read') ? (
             <Button asChild variant="outline" size="icon" className="h-10 w-10 rounded-full">
               <Link to="/app/desenvolvimento/logs" aria-label="Abrir alertas técnicos">
@@ -138,7 +138,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
               className="hidden h-11 px-5 sm:inline-flex"
             >
               <Pencil />
-              Editar cliente
+              {customerEditLabel}
             </Button>
           ) : pathname.startsWith('/app/auditoria') && can('audit.read') ? (
             <Button
@@ -211,11 +211,6 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
             >
               <Plus />
               Nova configuração
-            </Button>
-          ) : pathname === '/app/clientes' && can('customer.write') ? (
-            <Button className="hidden h-11 px-5 sm:inline-flex" onClick={() => navigate('/app/clientes?novo=1')}>
-              <Plus />
-              Novo cliente
             </Button>
           ) : null}
 

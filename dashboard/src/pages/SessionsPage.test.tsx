@@ -79,7 +79,7 @@ describe('Sessões e dispositivos', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Sessões' })).toBeVisible();
     expect(screen.getByText('1 sessão ativa')).toBeVisible();
-    expect(screen.getByText('Mapa de anomalias')).toBeVisible();
+    expect(screen.getByText('Atividade recente')).toBeVisible();
     expect(screen.getByText('Política aplicada')).toBeVisible();
     expect(screen.getByText('Sessões recentes')).toBeVisible();
   });

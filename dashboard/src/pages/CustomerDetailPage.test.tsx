@@ -127,6 +127,10 @@ vi.mock('@/hooks/useCustomerDetail', () => ({
   }),
 }));
 
+vi.mock('@/hooks/useAdministrativeMutation', () => ({
+  useAdministrativeMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 const createAppointment = vi.fn().mockResolvedValue({});
 vi.mock('@/hooks/useCustomerOperations', () => ({
   useCustomerOperations: () => ({
@@ -180,11 +184,11 @@ vi.mock('@/components/customers/CustomerMap', () => ({
 
 afterEach(cleanup);
 
-function renderPage(path = '/app/clientes/organization%3Aaurora/resumo') {
+function renderPage(path = '/app/clientes/organizacoes/aurora/resumo') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/app/clientes/:customerId/:section?" element={<CustomerDetailPage />} />
+        <Route path="/app/clientes/organizacoes/:recordId/:section?" element={<CustomerDetailPage kind="organization" />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -196,8 +200,6 @@ describe('Detalhe do cliente', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Prefeitura de Aurora' })).toBeVisible();
     expect(screen.getByRole('navigation', { name: 'Seções do cliente' })).toBeVisible();
-    expect(screen.getByRole('complementary', { name: 'Contexto persistente do cliente' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Abrir resumo de Prefeitura de Aurora' })).toHaveAttribute('href', '/app/clientes/organization%3Aaurora/resumo');
     expect(screen.getAllByText('Municipal Profissional')[0]).toBeVisible();
     expect(screen.getByText('Vistorias recentes')).toBeVisible();
     expect(screen.getByText('Atividade recente')).toBeVisible();
@@ -212,13 +214,13 @@ describe('Detalhe do cliente', () => {
 
   it('cria agendamento web pelo contrato compartilhado com o aplicativo', async () => {
     const user = userEvent.setup();
-    renderPage('/app/clientes/organization%3Aaurora/agendamentos');
+    renderPage('/app/clientes/organizacoes/aurora/agendamentos');
 
     await user.click(screen.getByRole('button', { name: 'Novo agendamento' }));
     await user.type(screen.getByLabelText('Título'), 'Vistoria preventiva');
     await user.type(screen.getByLabelText('Data e hora'), '2030-08-01T09:30');
     await user.type(screen.getByLabelText('Endereço'), 'Praça Central, 100');
-    await user.click(screen.getByRole('button', { name: 'Criar e sincronizar' }));
+    await user.click(screen.getByRole('button', { name: 'Criar agendamento' }));
 
     expect(createAppointment).toHaveBeenCalledWith(expect.objectContaining({
       customerId: 'organization:aurora',
@@ -227,9 +229,20 @@ describe('Detalhe do cliente', () => {
     }));
   }, 15_000);
 
+  it('trata pessoas como membros da organização, sem criar um segundo painel de cliente', async () => {
+    const user = userEvent.setup();
+    renderPage('/app/clientes/organizacoes/aurora/equipe');
+
+    expect(screen.getByRole('columnheader', { name: 'Membro' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Gerenciar membro' }));
+    expect(screen.getByRole('heading', { name: 'Marina Costa' })).toBeVisible();
+    expect(screen.getByText(/Equipe da organização/)).toBeVisible();
+    expect(screen.getByText('Identidade e acesso')).toBeVisible();
+  });
+
   it('orienta a gerar no aplicativo quando o documento oficial estiver pendente', async () => {
     const user = userEvent.setup();
-    renderPage('/app/clientes/organization%3Aaurora/laudos');
+    renderPage('/app/clientes/organizacoes/aurora/laudos');
 
     expect(screen.getByText('1 disponível')).toBeVisible();
     expect(screen.getByText('1 pendente')).toBeVisible();

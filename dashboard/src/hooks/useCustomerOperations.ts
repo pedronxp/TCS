@@ -43,6 +43,25 @@ export interface CreateCustomerAppointmentInput {
   operationId: string;
 }
 
+const appointmentErrorMessages: Record<string, string> = {
+  customer_write_not_allowed: 'Seu perfil não tem permissão para criar agendamentos deste cliente.',
+  invalid_customer_id: 'Não foi possível identificar o cliente deste agendamento.',
+  invalid_appointment_title: 'Informe um título entre 3 e 160 caracteres.',
+  invalid_appointment_date: 'Escolha uma data e horário no futuro.',
+  appointment_content_too_long: 'O endereço ou as observações excedem o limite permitido.',
+  customer_not_found: 'Este cliente não está mais disponível para agendamento.',
+  customer_municipality_required: 'Cadastre o município do cliente antes de criar um agendamento.',
+  agent_not_in_customer_scope: 'O agente selecionado não pertence a este cliente.',
+  local_test_account_write_blocked: 'Esta conta de teste não pode criar agendamentos. Use uma conta operacional autorizada.',
+};
+
+export function appointmentErrorMessage(error: unknown) {
+  const message = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+    ? error.message
+    : '';
+  return appointmentErrorMessages[message] ?? (message || 'Não foi possível criar o agendamento. Tente novamente.');
+}
+
 export function useCreateCustomerAppointment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -56,7 +75,7 @@ export function useCreateCustomerAppointment() {
         p_notes: input.notes?.trim() || null,
         p_operation_id: input.operationId,
       });
-      if (error) throw error;
+      if (error) throw new Error(appointmentErrorMessage(error));
       return data;
     },
     onSuccess: (_data, input) => queryClient.invalidateQueries({

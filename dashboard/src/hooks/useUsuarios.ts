@@ -72,11 +72,12 @@ export function useToggleAprovacao() {
 export function useResetSenha() {
   return useMutation({
     mutationFn: async ({ uid, password }: { uid: string; password: string }) => {
-      const { error } = await supabase.rpc('admin_reset_password', {
-        p_uid: uid,
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>)('internal_reset_password', {
+        p_target_user_id: uid,
         p_new_password: password,
       });
       if (error) throw error;
+      return data;
     },
   });
 }

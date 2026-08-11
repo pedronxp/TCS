@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -2640,6 +2640,10 @@ export type Database = {
       admin_reset_password: {
         Args: { p_new_password: string; p_uid: string }
         Returns: undefined
+      }
+      internal_reset_password: {
+        Args: { p_target_user_id: string; p_new_password: string }
+        Returns: Json
       }
       check_email_domain: {
         Args: { p_email: string; p_municipio: string }

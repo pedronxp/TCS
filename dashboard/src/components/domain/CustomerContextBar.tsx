@@ -1,6 +1,7 @@
 import { Building2, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
+import { customerDetailPath } from '@/lib/customerRoutes';
 
 export function CustomerContextBar({ customerId, name, status, detail }: { customerId: string; name: string; status?: string | null; detail?: string }) {
   return (
@@ -13,7 +14,7 @@ export function CustomerContextBar({ customerId, name, status, detail }: { custo
         </div>
       </div>
       {status && <Badge variant="secondary">{status}</Badge>}
-      <Link to={`/app/clientes/${encodeURIComponent(customerId)}/resumo`} className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Abrir resumo de ${name}`}>
+      <Link to={customerDetailPath(customerId)} className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Abrir resumo de ${name}`}>
         Resumo do cliente <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Link>
     </aside>

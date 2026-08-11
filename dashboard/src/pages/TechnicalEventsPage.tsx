@@ -11,7 +11,6 @@ import {
   ScrollText,
 } from 'lucide-react';
 import { PageHeader } from '@/components/domain/PageHeader';
-import { MetricCard } from '@/components/domain/MetricCard';
 import { StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { jsonArray, jsonObject, jsonString } from '@/lib/json';
+import { customerDetailPath } from '@/lib/customerRoutes';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -129,14 +129,9 @@ export function TechnicalEventsPage({
         )}
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo dos eventos">
-        <MetricCard label="Eventos retornados" value={metrics.total} icon={page.Icon} />
-        <MetricCard label="Erros críticos" value={metrics.critical} icon={AlertTriangle} />
-        <MetricCard label="Avisos" value={metrics.warnings} icon={Boxes} />
-        <MetricCard label="Clientes afetados" value={metrics.customers} icon={CheckCircle2} />
-      </section>
+      <TechnicalPulse metrics={metrics} primaryIcon={page.Icon} />
 
-      <Card>
+      <Card className="bg-muted/45 shadow-none">
         <CardHeader className="flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>Filtros da investigação</CardTitle>
@@ -179,7 +174,7 @@ export function TechnicalEventsPage({
         {!invalidDateRange && query.data && (
           <section className="space-y-3" aria-label={`Eventos de ${title.toLowerCase()}`}>
             {query.data.map((event) => (
-              <Card key={event.id}>
+              <Card key={event.id} className="border-border/85 shadow-none">
                 <CardContent className="p-4 sm:p-5">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge value={event.severity} />
@@ -196,7 +191,7 @@ export function TechnicalEventsPage({
                     <span aria-hidden="true" className="hidden sm:inline">·</span>
                     <span className="break-all">Correlação {event.correlation || event.id}</span>
                     {event.customerId && can('customer.read') ? (
-                      <Link className="font-semibold text-primary underline-offset-4 hover:underline" to={`/app/clientes/${encodeURIComponent(event.customerId)}`}>
+                      <Link className="font-semibold text-primary underline-offset-4 hover:underline" to={customerDetailPath(event.customerId)}>
                         {event.customerName || 'Abrir cliente'}
                       </Link>
                     ) : event.customerId ? <span>{event.customerName || 'Cliente identificado'}</span> : null}
@@ -234,6 +229,33 @@ function parseTechnicalEvent(value: Json): EventRow | null {
     customerId: jsonString(row?.customer_id),
     customerName: jsonString(row?.customer_name),
   };
+}
+
+function TechnicalPulse({
+  metrics,
+  primaryIcon: PrimaryIcon,
+}: {
+  metrics: { total: number; critical: number; warnings: number; customers: number };
+  primaryIcon: typeof RefreshCw;
+}) {
+  const indicators = [
+    { label: 'Eventos retornados', value: metrics.total, icon: PrimaryIcon, tone: 'bg-info-soft text-info' },
+    { label: 'Erros críticos', value: metrics.critical, icon: AlertTriangle, tone: 'bg-destructive-soft text-destructive' },
+    { label: 'Avisos', value: metrics.warnings, icon: Boxes, tone: 'bg-warning-soft text-warning' },
+    { label: 'Clientes afetados', value: metrics.customers, icon: CheckCircle2, tone: 'bg-success-soft text-success' },
+  ];
+  return (
+    <section className="rounded-2xl border border-border/85 bg-muted/45 p-3 sm:p-4" aria-label="Panorama técnico">
+      <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+        {indicators.map(({ label, value, icon: Icon, tone }) => (
+          <div key={label} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-5 xl:first:pl-2">
+            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-4 w-4" /></span>
+            <div className="min-w-0"><p className="text-[11px] font-medium text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.03em]">{value}</p></div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function FilterSelect({

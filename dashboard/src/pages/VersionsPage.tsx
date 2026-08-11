@@ -190,30 +190,13 @@ export function VersionsPage() {
       >
         {query.data && (
           <>
-            <ReleaseTrain
-              development={query.data.settings.development_version}
-              minimum={query.data.settings.minimum_version}
-              published={query.data.settings.published_version}
-            />
-
             <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_248px]">
-              <div className="grid gap-4 md:grid-cols-3">
-                <VersionSummaryCard
-                  label="Publicada"
-                  version={published || fallbackVersion(query.data.settings.published_version, 'published')}
-                  onOpen={setNotesVersion}
-                />
-                <VersionSummaryCard
-                  label="Mínima suportada"
-                  version={minimum || fallbackVersion(query.data.settings.minimum_version, 'retired')}
-                  onOpen={setNotesVersion}
-                />
-                <VersionSummaryCard
-                  label="Desenvolvimento"
-                  version={development || fallbackVersion(query.data.settings.development_version, 'development')}
-                  onOpen={setNotesVersion}
-                />
-              </div>
+              <ReleasePosture
+                development={development || fallbackVersion(query.data.settings.development_version, 'development')}
+                minimum={minimum || fallbackVersion(query.data.settings.minimum_version, 'retired')}
+                published={published || fallbackVersion(query.data.settings.published_version, 'published')}
+                onOpen={setNotesVersion}
+              />
 
               <AdoptionPanel
                 publishedVersion={query.data.settings.published_version}
@@ -328,57 +311,53 @@ export function VersionsPage() {
   );
 }
 
-function ReleaseTrain({ development, minimum, published }: { development: string; minimum: string; published: string }) {
+function ReleasePosture({
+  development,
+  minimum,
+  published,
+  onOpen,
+}: {
+  development: VersionRow;
+  minimum: VersionRow;
+  published: VersionRow;
+  onOpen: (version: VersionRow) => void;
+}) {
   const stages = [
-    { number: 1, label: 'Desenvolvimento', value: development, tone: 'bg-muted text-foreground' },
-    { number: 2, label: 'Mínima suportada', value: minimum, tone: 'bg-muted text-foreground' },
-    { number: 3, label: 'Produção', value: published, tone: 'bg-primary text-primary-foreground' },
+    { label: 'Em desenvolvimento', value: development, description: 'Próxima entrega em preparação.' },
+    { label: 'Mínima suportada', value: minimum, description: 'Piso aceito para permanecer compatível.' },
+    { label: 'Em produção', value: published, description: 'Referência em uso pela operação.' },
   ];
   return (
-    <section className="rounded-lg border border-border bg-card p-6" aria-labelledby="release-train-title">
-      <p id="release-train-title" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Release train</p>
-      <div className="mt-7 grid gap-6 md:grid-cols-3">
+    <section className="rounded-2xl border border-border/85 bg-card p-5 shadow-sm sm:p-6" aria-labelledby="release-posture-title">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p id="release-posture-title" className="text-[10px] font-bold uppercase tracking-wider text-primary">Postura de publicação</p>
+          <h2 className="mt-1 text-lg font-bold tracking-[-0.02em]">Versões que orientam a operação</h2>
+        </div>
+        <p className="max-w-xs text-xs leading-5 text-muted-foreground">Acompanhe o que está em preparação, o limite de compatibilidade e a referência publicada.</p>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
         {stages.map((stage, index) => (
-          <div key={stage.label} className="relative">
+          <article key={stage.label} className="relative min-w-0 rounded-xl bg-muted/55 p-4 first:bg-primary/[0.04]">
             {index < stages.length - 1 && (
-              <span className="absolute left-[64px] top-6 hidden h-px w-[calc(100%-48px)] bg-border md:block" aria-hidden="true" />
+              <span className="absolute left-full top-1/2 z-10 hidden h-px w-3 bg-border md:block" aria-hidden="true" />
             )}
-            <div className="relative z-10 flex items-center gap-4">
-              <span className={cn('grid h-12 w-12 shrink-0 place-items-center rounded-full text-xs font-bold', stage.tone)}>
-                {stage.number}
-              </span>
-              <strong className="truncate text-base">{stage.value || '—'}</strong>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{stage.label}</p>
+              <StatusBadge value={stage.value.status} />
             </div>
-            <p className="mt-3 pl-1 text-[11px] text-muted-foreground">{stage.label}</p>
-          </div>
+            <strong className="mt-5 block truncate text-[22px] tracking-[-0.03em]">{stage.value.version || '—'}</strong>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{stage.description}</p>
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/70 pt-3">
+              <span className="text-[11px] font-semibold text-muted-foreground">{stage.value.adoption} eventos</span>
+              <button className="inline-flex items-center gap-1 text-xs font-bold text-primary transition-colors hover:text-primary/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30" onClick={() => onOpen(stage.value)}>
+                Notas <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </div>
+          </article>
         ))}
       </div>
     </section>
-  );
-}
-
-function VersionSummaryCard({
-  label,
-  version,
-  onOpen,
-}: {
-  label: string;
-  version: VersionRow;
-  onOpen: (version: VersionRow) => void;
-}) {
-  return (
-    <Card className="min-h-[158px] shadow-none">
-      <CardContent className="flex h-full flex-col p-4">
-        <StatusBadge value={version.status} />
-        <strong className="mt-5 text-[22px]">{version.version || '—'}</strong>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          {label} · {version.adoption} {version.adoption === 1 ? 'evento' : 'eventos'}
-        </p>
-        <button className="mt-auto flex items-center gap-1 pt-4 text-left text-xs font-bold text-primary" onClick={() => onOpen(version)}>
-          Abrir notas <ArrowRight className="h-3 w-3" aria-hidden="true" />
-        </button>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -398,11 +377,11 @@ function AdoptionPanel({
   belowMinimum: number;
 }) {
   return (
-    <aside className="rounded-lg border border-border bg-muted p-6" aria-labelledby="adoption-title">
+    <aside className="rounded-2xl border border-border/85 bg-muted/55 p-5 shadow-sm" aria-labelledby="adoption-title">
       <p id="adoption-title" className="text-[10px] font-bold uppercase tracking-wider text-primary">Adoção observada</p>
-      <strong className="mt-5 block text-[30px]">{percent}%</strong>
-      <p className="text-[11px] text-muted-foreground">dos eventos na versão publicada</p>
-      <dl className="mt-8 space-y-6 text-xs">
+      <strong className="mt-4 block text-[32px] tracking-[-0.04em]">{percent}%</strong>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">dos eventos na versão publicada</p>
+      <dl className="mt-6 space-y-4 border-t border-border/70 pt-4 text-xs">
         <AdoptionRow label={publishedVersion} value={publishedCount} />
         <AdoptionRow label={minimumVersion} value={minimumCount} />
         <AdoptionRow label="Abaixo da mínima" value={belowMinimum} />

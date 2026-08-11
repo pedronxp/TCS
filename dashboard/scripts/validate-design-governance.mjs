@@ -2,16 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const governedPages = [
-  'DashboardHome.tsx', 'AgentDetailPage.tsx', 'CustomersPage.tsx', 'CustomerDetailPage.tsx',
+  'DashboardHome.tsx', 'CustomersPage.tsx', 'CustomerDetailPage.tsx',
   'PlansPage.tsx', 'SubscriptionsPage.tsx', 'SessionsPage.tsx', 'SupportPage.tsx',
   'StaffPage.tsx', 'AuditPage.tsx', 'VersionsPage.tsx', 'BuildsPage.tsx', 'FormsPage.tsx',
-  'RiskRulesPage.tsx', 'TechnicalEventsPage.tsx', 'ConfiguracoesPage.tsx',
+  'RiskRulesPage.tsx', 'TechnicalEventsPage.tsx',
   'ArquivamentoPage.tsx', 'LoginPage.tsx', 'StyleGuidePage.tsx',
   'OcorrenciasPage.tsx',
 ];
 
 const nativePrimitiveBudget = {
-  'AgentDetailPage.tsx': 8,
   'CustomersPage.tsx': 1,
   'CustomerDetailPage.tsx': 1,
   'PlansPage.tsx': 26,

@@ -47,8 +47,9 @@ describe('Timeline de auditoria', () => {
     render(<AuditPage />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'Auditoria' })).toBeVisible();
-    expect(screen.getByText('Linha do tempo')).toBeVisible();
-    expect(screen.getAllByText('Configuration published').length).toBeGreaterThan(0);
+    expect(screen.getByText('Registros encontrados')).toBeVisible();
+    expect(screen.getAllByText('Configuração publicada').length).toBeGreaterThan(0);
+    expect(screen.getByRole('region', { name: 'Resumo da auditoria' })).toBeVisible();
     expect(screen.getByText('Contexto sanitizado')).toBeVisible();
     expect(screen.getByText('Publicação aprovada após revisão.')).toBeVisible();
   });

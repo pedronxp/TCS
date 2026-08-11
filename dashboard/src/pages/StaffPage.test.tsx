@@ -45,12 +45,12 @@ vi.mock('@/contexts/AuthContext', () => ({
 
 afterEach(cleanup);
 
-describe('Equipe interna', () => {
-  it('reproduz destaque, diretório e cobertura de papéis', () => {
+describe('Pessoas e acessos', () => {
+  it('reproduz postura, diretório e cobertura de papéis', () => {
     render(<StaffPage />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Equipe interna' })).toBeVisible();
-    expect(screen.getByText('Time em destaque')).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeVisible();
+    expect(screen.getByText('Postura de acesso')).toBeVisible();
     expect(screen.getByText('Diretório')).toBeVisible();
     expect(screen.getByText('Cobertura de papéis')).toBeVisible();
     expect(screen.getByText('Estado de acesso')).toBeVisible();

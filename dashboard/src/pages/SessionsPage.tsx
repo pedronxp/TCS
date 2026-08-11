@@ -123,7 +123,7 @@ export function SessionsPage() {
               customers={activeCustomers}
             />
 
-            <div className="mt-7 grid items-stretch gap-5 xl:grid-cols-[420px_300px_minmax(0,1fr)] xl:grid-rows-[300px]">
+            <div className="mt-7 grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_300px_minmax(320px,0.9fr)] xl:grid-rows-[300px]">
               <AnomalyMap sessions={overviewItems} anomalies={anomalies} />
               <PolicyCard policy={policy} />
               <RiskAlert anomalies={anomalies} onSelect={(session) => void openReview(session)} />
@@ -323,14 +323,14 @@ function SessionPulse({
   customers: number;
 }) {
   return (
-    <Card className="overflow-hidden border-foreground bg-foreground text-background shadow-none">
+    <Card className="overflow-hidden border-primary/15 bg-success-soft text-foreground shadow-none">
       <CardContent className="grid grid-cols-3 gap-7 p-6 xl:grid-cols-[minmax(0,1fr)_repeat(3,minmax(72px,132px))] xl:items-center">
         <div className="col-span-3 xl:col-span-1">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Agora</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Panorama agora</p>
           <strong className="mt-4 block text-[28px] leading-none">
             {overview.total.toLocaleString('pt-BR')} {overview.total === 1 ? 'sessão ativa' : 'sessões ativas'}
           </strong>
-          <p className="mt-3 text-xs text-background/60">
+          <p className="mt-3 text-xs text-muted-foreground">
             em {devices.toLocaleString('pt-BR')} {devices === 1 ? 'dispositivo' : 'dispositivos'} ·{' '}
             {customers.toLocaleString('pt-BR')} {customers === 1 ? 'cliente' : 'clientes'}
           </p>
@@ -341,8 +341,8 @@ function SessionPulse({
           ['iOS', overview.platforms.ios],
         ] as const).map(([label, value]) => (
           <div key={label}>
-            <p className="text-[11px] font-medium text-background/60">{label}</p>
-            <strong className="mt-3 block text-xl text-primary">{value.toLocaleString('pt-BR')}</strong>
+            <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+            <strong className="mt-3 block text-xl text-primary tabular-nums">{value.toLocaleString('pt-BR')}</strong>
           </div>
         ))}
       </CardContent>
@@ -357,18 +357,8 @@ interface SessionAnomaly {
 }
 
 function findSessionAnomalies(sessions: SessionRow[]): SessionAnomaly[] {
-  const now = Date.now();
   const result: SessionAnomaly[] = [];
   sessions.forEach((session) => {
-    const heartbeat = new Date(session.last_heartbeat_at).getTime();
-    const timeout = session.organizations
-      ? session.organizations.session_timeout_minutes + session.organizations.offline_tolerance_minutes
-      : 24 * 60;
-    const elapsedMinutes = Number.isNaN(heartbeat) ? Number.POSITIVE_INFINITY : (now - heartbeat) / 60_000;
-    if (elapsedMinutes > timeout) {
-      result.push({ session, reason: `Heartbeat excedeu a política em ${Math.round(elapsedMinutes - timeout)} min`, severity: 'high' });
-      return;
-    }
     if (session.platform === 'unknown') {
       result.push({ session, reason: 'Plataforma não identificada', severity: 'medium' });
       return;
@@ -393,10 +383,10 @@ function AnomalyMap({ sessions, anomalies }: { sessions: SessionRow[]; anomalies
   const max = Math.max(...slots.map((slot) => slot.total), 1);
 
   return (
-    <Card className="border-info/20 bg-info-soft shadow-none">
+    <Card className="border-info/15 bg-info-soft/60 shadow-none">
       <CardContent className="p-6">
-        <h2 className="text-[17px] font-bold">Mapa de anomalias</h2>
-        <p className="mt-1 text-[11px] text-muted-foreground">Volume por hora e alertas derivados</p>
+        <h2 className="text-[17px] font-bold">Atividade recente</h2>
+        <p className="mt-1 text-[11px] text-muted-foreground">Pulso de atividade e exceções nas últimas horas.</p>
         <div
           className="mt-7 grid grid-cols-10 gap-2"
           role="img"
@@ -408,7 +398,7 @@ function AnomalyMap({ sessions, anomalies }: { sessions: SessionRow[]; anomalies
               title={`${slot.total} sessão(ões) no intervalo`}
               aria-hidden="true"
               className={cn(
-                'h-6 w-6 rounded-md',
+                'h-4 w-4 rounded-full',
                 slot.risk > 0
                   ? 'bg-warning'
                   : slot.total === 0
@@ -420,7 +410,7 @@ function AnomalyMap({ sessions, anomalies }: { sessions: SessionRow[]; anomalies
             />
           ))}
         </div>
-        <p className="mt-5 text-[10px] font-medium text-muted-foreground">Baixo · Médio · Alto risco</p>
+        <p className="mt-5 text-[10px] font-medium text-muted-foreground">Cada ponto representa uma janela de 30 minutos.</p>
       </CardContent>
     </Card>
   );
@@ -478,14 +468,14 @@ function RiskAlert({
   onSelect: (session: SessionRow) => void;
 }) {
   return (
-    <Card className="border-destructive/25 bg-destructive-soft shadow-none">
+    <Card className="border-warning/30 bg-warning-soft shadow-none">
       <CardContent className="p-6">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-destructive">Atenção</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-warning">Prioridades de segurança</p>
         <h2 className="mt-5 text-[22px] font-bold">
-          {anomalies.length.toLocaleString('pt-BR')} {anomalies.length === 1 ? 'sessão incomum' : 'sessões incomuns'}
+          {anomalies.length.toLocaleString('pt-BR')} {anomalies.length === 1 ? 'acesso exige atenção' : 'acessos exigem atenção'}
         </h2>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          Alertas derivados de heartbeat, plataforma e vínculo exigem revisão.
+          A expiração por inatividade é aplicada pelo servidor. Revise apenas acessos sem vínculo ou com plataforma desconhecida.
         </p>
         {anomalies.length ? (
           <div className="mt-6 space-y-4">
@@ -496,7 +486,7 @@ function RiskAlert({
                 onClick={() => onSelect(item.session)}
                 className="flex w-full items-start gap-3 text-left"
               >
-                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-background text-destructive">
+                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-card text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" />
                 </span>
                 <span className="min-w-0">

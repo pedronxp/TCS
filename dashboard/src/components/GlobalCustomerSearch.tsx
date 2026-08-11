@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCustomers } from '@/hooks/useCustomers';
+import { customerDetailPath } from '@/lib/customerRoutes';
 
 export function GlobalCustomerSearch() {
   const [value, setValue] = useState('');
@@ -32,7 +33,7 @@ export function GlobalCustomerSearch() {
                 key={customer.customer_id}
                 role="option"
                 onClick={() => {
-                  navigate(`/app/clientes/${encodeURIComponent(customer.customer_id)}`);
+                  navigate(customerDetailPath(customer.customer_id));
                   setValue('');
                 }}
                 className="block w-full border-b px-4 py-3 text-left last:border-0 hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"

@@ -202,12 +202,13 @@ export function SupportPage() {
         emptyTitle="Fila vazia"
         emptyDescription="Nenhum chamado corresponde aos filtros."
       >
-        <section className="grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_268px]" aria-label="Indicadores de suporte">
-          <SupportMetric code="A" label="Abertos" value={summary.open.length} detail={`${query.data?.total ?? 0} na fila`} tone="info" />
-          <SupportMetric code="P" label="Próximos do SLA" value={summary.nearSla.length} detail="ação imediata" tone="warning" />
-          <SupportMetric code="C" label="Críticos" value={summary.critical.length} detail={`${summary.critical.filter((item) => item.escalated).length} escalados`} tone="danger" />
-          <div className="hidden lg:block" />
-        </section>
+        <SupportPulse
+          open={summary.open.length}
+          total={query.data?.total ?? 0}
+          nearSla={summary.nearSla.length}
+          critical={summary.critical.length}
+          escalated={summary.critical.filter((item) => item.escalated).length}
+        />
 
         {view === 'board' && (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,810px)_260px]">
@@ -273,18 +274,18 @@ function TicketColumn({
   tone: 'danger' | 'warning' | 'info';
   onSelect: (id: string) => void;
 }) {
-  const line = { danger: 'border-t-destructive', warning: 'border-t-warning', info: 'border-t-primary' };
+  const line = { danger: 'bg-destructive', warning: 'bg-warning', info: 'bg-primary' };
   return (
-    <section className={cn('min-h-[518px] rounded-lg border border-t-4 bg-card p-3', line[tone])}>
+    <section className="min-h-[518px] rounded-2xl border border-border/85 bg-muted/45 p-3">
       <div className="flex items-center justify-between px-1 py-2">
-        <h3 className="text-[13px] font-bold">{title}</h3>
-        <span className="rounded-full bg-card px-3 py-1 text-[11px] font-semibold">{tickets.length}</span>
+        <h3 className="flex items-center gap-2 text-[13px] font-bold"><span className={cn('h-2 w-2 rounded-full', line[tone])} />{title}</h3>
+        <span className="rounded-full bg-card px-3 py-1 text-[11px] font-semibold tabular-nums">{tickets.length}</span>
       </div>
       <div className="mt-3 space-y-4">
         {tickets.slice(0, 4).map((ticket) => (
           <div key={ticket.id}>
             <button
-              className="w-full rounded-xl border bg-card p-4 text-left transition-[border-color] duration-150 hover:border-primary/40 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full rounded-2xl border border-border/85 bg-card p-4 text-left transition-[border-color,transform] duration-150 ease-out hover:border-primary/40 active:scale-[0.98] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transform-none"
               onClick={() => onSelect(ticket.id)}
             >
               <div className="flex items-center justify-between gap-3">
@@ -321,25 +322,25 @@ function SlaTower({ tickets }: { tickets: Ticket[] }) {
   const priorities = ['critical', 'high', 'normal', 'low'];
   const categories = Array.from(new Set(tickets.filter((ticket) => ticket.priority === 'critical').map((ticket) => ticket.category).filter(Boolean)));
   return (
-    <aside className="rounded-lg bg-foreground p-6 text-background">
-      <p className="text-[10px] font-bold uppercase text-primary">Torre de SLA</p>
-      <strong className="mt-4 block text-[30px]">{percent}%</strong>
-      <p className="text-[11px] text-background/60">{percent}% da fila aberta dentro do prazo · cálculo sobre {tickets.length} {tickets.length === 1 ? 'chamado' : 'chamados'}</p>
+    <aside className="rounded-2xl border border-primary/15 bg-success-soft/70 p-6 text-foreground">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Panorama de SLA</p>
+      <strong className="mt-4 block text-[30px] tabular-nums">{percent}%</strong>
+      <p className="text-[11px] text-muted-foreground">{percent}% da fila aberta dentro do prazo · cálculo sobre {tickets.length} {tickets.length === 1 ? 'chamado' : 'chamados'}</p>
       <dl className="mt-7">
         {priorities.map((priority) => {
           const matching = tickets.filter((ticket) => ticket.priority === priority);
           return (
-            <div key={priority} className="grid grid-cols-[1fr_auto] border-b border-background/10 py-4 text-xs first:pt-0">
+            <div key={priority} className="grid grid-cols-[1fr_auto] border-b border-primary/10 py-4 text-xs first:pt-0">
               <dt className="font-semibold">{ptBrLabel(priority)}</dt>
               <dd className="font-semibold">{matching.length}</dd>
-              <dd className="col-span-2 mt-2 text-[10px] text-background/50">{minimumDue(matching)}</dd>
+              <dd className="col-span-2 mt-2 text-[10px] text-muted-foreground">{minimumDue(matching)}</dd>
             </div>
           );
         })}
       </dl>
       <div className="mt-7">
-        <p className="text-xs font-semibold text-primary">Insight da fila</p>
-        <p className="mt-3 text-xs leading-5 text-background/80">
+        <p className="text-xs font-semibold text-primary">Leitura da fila</p>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">
           {categories.length
             ? `Chamados críticos concentrados em ${categories.map((item) => ptBrLabel(item)).join(', ')}.`
             : 'Nenhuma concentração crítica foi identificada nos dados retornados.'}
@@ -482,25 +483,34 @@ function ViewToggle({ value, onChange }: { value: 'board' | 'list' | 'metrics'; 
   );
 }
 
-function SupportMetric({ code, label, value, detail, tone }: { code: string; label: string; value: number; detail: string; tone: 'info' | 'warning' | 'danger' }) {
+function SupportPulse({ open, total, nearSla, critical, escalated }: { open: number; total: number; nearSla: number; critical: number; escalated: number }) {
   const tones = {
     info: 'bg-info-soft text-foreground',
     warning: 'bg-warning-soft text-foreground',
     danger: 'bg-destructive-soft text-foreground',
   };
+  const metrics = [
+    { code: 'A', label: 'Abertos', value: open, detail: `${total} na fila`, tone: 'info' as const },
+    { code: 'P', label: 'Próximos do SLA', value: nearSla, detail: 'ação imediata', tone: 'warning' as const },
+    { code: 'C', label: 'Críticos', value: critical, detail: `${escalated} escalados`, tone: 'danger' as const },
+  ];
   return (
-    <Card className="min-h-[104px] shadow-none">
-      <CardContent className="flex items-center gap-4 p-4">
-        <span className={cn('grid h-9 w-9 place-items-center rounded-lg text-xs font-bold', tones[tone])}>{code}</span>
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <div className="mt-1 flex items-baseline gap-5">
-            <strong className="text-[22px]">{value}</strong>
-            <span className="text-[10px] font-semibold text-foreground">{detail}</span>
+    <section className="rounded-2xl border border-border/85 bg-muted/45 p-3 sm:p-4" aria-label="Panorama de suporte">
+      <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {metrics.map((metric) => (
+          <div key={metric.code} className="flex items-center gap-4 px-3 py-3 sm:px-5">
+            <span className={cn('grid h-9 w-9 place-items-center rounded-xl text-xs font-bold', tones[metric.tone])}>{metric.code}</span>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">{metric.label}</p>
+              <div className="mt-1 flex items-baseline gap-3">
+                <strong className="text-[22px] tabular-nums">{metric.value}</strong>
+                <span className="truncate text-[10px] font-semibold text-foreground">{metric.detail}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+    </section>
   );
 }
 
