@@ -10,7 +10,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
-import { insertTrainingVistoria, insertVistoria, markErroSync, markSincronizado, updateAgendamentoVistoriaId, getFormularioCacheById } from '../../../utils/database';
+import { insertTrainingVistoria, insertVistoria, markErroSync, markSincronizado, storeOfficialProtocol, updateAgendamentoVistoriaId, getFormularioCacheById } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useTraining } from '../../../context/TrainingContext';
@@ -606,7 +606,7 @@ export default function WizardAvaliacaoScreen() {
         const midiaLocalPendente = (!!fotoUri?.startsWith('file://') && !fotoStorageUrl)
           || fotosAdicionais.some(uri => uri.startsWith('file://'));
 
-        const { error } = await supabase.from('vistorias').upsert({
+        const { data, error } = await supabase.rpc('sync_finalized_inspection', { p_inspection: {
           id,
           agenteUid: vistoriaLocal.agente_uid,
           agenteNome: vistoriaLocal.agente_nome,
@@ -630,8 +630,9 @@ export default function WizardAvaliacaoScreen() {
           fotoUrl: fotoUrlRemota,
           fotosUrls: fotosAdicionais.filter(uri => !uri.startsWith('file://')),
           status: 'concluida',
-        });
+        }});
         if (!error) {
+          if (typeof data?.protocol === 'string') storeOfficialProtocol(id, data.protocol);
           if (midiaLocalPendente) {
             markErroSync(id, 'Dados enviados; mídia local pendente de upload.');
             logger.warn('sync', `Dados sincronizados, mas foto local ficou pendente`, { id });

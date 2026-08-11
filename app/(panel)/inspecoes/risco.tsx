@@ -8,7 +8,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { AppHeader, Badge, Button, Card, EmptyState, StateBanner } from '../../../components/ui';
 import { supabase } from '../../../utils/supabase';
-import { insertVistoria, markSincronizado, getVistoriaById } from '../../../utils/database';
+import { insertVistoria, markSincronizado, storeOfficialProtocol, getVistoriaById } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
 import { logger } from '../../../utils/logger';
@@ -148,7 +148,7 @@ export default function ResultadoRiscoScreen() {
         });
 
         if (isConnected) {
-          const { error } = await supabase.from('vistorias').upsert({
+          const { data, error } = await supabase.rpc('sync_finalized_inspection', { p_inspection: {
             id: vistoriaId,
             agenteUid: session.user.id,
             agenteNome: user?.name,
@@ -160,8 +160,9 @@ export default function ResultadoRiscoScreen() {
             respostasJson: respostas,
             dataVistoria: now,
             status: 'concluida',
-          });
+          }});
           if (!error) {
+            if (typeof data?.protocol === 'string') storeOfficialProtocol(vistoriaId, data.protocol);
             markSincronizado(vistoriaId);
           }
         }

@@ -44,6 +44,7 @@ jest.mock('../../utils/supabase', () => ({
 // Referências obtidas APÓS o mock estar registrado (via requireMock — não hoistado)
 let mockSupabase: any;
 let mockUpsertFn: jest.Mock;
+let mockRpcFn: jest.Mock;
 let mockDeleteFn: jest.Mock;
 let mockEqFn: jest.Mock;
 let mockFromFn: jest.Mock;
@@ -82,6 +83,7 @@ jest.mock('../../utils/localTestMode', () => ({
 jest.mock('../../utils/database', () => ({
   getVistoriasNaoSincronizadas: jest.fn().mockReturnValue([]),
   markSincronizado: jest.fn(),
+  storeOfficialProtocol: jest.fn(),
   markErroSync: jest.fn(),
   incrementTentativasSync: jest.fn(),
   resetTentativasSync: jest.fn(),
@@ -170,6 +172,8 @@ beforeEach(() => {
   mockUpsertFn = jest.fn().mockResolvedValue({ error: null });
   mockFromFn = jest.fn(() => ({ upsert: mockUpsertFn, delete: mockDeleteFn }));
   mockSupabase.from = mockFromFn;
+  mockRpcFn = jest.fn((_name, { p_inspection }) => mockUpsertFn(p_inspection));
+  mockSupabase.rpc = mockRpcFn;
 
   // Obter referências aos mocks de database via requireMock (evita TDZ com const)
   const dbMock = jest.requireMock('../../utils/database');
@@ -264,12 +268,13 @@ describe('syncPendentes', () => {
 
     // Se upsert foi chamado (em algum fallback), não deve conter file://
     expect(resultado).toEqual({ sucesso: 0, falha: 1 });
-    expect(mockUpsertFn).toHaveBeenCalledTimes(1);
+    expect(mockUpsertFn).toHaveBeenCalled();
     expect(mockMarkSincronizado).not.toHaveBeenCalledWith('v-1');
     expect(mockMarkErroSync).toHaveBeenCalledWith('v-1', 'Dados enviados; mídia local pendente de upload.');
 
     for (const call of mockUpsertFn.mock.calls) {
       const payload = Array.isArray(call[0]) ? call[0][0] : call[0];
+      if (!payload) continue;
       expect(payload.fotoUrl).toBeNull();
     }
   });
@@ -290,7 +295,7 @@ describe('syncPendentes', () => {
     const resultado = await syncPendentes();
 
     expect(resultado).toEqual({ sucesso: 0, falha: 1 });
-    expect(mockUpsertFn).toHaveBeenCalledTimes(1);
+    expect(mockUpsertFn).toHaveBeenCalled();
     const payload = mockUpsertFn.mock.calls[0][0];
     const fotosUrls = Array.isArray(payload) ? payload[0].fotosUrls : payload.fotosUrls;
     expect(fotosUrls).toEqual(['https://cdn.example.com/evidencia-ok.jpg']);
@@ -325,6 +330,26 @@ describe('syncPendentes', () => {
   });
 
   // ── Critério 4: appointment sync ───────────────────────────────────────────
+
+  it('envia a finalizaÃ§Ã£o pela RPC oficial sem permitir protocolo escolhido pelo app', async () => {
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
+
+    await syncPendentes();
+
+    expect(mockRpcFn).toHaveBeenCalledWith(
+      'sync_finalized_inspection',
+      expect.objectContaining({
+        p_inspection: expect.objectContaining({
+          id: 'v-1',
+          status: 'concluida',
+        }),
+      }),
+    );
+    const payload = mockRpcFn.mock.calls[0][1].p_inspection;
+    expect(payload).not.toHaveProperty('protocolo');
+    expect(payload).not.toHaveProperty('protocol_seq');
+    expect(mockFromFn).not.toHaveBeenCalled();
+  });
 
   it('sincroniza agendamento pendente (status != deletado)', async () => {
     mockGetVistoriasNaoSincronizadas.mockReturnValue([]);

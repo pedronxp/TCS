@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 19;
+const DB_VERSION = 20;
 
 let db: SQLite.SQLiteDatabase | null = null;
 let acknowledgementSchemaEnsured = false;
@@ -318,6 +318,11 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
       try { database.runSync(`UPDATE agendamentos SET origem = 'app' WHERE origem IS NULL`); } catch { /* já existe */ }
     }
 
+    if (currentVersion < 20) {
+      // Protocolo oficial Ã© devolvido apenas pelo servidor apÃ³s a sincronizaÃ§Ã£o.
+      try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN protocolo TEXT`); } catch { /* jÃ¡ existe */ }
+    }
+
     database.runSync(
       `INSERT OR REPLACE INTO db_meta (key, value) VALUES ('version', ?)`,
       [String(DB_VERSION)]
@@ -355,6 +360,7 @@ export interface VistoriaLocal {
   laudo_url: string | null;     // URL signed do PDF no Storage
   laudo_gerado_em: string | null; // ISO timestamp da última geração
   laudo_local_uri?: string | null; // arquivo PDF pendente de upload
+  protocolo?: string | null;      // emitido pelo servidor; nunca gerado no dispositivo
   feita_online: number | null;  // 1 = feita com internet, 0 = feita offline, NULL = desconhecido (registro antigo)
   sincronizado: number;         // 0 = pendente, 1 = sincronizado
   erro_sync: string | null;
@@ -502,6 +508,16 @@ export function markSincronizado(id: string): void {
   database.runSync(
     `UPDATE vistorias_offline SET sincronizado = 1, erro_sync = NULL WHERE id = ?`,
     [id]
+  );
+}
+
+export function storeOfficialProtocol(id: string, protocolo: string): void {
+  const value = protocolo.trim();
+  if (!value) return;
+  const database = getDb();
+  database.runSync(
+    `UPDATE vistorias_offline SET protocolo = ? WHERE id = ?`,
+    [value, id]
   );
 }
 
