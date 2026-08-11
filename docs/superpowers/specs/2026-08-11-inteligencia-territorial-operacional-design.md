@@ -21,7 +21,7 @@ O escopo cobre quatro experiências conectadas:
 1. Linha do Tempo do Imóvel.
 2. Dossiê Territorial.
 3. Monitor de Cobertura.
-4. Mural de Pendências.
+4. Fila de Pendências.
 
 O app mobile recebe uma quinta experiência derivada: **Minhas pendências**, para os agentes executarem e concluírem ações atribuídas.
 
@@ -46,7 +46,7 @@ Vistorias existentes
         |
         +-- Pendências operacionais
                 |
-                +-- Mural web de coordenação
+                +-- Fila web de coordenação
                 +-- Minhas pendências no app
                 +-- Auditoria e observabilidade interna
 ```
@@ -96,7 +96,7 @@ Políticas RLS restringirão cada organização aos próprios dados. Agentes pod
 
 1. Um coordenador abre uma vistoria, Linha do Tempo ou Dossiê Territorial.
 2. Cria uma pendência com prioridade, responsável e prazo.
-3. O Mural a exibe na coluna correspondente ao estado, com filtros por prioridade, responsável, prazo e território.
+3. A Fila de Pendências a ordena por risco, prazo e estado, deixando explícita a próxima providência da coordenação; cada item mostra responsável, local e prazo.
 4. Cada transição registra evento de auditoria e atualiza a Linha do Tempo do local.
 
 ### Concluir no app mobile
@@ -122,7 +122,7 @@ Políticas RLS restringirão cada organização aos próprios dados. Agentes pod
 
 - Migrações, RLS, eventos e contratos de pendência.
 - Linha do Tempo do Imóvel no portal.
-- Mural de Pendências no portal.
+- Fila de Pendências no portal.
 - Minhas pendências e conclusão offline no app.
 
 ### Fase 2 — Visão territorial
