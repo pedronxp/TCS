@@ -291,7 +291,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
                 <Rocket className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-foreground">Versionamento Comercial Auditável</h3>
+                <h2 className="text-sm font-bold text-foreground">Versionamento Comercial Auditável</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Toda atualização cria uma versão rastreável e mantém a integridade dos contratos ativos.
                 </p>
@@ -299,7 +299,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="rounded-lg bg-card/80 px-3 py-1 font-semibold">
-                {draftCount} {draftCount === 1 ? 'rascunho em aberto' : 'rascunhos em aberto'}
+                {draftCount} {draftCount === 1 ? 'rascunho em elaboração' : 'rascunhos em elaboração'}
               </Badge>
             </div>
           </div>

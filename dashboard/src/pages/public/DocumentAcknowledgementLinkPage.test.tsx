@@ -337,11 +337,11 @@ describe('ciência eletrônica por link', () => {
   });
 
   it('mantém contraste AA determinístico do token primário nos temas claro e escuro', () => {
-    expect(themeCss).toContain('--primary: 152.449 70% 27.451%;');
-    const lightPrimary = hslToRgb([152.449, 70, 27.451]);
+    expect(themeCss).toContain('--primary: 0 0% 9%;');
+    const lightPrimary = hslToRgb([0, 0, 9]);
     const lightBackground = hslToRgb([0, 0, 98]);
     const lightCard = hslToRgb([0, 0, 100]);
-    const darkPrimary = hslToRgb([158, 60, 45]);
+    const darkPrimary = hslToRgb([0, 0, 98]);
     const darkBackground = hslToRgb([0, 0, 9]);
     const darkCard = hslToRgb([0, 0, 12]);
     const darkPrimaryForeground = hslToRgb([0, 0, 9]);

@@ -19,11 +19,11 @@ describe('Catálogo de planos', () => {
   it('reproduz catálogo, versionamento e comparativo comercial', () => {
     render(<PlansPage demo />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Planos' })).toBeVisible();
-    expect(screen.getByText('Versionamento comercial ativo')).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1, name: 'Catálogo de Planos' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Versionamento Comercial Auditável' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Municipal Básico' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Versões recentes' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Comparativo comercial' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Versões Publicadas' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Resumo de Recursos e Preços' })).toBeVisible();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {
@@ -37,6 +37,6 @@ describe('Catálogo de planos', () => {
     // cobertura do catálogo agora mostra rascunhos em elaboração + planos registrados
     expect(screen.getByText(/rascunhos em elaboração/)).toBeVisible();
     // planos em rascunho não constam como publicados — estado honesto, sem mhprova fabricada
-    expect(screen.getByText('Ainda não há versões publicadas.')).toBeVisible();
+    expect(screen.getByText('Ainda não há edições publicadas.')).toBeVisible();
   });
 });

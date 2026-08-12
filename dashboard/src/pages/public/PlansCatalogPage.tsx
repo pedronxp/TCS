@@ -84,7 +84,7 @@ export function PlansCatalogPage() {
 function PlanCard({ plan }: { plan: PublicPlan }) {
   const isMunicipal = plan.audience === 'municipal';
   return (
-    <Card className={`flex flex-col rounded-2xl border p-6 transition-all duration-200 shadow-xs ${plan.highlighted ? 'border-primary bg-primary text-primary-foreground shadow-md' : 'border-border/80 bg-card text-card-foreground hover:border-primary/40'}`}>
+    <Card role="article" className={`flex flex-col rounded-2xl border p-6 transition-all duration-200 shadow-xs ${plan.highlighted ? 'border-primary bg-primary text-primary-foreground shadow-md' : 'border-border/80 bg-card text-card-foreground hover:border-primary/40'}`}>
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-2xl font-bold tracking-tight">{plan.name}</h3>
         {plan.highlighted && (
@@ -116,11 +116,11 @@ function PlanCard({ plan }: { plan: PublicPlan }) {
       <div className="mt-6 pt-4 border-t border-border/40">
         {isMunicipal ? (
           <Button asChild variant={plan.highlighted ? 'secondary' : 'outline'} className={`w-full rounded-xl font-semibold ${plan.highlighted ? 'bg-primary-foreground text-primary hover:bg-primary-foreground/90' : ''}`}>
-            <a href={`mailto:comercial@tcs.app?subject=${encodeURIComponent(`Solicitar proposta — ${plan.name}`)}`}>Solicitar Proposta</a>
+            <a href={`mailto:comercial@tcs.app?subject=${encodeURIComponent(`Solicitar proposta — ${plan.name}`)}`}>Solicitar proposta do {plan.name}</a>
           </Button>
         ) : (
           <Button asChild variant={plan.highlighted ? 'secondary' : 'default'} className={`w-full rounded-xl font-semibold ${plan.highlighted ? 'bg-primary-foreground text-primary hover:bg-primary-hover' : ''}`}>
-            <Link to="/criar-conta">Criar Conta</Link>
+            <Link to="/criar-conta">Continuar para criar conta</Link>
           </Button>
         )}
       </div>
