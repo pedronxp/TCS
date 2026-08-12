@@ -14,7 +14,11 @@ import { DEFESA_CIVIL_LOGO_BASE64 } from '../_shared/defesaCivilLogo.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const FROM_NAME = 'TCS – Relatório de Risco';
-const FROM_EMAIL = 'onboarding@resend.dev'; // Trocar pelo domínio verificado quando disponível
+// Use um domínio verificado no Resend (ex.: notificacoes@tcs.app).
+// O padrão onboarding@resend.dev é sandbox: SÓ entrega para destinatários
+// pré-autorizados — qualquer outro e-mail (recuperação de senha, cadastro
+// de terceiros) é rejeitado, quebrando o fluxo de auth.
+const FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? 'onboarding@resend.dev';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -377,8 +381,12 @@ Deno.serve(async (req: Request) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[send-auth-email] ❌ Erro: ${message}`);
 
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
+    // Send Email Hook: non-2xx aborta a operação de authORIGINAL (ex.:
+    // resetPasswordForEmail devolve erro → portal mostra "Não foi possível
+    // solicitar a recuperação"). Responder 200 mesmo em falha evita quebrar
+    // o fluxo do usuário; o erro fica visível nos logs para depuração.
+    return new Response(JSON.stringify({ success: false, error: message }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

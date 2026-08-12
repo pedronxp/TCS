@@ -105,6 +105,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (mode === 'sign-up' && !termsAccepted) {
+      setMessage('Aceite os Termos de Uso e a Política de Privacidade para criar sua conta.');
+      return;
+    }
     setSubmitting(true);
     setMessage(null);
     const error = mode === 'sign-in'
@@ -124,6 +128,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   }
 
   async function google() {
+    if (mode === 'sign-up' && !termsAccepted) {
+      setMessage('Aceite os Termos de Uso e a Política de Privacidade antes de continuar com o Google.');
+      return;
+    }
     setSubmitting(true);
     setMessage(null);
     const error = await signInWithGoogle();
@@ -285,14 +293,25 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                   {mode === 'sign-up' && <span className="mt-2 block text-xs font-normal text-muted-foreground">Use pelo menos 8 caracteres.</span>}
                 </div>
                 {message && <div className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</div>}
-                <Button type="submit" className="w-full" disabled={submitting}>
+                {mode === 'sign-up' && (
+                  <label className="flex items-start gap-3 text-sm text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4"
+                      checked={termsAccepted}
+                      onChange={(event) => setTermsAccepted(event.target.checked)}
+                    />
+                    Li e aceito os Termos de Uso e a Política de Privacidade vigentes.
+                  </label>
+                )}
+                <Button type="submit" className="w-full" disabled={submitting || (mode === 'sign-up' && !termsAccepted)}>
                   {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                   {submitting ? 'Aguarde…' : mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta'}
                 </Button>
                 {mode === 'sign-in' && <Link className="block text-center text-sm font-semibold text-primary hover:underline" to={`/recuperar-senha${location.search}`}>Esqueci minha senha</Link>}
               </form>
               <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
-              <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting} aria-busy={submitting}>
+              <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting || (mode === 'sign-up' && !termsAccepted)} aria-busy={submitting}>
                 <GoogleMark />
                 Continuar com Google
               </Button>

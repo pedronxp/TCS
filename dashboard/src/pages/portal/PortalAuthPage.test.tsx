@@ -168,10 +168,27 @@ describe('autenticação pública do portal', () => {
     await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Teste');
     await user.type(screen.getByLabelText('E-mail'), 'pessoa@exemplo.com');
     await user.type(screen.getByLabelText('Senha'), 'senha-segura');
+    // Aceite dos Termos de Uso e Política de Privacidade é obrigatório para criar conta.
+    await user.click(screen.getByRole('checkbox', { name: /Li e aceito os Termos de Uso e a Política de Privacidade/ }));
     await user.click(screen.getByRole('button', { name: 'Criar conta' }));
 
     expect(await screen.findByText('Confirme seu e-mail')).toBeVisible();
     expect(screen.getByRole('status')).toHaveTextContent('Conta criada. Confirme o link enviado ao seu e-mail para continuar.');
     expect(portalAuthState.signUp).toHaveBeenCalledWith('Pessoa Teste', 'pessoa@exemplo.com', 'senha-segura', 'individual');
+  });
+
+  it('bloqueia a criação de conta sem aceitar os Termos de Uso e a Política de Privacidade', async () => {
+    const user = userEvent.setup();
+    portalAuthState.session = null;
+    render(<MemoryRouter initialEntries={['/criar-conta?plan=individual']}><PortalAuthPage mode="sign-up" /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Teste');
+    await user.type(screen.getByLabelText('E-mail'), 'pessoa@exemplo.com');
+    await user.type(screen.getByLabelText('Senha'), 'senha-segura');
+
+    // Botão de criar conta permanece desabilitado até aceitar os termos.
+    expect(screen.getByRole('button', { name: 'Criar conta' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Criar conta' }));
+    expect(portalAuthState.signUp).not.toHaveBeenCalled();
   });
 });
