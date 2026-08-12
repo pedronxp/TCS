@@ -227,7 +227,7 @@ export function FormsPage() {
                     </thead>
                     <tbody className="divide-y">
                       {filteredForms.map((form) => (
-                        <tr key={form.id} className={cn('transition-colors hover:bg-secondary/35', selected?.id === form.id && 'bg-success-soft')}>
+                        <tr key={form.id} className={cn('transition-colors hover:bg-secondary/50', selected?.id === form.id && 'bg-accent')}>
                           <td className="px-6 py-4">
                             <button className="max-w-[270px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedId(form.id)}>
                               <span className="block truncate font-semibold">{form.title}</span>

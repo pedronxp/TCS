@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
-    <script>(function(){try{var s=localStorage.getItem('tcs.console.theme');var t=(s==='light'||s==='dark')?s:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
+    <script>(function(){try{var s=localStorage.getItem('tcs.console.theme');if(s==='orca')s='dark';var valid=['light','dark','orca','dracula','nord','gruvbox'];var t=(valid.indexOf(s)!==-1)?s:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t;if(t!=='light'){document.documentElement.classList.add('dark');}}catch(e){document.documentElement.dataset.theme='dark';document.documentElement.classList.add('dark');}})();</script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/tcs-system-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

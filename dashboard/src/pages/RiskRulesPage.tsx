@@ -447,7 +447,7 @@ function MunicipalityPanel({
               key={item.municipality}
               className={cn(
                 'flex min-h-[68px] w-full items-center gap-3 rounded-xl bg-muted/55 p-3 text-left transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                selected === item.municipality && 'bg-success-soft',
+                selected === item.municipality && 'bg-accent border border-primary/20',
               )}
               onClick={() => onSelect(item)}
               aria-pressed={selected === item.municipality}

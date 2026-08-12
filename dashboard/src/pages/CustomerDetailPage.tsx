@@ -745,8 +745,8 @@ function MemberAccessSheet({ customerId, user, onOpenChange }: {
           <SheetDescription>{user.email || 'E-mail protegido'} · {ptBrLabel(user.role, 'Sem papel')} · Equipe da organização</SheetDescription>
         </SheetHeader>
         <div className="mt-7 space-y-6">
-          <section className="rounded-2xl border border-primary/10 bg-success-soft/45 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary">Identidade e acesso</p>
+          <section className="rounded-2xl border border-border/80 bg-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Identidade e acesso</p>
             <div className="mt-3 flex items-center justify-between gap-3"><StatusBadge value={user.status} /><span className="text-xs text-muted-foreground">Último acesso: {formatDate(user.last_login)}</span></div>
             {canManage && <div className="mt-4">{user.status === 'active' ? <Button variant="outline" onClick={() => setPendingAction('block')} disabled={mutation.isPending}><LockKeyhole />Bloquear acesso</Button> : <Button onClick={() => setPendingAction('unblock')} disabled={mutation.isPending}><UnlockKeyhole />Liberar acesso</Button>}</div>}
           </section>

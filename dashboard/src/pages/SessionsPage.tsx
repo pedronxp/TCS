@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, LogOut, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, LogOut, ShieldCheck, Monitor, Smartphone, Tablet, Activity, Filter, RefreshCw } from 'lucide-react';
 import { HighAssuranceDialog } from '@/components/security/HighAssuranceDialog';
 import { PageHeader } from '@/components/domain/PageHeader';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
@@ -93,7 +93,7 @@ export function SessionsPage() {
   const policy = useMemo(() => summarizePolicy(overviewItems, can('session.terminate')), [overviewItems, can]);
 
   return (
-    <div className="page-stack">
+    <div className="page-stack space-y-6">
       <form
         id="session-revoke-form"
         className="sr-only"
@@ -104,9 +104,9 @@ export function SessionsPage() {
       />
 
       <PageHeader
-        eyebrow="Segurança de acesso"
-        title="Sessões"
-        description="Visibilidade em tempo real sobre dispositivos, políticas e comportamentos incomuns. Revogações remotas exigem confirmação e são registradas com motivo e horário."
+        eyebrow="Segurança e Acessos"
+        title="Sessões Conectadas"
+        description="Monitoramento em tempo real de dispositivos ativos, políticas de expiração e comportamento incomum."
       />
 
       <AsyncBoundary
@@ -123,7 +123,7 @@ export function SessionsPage() {
               customers={activeCustomers}
             />
 
-            <div className="mt-7 grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_300px_minmax(320px,0.9fr)] xl:grid-rows-[300px]">
+            <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.2fr)_320px_minmax(320px,1fr)]">
               <AnomalyMap sessions={overviewItems} anomalies={anomalies} />
               <PolicyCard policy={policy} />
               <RiskAlert anomalies={anomalies} onSelect={(session) => void openReview(session)} />
@@ -132,97 +132,139 @@ export function SessionsPage() {
         ) : null}
       </AsyncBoundary>
 
-      <Card className="overflow-hidden shadow-none">
-        <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-[17px] font-bold">Sessões recentes</h2>
-          <div className="flex flex-col gap-2 sm:flex-row">
+      <Card className="rounded-2xl border-border/70 bg-card/80 backdrop-blur-sm shadow-sm overflow-hidden">
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 bg-muted/30">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Filter className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Sessões Recentes</h2>
+              <p className="text-xs text-muted-foreground">Listagem filtrável dos acessos registrados na plataforma.</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-full sm:w-40" aria-label="Filtrar status">
-                <SelectValue />
+              <SelectTrigger className="w-full sm:w-44 rounded-xl border-border/80 bg-background/80" aria-label="Filtrar status">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl border-border/80">
                 <SelectItem value="all">Todos os status</SelectItem>
                 {['active', 'ended', 'expired', 'revoked', 'replaced'].map((value) => (
                   <SelectItem key={value} value={value}>{ptBrLabel(value)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
             <Select value={platform} onValueChange={setPlatform}>
-              <SelectTrigger className="w-full sm:w-40" aria-label="Filtrar plataforma">
-                <SelectValue />
+              <SelectTrigger className="w-full sm:w-44 rounded-xl border-border/80 bg-background/80" aria-label="Filtrar plataforma">
+                <SelectValue placeholder="Plataforma" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl border-border/80">
                 <SelectItem value="all">Todas plataformas</SelectItem>
                 {['android', 'ios', 'web', 'unknown'].map((value) => (
                   <SelectItem key={value} value={value}>{value}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-xl border-border/80 shrink-0"
+              onClick={() => void query.refetch()}
+              title="Atualizar sessões"
+            >
+              <RefreshCw className={cn("h-4 w-4 text-muted-foreground", query.isFetching && "animate-spin text-primary")} />
+            </Button>
           </div>
         </div>
+
         {reviewError ? (
-          <div role="alert" className="mx-6 mb-4 flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive-soft p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <p>{reviewError}</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => setReviewError(null)}>
+          <div role="alert" className="mx-6 mt-4 flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive-soft p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-destructive font-medium">{reviewError}</p>
+            <Button type="button" variant="outline" size="sm" className="rounded-lg border-destructive/40 text-destructive" onClick={() => setReviewError(null)}>
               Fechar aviso
             </Button>
           </div>
         ) : null}
+
         <AsyncBoundary
           loading={query.isLoading}
           error={query.error}
           onRetry={() => void query.refetch()}
           empty={Boolean(query.data && !query.data.items.length)}
-          emptyTitle="Nenhuma sessão"
-          emptyDescription="Não há sessões para os filtros selecionados."
+          emptyTitle="Nenhuma sessão encontrada"
+          emptyDescription="Não há sessões registradas com os filtros selecionados."
         >
           {query.data?.items.length ? (
             <>
-              <Table className="min-w-[850px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Usuário</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Dispositivo</TableHead>
-                    <TableHead>Última atividade</TableHead>
-                    <TableHead>Risco</TableHead>
-                    <TableHead className="w-16"><span className="sr-only">Ações</span></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {query.data.items.map((session) => {
-                    const risk = anomalyIds.has(session.id);
-                    return (
-                      <TableRow key={session.id}>
-                        <TableCell className="pl-6 text-xs font-semibold">{shortId(session.user_id)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {session.organizations?.display_name || 'Sem organização'}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {session.device_name || session.platform}
-                          <span className="block text-[10px] uppercase">{session.platform}</span>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{relativeActivity(session.last_heartbeat_at)}</TableCell>
-                        <TableCell><Badge variant={risk ? 'warning' : 'success'}>{risk ? 'Revisar agora' : 'Normal'}</Badge></TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-primary"
-                            disabled={reviewingId === session.id}
-                            onClick={() => void openReview(session)}
-                          >
-                            {reviewingId === session.id ? 'Registrando…' : 'Revisar'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              <p className="border-t px-6 py-4 text-[11px] text-muted-foreground">
-                Exibindo {query.data.items.length} de {query.data.total.toLocaleString('pt-BR')} sessões · revogação remota exige confirmação e motivo
-              </p>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[850px]">
+                  <TableHeader>
+                    <TableRow className="border-b border-border/60 bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="pl-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Usuário</TableHead>
+                      <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Organização</TableHead>
+                      <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Dispositivo / Plataforma</TableHead>
+                      <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Última atividade</TableHead>
+                      <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Estado / Risco</TableHead>
+                      <TableHead className="w-24 text-right pr-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {query.data.items.map((session) => {
+                      const risk = anomalyIds.has(session.id);
+                      return (
+                        <TableRow key={session.id} className="border-b border-border/40 hover:bg-muted/50 transition-colors">
+                          <TableCell className="pl-6">
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                                {session.user_id.slice(0, 2).toUpperCase()}
+                              </div>
+                              <span className="text-xs font-mono font-semibold text-foreground">{shortId(session.user_id)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs font-medium text-foreground/90">
+                            {session.organizations?.display_name || <span className="text-muted-foreground italic">Sem organização</span>}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-2">
+                              <PlatformIcon platform={session.platform} />
+                              <div>
+                                <p className="font-semibold text-foreground">{session.device_name || 'Dispositivo genérico'}</p>
+                                <p className="text-[10px] uppercase font-mono text-muted-foreground">{session.platform}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs font-medium text-muted-foreground">
+                            {relativeActivity(session.last_heartbeat_at)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={risk ? 'warning' : session.status === 'active' ? 'success' : 'secondary'}>
+                              {risk ? 'Revisar agora' : ptBrLabel(session.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl border-border/80 text-xs hover:bg-primary/10 hover:text-primary transition-colors"
+                              disabled={reviewingId === session.id}
+                              onClick={() => void openReview(session)}
+                            >
+                              {reviewingId === session.id ? 'Carregando…' : 'Detalhes'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="border-t border-border/60 px-6 py-3.5 bg-muted/20 text-xs text-muted-foreground flex items-center justify-between">
+                <span>Exibindo <strong>{query.data.items.length}</strong> de <strong>{query.data.total.toLocaleString('pt-BR')}</strong> sessões</span>
+                <span>Revogação remota exige motivo registrado na auditoria</span>
+              </div>
             </>
           ) : null}
         </AsyncBoundary>
@@ -263,7 +305,7 @@ export function SessionsPage() {
       await recordSessionReview(session.id);
       setReviewed(session);
     } catch {
-      setReviewError('Não foi possível registrar esta revisão na auditoria. Os detalhes permaneceram fechados. Tente novamente.');
+      setReviewError('Não foi possível registrar esta revisão na auditoria. Tente novamente.');
     } finally {
       setReviewingId(null);
     }
@@ -323,28 +365,47 @@ function SessionPulse({
   customers: number;
 }) {
   return (
-    <Card className="overflow-hidden border-primary/15 bg-success-soft text-foreground shadow-none">
-      <CardContent className="grid grid-cols-3 gap-7 p-6 xl:grid-cols-[minmax(0,1fr)_repeat(3,minmax(72px,132px))] xl:items-center">
-        <div className="col-span-3 xl:col-span-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Panorama agora</p>
-          <strong className="mt-4 block text-[28px] leading-none">
-            {overview.total.toLocaleString('pt-BR')} {overview.total === 1 ? 'sessão ativa' : 'sessões ativas'}
+    <Card className="rounded-2xl border-border/80 bg-card/90 backdrop-blur-md text-foreground shadow-sm overflow-hidden">
+      <CardContent className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6 items-center divide-y md:divide-y-0 md:divide-x divide-border/60">
+        <div className="md:pr-4">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+            </span>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Panorama Em Tempo Real</p>
+          </div>
+          <strong className="mt-3 block text-3xl font-extrabold tracking-tight text-foreground">
+            {overview.total.toLocaleString('pt-BR')} <span className="text-lg font-normal text-muted-foreground">sessões ativas</span>
           </strong>
-          <p className="mt-3 text-xs text-muted-foreground">
-            em {devices.toLocaleString('pt-BR')} {devices === 1 ? 'dispositivo' : 'dispositivos'} ·{' '}
-            {customers.toLocaleString('pt-BR')} {customers === 1 ? 'cliente' : 'clientes'}
+          <p className="mt-2 text-xs text-muted-foreground">
+            em <strong>{devices.toLocaleString('pt-BR')}</strong> {devices === 1 ? 'dispositivo' : 'dispositivos'} · <strong>{customers.toLocaleString('pt-BR')}</strong> {customers === 1 ? 'cliente' : 'clientes'}
           </p>
         </div>
-        {([
-          ['Web', overview.platforms.web],
-          ['Android', overview.platforms.android],
-          ['iOS', overview.platforms.ios],
-        ] as const).map(([label, value]) => (
-          <div key={label}>
-            <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-            <strong className="mt-3 block text-xl text-primary tabular-nums">{value.toLocaleString('pt-BR')}</strong>
+
+        <div className="pt-4 md:pt-0 md:pl-6">
+          <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
+            <Monitor className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold">Web</span>
           </div>
-        ))}
+          <strong className="text-2xl font-bold text-foreground tabular-nums">{overview.platforms.web.toLocaleString('pt-BR')}</strong>
+        </div>
+
+        <div className="pt-4 md:pt-0 md:pl-6">
+          <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
+            <Smartphone className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold">Android</span>
+          </div>
+          <strong className="text-2xl font-bold text-foreground tabular-nums">{overview.platforms.android.toLocaleString('pt-BR')}</strong>
+        </div>
+
+        <div className="pt-4 md:pt-0 md:pl-6">
+          <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
+            <Tablet className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold">iOS</span>
+          </div>
+          <strong className="text-2xl font-bold text-foreground tabular-nums">{overview.platforms.ios.toLocaleString('pt-BR')}</strong>
+        </div>
       </CardContent>
     </Card>
   );
@@ -383,34 +444,45 @@ function AnomalyMap({ sessions, anomalies }: { sessions: SessionRow[]; anomalies
   const max = Math.max(...slots.map((slot) => slot.total), 1);
 
   return (
-    <Card className="border-info/15 bg-info-soft/60 shadow-none">
+    <Card className="rounded-2xl border-border/80 bg-card/70 backdrop-blur-sm shadow-sm">
       <CardContent className="p-6">
-        <h2 className="text-[17px] font-bold">Atividade recente</h2>
-        <p className="mt-1 text-[11px] text-muted-foreground">Pulso de atividade e exceções nas últimas horas.</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <h2 className="text-base font-bold text-foreground">Atividade Recente</h2>
+          </div>
+          <span className="text-[10px] font-medium text-muted-foreground">Janelas de 30 min</span>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">Volume de tráfego e distribuição de alertas no ciclo de 24 horas.</p>
+
         <div
-          className="mt-7 grid grid-cols-10 gap-2"
+          className="mt-6 grid grid-cols-12 gap-2"
           role="img"
-          aria-label={`Mapa de atividade com ${sessions.length} sessões e ${anomalies.length} alertas derivados`}
+          aria-label={`Mapa de atividade com ${sessions.length} sessões e ${anomalies.length} alertas`}
         >
           {slots.map((slot, index) => (
             <span
               key={index}
-              title={`${slot.total} sessão(ões) no intervalo`}
+              title={`${slot.total} sessão(ões) no intervalo (${index * 0.5}h)`}
               aria-hidden="true"
               className={cn(
-                'h-4 w-4 rounded-full',
+                'h-3.5 w-full rounded-md transition-all duration-200 hover:scale-110',
                 slot.risk > 0
-                  ? 'bg-warning'
+                  ? 'bg-warning shadow-xs ring-1 ring-warning/30'
                   : slot.total === 0
-                    ? 'bg-muted'
+                    ? 'bg-muted/60'
                     : slot.total / max > 0.66
-                      ? 'bg-info'
-                      : 'bg-info/55',
+                      ? 'bg-primary'
+                      : 'bg-primary/40',
               )}
             />
           ))}
         </div>
-        <p className="mt-5 text-[10px] font-medium text-muted-foreground">Cada ponto representa uma janela de 30 minutos.</p>
+        <div className="mt-4 flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/40">
+          <span>00:00</span>
+          <span>12:00</span>
+          <span>23:59</span>
+        </div>
       </CardContent>
     </Card>
   );
@@ -438,20 +510,22 @@ function PolicyCard({ policy }: { policy: PolicySummary }) {
     ['Política predominante', policy.policy === 'replace' ? 'Substituir' : policy.policy === 'block' ? 'Bloquear' : policy.policy],
     ['Expiração mediana', policy.timeout === null ? '—' : formatMinutes(policy.timeout)],
     ['Tolerância offline', policy.tolerance === null ? '—' : formatMinutes(policy.tolerance)],
-    ['Revogação remota', policy.remoteRevocation ? 'Disponível' : 'Sem permissão'],
+    ['Revogação remota', policy.remoteRevocation ? 'Disponível' : 'Restrita'],
   ];
   return (
-    <Card className="shadow-none">
+    <Card className="rounded-2xl border-border/80 bg-card/70 backdrop-blur-sm shadow-sm">
       <CardContent className="p-6">
-        <h2 className="text-[17px] font-bold">Política aplicada</h2>
-        <Badge variant={policy.policy === 'block' ? 'success' : 'warning'} className="mt-4">
-          Dados persistidos
-        </Badge>
-        <dl className="mt-6 space-y-5">
+        <h2 className="text-base font-bold text-foreground">Diretrizes de Sessão</h2>
+        <div className="mt-3">
+          <Badge variant={policy.policy === 'block' ? 'success' : 'secondary'} className="rounded-lg">
+            Persistência controlada
+          </Badge>
+        </div>
+        <dl className="mt-5 space-y-4">
           {rows.map(([label, value]) => (
-            <div key={label} className="flex items-start justify-between gap-4 text-[11px]">
+            <div key={label} className="flex items-center justify-between gap-4 text-xs">
               <dt className="text-muted-foreground">{label}</dt>
-              <dd className="text-right font-semibold">{value}</dd>
+              <dd className="font-semibold text-foreground">{value}</dd>
             </div>
           ))}
         </dl>
@@ -468,36 +542,41 @@ function RiskAlert({
   onSelect: (session: SessionRow) => void;
 }) {
   return (
-    <Card className="border-warning/30 bg-warning-soft shadow-none">
+    <Card className={cn("rounded-2xl shadow-sm transition-all", anomalies.length ? "border-warning/40 bg-warning-soft/30" : "border-border/80 bg-card/70")}>
       <CardContent className="p-6">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-warning">Prioridades de segurança</p>
-        <h2 className="mt-5 text-[22px] font-bold">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className={cn("h-4 w-4", anomalies.length ? "text-warning-foreground" : "text-muted-foreground")} />
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Alertas de Risco</p>
+        </div>
+
+        <h2 className="mt-3 text-lg font-bold text-foreground">
           {anomalies.length.toLocaleString('pt-BR')} {anomalies.length === 1 ? 'acesso exige atenção' : 'acessos exigem atenção'}
         </h2>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          A expiração por inatividade é aplicada pelo servidor. Revise apenas acessos sem vínculo ou com plataforma desconhecida.
+        <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+          Sessões ativas sem organização ou com identificador de plataforma incomum.
         </p>
+
         {anomalies.length ? (
-          <div className="mt-6 space-y-4">
+          <div className="mt-4 space-y-2.5">
             {anomalies.slice(0, 3).map((item) => (
               <button
                 key={item.session.id}
                 type="button"
                 onClick={() => onSelect(item.session)}
-                className="flex w-full items-start gap-3 text-left"
+                className="flex w-full items-center justify-between rounded-xl border border-warning/30 bg-card/90 p-3 text-left hover:border-warning/60 transition-all group"
               >
-                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-card text-warning">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                </span>
-                <span className="min-w-0">
-                  <strong className="block truncate text-[11px]">{shortId(item.session.user_id)}</strong>
-                  <span className="mt-0.5 block text-[10px] leading-4 text-foreground">{item.reason}</span>
-                </span>
+                <div className="min-w-0">
+                  <strong className="block truncate text-xs font-mono text-foreground">{shortId(item.session.user_id)}</strong>
+                  <span className="block text-[11px] text-muted-foreground">{item.reason}</span>
+                </div>
+                <span className="text-xs font-semibold text-primary group-hover:underline shrink-0 ml-2">Revisar</span>
               </button>
             ))}
           </div>
         ) : (
-          <p className="mt-7 text-xs font-medium text-foreground">Nenhuma anomalia detectada nos dados disponíveis.</p>
+          <div className="mt-4 rounded-xl border border-border/40 bg-card/60 p-4 text-center">
+            <p className="text-xs font-medium text-foreground">Nenhuma vulnerabilidade ou anomalia detectada.</p>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -519,24 +598,32 @@ function SessionReviewDialog({
   const risk = findSessionAnomalies([session])[0];
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-w-md rounded-2xl border-border/80 bg-card/95 backdrop-blur-xl p-6 shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Revisar sessão</DialogTitle>
-          <DialogDescription>
-            Esta consulta é registrada na auditoria. São exibidos apenas os dados necessários para avaliar o acesso.
+          <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-foreground">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+            Revisão Detalhada de Sessão
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Esta consulta é registrada na auditoria para conformidade de acesso.
           </DialogDescription>
         </DialogHeader>
-        <dl className="grid gap-4 text-sm">
-          <ReviewRow label="Identificador" value={shortId(session.user_id)} />
-          <ReviewRow label="Organização" value={session.organizations?.display_name || 'Não vinculada'} />
-          <ReviewRow label="Dispositivo" value={session.device_name || session.platform} />
+        <dl className="grid gap-3.5 py-3 text-xs">
+          <ReviewRow label="Identificador de Usuário" value={shortId(session.user_id)} />
+          <ReviewRow label="Organização Vinculada" value={session.organizations?.display_name || 'Não vinculada'} />
+          <ReviewRow label="Dispositivo / SO" value={session.device_name || session.platform} />
           <ReviewRow label="Última atividade" value={relativeActivity(session.last_heartbeat_at)} />
-          {risk && <ReviewRow label="Motivo da revisão" value={risk.reason} tone="warning" />}
+          {risk && <ReviewRow label="Motivo do Alerta" value={risk.reason} tone="warning" />}
         </dl>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>Fechar</Button>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" className="rounded-xl" onClick={onClose}>Fechar</Button>
           {canTerminate && session.status === 'active' ? (
-            <Button type="button" variant="destructive" onClick={onTerminate}><LogOut />Revogar sessão</Button>
+            <Button type="button" variant="destructive" className="rounded-xl gap-1.5" onClick={onTerminate}>
+              <LogOut className="h-4 w-4" />
+              Revogar sessão
+            </Button>
           ) : null}
         </DialogFooter>
       </DialogContent>
@@ -546,11 +633,24 @@ function SessionReviewDialog({
 
 function ReviewRow({ label, value, tone }: { label: string; value: string; tone?: 'warning' }) {
   return (
-    <div className="flex items-start justify-between gap-6 border-b pb-3 last:border-0 last:pb-0">
+    <div className="flex items-center justify-between gap-4 border-b border-border/50 pb-2.5 last:border-0 last:pb-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className={cn('max-w-[65%] text-right font-medium', tone === 'warning' && 'text-foreground')}>{value}</dd>
+      <dd className={cn('text-right font-medium', tone === 'warning' ? 'text-warning font-semibold' : 'text-foreground')}>{value}</dd>
     </div>
   );
+}
+
+function PlatformIcon({ platform }: { platform: string }) {
+  switch (platform.toLowerCase()) {
+    case 'web':
+      return <Monitor className="h-4 w-4 text-primary shrink-0" />;
+    case 'android':
+      return <Smartphone className="h-4 w-4 text-primary shrink-0" />;
+    case 'ios':
+      return <Tablet className="h-4 w-4 text-primary shrink-0" />;
+    default:
+      return <Activity className="h-4 w-4 text-muted-foreground shrink-0" />;
+  }
 }
 
 async function recordSessionReview(sessionId: string) {

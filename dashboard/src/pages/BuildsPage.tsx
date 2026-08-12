@@ -340,7 +340,7 @@ function PipelineStages({ build, request }: { build: BuildRow | null; request: B
 function PipelineIcon({ state }: { state: 'done' | 'active' | 'waiting' | 'error' }) {
   const classes = {
     done: 'bg-success-soft text-success',
-    active: 'bg-success-soft text-primary',
+    active: 'bg-info-soft text-info',
     waiting: 'bg-secondary text-muted-foreground',
     error: 'bg-destructive-soft text-destructive',
   };

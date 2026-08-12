@@ -221,7 +221,7 @@ export function AuditPage() {
                     key={`${row.source}-${row.id}`}
                     className={cn(
                       'grid grid-cols-[72px_20px_minmax(0,1fr)] rounded-xl border-b px-3 py-5 transition-colors sm:grid-cols-[104px_24px_minmax(0,1fr)_auto]',
-                      selected && auditKey(selected) === auditKey(row) && 'border-transparent bg-success-soft',
+                      selected && auditKey(selected) === auditKey(row) && 'border-primary/40 bg-accent',
                     )}
                   >
                     <time className="pt-0.5 text-[11px] font-bold text-muted-foreground" dateTime={row.createdAt}>

@@ -100,7 +100,7 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
                         cn(
                           'flex h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                           isActive
-                            ? 'bg-success-soft font-semibold text-primary'
+                            ? 'bg-accent font-semibold text-foreground'
                             : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                           compact && 'mx-auto h-12 w-12 justify-center rounded-xl px-0',
                         )

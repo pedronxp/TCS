@@ -14,6 +14,11 @@ import {
   LockKeyhole,
   Rocket,
   Save,
+  Sparkles,
+  Layers,
+  CheckCircle2,
+  ChevronRight,
+  Filter,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { jsonArray, jsonNumber, jsonObject, jsonString } from '@/lib/json';
@@ -21,8 +26,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { usePlanMutation } from '@/hooks/usePlanMutation';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
+import { PageHeader } from '@/components/domain/PageHeader';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/types/supabase';
 
@@ -97,10 +105,10 @@ interface PlanDraft {
 }
 
 const RESOURCE_META: { code: ResourceCode; label: string; hint: string }[] = [
-  { code: 'users', label: 'Usuários / agentes', hint: 'Quantidade ativa no plano' },
+  { code: 'users', label: 'Usuários / Agentes', hint: 'Quantidade ativa no plano' },
   { code: 'inspections', label: 'Vistorias por período', hint: 'Vistorias sincronizadas no ciclo' },
   { code: 'invitations', label: 'Convites por período', hint: 'Convites municipais emitidos' },
-  { code: 'storage_bytes', label: 'Armazenamento (bytes)', hint: 'Fotos e laudos enviados' },
+  { code: 'storage_bytes', label: 'Armazenamento (GB)', hint: 'Fotos e laudos enviados' },
   { code: 'sessions', label: 'Sessões simultâneas', hint: 'Acessos ativos por usuário' },
 ];
 
@@ -114,7 +122,7 @@ const PRIORITY_META: { code: Priority; label: string }[] = [
 const STATUS_LABEL: Record<PlanStatus, string> = { draft: 'Rascunho', active: 'Ativo', retired: 'Retirado' };
 const OVERAGE_LABEL: Record<CommercialConfig['overage_policy'], string> = {
   block: 'Bloquear novo consumo',
-  manual_review: 'Enviar para análise manual',
+  manual_review: 'Análise manual',
   allow_and_bill: 'Permitir e cobrar excedente',
   custom: 'Definido em contrato',
 };
@@ -198,7 +206,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
         .filter((version) => version.published_at)
         .map((version) => ({ plan, version })))
       .sort((a, b) => (b.version.published_at || '').localeCompare(a.version.published_at || ''))
-      .slice(0, 4),
+      .slice(0, 5),
     [commercialPlans],
   );
   const draftCount = commercialPlans.filter((plan) => plan.status === 'draft').length;
@@ -217,12 +225,12 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
         setPlans(current => current.map(item => item.id === plan.id
           ? applyDemoSave(item, draft, commercial, limits, sla)
           : item));
-        setNotice('Proposta atualizada na demonstração local. Nenhum dado real foi alterado.');
+        setNotice('Proposta comercial atualizada na demonstração local.');
       } else {
         const saved = await planMutation.mutateAsync({ planId: plan.id, plan: { name: draft.name.trim(), description: draft.description.trim() || null, status: draft.status }, commercial, features: draft.features, limits, sla, reason });
         if (!saved.ok) throw new Error(saved.error);
         await load();
-        setNotice('Proposta salva e uma nova versão comercial foi criada.');
+        setNotice('Proposta comercial salva com nova versão criada com sucesso.');
       }
       setEditing(null);
     } catch (saveError) {
@@ -233,28 +241,28 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
   };
 
   return (
-    <section className="page-stack mx-auto max-w-[1094px]" aria-labelledby="plans-title">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Catálogo comercial</p>
-          <h1 id="plans-title" className="mt-1 text-3xl font-black tracking-tight sm:text-[34px]">Planos</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Versões, limites e condições comerciais disponíveis para cada perfil de operação.
-          </p>
-        </div>
-        <div className="inline-flex w-fit rounded-lg border bg-card p-1" role="group" aria-label="Filtrar planos por público">
+    <div className="page-stack space-y-6 max-w-7xl mx-auto" aria-labelledby="plans-title">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PageHeader
+          eyebrow="Gestão Comercial"
+          title="Catálogo de Planos"
+          description="Versões, limites de recursos, tabelas de SLA e condições comerciais da operação."
+        />
+        <div className="inline-flex rounded-xl border border-border/80 bg-card p-1 shadow-xs self-start sm:self-center" role="group" aria-label="Filtrar planos por público">
           {([
             ['organization', 'Municipais'],
             ['individual', 'Individuais'],
-            ['all', 'Todos'],
+            ['all', 'Todos os planos'],
           ] as const).map(([value, label]) => (
             <button
               key={value}
               type="button"
               aria-pressed={audienceFilter === value}
               className={cn(
-                'rounded-md px-3 py-2 text-xs font-bold transition-colors',
-                audienceFilter === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary',
+                'rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all',
+                audienceFilter === value
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60',
               )}
               onClick={() => setAudienceFilter(value)}
             >
@@ -262,7 +270,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
       {demo && <DemoBadge />}
 
@@ -275,31 +283,38 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
         emptyTitle="Nenhum plano comercial"
         emptyDescription="Os planos cadastrados aparecerão aqui."
       >
-        <div className="flex flex-col gap-3 rounded-lg bg-info px-5 py-4 text-info-foreground sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-info-foreground/15">
-              <Rocket className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-sm font-bold">Versionamento comercial ativo</p>
-              <p className="mt-0.5 text-xs text-info-foreground/75">
-                Toda alteração gera uma nova versão auditável sem sobrescrever o histórico.
-              </p>
+        {/* Banner Informativo */}
+        <Card className="rounded-2xl border-border/70 bg-gradient-to-r from-primary/10 via-card to-card p-5 shadow-xs">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs">
+                <Rocket className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Versionamento Comercial Auditável</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Toda atualização cria uma versão rastreável e mantém a integridade dos contratos ativos.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="rounded-lg bg-card/80 px-3 py-1 font-semibold">
+                {draftCount} {draftCount === 1 ? 'rascunho em aberto' : 'rascunhos em aberto'}
+              </Badge>
             </div>
           </div>
-          <span className="w-fit rounded-full bg-info-foreground/15 px-3 py-1.5 text-[11px] font-bold">
-            {draftCount} {draftCount === 1 ? 'rascunho' : 'rascunhos'}
-          </span>
-        </div>
+        </Card>
 
         {notice && (
-          <div role="status" className="flex items-center gap-2 rounded-xl border border-success/25 bg-success-soft px-4 py-3 text-sm text-success">
-            <Check className="h-4 w-4" aria-hidden="true" /> {notice}
+          <div role="status" className="flex items-center gap-2.5 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-xs font-medium text-success-foreground">
+            <CheckCircle2 className="h-4 w-4 text-success shrink-0" aria-hidden="true" />
+            <span>{notice}</span>
           </div>
         )}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_252px]">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {/* Grid de Planos e Histórico */}
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {visiblePlans.map((plan, index) => (
               <PlanCard
                 key={plan.id}
@@ -311,66 +326,78 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
             ))}
           </div>
 
-          <aside className="rounded-lg border bg-card p-5" aria-labelledby="version-history-title">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Publicações</p>
-                <h2 id="version-history-title" className="mt-1 font-black">Versões recentes</h2>
-              </div>
-              <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
-            </div>
-            <div className="mt-5 space-y-3">
-              {publishedVersions.map(({ plan, version }) => (
-                <div key={`${plan.id}-${version.version}`} className="rounded-lg border-l-2 border-primary/40 bg-secondary/40 px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-bold">{plan.name}</p>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-bold text-foreground"><Check className="h-2.5 w-2.5 text-success" aria-hidden="true" />Publicada</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    v{version.version} · {formatDate(version.published_at)}
-                  </p>
+          {/* Painel Lateral: Histórico de Versões */}
+          <Card className="rounded-2xl border-border/80 bg-card/90 backdrop-blur-sm shadow-xs h-fit">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Histórico</p>
+                  <h2 className="text-base font-bold text-foreground mt-0.5">Versões Publicadas</h2>
                 </div>
-              ))}
-              {publishedVersions.length === 0 && (
-                <p className="rounded-xl bg-secondary p-3 text-xs text-muted-foreground">Ainda não há versões publicadas.</p>
-              )}
-            </div>
-            <div className="mt-6 border-t pt-4">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><History className="h-3.5 w-3.5" aria-hidden="true" />Cobertura do catálogo</p>
-              <p className="mt-1 text-2xl font-black">{commercialPlans.length}</p>
-              <p className="text-xs text-muted-foreground">{draftCount} {draftCount === 1 ? 'rascunho' : 'rascunhos'} em elaboração · {commercialPlans.length} {commercialPlans.length === 1 ? 'plano comercial registrado' : 'planos comerciais registrados'}</p>
-            </div>
-          </aside>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <CalendarDays className="h-4 w-4" />
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2.5">
+                {publishedVersions.map(({ plan, version }) => (
+                  <div key={`${plan.id}-${version.version}`} className="rounded-xl border border-border/60 bg-muted/30 p-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-xs font-bold text-foreground">{plan.name}</p>
+                      <Badge variant="success" className="px-1.5 py-0.2 text-[9px] font-bold">
+                        v{version.version}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Publicado em {formatDate(version.published_at)}
+                    </p>
+                  </div>
+                ))}
+                {publishedVersions.length === 0 && (
+                  <p className="rounded-xl bg-muted/40 p-4 text-center text-xs text-muted-foreground">Ainda não há edições publicadas.</p>
+                )}
+              </div>
+
+              <div className="mt-5 border-t border-border/60 pt-4 flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Total de Planos</span>
+                <span className="font-bold text-foreground">{commercialPlans.length} cadastrados</span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <section className="rounded-lg border bg-card p-5" aria-labelledby="comparison-title">
-          <div className="mb-4 flex items-center justify-between gap-4">
+        {/* Quadro Comparativo */}
+        <Card className="rounded-2xl border-border/80 bg-card/80 backdrop-blur-sm shadow-xs p-6">
+          <div className="mb-5 flex items-center justify-between gap-4 border-b border-border/60 pb-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Visão rápida</p>
-              <h2 id="comparison-title" className="mt-1 font-black">Comparativo comercial</h2>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Visão Rápida</p>
+              <h2 className="text-lg font-bold text-foreground mt-0.5">Resumo de Recursos e Preços</h2>
             </div>
-            <span className="text-xs text-muted-foreground">{visiblePlans.length} planos exibidos</span>
+            <Badge variant="secondary" className="rounded-lg">{visiblePlans.length} exibidos</Badge>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
+
+          <div className="grid gap-4 md:grid-cols-3">
             {visiblePlans.slice(0, 3).map((plan) => {
               const commercial = getCommercial(plan);
               return (
-                <div key={plan.id} className="rounded-xl bg-secondary p-4">
-                  <p className="text-sm font-bold">{plan.name}</p>
-                  <p className="mt-2 text-lg font-black text-primary">{formatPrice(commercial.monthly_price_cents)}</p>
+                <div key={plan.id} className="rounded-xl border border-border/60 bg-muted/30 p-4 hover:border-primary/40 transition-all">
+                  <span className="text-xs font-bold text-foreground">{plan.name}</span>
+                  <p className="mt-2 text-xl font-extrabold text-primary">{formatPrice(commercial.monthly_price_cents)}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {formatLimit(plan, 'users', 'usuários')} · {SUPPORT_LABEL[commercial.support_tier]}
+                    {formatLimit(plan, 'users', 'usuários')} · Suporte {SUPPORT_LABEL[commercial.support_tier]}
                   </p>
                 </div>
               );
             })}
           </div>
-        </section>
+        </Card>
 
         {compatibility && (
-          <div className="flex items-center gap-3 rounded-xl border border-dashed bg-secondary/60 p-4 text-sm text-muted-foreground">
-            <LockKeyhole className="h-5 w-5" aria-hidden="true" />
-            <div><b className="text-foreground">{compatibility.name}</b> é um plano técnico de transição e não pode ser comercializado ou editado aqui.</div>
+          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border/80 bg-muted/40 p-4 text-xs text-muted-foreground">
+            <LockKeyhole className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+            <div>
+              <b className="text-foreground">{compatibility.name}</b>: plano técnico reservado para migração de clientes legados.
+            </div>
           </div>
         )}
       </AsyncBoundary>
@@ -385,8 +412,21 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
           onSave={draft => setPendingSave({ plan: editing, draft })}
         />
       )}
-      {pendingSave && <HighRiskDialog open title="Confirmar nova versão do plano" description="Preço, trial, carência, recursos, limites e SLA serão preservados na auditoria." confirmLabel="Salvar nova versão" onClose={() => setPendingSave(null)} onConfirm={async reason => { await savePlan(pendingSave.plan, pendingSave.draft, reason); setPendingSave(null); }} />}
-    </section>
+
+      {pendingSave && (
+        <HighRiskDialog
+          open
+          title="Confirmar publicação de versão"
+          description="Preços, limites de consumo e políticas de SLA serão vinculados a esta versão na auditoria."
+          confirmLabel="Salvar Versão Comercial"
+          onClose={() => setPendingSave(null)}
+          onConfirm={async reason => {
+            await savePlan(pendingSave.plan, pendingSave.draft, reason);
+            setPendingSave(null);
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -394,51 +434,76 @@ function PlanCard({ plan, features, featured, onEdit }: { plan: PlanRow; feature
   const commercial = getCommercial(plan);
   const enabledFeatures = plan.plan_features.filter(item => item.enabled);
   const normalSla = plan.support_sla_policies.find(item => item.priority === 'normal');
+
   return (
-    <article className={cn('flex min-h-[378px] flex-col rounded-lg border p-5', featured ? 'border-primary bg-primary text-primary-foreground' : 'bg-card')}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className={cn('rounded-full px-2.5 py-1 text-[10px] font-bold', featured ? 'bg-primary-foreground/15 text-primary-foreground' : statusClass(plan.status))}>{STATUS_LABEL[plan.status]}</span>
-            <span className={cn('text-xs', featured ? 'text-primary-foreground/65' : 'text-muted-foreground')}>v{plan.current_version}</span>
+    <Card className={cn(
+      'flex flex-col rounded-2xl transition-all duration-200 overflow-hidden shadow-xs border',
+      featured ? 'border-primary bg-primary text-primary-foreground shadow-md' : 'border-border/80 bg-card text-card-foreground hover:border-primary/40'
+    )}>
+      <CardContent className="p-6 flex flex-col h-full">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <Badge variant={featured ? 'secondary' : plan.status === 'active' ? 'success' : 'warning'} className="rounded-lg text-[10px]">
+                {STATUS_LABEL[plan.status]}
+              </Badge>
+              <span className={cn('text-xs font-mono', featured ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
+                v{plan.current_version}
+              </span>
+            </div>
+            <h3 className="text-xl font-bold tracking-tight">{plan.name}</h3>
           </div>
-          <h2 className="text-lg font-black">{plan.name}</h2>
-          <p className={cn('mt-1 line-clamp-3 text-xs leading-5', featured ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{plan.description || 'Sem descrição comercial.'}</p>
+          {featured && (
+            <span className="rounded-full bg-primary-foreground px-2.5 py-0.5 text-[9px] font-extrabold uppercase text-primary tracking-wider">
+              Popular
+            </span>
+          )}
         </div>
-        {featured && <span className="rounded-full bg-primary-foreground px-2 py-1 text-[9px] font-black uppercase text-primary">Destaque</span>}
-      </div>
 
-      <div className="mt-5">
-        <p className={cn('text-2xl font-black', featured ? 'text-primary-foreground' : 'text-primary')}>{formatPrice(commercial.monthly_price_cents)}</p>
-        <p className={cn('text-[10px] font-semibold uppercase tracking-wide', featured ? 'text-primary-foreground/60' : 'text-muted-foreground')}>por mês</p>
-      </div>
+        <p className={cn('mt-2 text-xs leading-relaxed line-clamp-2', featured ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+          {plan.description || 'Sem descrição comercial.'}
+        </p>
 
-      <div className="mt-5 space-y-2.5">
-        {[
-          formatLimit(plan, 'users', 'usuários'),
-          formatLimit(plan, 'inspections', 'vistorias'),
-          `${SUPPORT_LABEL[commercial.support_tier]} · ${normalSla ? `${formatHours(normalSla.response_minutes)} resposta` : 'SLA contratual'}`,
-          enabledFeatures[0] ? (features.find((item) => item.code === enabledFeatures[0].feature_code)?.name || enabledFeatures[0].feature_code) : 'Recursos por contrato',
-        ].map((line) => (
-          <div key={line} className={cn('flex items-start gap-2 text-xs', featured ? 'text-primary-foreground/80' : 'text-foreground')}>
-            <CircleCheck className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', featured ? 'text-primary-foreground' : 'text-success')} aria-hidden="true" />
-            <span>{line}</span>
+        <div className="mt-5 pt-4 border-t border-border/40">
+          <div className="flex items-baseline gap-1">
+            <span className={cn('text-3xl font-extrabold tracking-tight', featured ? 'text-primary-foreground' : 'text-foreground')}>
+              {formatPrice(commercial.monthly_price_cents)}
+            </span>
+            <span className={cn('text-xs font-medium', featured ? 'text-primary-foreground/70' : 'text-muted-foreground')}>/ mês</span>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div className={cn('mt-auto border-t pt-4', featured ? 'border-primary-foreground/15' : 'border-border')}>
-        {onEdit ? (
-          <Button variant={featured ? 'secondary' : 'outline'} className="w-full" onClick={onEdit}>
-            <Edit3 className="h-4 w-4" /> Editar versão
-          </Button>
-        ) : (
-          <p className={cn('text-center text-xs', featured ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
-            {OVERAGE_LABEL[commercial.overage_policy]}
-          </p>
-        )}
-      </div>
-    </article>
+        <div className="mt-5 space-y-2.5 flex-1">
+          {[
+            formatLimit(plan, 'users', 'usuários'),
+            formatLimit(plan, 'inspections', 'vistorias'),
+            `Suporte ${SUPPORT_LABEL[commercial.support_tier]} (${normalSla ? formatHours(normalSla.response_minutes) : 'SLA padronizado'})`,
+            enabledFeatures[0] ? (features.find((item) => item.code === enabledFeatures[0].feature_code)?.name || enabledFeatures[0].feature_code) : 'Recursos sob medida',
+          ].map((line, idx) => (
+            <div key={idx} className={cn('flex items-center gap-2.5 text-xs font-medium', featured ? 'text-primary-foreground/90' : 'text-foreground/90')}>
+              <Check className={cn('h-4 w-4 shrink-0', featured ? 'text-primary-foreground' : 'text-primary')} />
+              <span className="truncate">{line}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-border/40">
+          {onEdit ? (
+            <Button
+              variant={featured ? 'secondary' : 'outline'}
+              className={cn('w-full rounded-xl gap-2 font-semibold', featured && 'bg-primary-foreground text-primary hover:bg-primary-foreground/90')}
+              onClick={onEdit}
+            >
+              <Edit3 className="h-4 w-4" /> Editar Proposta
+            </Button>
+          ) : (
+            <p className={cn('text-center text-xs', featured ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
+              {OVERAGE_LABEL[commercial.overage_policy]}
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -459,71 +524,170 @@ function PlanEditor({ plan, featureCatalog, saving, error, onClose, onSave }: {
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent className="max-w-6xl gap-0 overflow-hidden p-0 motion-reduce:animate-none">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4 sm:px-7">
-          <div className="min-w-0 pr-8"><p className="text-xs font-bold uppercase tracking-wider text-primary">Editor comercial • versão atual v{plan.current_version}</p><DialogTitle className="mt-0.5 text-xl font-bold text-foreground">{plan.name}</DialogTitle>{isDirty && <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-warning/12 px-2 py-0.5 text-[11px] font-semibold text-foreground"><span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />Alterações não salvas</span>}</div>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col rounded-2xl border-border/80 bg-card/95 backdrop-blur-xl p-0 shadow-2xl overflow-hidden">
+        <header className="flex items-center justify-between border-b border-border/60 px-6 py-4 bg-muted/30">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold text-foreground">Editar Plano: {plan.name}</DialogTitle>
+              <p className="text-xs text-muted-foreground">Versão atual: v{plan.current_version}</p>
+            </div>
+          </div>
+          {isDirty && (
+            <Badge variant="warning" className="rounded-lg text-xs">
+              Alterações pendentes
+            </Badge>
+          )}
         </header>
 
-        <div className="space-y-6 p-5 sm:p-7">
-          {error && <div role="alert" className="flex items-start gap-3 rounded-lg border border-destructive/25 bg-destructive-soft p-4 text-sm text-destructive"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><div><p className="font-semibold">Não é possível salvar a proposta</p><p className="mt-0.5 text-destructive/80">{error}</p></div></div>}
-          {issues.length > 0 && !error && <p className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning-soft px-4 py-2.5 text-xs font-medium text-foreground"><AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />{issues.length} {issues.length === 1 ? 'campo exige atenção antes de salvar' : 'campos exigem atenção antes de salvar'}</p>}
-
-          <EditorSection icon={<Edit3 />} title="Identificação da proposta" description="Nome, descrição e disponibilidade comercial.">
-            <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-              <Field label="Nome do plano"><input value={draft.name} onChange={event => set('name', event.target.value)} className={inputClass} /></Field>
-              <Field label="Status"><select value={draft.status} onChange={event => set('status', event.target.value as PlanStatus)} className={inputClass}><option value="draft">Rascunho</option><option value="active">Ativo</option><option value="retired">Retirado</option></select></Field>
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {error && (
+            <div role="alert" className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive-soft p-4 text-xs text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold">Erro ao salvar:</strong> {error}
+              </div>
             </div>
-            <Field label="Descrição"><textarea rows={3} value={draft.description} onChange={event => set('description', event.target.value)} className={inputClass} /></Field>
+          )}
+
+          {issues.length > 0 && !error && (
+            <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning-soft/40 px-4 py-3 text-xs font-medium text-foreground">
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+              <span>{issues.length} {issues.length === 1 ? 'campo precisa de correção.' : 'campos precisam de correção.'}</span>
+            </div>
+          )}
+
+          {/* Dados Principais */}
+          <EditorSection icon={<Edit3 />} title="Informações Gerais" description="Identificação e status do plano no catálogo.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Nome Comercial">
+                <input value={draft.name} onChange={event => set('name', event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Status da Versão">
+                <select value={draft.status} onChange={event => set('status', event.target.value as PlanStatus)} className={inputClass}>
+                  <option value="draft">Rascunho</option>
+                  <option value="active">Ativo (Publicado)</option>
+                  <option value="retired">Retirado</option>
+                </select>
+              </Field>
+            </div>
+            <Field label="Descrição Comercial">
+              <textarea rows={2} value={draft.description} onChange={event => set('description', event.target.value)} className={inputClass} />
+            </Field>
           </EditorSection>
 
-          <EditorSection icon={<BadgeDollarSign />} title="Condições comerciais" description="Preços em reais; deixe em branco para valor personalizado por contrato.">
+          {/* Condições Comerciais */}
+          <EditorSection icon={<BadgeDollarSign />} title="Preço e Validade" description="Valores monetários e período de testes.">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Preço mensal (R$)"><input type="number" min="0" step="0.01" placeholder="Personalizado" value={draft.monthlyPrice} onChange={event => set('monthlyPrice', event.target.value)} className={inputClass} /></Field>
-              <Field label="Preço anual (R$)"><input type="number" min="0" step="0.01" placeholder="Personalizado" value={draft.annualPrice} onChange={event => set('annualPrice', event.target.value)} className={inputClass} /></Field>
-              <Field label="Teste grátis (dias)"><input type="number" min="0" max="365" value={draft.trialDays} onChange={event => set('trialDays', event.target.value)} className={inputClass} /></Field>
-              <Field label="Carência (dias)"><input type="number" min="0" max="365" value={draft.graceDays} onChange={event => set('graceDays', event.target.value)} className={inputClass} /></Field>
+              <Field label="Mensal (R$)">
+                <input type="number" min="0" step="0.01" placeholder="Sob consulta" value={draft.monthlyPrice} onChange={event => set('monthlyPrice', event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Anual (R$)">
+                <input type="number" min="0" step="0.01" placeholder="Sob consulta" value={draft.annualPrice} onChange={event => set('annualPrice', event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Trial (Dias)">
+                <input type="number" min="0" max="365" value={draft.trialDays} onChange={event => set('trialDays', event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Carência (Dias)">
+                <input type="number" min="0" max="365" value={draft.graceDays} onChange={event => set('graceDays', event.target.value)} className={inputClass} />
+              </Field>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Ao atingir o limite"><select value={draft.overagePolicy} onChange={event => set('overagePolicy', event.target.value as CommercialConfig['overage_policy'])} className={inputClass}>{Object.entries(OVERAGE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-              <Field label="Modalidade de suporte"><select value={draft.supportTier} onChange={event => set('supportTier', event.target.value as CommercialConfig['support_tier'])} className={inputClass}>{Object.entries(SUPPORT_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-              <Field label="Canais de suporte" hint="Separe por vírgula"><input value={draft.supportChannels} onChange={event => set('supportChannels', event.target.value)} placeholder="E-mail, WhatsApp, telefone" className={inputClass} /></Field>
-              <Field label="Horário de atendimento"><input value={draft.supportHours} onChange={event => set('supportHours', event.target.value)} placeholder="Segunda a sexta, 8h às 18h" className={inputClass} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Política de Excedente">
+                <select value={draft.overagePolicy} onChange={event => set('overagePolicy', event.target.value as CommercialConfig['overage_policy'])} className={inputClass}>
+                  {Object.entries(OVERAGE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </Field>
+              <Field label="Nível de Suporte">
+                <select value={draft.supportTier} onChange={event => set('supportTier', event.target.value as CommercialConfig['support_tier'])} className={inputClass}>
+                  {Object.entries(SUPPORT_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </Field>
             </div>
           </EditorSection>
 
-          <EditorSection icon={<Boxes />} title="Catálogo de recursos" description="ARV significa Vistoria de Árvores.">
-            <div className="grid gap-3 md:grid-cols-2">
+          {/* Recursos Ativos */}
+          <EditorSection icon={<Boxes />} title="Funcionalidades Habilitadas" description="Selecione os módulos disponíveis neste plano.">
+            <div className="grid gap-3 sm:grid-cols-2">
               {featureCatalog.filter(feature => feature.active).map(feature => {
                 const enabled = !!draft.features[feature.code];
-                return <label key={feature.code} className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition ${enabled ? 'border-primary/30 bg-info-soft' : 'border-border bg-card hover:border-ring'}`}><input type="checkbox" checked={enabled} onChange={event => set('features', { ...draft.features, [feature.code]: event.target.checked })} className="mt-1 h-4 w-4 accent-primary" /><span><b className="text-sm text-foreground">{feature.name}</b><span className="mt-1 block text-xs text-muted-foreground">{feature.description || feature.code}</span></span></label>;
+                return (
+                  <label key={feature.code} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-all ${enabled ? 'border-primary/40 bg-primary/5' : 'border-border/70 bg-card hover:bg-secondary/40'}`}>
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={event => set('features', { ...draft.features, [feature.code]: event.target.checked })}
+                      className="mt-0.5 h-4 w-4 accent-primary rounded"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-foreground">{feature.name}</span>
+                      <span className="text-[11px] text-muted-foreground">{feature.description || feature.code}</span>
+                    </div>
+                  </label>
+                );
               })}
             </div>
           </EditorSection>
 
-          <EditorSection icon={<Gauge />} title="Limites e alertas" description="Ative apenas os recursos controlados; sem limite mantém a medição sem bloquear.">
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <table className="w-full min-w-[760px] text-sm"><thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Recurso</th><th className="p-3">Controlar</th><th className="p-3">Sem limite</th><th className="p-3">Limite</th><th className="p-3">Alerta</th></tr></thead><tbody>{RESOURCE_META.map(resource => {
-                const limit = draft.limits[resource.code];
-                const update = (patch: Partial<LimitDraft>) => set('limits', { ...draft.limits, [resource.code]: { ...limit, ...patch } });
-                return <tr key={resource.code} className="border-t border-border"><td className="p-3"><b className="text-foreground">{resource.label}</b><span className="block text-xs text-muted-foreground">{resource.hint}</span></td><td className="p-3"><input type="checkbox" checked={limit.enabled} onChange={event => update({ enabled: event.target.checked })} className="h-4 w-4 accent-primary" /></td><td className="p-3"><input type="checkbox" disabled={!limit.enabled} checked={limit.unlimited} onChange={event => update({ unlimited: event.target.checked })} className="h-4 w-4 accent-primary disabled:opacity-30" /></td><td className="p-3"><input type="number" min="0" disabled={!limit.enabled || limit.unlimited} value={limit.hardLimit} onChange={event => update({ hardLimit: event.target.value })} className={`${inputClass} w-32 disabled:bg-secondary disabled:text-muted-foreground`} /></td><td className="p-3"><div className="flex items-center gap-1"><input type="number" min="1" max="100" disabled={!limit.enabled} value={limit.warningPercent} onChange={event => update({ warningPercent: event.target.value })} className={`${inputClass} w-24 disabled:bg-secondary`} /><span className="text-muted-foreground">%</span></div></td></tr>;
-              })}</tbody></table>
-            </div>
-          </EditorSection>
-
-          <EditorSection icon={<Headphones />} title="Metas de SLA" description="Horas corridas para primeira resposta, resolução e escalonamento; deixe os campos opcionais vazios.">
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <table className="w-full min-w-[760px] text-sm"><thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Prioridade</th><th className="p-3">Aplicar</th><th className="p-3">1ª resposta (h)</th><th className="p-3">Resolução (h)</th><th className="p-3">Escalonar após (h)</th></tr></thead><tbody>{PRIORITY_META.map(priority => {
-                const sla = draft.sla[priority.code];
-                const update = (patch: Partial<SlaDraft>) => set('sla', { ...draft.sla, [priority.code]: { ...sla, ...patch } });
-                return <tr key={priority.code} className="border-t border-border"><td className="p-3 font-semibold text-foreground">{priority.label}</td><td className="p-3"><input type="checkbox" checked={sla.enabled} onChange={event => update({ enabled: event.target.checked })} className="h-4 w-4 accent-primary" /></td><td className="p-3"><input type="number" min="0.25" step="0.25" disabled={!sla.enabled} value={sla.responseHours} onChange={event => update({ responseHours: event.target.value })} className={`${inputClass} w-32 disabled:bg-secondary`} /></td><td className="p-3"><input type="number" min="0.25" step="0.25" disabled={!sla.enabled} value={sla.resolutionHours} onChange={event => update({ resolutionHours: event.target.value })} placeholder="Opcional" className={`${inputClass} w-32 disabled:bg-secondary`} /></td><td className="p-3"><input type="number" min="0.25" step="0.25" disabled={!sla.enabled} value={sla.escalationHours} onChange={event => update({ escalationHours: event.target.value })} placeholder="Opcional" className={`${inputClass} w-32 disabled:bg-secondary`} /></td></tr>;
-              })}</tbody></table>
+          {/* Limites de Consumo */}
+          <EditorSection icon={<Gauge />} title="Limites de Recursos" description="Defina as quotas operacionais da conta.">
+            <div className="overflow-x-auto rounded-xl border border-border/70">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/60 text-muted-foreground font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3 text-left">Recurso</th>
+                    <th className="p-3 text-center">Ativo</th>
+                    <th className="p-3 text-center">Ilimitado</th>
+                    <th className="p-3 text-left">Limite Rígido</th>
+                    <th className="p-3 text-left">Alerta (%)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {RESOURCE_META.map(resource => {
+                    const limit = draft.limits[resource.code];
+                    const update = (patch: Partial<LimitDraft>) => set('limits', { ...draft.limits, [resource.code]: { ...limit, ...patch } });
+                    return (
+                      <tr key={resource.code} className="hover:bg-muted/30">
+                        <td className="p-3">
+                          <strong className="block font-semibold text-foreground">{resource.label}</strong>
+                          <span className="text-[10px] text-muted-foreground">{resource.hint}</span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <input type="checkbox" checked={limit.enabled} onChange={event => update({ enabled: event.target.checked })} className="h-4 w-4 accent-primary" />
+                        </td>
+                        <td className="p-3 text-center">
+                          <input type="checkbox" disabled={!limit.enabled} checked={limit.unlimited} onChange={event => update({ unlimited: event.target.checked })} className="h-4 w-4 accent-primary disabled:opacity-30" />
+                        </td>
+                        <td className="p-3">
+                          <input type="number" min="0" disabled={!limit.enabled || limit.unlimited} value={limit.hardLimit} onChange={event => update({ hardLimit: event.target.value })} className={cn(inputClass, "w-28 py-1.5")} />
+                        </td>
+                        <td className="p-3">
+                          <input type="number" min="1" max="100" disabled={!limit.enabled} value={limit.warningPercent} onChange={event => update({ warningPercent: event.target.value })} className={cn(inputClass, "w-20 py-1.5")} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </EditorSection>
         </div>
 
-        <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-4 sm:px-7">
-          <p className="text-xs text-muted-foreground">{willPublish ? `Cria e publica a versão v${plan.current_version + 1} para clientes ativos; a versão anterior permanece na auditoria.` : `Cria a versão v${plan.current_version + 1} como rascunho, sem publicar para clientes.`}</p>
-          <div className="flex gap-2"><Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button><Button type="button" onClick={() => onSave(draft)} disabled={saving || issues.length > 0}>{saving ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Save className="h-4 w-4" />}{saving ? 'Salvando...' : willPublish ? 'Salvar e publicar' : 'Salvar nova versão'}</Button></div>
+        <footer className="flex items-center justify-between border-t border-border/60 px-6 py-4 bg-muted/30">
+          <p className="text-xs text-muted-foreground">
+            {willPublish ? `A nova versão v${plan.current_version + 1} será publicada imediatamente.` : 'Salva como rascunho sem impactar assinaturas.'}
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" className="rounded-xl" onClick={onClose} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button type="button" className="rounded-xl gap-2" onClick={() => onSave(draft)} disabled={saving || issues.length > 0}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? 'Salvando…' : 'Confirmar e Salvar'}
+            </Button>
+          </div>
         </footer>
       </DialogContent>
     </Dialog>
@@ -531,18 +695,43 @@ function PlanEditor({ plan, featureCatalog, saving, error, onClose, onSave }: {
 }
 
 function EditorSection({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
-  return <section className="rounded-lg border border-border bg-card p-5"><div className="mb-5 flex gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-info-soft text-info [&>svg]:h-5 [&>svg]:w-5">{icon}</div><div><h3 className="font-bold text-foreground">{title}</h3><p className="text-xs text-muted-foreground">{description}</p></div></div><div className="space-y-4">{children}</div></section>;
+  return (
+    <div className="rounded-2xl border border-border/70 bg-card p-5 space-y-4">
+      <div className="flex items-center gap-3 border-b border-border/50 pb-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
+          {icon}
+        </div>
+        <div>
+          <h4 className="text-sm font-bold text-foreground">{title}</h4>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-1.5 flex items-center gap-2 text-xs font-bold text-foreground">{label}{hint && <span className="font-normal text-muted-foreground">• {hint}</span>}</span>{children}</label>;
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+        {label}
+        {hint && <span className="font-normal text-muted-foreground">• {hint}</span>}
+      </span>
+      {children}
+    </label>
+  );
 }
 
 function DemoBadge() {
-  return <span className="w-fit rounded-full border border-warning/25 bg-warning-soft px-3 py-1.5 text-xs font-bold text-foreground">Demonstração local</span>;
+  return (
+    <Badge variant="warning" className="w-fit rounded-lg px-3 py-1 font-semibold">
+      Ambiente de Demonstração
+    </Badge>
+  );
 }
 
-const inputClass = 'w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-ring focus:ring-[3px] focus:ring-ring/20';
+const inputClass = 'w-full rounded-xl border border-border/80 bg-background px-3 py-2 text-xs text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20';
 
 function getCommercial(plan: PlanRow): CommercialConfig {
   const version = plan.plan_versions.find(item => item.version === plan.current_version) || [...plan.plan_versions].sort((a, b) => b.version - a.version)[0];
@@ -694,17 +883,11 @@ function applyDemoSave(plan: PlanRow, draft: PlanDraft, commercial: CommercialCo
   };
 }
 
-function statusClass(status: PlanStatus) {
-  if (status === 'active') return 'bg-success-soft text-success';
-  if (status === 'retired') return 'bg-secondary text-muted-foreground';
-  return 'bg-warning-soft text-warning';
-}
-
 function moneyToCents(value: string) { return value.trim() === '' ? null : Math.round(Number(value) * 100); }
 function centsToInput(value: number | null | undefined) { return value == null ? '' : (value / 100).toFixed(2); }
 function hoursToMinutes(value: string) { return value.trim() === '' ? null : Math.round(Number(value) * 60); }
 function minutesToInput(value: number | null | undefined) { return value == null ? '' : String(value / 60); }
-function formatPrice(value: number | null) { return value == null ? 'Personalizado' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value / 100); }
+function formatPrice(value: number | null) { return value == null ? 'Sob consulta' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value / 100); }
 function formatHours(minutes: number) { return minutes % 1440 === 0 ? `${minutes / 1440} dia(s)` : `${minutes / 60}h`; }
 function formatDate(value: string | null) {
   return value ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value)) : 'não publicada';
@@ -716,7 +899,7 @@ function formatLimit(plan: PlanRow, resource: ResourceCode, label: string) {
 }
 
 const DEMO_FEATURES: FeatureRow[] = [
-  { code: 'inspection_standard', name: 'Vistoria padrão', category: 'inspection_model', description: 'Fluxos de vistoria já disponíveis no aplicativo', active: true },
+  { code: 'inspection_standard', name: 'Vistoria padrão', category: 'inspection_model', description: 'Fluxos de vistoria disponíveis no app', active: true },
   { code: 'inspection_arv', name: 'Vistoria de Árvores (ARV)', category: 'inspection_model', description: 'Formulário técnico para vistoria de árvores', active: true },
   { code: 'training_mode', name: 'Modo treinamento', category: 'module', description: 'Turmas e vistorias de treinamento', active: true },
   { code: 'reports_basic', name: 'Relatórios básicos', category: 'module', description: 'Laudos e exportações essenciais', active: true },
@@ -729,11 +912,11 @@ const DEMO_FEATURES: FeatureRow[] = [
 ];
 
 const DEMO_COMMERCIAL: Record<string, CommercialConfig> = {
-  individual_basic: { monthly_price_cents: 7990, annual_price_cents: 79900, currency: 'BRL', trial_days: 14, grace_days: 7, overage_policy: 'block', support_tier: 'standard', support_channels: ['E-mail'], support_hours: 'Dias úteis, 9h às 18h (BRT)' },
-  individual_professional: { monthly_price_cents: 14990, annual_price_cents: 149900, currency: 'BRL', trial_days: 14, grace_days: 7, overage_policy: 'block', support_tier: 'priority', support_channels: ['E-mail', 'Portal'], support_hours: 'Dias úteis, 8h às 18h (BRT)' },
-  municipal_basic: { monthly_price_cents: 149000, annual_price_cents: 1490000, currency: 'BRL', trial_days: 30, grace_days: 15, overage_policy: 'manual_review', support_tier: 'standard', support_channels: ['E-mail', 'Portal'], support_hours: 'Dias úteis, 8h às 18h (BRT)' },
-  municipal_professional: { monthly_price_cents: 399000, annual_price_cents: 3990000, currency: 'BRL', trial_days: 30, grace_days: 15, overage_policy: 'manual_review', support_tier: 'priority', support_channels: ['E-mail', 'Portal', 'WhatsApp'], support_hours: 'Dias úteis, 8h às 18h (BRT), com prioridade' },
-  municipal_complete: { monthly_price_cents: 699000, annual_price_cents: 6990000, currency: 'BRL', trial_days: 30, grace_days: 30, overage_policy: 'custom', support_tier: 'specialized', support_channels: ['E-mail', 'Portal', 'WhatsApp', 'Telefone'], support_hours: 'Atendimento estendido e plantão crítico conforme contrato' },
+  individual_basic: { monthly_price_cents: 7990, annual_price_cents: 79900, currency: 'BRL', trial_days: 14, grace_days: 7, overage_policy: 'block', support_tier: 'standard', support_channels: ['E-mail'], support_hours: 'Dias úteis, 9h às 18h' },
+  individual_professional: { monthly_price_cents: 14990, annual_price_cents: 149900, currency: 'BRL', trial_days: 14, grace_days: 7, overage_policy: 'block', support_tier: 'priority', support_channels: ['E-mail', 'Portal'], support_hours: 'Dias úteis, 8h às 18h' },
+  municipal_basic: { monthly_price_cents: 149000, annual_price_cents: 1490000, currency: 'BRL', trial_days: 30, grace_days: 15, overage_policy: 'manual_review', support_tier: 'standard', support_channels: ['E-mail', 'Portal'], support_hours: 'Dias úteis, 8h às 18h' },
+  municipal_professional: { monthly_price_cents: 399000, annual_price_cents: 3990000, currency: 'BRL', trial_days: 30, grace_days: 15, overage_policy: 'manual_review', support_tier: 'priority', support_channels: ['E-mail', 'Portal', 'WhatsApp'], support_hours: 'Dias úteis, 8h às 18h' },
+  municipal_complete: { monthly_price_cents: 699000, annual_price_cents: 6990000, currency: 'BRL', trial_days: 30, grace_days: 30, overage_policy: 'custom', support_tier: 'specialized', support_channels: ['E-mail', 'Portal', 'WhatsApp', 'Telefone'], support_hours: 'Atendimento estendido' },
 };
 
 const DEMO_DESCRIPTIONS: Record<string, string> = {

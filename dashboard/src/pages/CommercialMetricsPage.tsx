@@ -104,11 +104,11 @@ export function CommercialMetricsPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-success-soft/65 shadow-none">
+          <Card className="bg-card shadow-sm">
             <CardContent className="p-6">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Operação conectada</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Operação conectada</p>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">O indicador não substitui o trabalho da equipe: ele aponta a próxima área para agir.</p>
-              <dl className="mt-6 space-y-4 border-t border-primary/10 pt-5">
+              <dl className="mt-6 space-y-4 border-t border-border/80 pt-5">
                 <MetricLine icon={Headphones} label="Chamados abertos" value={support} />
                 <MetricLine icon={CircleAlert} label="SLAs violados" value={breachedSla} danger={breachedSla > 0} />
               </dl>

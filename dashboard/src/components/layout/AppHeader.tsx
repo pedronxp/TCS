@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Check, Download, KeyRound, LogOut, Menu, Moon, Pencil, Plus, Sun } from 'lucide-react';
+import { Bell, Check, Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Sun } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { GlobalCustomerSearch } from '@/components/GlobalCustomerSearch';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/DropdownMenu';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChangePasswordDialog } from '@/components/account/ChangePasswordDialog';
+import { ThemePickerModal } from '@/components/ThemePickerModal';
 import type { Theme } from '@/hooks/useTheme';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 
@@ -79,6 +80,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
   const { pathname } = useLocation();
   const { profile, can, signOut } = useAuth();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const customerDetailKind = pathname.match(/^\/app\/clientes\/(organizacoes|contas)\/[^/]+(?:\/|$)/)?.[1];
   const isCustomerDetail = Boolean(customerDetailKind);
   const customerEditLabel = customerDetailKind === 'contas' ? 'Editar pessoa' : 'Editar organização';
@@ -95,7 +97,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
     .toUpperCase() || 'TC';
 
   return (
-    <header className="sticky top-0 z-30 h-[72px] border-b bg-card">
+    <header className="sticky top-0 z-30 h-[72px] border-b border-border/60 bg-card/80 backdrop-blur-md">
       <div className="flex h-full items-center gap-3 px-4 sm:px-6 lg:px-8">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onOpenMobile} aria-label="Abrir navegação">
           <Menu aria-hidden="true" />
@@ -240,6 +242,10 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs text-muted-foreground">Tema</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setThemePickerOpen(true)}>
+                <Palette className="h-4 w-4 text-primary" />
+                Personalizar tema...
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onThemeChange('light')}>
                 {theme === 'light' && <Check />}
                 <Sun className="h-4 w-4" />
@@ -264,6 +270,14 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
         </div>
       </div>
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+      <ThemePickerModal
+        open={themePickerOpen}
+        onOpenChange={setThemePickerOpen}
+        currentTheme={theme}
+        onSelectTheme={(selectedTheme) => {
+          onThemeChange(selectedTheme);
+        }}
+      />
     </header>
   );
 }
