@@ -34,7 +34,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
       const raw = window.sessionStorage.getItem(RECOVERY_MARKER);
       // Session e marker ambos ausentes — recovery ainda em load, aguarda
       if (!data.session && !raw) return null;
-      if (!raw) return false;
+      if (!data.session || !raw) return false;
       try {
         const marker = JSON.parse(raw) as { userId: string; expiresAt: number };
         return marker.userId === data.session.user.id && marker.expiresAt > Date.now();
