@@ -23,8 +23,8 @@ describe('referência da interface', () => {
     expect(screen.getByRole('heading', { name: 'Motion' })).toBeVisible();
     expect(screen.getByText('--motion-ease-drawer')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Primário' })).toBeVisible();
-    expect(screen.getByText('#FAFAFA')).toBeVisible();
-    expect(screen.getByText('#15774A')).toBeVisible();
+    expect(screen.getByText('var(--background)')).toBeVisible();
+    expect(screen.getByText('var(--primary)')).toBeVisible();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

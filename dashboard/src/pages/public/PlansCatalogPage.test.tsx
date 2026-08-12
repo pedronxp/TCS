@@ -12,14 +12,14 @@ describe('catálogo público de planos', () => {
   it('separa planos individuais e municipais com valores e limites aprovados', () => {
     render(<MemoryRouter><PlansCatalogPage /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Primeiro, escolha como você opera.' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1, name: 'Escolha o plano ideal para a sua operação.' })).toBeVisible();
     const individual = screen.getByRole('region', { name: 'Para quem realiza e entrega as próprias vistorias' });
     const municipal = screen.getByRole('region', { name: 'Para prefeituras que coordenam agentes e território' });
     expect(within(individual).getAllByRole('article')).toHaveLength(2);
     expect(within(municipal).getAllByRole('article')).toHaveLength(3);
     expect(within(individual).getByText(/R\$\s*79,90/)).toBeVisible();
     expect(within(municipal).getByText(/R\$\s*1\.490,00/)).toBeVisible();
-    expect(screen.getByText('O valor anual equivale a 10 mensalidades. O Municipal Completo exibe um valor-base, que pode ser ajustado na proposta conforme o contrato.')).toBeVisible();
+    expect(screen.getByText('O plano anual equivale a 10 mensalidades. Para prefeituras no plano Municipal Completo, os valores-base podem ser customizados de acordo com as diretrizes do contrato.')).toBeVisible();
     expect(screen.queryByText('Mais escolhido')).not.toBeInTheDocument();
   });
 

@@ -17,7 +17,7 @@ interface IndividualCustomerMutationResponse {
 export function useIndividualCustomerMutation() {
   return useAdministrativeMutation<IndividualCustomerMutationVariables, IndividualCustomerMutationResponse>({
     mutationFn: async (variables, operationId) => {
-      const { data, error } = await supabase.rpc('mutate_internal_individual', {
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>)('mutate_internal_individual', {
         p_customer_id: variables.customerId,
         p_action: 'update',
         p_payload: variables.payload,
@@ -26,8 +26,8 @@ export function useIndividualCustomerMutation() {
       });
       if (error) throw error;
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Resposta inválida ao salvar o cliente.');
-      const customerId = typeof data.customer_id === 'string' ? data.customer_id : null;
-      if (!customerId) throw new Error('Identificador do cliente ausente na resposta.');
+      const customerId = (data as Record<string, unknown>).customer_id;
+      if (typeof customerId !== 'string' || !customerId) throw new Error('Identificador do cliente ausente na resposta.');
       return { ok: true, customer_id: customerId };
     },
     invalidate: [customerKeys.all],

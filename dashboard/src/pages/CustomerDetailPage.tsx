@@ -68,7 +68,7 @@ import { ptBrLabel } from '@/lib/ptBrLabels';
 import { cn } from '@/lib/utils';
 import { customerDetailPath, customerIdFromRoute, type CustomerRouteKind } from '@/lib/customerRoutes';
 import { toast } from 'sonner';
-import type { CustomerDetail, CustomerOperations, CustomerUser } from '@/types/domain';
+import type { CustomerDetail, CustomerOperations, CustomerUsage, CustomerUser } from '@/types/domain';
 
 const individualPrimarySections = [
   ['resumo', 'Resumo'],

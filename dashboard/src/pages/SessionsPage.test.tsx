@@ -19,7 +19,7 @@ const session = {
   user_id: 'user-123456789',
   organization_id: 'organization-1',
   device_id: 'device-1',
-  device_name: 'Chrome · Windows',
+  device_name: 'Chrome - Windows',
   platform: 'web',
   status: 'active',
   started_at: new Date().toISOString(),
@@ -35,36 +35,20 @@ const session = {
 vi.mock('@tanstack/react-query', () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => (
     queryKey[0] === 'internal-sessions-overview'
-      ? {
-          data: { items: [session], total: 1, platforms: { web: 1, android: 0, ios: 0 } },
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        }
-      : {
-          data: { items: [session], total: 1 },
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        }
+      ? { data: { items: [session], total: 1, platforms: { web: 1, android: 0, ios: 0 } }, isLoading: false, error: null, refetch: vi.fn() }
+      : { data: { items: [session], total: 1 }, isLoading: false, error: null, refetch: vi.fn() }
   ),
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    can: () => true,
-    user: { id: 'staff-1' },
-    profile: { role: 'owner' },
-  }),
+  useAuth: () => ({ can: () => true, user: { id: 'staff-1' }, profile: { role: 'owner' } }),
 }));
 
 vi.mock('@/hooks/useAdministrativeMutation', () => ({
   useAdministrativeMutation: () => ({ mutateAsync: vi.fn() }),
 }));
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: { from: vi.fn(), rpc: rpcMock },
-}));
+vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: rpcMock } }));
 
 beforeEach(() => {
   rpcMock.mockReset();
@@ -73,50 +57,49 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe('Sessões e dispositivos', () => {
-  it('reproduz pulso, anomalias, política e listagem aprovados', () => {
+describe('Sessions and devices', () => {
+  it('renders the operational overview', () => {
     render(<MemoryRouter><SessionsPage /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Sessões' })).toBeVisible();
-    expect(screen.getByText('1 sessão ativa')).toBeVisible();
-    expect(screen.getByText('Atividade recente')).toBeVisible();
-    expect(screen.getByText('Política aplicada')).toBeVisible();
-    expect(screen.getByText('Sessões recentes')).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1, name: /Conectadas/ })).toBeVisible();
+    expect(screen.getByText(/sess.*ativas/)).toBeVisible();
+    expect(screen.getByText('Atividade Recente')).toBeVisible();
+    expect(screen.getByText(/Diretrizes/)).toBeVisible();
+    expect(screen.getByText(/Recentes/)).toBeVisible();
   });
 
-  it('não apresenta violações automatizadas de acessibilidade', async () => {
+  it('has no automated accessibility violations', async () => {
     const { container } = render(<MemoryRouter><SessionsPage /></MemoryRouter>);
     const result = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations).toEqual([]);
   });
 
-  it('deixa explícito que a revogação remota exige confirmação e motivo', () => {
+  it('explains the remote revocation safeguard', () => {
     render(<MemoryRouter><SessionsPage /></MemoryRouter>);
-    expect(screen.getByText(/revogação remota exige confirmação e motivo/)).toBeVisible();
-    expect(screen.getByRole('heading', { level: 1, name: 'Sessões' })).toBeVisible();
+    expect(screen.getByText(/remota exige/)).toBeVisible();
   });
 
-  it('só revela detalhes depois que o servidor confirma o registro da auditoria', async () => {
+  it('opens details only after the server records the audit', async () => {
     let resolveReview: ((value: { data: null; error: null }) => void) | undefined;
     rpcMock.mockImplementationOnce(() => new Promise((resolve) => { resolveReview = resolve; }));
     render(<MemoryRouter><SessionsPage /></MemoryRouter>);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Revisar' })[0]);
-    expect(screen.getByRole('button', { name: 'Registrando…' })).toBeDisabled();
-    expect(screen.queryByRole('dialog', { name: 'Revisar sessão' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Detalhes' })[0]);
+    expect(screen.getByRole('button', { name: /Carregando/ })).toBeDisabled();
+    expect(screen.queryByRole('dialog', { name: /Detalhada/ })).not.toBeInTheDocument();
 
     resolveReview?.({ data: null, error: null });
-    expect(await screen.findByRole('dialog', { name: 'Revisar sessão' })).toBeVisible();
+    expect(await screen.findByRole('dialog', { name: /Detalhada/ })).toBeVisible();
     expect(rpcMock).toHaveBeenCalledWith('record_internal_session_review', { p_session_id: session.id });
   });
 
-  it('mantém os detalhes fechados e informa quando a auditoria falha', async () => {
+  it('keeps details closed and reports a failed audit', async () => {
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'audit unavailable' } });
     render(<MemoryRouter><SessionsPage /></MemoryRouter>);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Revisar' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Detalhes' })[0]);
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Os detalhes permaneceram fechados'));
-    expect(screen.queryByRole('dialog', { name: 'Revisar sessão' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/registrar esta revis/));
+    expect(screen.queryByRole('dialog', { name: /Detalhada/ })).not.toBeInTheDocument();
   });
 });

@@ -26,10 +26,15 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
 
   useEffect(() => {
     if (mode !== 'reset') return;
-    const verify = async () => {
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 15; // 15 * 200ms = 3s
+    const verify = async (): Promise<boolean | null> => {
       const { data } = await supabase.auth.getSession();
       const raw = window.sessionStorage.getItem(RECOVERY_MARKER);
-      if (!raw || !data.session) return false;
+      // Session e marker ambos ausentes — recovery ainda em load, aguarda
+      if (!data.session && !raw) return null;
+      if (!data.session || !raw) return false;
       try {
         const marker = JSON.parse(raw) as { userId: string; expiresAt: number };
         return marker.userId === data.session.user.id && marker.expiresAt > Date.now();
@@ -37,10 +42,20 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
         return false;
       }
     };
-    const timer = window.setTimeout(() => {
-      void verify().then(setValidRecovery);
-    }, 250);
-    return () => window.clearTimeout(timer);
+    const interval = window.setInterval(() => {
+      attempts++;
+      void verify().then((valid) => {
+        if (cancelled) return;
+        if (valid !== null || attempts >= maxAttempts) {
+          window.clearInterval(interval);
+          setValidRecovery(valid ?? false);
+        }
+      });
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [mode]);
 
   async function request(event: FormEvent) {
@@ -58,6 +73,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
       redirectTo: `${window.location.origin}/redefinir-senha${location.search}`,
     });
     if (error) {
+      console.error('[password-recovery] resetPasswordForEmail failed:', error.message, error);
       setSubmitting(false);
       setMessage('Não foi possível solicitar a recuperação agora. Tente novamente em instantes.');
       return;
