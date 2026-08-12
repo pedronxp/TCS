@@ -322,7 +322,7 @@ function ActionsPanel({ actions, technical }: { actions: ConsoleAction[]; techni
                 to={action.to}
                 className={cn(
                   'group flex min-h-16 items-center gap-3 rounded-xl border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  index === 0 ? 'border-primary/30 bg-success-soft' : 'border-border hover:bg-secondary',
+                  index === 0 ? 'border-primary/40 bg-card shadow-sm hover:border-primary' : 'border-border/70 bg-card/60 hover:bg-secondary/80 hover:border-border',
                 )}
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-card text-primary">

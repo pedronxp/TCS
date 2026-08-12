@@ -191,16 +191,16 @@ function RevenuePortfolio({ metrics }: { metrics: ReturnType<typeof subscription
     ['Exigem atenção', metrics.atRisk.length, metrics.atRisk.length ? 'priorize antes do vencimento' : 'nenhum ciclo crítico'],
   ] as const;
   return (
-    <section className="overflow-hidden rounded-2xl border border-primary/15 bg-success-soft px-6 py-7 sm:px-8">
+    <section className="overflow-hidden rounded-2xl border border-border/80 bg-card px-6 py-7 sm:px-8 shadow-sm">
       <div className="grid gap-7 xl:grid-cols-[minmax(240px,1.25fr)_repeat(3,minmax(0,1fr))] xl:items-end">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Carteira recorrente</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Carteira recorrente</p>
           <p className="mt-3 text-sm text-muted-foreground">Receita contratada e decisões que precisam acontecer antes do próximo ciclo.</p>
           <strong className="mt-5 block text-4xl font-bold tracking-[-0.045em] tabular-nums">{formatCompactCurrency(metrics.mrrCents)}</strong>
           <p className="mt-1 text-xs font-medium text-muted-foreground">MRR em {metrics.recurring} {metrics.recurring === 1 ? 'assinatura vigente' : 'assinaturas vigentes'}</p>
         </div>
         {signals.map(([label, value, detail]) => (
-          <div key={label} className="border-l border-primary/15 pl-5">
+          <div key={label} className="border-l border-border/80 pl-5">
             <p className="text-[11px] font-semibold text-foreground">{label}</p>
             <strong className="mt-3 block text-2xl font-bold tracking-[-0.03em] tabular-nums">{value}</strong>
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{detail}</p>

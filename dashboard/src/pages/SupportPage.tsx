@@ -322,15 +322,15 @@ function SlaTower({ tickets }: { tickets: Ticket[] }) {
   const priorities = ['critical', 'high', 'normal', 'low'];
   const categories = Array.from(new Set(tickets.filter((ticket) => ticket.priority === 'critical').map((ticket) => ticket.category).filter(Boolean)));
   return (
-    <aside className="rounded-2xl border border-primary/15 bg-success-soft/70 p-6 text-foreground">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Panorama de SLA</p>
+    <aside className="rounded-2xl border border-border/80 bg-card p-6 text-foreground shadow-sm">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Panorama de SLA</p>
       <strong className="mt-4 block text-[30px] tabular-nums">{percent}%</strong>
       <p className="text-[11px] text-muted-foreground">{percent}% da fila aberta dentro do prazo · cálculo sobre {tickets.length} {tickets.length === 1 ? 'chamado' : 'chamados'}</p>
       <dl className="mt-7">
         {priorities.map((priority) => {
           const matching = tickets.filter((ticket) => ticket.priority === priority);
           return (
-            <div key={priority} className="grid grid-cols-[1fr_auto] border-b border-primary/10 py-4 text-xs first:pt-0">
+            <div key={priority} className="grid grid-cols-[1fr_auto] border-b border-border/80 py-4 text-xs first:pt-0">
               <dt className="font-semibold">{ptBrLabel(priority)}</dt>
               <dd className="font-semibold">{matching.length}</dd>
               <dd className="col-span-2 mt-2 text-[10px] text-muted-foreground">{minimumDue(matching)}</dd>

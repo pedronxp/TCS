@@ -105,9 +105,9 @@ export function StaffPage() {
         emptyTitle="Sem equipe interna"
         emptyDescription="Nenhum perfil interno foi cadastrado."
       >
-        <section className="grid gap-7 rounded-2xl border border-primary/15 bg-success-soft p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <section className="grid gap-7 rounded-2xl border border-border/80 bg-card p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end shadow-sm">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Postura de acesso</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Postura de acesso</p>
             <h2 className="mt-3 text-2xl font-bold tracking-[-0.03em]">
               {stats.active} {stats.active === 1 ? 'pessoa conectada' : 'pessoas conectadas'} à operação
             </h2>
