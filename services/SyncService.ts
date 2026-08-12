@@ -584,7 +584,7 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
 
   // Processa foto principal (thumb)
   if (v.foto_url && v.foto_url.startsWith('file://')) {
-    const remotePath = `${folderPath}/thumb_${Date.now()}.jpg`;
+    const remotePath = `${folderPath}/thumb.jpg`;
     try {
       v.foto_url = await uploadImageFromLocalUri(v.foto_url, remotePath);
       sofreuAlteracao = true;
@@ -606,7 +606,7 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
       for (let i = 0; i < arrayFotos.length; i++) {
         const fotoLocal = arrayFotos[i];
         if (fotoLocal.startsWith('file://')) {
-          const remotePath = `${folderPath}/evidencia_${i}_${Date.now()}.jpg`;
+          const remotePath = `${folderPath}/evidencia_${i}.jpg`;
           try {
             const publicUrl = await uploadImageFromLocalUri(fotoLocal, remotePath);
             novasFotos.push(publicUrl);

@@ -167,7 +167,7 @@ export async function uploadImageFromLocalUri(localUri: string, remotePath: stri
       .from(BUCKET_FOTOS)
       .upload(scopedPath, bytes, { contentType: mimeType, cacheControl: '36000', upsert: false });
 
-    if (error) {
+    if (error && !/duplicate|already exists|resource already exists/i.test(error.message)) {
       logger.error('sync', `Falha no upload supabase: ${error.message}`, { path: scopedPath });
       throw error;
     }

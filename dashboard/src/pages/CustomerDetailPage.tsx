@@ -21,6 +21,7 @@ import {
   UnlockKeyhole,
 } from 'lucide-react';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
+import { IndividualEditDialog } from '@/components/customers/IndividualEditDialog';
 import { CustomerMap } from '@/components/customers/CustomerMap';
 import { StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary, AsyncEmpty, AsyncError, AsyncLoading } from '@/components/states/AsyncBoundary';
@@ -207,7 +208,7 @@ export function CustomerDetailWorkspace({
               value={detail.subscription?.status ?? null}
               fallback="Sem assinatura"
             />
-            {customer.kind === 'organization' && canEdit && (
+            {canEdit && (
               <Button variant="outline" className="h-11 min-w-24" onClick={() => setEditing(true)}>
                 <Pencil className="h-4 w-4" />
                 Editar
@@ -277,9 +278,20 @@ export function CustomerDetailWorkspace({
       />
 
       <OrganizationFormDialog
-        open={editing}
+        open={editing && customer.kind === 'organization'}
         customer={customer.kind === 'organization' ? customer : undefined}
         onboarding={detail.onboarding}
+        onClose={() => setEditing(false)}
+        onSaved={() => {
+          setEditing(false);
+          onSaved?.();
+        }}
+      />
+
+      <IndividualEditDialog
+        open={editing && customer.kind === 'individual'}
+        customer={customer}
+        canViewSensitive={detail.can_view_sensitive}
         onClose={() => setEditing(false)}
         onSaved={() => {
           setEditing(false);
@@ -555,6 +567,14 @@ function Subscription({ detail }: { detail: CustomerDetail }) {
 }
 
 function Usage({ detail }: { detail: CustomerDetail }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const fallbackCounters: CustomerUsage[] = detail.usage.length ? [] : [
+    { resource_code: 'users', consumed: detail.users.length, hard_limit: null, warning_percent: null, period_start: today, period_end: today },
+    { resource_code: 'sessions', consumed: detail.sessions.length, hard_limit: null, warning_percent: null, period_start: today, period_end: today },
+    { resource_code: 'inspections', consumed: detail.inspections.length, hard_limit: null, warning_percent: null, period_start: today, period_end: today },
+  ];
+  const items = detail.usage.length ? detail.usage : fallbackCounters;
+
   return (
     <div className="space-y-5">
       <div className="rounded-lg border border-border bg-muted p-5">
@@ -563,47 +583,47 @@ function Usage({ detail }: { detail: CustomerDetail }) {
           <div>
             <h2 className="font-bold">Uso do plano</h2>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Consumo persistido no período atual comparado aos limites contratados.
+              {detail.usage.length
+                ? 'Consumo persistido no período atual comparado aos limites contratados.'
+                : 'Contadores independentes do plano — refletem o total acumulado da conta.'}
             </p>
           </div>
         </div>
       </div>
-      {!detail.usage.length ? (
-        <AsyncEmpty title="Ainda não há medição de uso" description="Nenhum contador foi criado para este período." />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {detail.usage.map((item) => {
-            const percent = item.hard_limit && item.hard_limit > 0
-              ? Math.round(item.consumed * 100 / item.hard_limit)
-              : null;
-            return (
-              <Card key={`${item.resource_code}-${item.period_start}`} className="shadow-none">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold">{resourceLabel(item.resource_code)}</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {formatShortDate(item.period_start)} a {formatShortDate(item.period_end)}
-                      </p>
-                    </div>
-                    <span className="text-sm font-bold">
-                      {item.consumed} de {item.hard_limit ?? 'ilimitado'}
-                    </span>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {items.map((item) => {
+          const percent = item.hard_limit && item.hard_limit > 0
+            ? Math.round(item.consumed * 100 / item.hard_limit)
+            : null;
+          return (
+            <Card key={`${item.resource_code}-${item.period_start}`} className="shadow-none">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">{resourceLabel(item.resource_code)}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {detail.usage.length
+                        ? `${formatShortDate(item.period_start)} a ${formatShortDate(item.period_end)}`
+                        : 'Total da conta'}
+                    </p>
                   </div>
-                  {percent === null ? (
-                    <p className="mt-4 text-xs text-muted-foreground">Uso monitorado, sem limite contratado.</p>
-                  ) : (
-                    <>
-                      <Progress value={Math.min(percent, 100)} className="mt-4" />
-                      <p className="mt-2 text-xs text-muted-foreground">{percent}% utilizado</p>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  <span className="text-sm font-bold">
+                    {item.consumed} de {item.hard_limit ?? 'ilimitado'}
+                  </span>
+                </div>
+                {percent === null ? (
+                  <p className="mt-4 text-xs text-muted-foreground">Uso monitorado, sem limite contratado.</p>
+                ) : (
+                  <>
+                    <Progress value={Math.min(percent, 100)} className="mt-4" />
+                    <p className="mt-2 text-xs text-muted-foreground">{percent}% utilizado</p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
