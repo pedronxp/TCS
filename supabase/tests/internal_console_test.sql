@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(22);
+SELECT extensions.plan(27);
 CREATE TEMP TABLE tap_output(line text);
 GRANT SELECT, INSERT ON tap_output TO authenticated;
 
@@ -117,8 +117,55 @@ RESET ROLE;
 INSERT INTO tap_output SELECT extensions.is((SELECT organization_id FROM public.technical_events WHERE event_key='31000000-0000-4000-8000-000000000004'),'21000000-0000-4000-8000-000000000001'::uuid,'client telemetry derives organization server-side');
 INSERT INTO tap_output SELECT extensions.is((SELECT metadata FROM public.technical_events WHERE event_key='31000000-0000-4000-8000-000000000004'),'{"operation":"inspection_sync"}'::jsonb,'client telemetry metadata is sanitized server-side');
 
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"11000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
+INSERT INTO tap_output SELECT extensions.ok(
+  EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(public.list_internal_audit_timeline(NULL, 'technical', NULL, NULL, NULL, 100)) AS row
+    WHERE row ->> 'event_id' = '31000000-0000-4000-8000-000000000004'
+      AND row ->> 'source' = 'technical'
+      AND row ->> 'result' = 'failed'
+      AND row ->> 'reason' = 'Falha de sincronização'
+  ),
+  'technical telemetry is available in the unified internal audit timeline'
+);
+
 RESET ROLE;
 INSERT INTO tap_output SELECT extensions.ok(NOT has_function_privilege('anon','public.ingest_client_technical_event(uuid,text,text,text,text,text,text,jsonb)','EXECUTE'),'anonymous role cannot ingest client telemetry');
+
+INSERT INTO public.active_sessions(
+  id, auth_session_id, user_id, organization_id, device_id, platform, status, last_heartbeat_at
+)
+VALUES (
+  '41000000-0000-4000-8000-000000000010',
+  '41000000-0000-4000-8000-000000000011',
+  '11000000-0000-4000-8000-000000000003',
+  '21000000-0000-4000-8000-000000000001',
+  'stale-device',
+  'web',
+  'active',
+  now() - interval '3 days'
+);
+INSERT INTO tap_output SELECT extensions.is(public.expire_stale_active_sessions(), 1, 'stale heartbeat is expired by the server cleanup');
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT status FROM public.active_sessions WHERE id = '41000000-0000-4000-8000-000000000010'),
+  'expired',
+  'expired session is no longer active'
+);
+INSERT INTO tap_output SELECT extensions.ok(
+  NOT has_function_privilege('authenticated', 'public.expire_stale_active_sessions()', 'EXECUTE'),
+  'authenticated users cannot trigger global session expiration'
+);
+INSERT INTO tap_output SELECT extensions.ok(
+  position('v_request_hash' IN pg_get_functiondef(
+    'public.create_internal_customer_appointment(text,text,timestamptz,text,uuid,text,uuid)'::regprocedure
+  )) > 0
+  AND position('v_result' IN pg_get_functiondef(
+    'public.create_internal_customer_appointment(text,text,timestamptz,text,uuid,text,uuid)'::regprocedure
+  )) > 0,
+  'appointment creation uses unambiguous idempotency variables'
+);
 
 INSERT INTO tap_output SELECT * FROM extensions.finish();
 SELECT jsonb_agg(line) AS tap_results FROM tap_output;

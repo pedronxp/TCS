@@ -60,13 +60,13 @@ vi.mock('@/lib/supabase', () => ({ supabase: {} }));
 
 afterEach(cleanup);
 
-describe('Ciclos de assinatura', () => {
-  it('reproduz fluxo, indicadores, tabela e radar de renovação', () => {
+describe('Assinaturas', () => {
+  it('reproduz carteira, prioridades e radar de renovação', () => {
     render(<SubscriptionsPage />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'Assinaturas' })).toBeVisible();
-    expect(screen.getByText('Fluxo de ciclo')).toBeVisible();
-    expect(screen.getByText('MRR contratado')).toBeVisible();
+    expect(screen.getByText('Carteira recorrente')).toBeVisible();
+    expect(screen.getByText('Renovações próximas')).toBeVisible();
     expect(screen.getByText('Ciclos prioritários')).toBeVisible();
     expect(screen.getByText('Radar de renovação')).toBeVisible();
   });
@@ -77,10 +77,9 @@ describe('Ciclos de assinatura', () => {
     expect(result.violations).toEqual([]);
   });
 
-  it('sinaliza que mudanças são auditáveis e não infere estimativas no radar', () => {
+  it('sinaliza que mudanças são auditáveis e preserva o recorte factual do radar', () => {
     render(<SubscriptionsPage />);
     expect(screen.getByText(/registrada com motivo e horário/)).toBeVisible();
-    expect(screen.getByText('Contagem real por estágio · nenhuma estimativa inferida')).toBeVisible();
     expect(screen.getByText(/sem estimativas inferidas/)).toBeVisible();
   });
 });

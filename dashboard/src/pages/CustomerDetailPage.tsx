@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRight,
@@ -23,7 +23,6 @@ import {
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { CustomerMap } from '@/components/customers/CustomerMap';
 import { StatusBadge } from '@/components/domain/Badges';
-import { CustomerContextBar } from '@/components/domain/CustomerContextBar';
 import { AsyncBoundary, AsyncEmpty, AsyncError, AsyncLoading } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -66,16 +65,26 @@ import {
 import { supabase } from '@/lib/supabase';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { cn } from '@/lib/utils';
+import { customerDetailPath, customerIdFromRoute, type CustomerRouteKind } from '@/lib/customerRoutes';
 import { toast } from 'sonner';
 import type { CustomerDetail, CustomerOperations, CustomerUser } from '@/types/domain';
 
-const primarySections = [
+const individualPrimarySections = [
   ['resumo', 'Resumo'],
   ['assinatura', 'Assinatura'],
   ['consumo', 'Uso do plano'],
-  ['usuarios', 'Usuários'],
   ['sessoes', 'Sessões'],
   ['vistorias', 'Vistorias'],
+  ['chamados', 'Chamados'],
+] as const;
+
+const organizationPrimarySections = [
+  ['resumo', 'Resumo'],
+  ['operacao', 'Operação'],
+  ['equipe', 'Equipe'],
+  ['assinatura', 'Assinatura'],
+  ['consumo', 'Uso do plano'],
+  ['sessoes', 'Sessões'],
   ['chamados', 'Chamados'],
 ] as const;
 
@@ -88,12 +97,18 @@ const moreSections = [
   ['relatorios', 'Relatórios'],
 ] as const;
 
-const sections = [...primarySections, ...moreSections] as const;
+function decodeLegacyCustomerId(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return '';
+  }
+}
 
-export function CustomerDetailPage() {
+export function CustomerDetailPage({ kind }: { kind?: CustomerRouteKind }) {
   const { can } = useAuth();
-  const { customerId = '', section = 'resumo' } = useParams();
-  const decodedCustomerId = decodeURIComponent(customerId);
+  const { customerId = '', recordId = '', section = 'resumo' } = useParams();
+  const decodedCustomerId = kind ? customerIdFromRoute(kind, recordId) ?? '' : decodeLegacyCustomerId(customerId);
   const query = useCustomerDetail(decodedCustomerId);
   const operations = useCustomerOperations(decodedCustomerId);
 
@@ -146,9 +161,12 @@ export function CustomerDetailWorkspace({
 }) {
   const [editing, setEditing] = useState(false);
   const customer = detail.customer;
-  const activeSection = sections.some(([key]) => key === section) ? section : 'resumo';
+  const primarySections = customer.kind === 'organization' ? organizationPrimarySections : individualPrimarySections;
+  const requestedSection = section === 'usuarios' && customer.kind === 'organization' ? 'equipe' : section;
+  const sections = [...primarySections, ...moreSections] as const;
+  const activeSection = sections.some(([key]) => key === requestedSection) ? requestedSection : 'resumo';
   const isMoreSection = moreSections.some(([key]) => key === activeSection);
-  const customerBasePath = `/app/clientes/${encodeURIComponent(customerId)}`;
+  const customerBasePath = customerDetailPath(customerId);
 
   return (
     <section className="page-stack max-w-[1094px]">
@@ -198,13 +216,6 @@ export function CustomerDetailWorkspace({
           </div>
         </div>
       </div>
-
-      <CustomerContextBar
-        customerId={customerId}
-        name={customer.display_name}
-        status={customer.status}
-        detail={[customer.municipality_name, customer.state_code].filter(Boolean).join(' · ') || 'Conta individual'}
-      />
 
       {!detail.can_view_sensitive && (
         <div
@@ -314,7 +325,8 @@ function CustomerSection({
   if (section === 'resumo') return <Summary detail={detail} />;
   if (section === 'assinatura') return <Subscription detail={detail} />;
   if (section === 'consumo') return <Usage detail={detail} />;
-  if (section === 'usuarios') return <Users detail={detail} />;
+  if (section === 'equipe') return <Team detail={detail} />;
+  if (section === 'operacao') return <OperationsOverview detail={detail} />;
   if (section === 'sessoes') return <Sessions detail={detail} />;
   if (section === 'vistorias') return <Inspections detail={detail} />;
   if (section === 'chamados') return <Tickets detail={detail} />;
@@ -486,7 +498,7 @@ function Summary({ detail }: { detail: CustomerDetail }) {
             <p className="text-xs text-muted-foreground">Dados protegidos por permissão</p>
           )}
           <Link
-            to={`/app/clientes/${encodeURIComponent(customer.customer_id)}/implantacao`}
+            to={customerDetailPath(customer.customer_id, 'implantacao')}
             className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
           >
             Abrir dados completos
@@ -596,25 +608,61 @@ function Usage({ detail }: { detail: CustomerDetail }) {
   );
 }
 
-function Users({ detail }: { detail: CustomerDetail }) {
+function OperationsOverview({ detail }: { detail: CustomerDetail }) {
+  const cards = [
+    ['Vistorias recentes', detail.inspections.length, 'Acompanhe atividade e risco no fluxo de vistorias.'],
+    ['Chamados em acompanhamento', detail.tickets.filter((ticket) => !['resolved', 'closed'].includes(ticket.status)).length, 'Priorize solicitações que ainda exigem retorno.'],
+    ['Sessões ativas', detail.sessions.filter((session) => session.status === 'active').length, 'Revise dispositivos e atividade vinculados à organização.'],
+  ];
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {cards.map(([label, value, description]) => (
+        <Card key={label} className="shadow-none">
+          <CardContent className="p-5">
+            <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
+            <p className="mt-3 text-3xl font-bold tracking-tight tabular-nums">{value}</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function Team({ detail }: { detail: CustomerDetail }) {
   const [selected, setSelected] = useState<CustomerUser | null>(null);
+  const [params, setParams] = useSearchParams();
+  const selectedMemberId = params.get('membro');
+  const managedMember = selected ?? detail.users.find((user) => user.user_id === selectedMemberId) ?? null;
+  const openMember = (user: CustomerUser) => {
+    const next = new URLSearchParams(params);
+    next.set('membro', user.user_id);
+    setParams(next, { replace: true });
+    setSelected(user);
+  };
+  const closeMember = () => {
+    const next = new URLSearchParams(params);
+    next.delete('membro');
+    setParams(next, { replace: true });
+    setSelected(null);
+  };
   if (!detail.users.length) {
-    return <AsyncEmpty title="Nenhum usuário" description="Não há membros vinculados a este cliente." />;
+    return <AsyncEmpty title="Nenhum membro" description="Não há pessoas vinculadas a esta organização." />;
   }
 
   return (
     <>
-    <DataTable headers={['Usuário', 'Papel', 'Status', 'Último acesso', 'Ação']}>
+    <DataTable headers={['Membro', 'Papel', 'Status', 'Último acesso', 'Acesso']}>
       {detail.users.map((user) => {
         return (
           <tr
             key={user.user_id}
             tabIndex={0}
-            onClick={() => setSelected(user)}
+            onClick={() => openMember(user)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                setSelected(user);
+                openMember(user);
               }
             }}
             className="cursor-pointer border-t hover:bg-secondary/60 focus-visible:bg-secondary"
@@ -631,9 +679,9 @@ function Users({ detail }: { detail: CustomerDetail }) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={(event) => { event.stopPropagation(); setSelected(user); }}
+                onClick={(event) => { event.stopPropagation(); openMember(user); }}
               >
-                Gerenciar
+                Gerenciar membro
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </td>
@@ -641,16 +689,16 @@ function Users({ detail }: { detail: CustomerDetail }) {
         );
       })}
     </DataTable>
-    <UserManagementSheet
+    <MemberAccessSheet
       customerId={detail.customer.customer_id}
-      user={selected}
-      onOpenChange={(open) => { if (!open) setSelected(null); }}
+      user={managedMember}
+      onOpenChange={(open) => { if (!open) closeMember(); }}
     />
     </>
   );
 }
 
-function UserManagementSheet({ customerId, user, onOpenChange }: {
+function MemberAccessSheet({ customerId, user, onOpenChange }: {
   customerId: string;
   user: CustomerUser | null;
   onOpenChange: (open: boolean) => void;
@@ -660,7 +708,7 @@ function UserManagementSheet({ customerId, user, onOpenChange }: {
   const [pendingAction, setPendingAction] = useState<'block' | 'unblock' | 'reset_password' | null>(null);
   const mutation = useAdministrativeMutation<{ action: 'block' | 'unblock' | 'reset_password'; reason: string }, unknown>({
     mutationFn: async ({ action, reason }, operationId) => {
-      if (!user) throw new Error('Usuário não selecionado.');
+      if (!user) throw new Error('Membro não selecionado.');
       const { data, error } = await supabase.rpc('mutate_internal_agent_access', {
         p_customer_id: customerId,
         p_user_id: user.user_id,
@@ -693,24 +741,24 @@ function UserManagementSheet({ customerId, user, onOpenChange }: {
       <Sheet open onOpenChange={onOpenChange}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader className="pr-8">
-          <SheetTitle>{user.name || 'Usuário sem nome'}</SheetTitle>
-          <SheetDescription>{user.email || 'E-mail protegido'} · {ptBrLabel(user.role, 'Sem papel')}</SheetDescription>
+          <SheetTitle>{user.name || 'Membro sem nome'}</SheetTitle>
+          <SheetDescription>{user.email || 'E-mail protegido'} · {ptBrLabel(user.role, 'Sem papel')} · Equipe da organização</SheetDescription>
         </SheetHeader>
         <div className="mt-7 space-y-6">
-          <section className="rounded-xl border bg-card p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acesso</p>
+          <section className="rounded-2xl border border-primary/10 bg-success-soft/45 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">Identidade e acesso</p>
             <div className="mt-3 flex items-center justify-between gap-3"><StatusBadge value={user.status} /><span className="text-xs text-muted-foreground">Último acesso: {formatDate(user.last_login)}</span></div>
             {canManage && <div className="mt-4">{user.status === 'active' ? <Button variant="outline" onClick={() => setPendingAction('block')} disabled={mutation.isPending}><LockKeyhole />Bloquear acesso</Button> : <Button onClick={() => setPendingAction('unblock')} disabled={mutation.isPending}><UnlockKeyhole />Liberar acesso</Button>}</div>}
           </section>
-          {canManage && <section className="rounded-xl border bg-card p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Redefinir senha</p>
+          {canManage && <section className="rounded-2xl border border-border/85 bg-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Credencial temporária</p>
             <Label htmlFor="customer-user-password" className="mt-3 block">Nova senha temporária</Label>
             <Input id="customer-user-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" className="mt-2" />
             <p className="mt-2 text-xs text-muted-foreground">Mínimo de 12 caracteres, com maiúscula, minúscula e número.</p>
             <p className={cn('mt-2 text-xs', passwordValid ? 'text-success' : 'text-muted-foreground')}>{passwordValid ? '✓ Senha atende à política de segurança' : '• Complete todos os requisitos para continuar'}</p>
             <Button className="mt-4" disabled={!passwordValid || mutation.isPending} onClick={() => setPendingAction('reset_password')}><KeyRound />Redefinir senha</Button>
           </section>}
-          <p className="text-xs leading-5 text-muted-foreground">Alterações são registradas automaticamente na auditoria do console.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Alterações de papel, acesso e credencial são registradas automaticamente na auditoria do console.</p>
         </div>
         </SheetContent>
       </Sheet>
@@ -728,9 +776,9 @@ function UserManagementSheet({ customerId, user, onOpenChange }: {
 
 function accessActionCopy(action: 'block' | 'unblock' | 'reset_password' | null) {
   switch (action) {
-    case 'block': return { title: 'Bloquear acesso deste usuário?', description: 'O acesso será bloqueado e as sessões ativas serão encerradas. Informe uma justificativa auditável.', confirmLabel: 'Bloquear acesso' };
-    case 'unblock': return { title: 'Liberar acesso deste usuário?', description: 'O usuário voltará a acessar o escopo autorizado. Informe uma justificativa auditável.', confirmLabel: 'Liberar acesso' };
-    case 'reset_password': return { title: 'Redefinir senha deste usuário?', description: 'A senha será substituída e todas as sessões ativas serão encerradas.', confirmLabel: 'Redefinir senha' };
+    case 'block': return { title: 'Bloquear acesso deste membro?', description: 'O acesso será bloqueado e as sessões ativas serão encerradas. Informe uma justificativa auditável.', confirmLabel: 'Bloquear acesso' };
+    case 'unblock': return { title: 'Liberar acesso deste membro?', description: 'A pessoa voltará a acessar o escopo autorizado. Informe uma justificativa auditável.', confirmLabel: 'Liberar acesso' };
+    case 'reset_password': return { title: 'Redefinir senha deste membro?', description: 'A credencial será substituída e todas as sessões ativas serão encerradas.', confirmLabel: 'Redefinir senha' };
     default: return { title: 'Confirmar ação', description: 'Revise a operação antes de continuar.', confirmLabel: 'Confirmar' };
   }
 }
@@ -890,6 +938,9 @@ function Appointments({ operations, detail }: { operations: CustomerOperations; 
         notes,
         operationId: crypto.randomUUID(),
       });
+      toast.success('Agendamento criado', {
+        description: 'Ele já está disponível para sincronização no aplicativo.',
+      });
       setOpen(false);
       setTitle('');
       setScheduledAt('');
@@ -950,7 +1001,7 @@ function Appointments({ operations, detail }: { operations: CustomerOperations; 
             <DialogHeader>
               <DialogTitle>Novo agendamento pela web</DialogTitle>
               <DialogDescription>
-                A atividade será sincronizada com o aplicativo e identificada pela origem.
+                A atividade será identificada como criada na Web e aparecerá no aplicativo como pendente de sincronização.
               </DialogDescription>
             </DialogHeader>
             <div className="mt-6 space-y-4">
@@ -997,7 +1048,7 @@ function Appointments({ operations, detail }: { operations: CustomerOperations; 
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={createAppointment.isPending}>
                 {createAppointment.isPending && <Loader2 className="animate-spin motion-reduce:animate-none" />}
-                Criar e sincronizar
+                Criar agendamento
               </Button>
             </DialogFooter>
           </form>

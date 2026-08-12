@@ -63,9 +63,11 @@ describe('Chrome do console', () => {
   it.each([
     ['/app', 'Visão executiva'],
     ['/app/clientes', 'Carteira e implantação'],
-    ['/app/clientes/organization%3Aaurora/resumo', 'Detalhe do cliente'],
-    ['/app/clientes/organization%3Aaurora/usuarios/user-1/vistorias', 'Detalhe do agente'],
+    ['/app/clientes/organizacoes/aurora/resumo', 'Visão da organização'],
+    ['/app/clientes/organizacoes/aurora/equipe?membro=user-1', 'Visão da organização'],
+    ['/app/clientes/contas/maria/resumo', 'Visão da pessoa'],
     ['/app/planos', 'Planos e limites'],
+    ['/app/negocio/indicadores', 'Indicadores comerciais'],
     ['/app/assinaturas', 'Assinaturas e ciclos'],
     ['/app/sessoes', 'Sessões e dispositivos'],
     ['/app/suporte', 'Central de atendimento'],
@@ -78,7 +80,6 @@ describe('Chrome do console', () => {
     ['/app/desenvolvimento/sincronizacao', 'Sincronização'],
     ['/app/desenvolvimento/armazenamento', 'Armazenamento'],
     ['/app/desenvolvimento/logs', 'Logs e erros'],
-    ['/app/governanca/configuracoes', 'Configurações do console'],
     ['/app/governanca/arquivamento', 'Arquivamento e retenção'],
     ['/app/referencia-ui', 'Interface do produto'],
   ])('mantém contexto visível na rota %s', (path, title) => {
@@ -106,7 +107,7 @@ describe('Chrome do console', () => {
     expect(screen.getByLabelText('Navegação do console')).toHaveClass('w-[232px]');
     expect(screen.getAllByRole('link', { name: /Visão executiva/ }).some((link) => link.getAttribute('href') === '/app')).toBe(true);
     expect(screen.getByPlaceholderText('Buscar cliente por nome ou documento…')).toBeVisible();
-    expect(screen.getByRole('button', { name: /Novo cliente/ })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Novo cliente/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Abrir fila de suporte' })).toHaveAttribute('href', '/app/suporte');
   });
 

@@ -97,7 +97,7 @@ describe('Central de suporte', () => {
     expect(screen.getByText('Fila por prioridade')).toBeVisible();
     expect(screen.getByText('Risco de SLA')).toBeVisible();
     expect(screen.getByText('Aguardando cliente')).toBeVisible();
-    expect(screen.getByText('Torre de SLA')).toBeVisible();
+    expect(screen.getByText('Panorama de SLA')).toBeVisible();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

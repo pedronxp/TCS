@@ -48,6 +48,7 @@ yarn-error.*
 
 # Claude Code worktrees (não devem ir para o repositório)
 .claude/worktrees/
+.worktrees/
 
 # Supabase CLI local state
 supabase/.temp/

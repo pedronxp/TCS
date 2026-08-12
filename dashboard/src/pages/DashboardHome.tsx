@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { jsonArray, jsonNumber, jsonObject, jsonString } from '@/lib/json';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { customerDetailPath } from '@/lib/customerRoutes';
 import type { InternalPermission } from '@/types/internal';
 
 export interface DashboardMetric {
@@ -191,23 +192,21 @@ function MetricGrid({ metrics, technical }: { metrics: DashboardMetric[]; techni
           <p className="mt-1 text-sm text-muted-foreground">Valores fornecidos pelo painel interno.</p>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => {
+      <div className="mt-5 grid gap-x-8 gap-y-7 rounded-2xl border border-border/80 bg-muted/45 px-6 py-6 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric, index) => {
           const urgent = isUrgentMetric(metric);
           return (
-            <Card key={metric.key} className={cn('min-h-[148px]', urgent && 'border-warning/45')}>
-              <CardContent className="flex h-full flex-col justify-between p-5">
-                <p className="max-w-[22ch] text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{metric.label}</p>
-                <div className="mt-6 flex items-end justify-between gap-3">
-                  <p className="text-3xl font-semibold tabular-nums tracking-[-0.03em]">{metric.value.toLocaleString('pt-BR')}</p>
-                  {urgent && (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
-                      <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" /> Atenção
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <div key={metric.key} className={cn('min-w-0 xl:pl-7', index > 0 && 'xl:border-l xl:border-border/80', urgent && 'rounded-xl bg-warning-soft px-4 py-3 xl:border-l-0 xl:pl-4')}>
+              <p className="max-w-[22ch] text-[11px] font-semibold text-muted-foreground">{metric.label}</p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <p className="text-3xl font-semibold tabular-nums tracking-[-0.04em]">{metric.value.toLocaleString('pt-BR')}</p>
+                {urgent && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-warning">
+                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Revisar
+                  </span>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
@@ -247,7 +246,7 @@ function ReleasePanel({ release }: { release: DashboardData['release'] }) {
 
 function AttentionPanel({ items, technical, can }: { items: DashboardAttention[]; technical: boolean; can: CanAccess }) {
   return (
-    <Card>
+    <Card className={cn('shadow-none', items.length > 0 && 'border-warning/20')}>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <CardTitle className="text-lg">{technical ? 'Eventos para investigar' : 'Prioridades operacionais'}</CardTitle>
@@ -305,7 +304,7 @@ function AttentionPanel({ items, technical, can }: { items: DashboardAttention[]
 
 function ActionsPanel({ actions, technical }: { actions: ConsoleAction[]; technical: boolean }) {
   return (
-    <Card>
+    <Card className="bg-muted/45 shadow-none">
       <CardHeader>
         <CardTitle className="text-lg">Próximo passo</CardTitle>
         <p className="text-sm text-muted-foreground">
@@ -322,7 +321,7 @@ function ActionsPanel({ actions, technical }: { actions: ConsoleAction[]; techni
                 key={action.to}
                 to={action.to}
                 className={cn(
-                  'group flex min-h-16 items-center gap-3 rounded-md border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  'group flex min-h-16 items-center gap-3 rounded-xl border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   index === 0 ? 'border-primary/30 bg-success-soft' : 'border-border hover:bg-secondary',
                 )}
               >
@@ -412,7 +411,7 @@ function attentionAction(item: DashboardAttention, technical: boolean, can: CanA
     destination = '/app/suporte';
     permission = 'support.read';
   } else if (item.customerId) {
-    destination = `/app/clientes/${encodeURIComponent(item.customerId)}`;
+    destination = customerDetailPath(item.customerId);
     permission = 'customer.read';
   } else if (item.type === 'renewal') {
     destination = '/app/assinaturas';

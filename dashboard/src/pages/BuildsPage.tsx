@@ -230,7 +230,7 @@ export function BuildsPage() {
               onExecute={(id) => void runExecute(id)}
             />
             {executionError ? (
-              <div role="alert" className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive-soft p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-destructive/30 bg-destructive-soft p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <p>{executionError}</p>
                 <Button type="button" variant="outline" size="sm" onClick={() => setExecutionError(null)}>Fechar aviso</Button>
               </div>
@@ -284,7 +284,7 @@ export function BuildsPage() {
 function CurrentBuildHero({ build, request }: { build: BuildRow | null; request: BuildRequestRow | null }) {
   const progress = buildProgress(build?.status);
   return (
-    <section className="grid min-h-[150px] gap-6 rounded-lg border border-border bg-muted p-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,1fr)] lg:items-center">
+    <section className="grid min-h-[150px] gap-6 rounded-2xl border border-border/85 bg-muted/55 p-5 shadow-sm sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,1fr)] lg:items-center">
       <div>
         <StatusBadge value={build?.status || request?.status || 'waiting'} />
         <h2 className="mt-4 text-[22px] font-bold">
@@ -317,23 +317,21 @@ function CurrentBuildHero({ build, request }: { build: BuildRow | null; request:
 function PipelineStages({ build, request }: { build: BuildRow | null; request: BuildRequestRow | null }) {
   const stages = pipelineState(build, request);
   return (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Etapas persistidas do pipeline">
+    <section className="grid gap-3 rounded-2xl border border-border/85 bg-card p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-5" aria-label="Etapas persistidas do pipeline">
       {stages.map((stage) => (
-        <Card key={stage.label} className="min-h-[104px] shadow-none">
-          <CardContent className="flex items-start gap-3 p-4">
-            <PipelineIcon state={stage.state} />
-            <div>
-              <p className="text-sm font-bold">{stage.label}</p>
-              <p className={cn(
-                'mt-2 text-[10px] font-semibold',
-                stage.state !== 'waiting' && 'text-foreground',
-                stage.state === 'waiting' && 'text-muted-foreground',
-              )}>
-                {stage.detail}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <article key={stage.label} className="flex min-h-[88px] items-start gap-3 rounded-xl bg-muted/55 p-3.5">
+          <PipelineIcon state={stage.state} />
+          <div>
+            <p className="text-sm font-bold">{stage.label}</p>
+            <p className={cn(
+              'mt-2 text-[10px] font-semibold',
+              stage.state !== 'waiting' && 'text-foreground',
+              stage.state === 'waiting' && 'text-muted-foreground',
+            )}>
+              {stage.detail}
+            </p>
+          </div>
+        </article>
       ))}
     </section>
   );
@@ -383,7 +381,7 @@ function BuildHistory({ builds }: { builds: BuildRow[] }) {
 
 function BuildLogPanel({ events, build }: { events: BuildEvent[]; build: BuildRow | null }) {
   return (
-    <aside className="rounded-lg border border-border bg-card p-6" aria-labelledby="build-log-title">
+    <aside className="rounded-2xl border border-border/85 bg-card p-5 shadow-sm sm:p-6" aria-labelledby="build-log-title">
       <p id="build-log-title" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Eventos permitidos</p>
       <div className="mt-7 min-h-[210px] space-y-5">
         {events.map((event) => (
@@ -540,7 +538,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
 
 function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
   const id = `build-${label.toLocaleLowerCase('pt-BR').replace(/\s+/g, '-')}`;
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><select id={id} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20">{children}</select></div>;
+  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><select id={id} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20">{children}</select></div>;
 }
 
 function parseBuildEvents(value: import('@/types/supabase').Json | null): BuildEvent[] {
