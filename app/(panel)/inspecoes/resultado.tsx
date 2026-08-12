@@ -19,7 +19,7 @@ import { syncPendentes } from '../../../services/SyncService';
 import { getSignedUrl } from '../../../services/StorageService';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { formatarPontuacaoRisco, normalizarNivelRisco, resolverApresentacaoRisco } from '../../../utils/riscoUtils';
-import { generateProtocolo } from '../../../utils/uuid';
+import { protocolDisplay } from '../../../utils/protocoloDisplay';
 import { buildShareMessage } from '../../../utils/shareUtils';
 import { uploadLaudoPdf } from '../../../services/StorageService';
 import { useConnectivity } from '../../../context/ConnectivityContext';
@@ -151,7 +151,7 @@ export default function ResultadoScreen() {
     try { respostas = JSON.parse(v.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: v.id || '',
-      protocolo: v.protocolo || generateProtocolo(v.id || '', v.dataVistoria, v.municipio),
+      protocolo: protocolDisplay(v.protocolo).value,
       endereco: v.endereco || '',
       municipio: v.municipio || '',
       agenteNome: nome,
@@ -325,11 +325,7 @@ export default function ResultadoScreen() {
 
   const buildDados = (agentSignatureStrokes: SignatureStroke[] | null = agentSignature): LaudoData => ({
     id: vistoria?.id || '',
-    protocolo: vistoria?.protocolo || generateProtocolo(
-      vistoria?.id || '',
-      vistoria?.dataVistoria,
-      vistoria?.municipio,
-    ),
+    protocolo: protocolDisplay(vistoria?.protocolo).value,
     nivelRisco: vistoria?.nivelRisco || 'r1',
     pontuacaoTotal: vistoria?.pontuacaoTotal ?? 0,
     endereco: vistoria?.endereco || '—',
@@ -537,7 +533,7 @@ export default function ResultadoScreen() {
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
 
-      const protocolo = vistoria?.protocolo || generateProtocolo(vistoria?.id || '', vistoria?.dataVistoria, vistoria?.municipio);
+      const protocolo = protocolDisplay(vistoria?.protocolo).value;
       const mensagem = buildShareMessage({
         protocolo,
         endereco: vistoria?.endereco || 'Endereço não informado',
@@ -712,7 +708,7 @@ export default function ResultadoScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <AppHeader
         title="Resultado da vistoria"
-        subtitle={vistoria?.protocolo || generateProtocolo(id?.toString() || '', vistoria?.dataVistoria, vistoria?.municipio)}
+        subtitle={protocolDisplay(vistoria?.protocolo).value}
         onBack={() => safeBack(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes')}
         style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
       />

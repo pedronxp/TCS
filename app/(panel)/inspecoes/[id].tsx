@@ -13,7 +13,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { getOfficialVistoriaById, deleteVistoriaOffline } from '../../../utils/database';
 import { formatarPontuacaoRisco, resolverApresentacaoRisco } from '../../../utils/riscoUtils';
-import { generateProtocolo } from '../../../utils/uuid';
+import { protocolDisplay } from '../../../utils/protocoloDisplay';
 import { formatarData, formatarDataHora } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,7 +67,7 @@ export default function VistoriaDetalhesScreen() {
     try { respostas = JSON.parse(data.respostasJson || '{}'); } catch { /* noop */ }
     initReport({
       vistoriaId: data.id,
-      protocolo: generateProtocolo(data.id || '', data.dataVistoria, data.municipio),
+      protocolo: protocolDisplay(data.protocolo).value,
       endereco: data.endereco || `${data.enderecoRua || ''}, ${data.enderecoNumero || ''} — ${data.enderecoBairro || ''}`,
       municipio: data.municipio || '',
       agenteNome: data.agenteNome || '',

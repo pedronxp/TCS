@@ -9,10 +9,16 @@
 
 - [ ] 2.1 Criar referência de municípios IBGE, importador, sincronização e política de atualização.
 - [ ] 2.2 Adicionar município IBGE canônico às organizações/onboarding e migrar dados textuais com revisão de ambiguidades.
-- [ ] 2.3 Criar séries, contadores e função idempotente de alocação de protocolo por organização.
+- [x] 2.3 Criar séries, contadores e função idempotente de alocação de protocolo por organização.
+  - Implementado em `20260811120000_official_protocol_allocation.sql`: série ativa por organização, contador atômico por organização/série/ano e RPC `sync_finalized_inspection`, cuja chave de idempotência é a UUID da vistoria.
 - [ ] 2.4 Migrar protocolos existentes sem renumeração, criar índices únicos e impedir reutilização de anulados.
-- [ ] 2.5 Alterar mobile/web para exibirem protocolo pendente até alocação autoritativa.
+  - Parcialmente implementado: a migração preserva valores históricos, cria unicidade de `protocolo` e de organização/série/ano/sequência, mantém ledger de alocação após exclusão e falha explicitamente diante de duplicidade legada. A reconciliação de protocolos históricos para uma série contratual requer o inventário da tarefa 1.4; não foi inferida por nome de município.
+- [x] 2.5 Alterar mobile/web para exibirem protocolo pendente até alocação autoritativa.
+  - O app continua a apresentar pendência sem valor persistido e o `SyncService` passou a chamar a RPC autoritativa, persistindo no cache local somente o protocolo devolvido pelo servidor.
+
+> Em andamento: o app mobile deixou de gerar o fallback local nas telas de detalhe e resultado; a emissão oficial por organização ainda depende da alocação autoritativa no Supabase.
 - [ ] 2.6 Testar concorrência, offline, organizações na mesma cidade e isolamento por RLS.
+  - Cobertura de integração adicionada para emissão concorrente, retry idempotente, clientes na mesma cidade, valor fornecido pelo cliente, histórico e exclusão; a validação de RLS ponta a ponta com o schema hospedado permanece pendente.
 
 ## 3. Identidade e onboarding
 

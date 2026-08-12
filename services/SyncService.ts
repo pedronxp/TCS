@@ -7,6 +7,7 @@ import { supabase } from '../utils/supabase';
 import {
   getVistoriasNaoSincronizadas,
   markSincronizado,
+  storeOfficialProtocol,
   markErroSync,
   incrementTentativasSync,
   resetTentativasSync,
@@ -199,11 +200,16 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
       if (payloads.length === 0) continue;
 
       try {
-        const { error } = await supabase.from('vistorias').upsert(payloads);
-        if (error) throw error;
+        const allocationResults = await Promise.all(
+          payloads.map(p_inspection => supabase.rpc('sync_finalized_inspection', { p_inspection }))
+        );
+        const allocationFailure = allocationResults.find(result => result.error)?.error;
+        if (allocationFailure) throw allocationFailure;
 
         // Marcar como concluido apenas quando os dados e a midia remota estiverem completos.
-        loteProntoParaSync.forEach(v => {
+        loteProntoParaSync.forEach((v, index) => {
+          const protocol = allocationResults[index]?.data?.protocol;
+          if (typeof protocol === 'string') storeOfficialProtocol(v.id, protocol);
           if (hasMidiaLocalPendente(v)) {
             markErroSync(v.id, 'Dados enviados; mídia local pendente de upload.');
             falha++;
@@ -220,8 +226,12 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
         // Lote falhou — tentar individualmente para isolar o registro problemático
         for (const vistoria of loteProntoParaSync) {
           try {
-            const { error: errSingle } = await supabase.from('vistorias').upsert(buildSupabasePayload(vistoria));
+            const { data, error: errSingle } = await supabase.rpc(
+              'sync_finalized_inspection',
+              { p_inspection: buildSupabasePayload(vistoria) }
+            );
             if (errSingle) throw errSingle;
+            if (typeof data?.protocol === 'string') storeOfficialProtocol(vistoria.id, data.protocol);
             if (hasMidiaLocalPendente(vistoria)) {
               markErroSync(vistoria.id, 'Dados enviados; mídia local pendente de upload.');
               falha++;

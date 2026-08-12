@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage",
     "test:subscription-concurrency": "node scripts/test-subscription-concurrency.mjs",
     "test:subscription-migration": "node scripts/test-subscription-migration.mjs",
+    "test:official-protocol-allocation": "node scripts/test-official-protocol-allocation.mjs",
     "test:agent-detail": "node scripts/test-internal-agent-detail.mjs",
     "test:archive-restore": "node scripts/test-archive-restore-security.mjs"
   },
