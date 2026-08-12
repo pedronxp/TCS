@@ -3,11 +3,13 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { GoogleMark } from '@/components/brand/GoogleMark';
 import { AuthFrame, AuthLoadingCard } from '@/components/auth/AuthFrame';
+import { TermsPrivacyDialog } from '@/components/auth/TermsPrivacyDialog';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { safePortalDestination } from '@/lib/portal';
+import { calcularForcaSenha, FORCA_CORES, FORCA_LABELS, validarSenha, SENHA_MAX } from '@/lib/passwordValidation';
 
 
 const portalAside = {
@@ -26,6 +28,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -105,9 +108,20 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (mode === 'sign-up' && !termsAccepted) {
-      setMessage('Aceite os Termos de Uso e a Política de Privacidade para criar sua conta.');
-      return;
+    if (mode === 'sign-up') {
+      const senhaCheck = validarSenha(password);
+      if (!senhaCheck.valido) {
+        setMessage(senhaCheck.erro ?? 'Senha inválida.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setMessage('A confirmação de senha não corresponde.');
+        return;
+      }
+      if (!termsAccepted) {
+        setMessage('Aceite os Termos de Uso e a Política de Privacidade para criar sua conta.');
+        return;
+      }
     }
     setSubmitting(true);
     setMessage(null);
@@ -285,24 +299,52 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 <div>
                   <label className="block text-sm font-medium" htmlFor="portal-password">Senha</label>
                   <span className="relative mt-2 block">
-                    <Input id="portal-password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required />
+                    <Input id="portal-password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} maxLength={SENHA_MAX} required />
                     <button type="button" className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                       {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                     </button>
                   </span>
-                  {mode === 'sign-up' && <span className="mt-2 block text-xs font-normal text-muted-foreground">Use pelo menos 8 caracteres.</span>}
+                  {mode === 'sign-up' && (
+                    <>
+                      <span className="mt-2 block text-xs font-normal text-muted-foreground">Mínimo de 8 caracteres, com letra e número.</span>
+                      {password && (
+                        <span className="mt-2 flex items-center gap-2 text-xs font-medium" aria-live="polite">
+                          <span className="inline-block h-1.5 w-24 overflow-hidden rounded-full bg-secondary">
+                            <span className="block h-full rounded-full transition-all" style={{ width: `${((calcularForcaSenha(password) + 1) / 3) * 100}%`, backgroundColor: FORCA_CORES[calcularForcaSenha(password)] }} />
+                          </span>
+                          <span style={{ color: FORCA_CORES[calcularForcaSenha(password)] }}>{FORCA_LABELS[calcularForcaSenha(password)]}</span>
+                        </span>
+                      )}
+                    </>
+                  )}
                 </div>
+                {mode === 'sign-up' && (
+                  <div>
+                    <label className="block text-sm font-medium" htmlFor="portal-confirm-password">Confirmar senha</label>
+                    <span className="relative mt-2 block">
+                      <Input id="portal-confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} maxLength={SENHA_MAX} required />
+                      <button type="button" className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                        {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                      </button>
+                    </span>
+                    {confirmPassword && password !== confirmPassword && <span className="mt-2 block text-xs font-normal text-destructive">As senhas não correspondem.</span>}
+                  </div>
+                )}
                 {message && <div className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</div>}
                 {mode === 'sign-up' && (
-                  <label className="flex items-start gap-3 text-sm text-muted-foreground">
+                  <div className="flex items-start gap-3 text-sm text-muted-foreground">
                     <input
                       type="checkbox"
+                      id="portal-terms"
                       className="mt-1 h-4 w-4"
                       checked={termsAccepted}
                       onChange={(event) => setTermsAccepted(event.target.checked)}
                     />
-                    Li e aceito os Termos de Uso e a Política de Privacidade vigentes.
-                  </label>
+                    <label htmlFor="portal-terms" className="cursor-pointer">
+                      Li e aceito os Termos de Uso e a Política de Privacidade vigentes.
+                    </label>
+                    <TermsPrivacyDialog />
+                  </div>
                 )}
                 <Button type="submit" className="w-full" disabled={submitting || (mode === 'sign-up' && !termsAccepted)}>
                   {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}

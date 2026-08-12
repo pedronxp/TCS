@@ -167,14 +167,15 @@ describe('autenticação pública do portal', () => {
 
     await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Teste');
     await user.type(screen.getByLabelText('E-mail'), 'pessoa@exemplo.com');
-    await user.type(screen.getByLabelText('Senha'), 'senha-segura');
+    await user.type(screen.getByLabelText('Senha'), 'senha123');
+    await user.type(screen.getByLabelText('Confirmar senha'), 'senha123');
     // Aceite dos Termos de Uso e Política de Privacidade é obrigatório para criar conta.
     await user.click(screen.getByRole('checkbox', { name: /Li e aceito os Termos de Uso e a Política de Privacidade/ }));
     await user.click(screen.getByRole('button', { name: 'Criar conta' }));
 
     expect(await screen.findByText('Confirme seu e-mail')).toBeVisible();
     expect(screen.getByRole('status')).toHaveTextContent('Conta criada. Confirme o link enviado ao seu e-mail para continuar.');
-    expect(portalAuthState.signUp).toHaveBeenCalledWith('Pessoa Teste', 'pessoa@exemplo.com', 'senha-segura', 'individual');
+    expect(portalAuthState.signUp).toHaveBeenCalledWith('Pessoa Teste', 'pessoa@exemplo.com', 'senha123', 'individual');
   });
 
   it('bloqueia a criação de conta sem aceitar os Termos de Uso e a Política de Privacidade', async () => {
@@ -184,11 +185,45 @@ describe('autenticação pública do portal', () => {
 
     await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Teste');
     await user.type(screen.getByLabelText('E-mail'), 'pessoa@exemplo.com');
-    await user.type(screen.getByLabelText('Senha'), 'senha-segura');
+    await user.type(screen.getByLabelText('Senha'), 'senha123');
+    await user.type(screen.getByLabelText('Confirmar senha'), 'senha123');
 
     // Botão de criar conta permanece desabilitado até aceitar os termos.
     expect(screen.getByRole('button', { name: 'Criar conta' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Criar conta' }));
+    expect(portalAuthState.signUp).not.toHaveBeenCalled();
+  });
+
+  it('rejeita senhas que não atendem à política mínima', async () => {
+    const user = userEvent.setup();
+    portalAuthState.session = null;
+    render(<MemoryRouter initialEntries={['/criar-conta?plan=individual']}><PortalAuthPage mode="sign-up" /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Teste');
+    await user.type(screen.getByLabelText('E-mail'), 'pessoa@exemplo.com');
+    await user.type(screen.getByLabelText('Senha'), 'fraca');
+    await user.type(screen.getByLabelText('Confirmar senha'), 'fraca');
+    await user.click(screen.getByRole('checkbox', { name: /Li e aceito os Termos de Uso e a Política de Privacidade/ }));
+    await user.click(screen.getByRole('button', { name: 'Criar conta' }));
+
+    // Botão habilita com termos aceitos, mas submit valida a senha antes de chamar signUp.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/mínimo de 8 caracteres|mínimo 8 caracteres/i);
+    expect(portalAuthState.signUp).not.toHaveBeenCalled();
+  });
+
+  it('rejeita quando a confirmação de senha diverge', async () => {
+    const user = userEvent.setup();
+    portalAuthState.session = null;
+    render(<MemoryRouter initialEntries={['/criar-conta?plan=individual']}><PortalAuthPage mode="sign-up" /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Teste');
+    await user.type(screen.getByLabelText('E-mail'), 'pessoa@exemplo.com');
+    await user.type(screen.getByLabelText('Senha'), 'senha123');
+    await user.type(screen.getByLabelText('Confirmar senha'), 'diferente1');
+    await user.click(screen.getByRole('checkbox', { name: /Li e aceito os Termos de Uso e a Política de Privacidade/ }));
+    await user.click(screen.getByRole('button', { name: 'Criar conta' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/confirmação de senha não corresponde/i);
     expect(portalAuthState.signUp).not.toHaveBeenCalled();
   });
 });
