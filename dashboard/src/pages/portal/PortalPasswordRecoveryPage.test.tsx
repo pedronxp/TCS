@@ -68,6 +68,7 @@ describe('recuperação de senha do portal', () => {
 
   it('mantém o formulário e mostra erro genérico quando o envio falha', async () => {
     const user = userEvent.setup();
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     supabaseMock.rpc.mockResolvedValue({ data: { password_recovery: true }, error: null });
     supabaseMock.auth.resetPasswordForEmail.mockResolvedValue({
       data: null,
@@ -81,6 +82,12 @@ describe('recuperação de senha do portal', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível solicitar a recuperação agora');
     expect(screen.queryByText('Verifique seu e-mail')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Enviar link seguro' })).toBeEnabled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[password-recovery] resetPasswordForEmail failed:',
+      'SMTP provider rejected the request',
+      expect.objectContaining({ message: 'SMTP provider rejected the request' }),
+    );
+    consoleErrorSpy.mockRestore();
   });
 
   it('orienta a solicitar outro link quando a sessão de recovery expirou', async () => {
@@ -93,10 +100,14 @@ describe('recuperação de senha do portal', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent('Validando sua sessão');
-    await act(async () => { await vi.advanceTimersByTimeAsync(251); });
+    // O polling roda a cada 200ms até maxAttempts (15 * 200ms = 3s). Como session é
+    // null e sessionStorage está vazio, verify() retorna "null" (aguardando) até
+    // atingir maxAttempts, onde para com false.
+    await act(async () => { await vi.advanceTimersByTimeAsync(3100); });
 
     expect(screen.getByRole('alert')).toHaveTextContent('inválido, expirou ou já foi utilizado');
     expect(screen.getByRole('link', { name: 'Solicitar outro link' })).toHaveAttribute('href', '/recuperar-senha?returnTo=%2Fportal');
+    vi.useRealTimers();
   });
 
   it('valida senha e confirmação antes de chamar o Supabase', async () => {
@@ -107,7 +118,7 @@ describe('recuperação de senha do portal', () => {
       expiresAt: Date.now() + 60_000,
     }));
     render(<MemoryRouter><PortalPasswordRecoveryPage mode="reset" /></MemoryRouter>);
-    await act(async () => { await vi.advanceTimersByTimeAsync(251); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(201); });
     vi.useRealTimers();
 
     const user = userEvent.setup();
