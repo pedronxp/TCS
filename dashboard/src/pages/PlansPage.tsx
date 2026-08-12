@@ -5,20 +5,14 @@ import {
   Boxes,
   CalendarDays,
   Check,
-  CircleCheck,
   Edit3,
   Gauge,
-  Headphones,
-  History,
   Loader2,
   LockKeyhole,
   Rocket,
   Save,
   Sparkles,
-  Layers,
   CheckCircle2,
-  ChevronRight,
-  Filter,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { jsonArray, jsonNumber, jsonObject, jsonString } from '@/lib/json';
