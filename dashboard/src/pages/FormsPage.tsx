@@ -158,7 +158,7 @@ export function FormsPage() {
       />
 
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Configuração operacional</p>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Operação técnica</p>
         <h1 id="forms-title" className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Formulários</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Edite perguntas, valide a prévia e publique versões com rastreabilidade.
@@ -181,14 +181,14 @@ export function FormsPage() {
       >
         {query.data && forms.length > 0 && (
           <>
-            <div className="grid gap-4 md:grid-cols-3" aria-label="Resumo dos formulários">
+            <section className="grid gap-x-7 gap-y-5 rounded-2xl border border-border/85 bg-muted/45 p-5 sm:grid-cols-3 sm:p-6" aria-label="Resumo dos formulários">
               <FormMetric label="Publicados" value={published} hint="versões ativas" icon={FileCheck2} />
               <FormMetric label="Rascunhos" value={drafts} hint="em revisão" icon={ClipboardList} tone="warning" />
               <FormMetric label="Escopo global" value={global} hint={`${forms.length - global} municipais`} icon={Layers3} tone="info" />
-            </div>
+            </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_350px]">
-              <Card className="min-w-0 overflow-hidden rounded-lg">
+              <Card className="min-w-0 overflow-hidden rounded-2xl border-border/85 shadow-sm">
                 <div className="p-5 sm:p-6">
                   <h2 className="text-base font-bold">Catálogo de formulários</h2>
                   <p className="mt-1 text-xs text-muted-foreground">Versões publicadas e rascunhos</p>
@@ -205,7 +205,7 @@ export function FormsPage() {
                       id="forms-scope"
                       value={scope}
                       onChange={(event) => setScope(event.target.value as typeof scope)}
-                      className="h-11 rounded-md border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20"
+                      className="h-11 rounded-xl border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20"
                     >
                       <option value="all">Todos os escopos</option>
                       <option value="global">Global</option>
@@ -313,10 +313,10 @@ function FormMetric({
   tone?: 'default' | 'warning' | 'info';
 }) {
   return (
-    <Card className={cn(
-      'rounded-lg p-5 shadow-none',
-      tone === 'warning' && 'border-warning/20 bg-warning-soft',
-      tone === 'info' && 'border-border bg-muted',
+      <div className={cn(
+      'min-w-0 rounded-xl bg-card/55 p-4',
+      tone === 'warning' && 'bg-warning-soft',
+      tone === 'info' && 'bg-info-soft',
     )}>
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -324,11 +324,11 @@ function FormMetric({
           <p className="mt-2 text-2xl font-bold">{String(value).padStart(2, '0')}</p>
           <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
         </div>
-        <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-card text-muted-foreground">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -355,7 +355,7 @@ function FormPreview({
   const rollbackVersions = form.versions.filter((version) => version.version !== form.version);
 
   return (
-    <aside className="flex min-h-[602px] flex-col rounded-lg border border-border bg-card p-6" aria-labelledby="form-preview-title">
+    <aside className="flex min-h-[602px] flex-col rounded-2xl border border-border/85 bg-card p-5 shadow-sm sm:p-6" aria-labelledby="form-preview-title">
       <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Pré-visualização</p>
       <h2 id="form-preview-title" className="mt-3 text-lg font-bold">{form.title}</h2>
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -403,7 +403,7 @@ function FormPreview({
           {canPublish && form.status !== 'publicado' && <Button size="sm" onClick={onPublish}><FileCheck2 />Publicar</Button>}
         </div>
         {canPublish && rollbackVersions.length > 0 && (
-          <details className="mt-3 rounded-lg border border-border bg-muted px-3 py-2">
+          <details className="mt-3 rounded-xl border border-border/85 bg-muted/65 px-3 py-2">
             <summary className="cursor-pointer text-xs font-semibold">Histórico da versão</summary>
             <div className="mt-2 space-y-1">
               {rollbackVersions.slice(0, 5).map((version) => (
@@ -426,7 +426,7 @@ function FormPreview({
 
 function PreviewStat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="rounded-lg border border-border bg-muted p-3">
+    <div className="rounded-xl bg-muted/65 p-3">
       <p className="text-lg font-bold text-foreground">{String(value).padStart(2, '0')}</p>
       <p className="mt-1 truncate text-[9px] text-muted-foreground">{label}</p>
     </div>
@@ -531,7 +531,7 @@ function FormEditorContent({
                     id="form-calculation"
                     value={calculation}
                     onChange={(event) => setCalculation(event.target.value)}
-                    className="mt-2 h-11 w-full rounded-md border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20"
+                    className="mt-2 h-11 w-full rounded-xl border border-input bg-card px-3 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20"
                   >
                     <option value="soma_total">Soma total</option>
                     <option value="ponderada_max_elemento">Ponderada por fase</option>
@@ -563,7 +563,7 @@ function FormEditorContent({
               </div>
             </div>
 
-            <aside className="rounded-xl border bg-secondary/35 p-4" aria-label="Pré-visualização das perguntas">
+            <aside className="rounded-2xl border border-border/85 bg-secondary/35 p-4" aria-label="Pré-visualização das perguntas">
               <p className="flex items-center gap-2 font-bold"><Eye className="h-4 w-4" />Pré-visualização</p>
               {preview.length ? (
                 <ol className="mt-4 space-y-2">

@@ -125,14 +125,7 @@ export function SubscriptionsPage() {
         emptyTitle="Nenhuma assinatura"
         emptyDescription="Atribua um plano ao primeiro cliente."
       >
-        <CycleFlow metrics={metrics} />
-
-        <div className="grid gap-4 xl:grid-cols-[repeat(3,minmax(0,1fr))_248px]">
-          <SubscriptionMetric label="MRR contratado" value={formatCompactCurrency(metrics.mrrCents)} detail={`${metrics.recurring} ciclos`} tone="success" />
-          <SubscriptionMetric label="Renovações em 30 dias" value={String(metrics.renewals.length)} detail={formatCompactCurrency(metrics.renewalCents)} tone="success" />
-          <SubscriptionMetric label="Base saudável" value={`${metrics.healthyPercent}%`} detail={`${metrics.healthy} sem risco`} tone="success" />
-          <div className="hidden xl:block" />
-        </div>
+        <RevenuePortfolio metrics={metrics} />
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,822px)_248px]">
           <Card className="min-w-0 shadow-none">
@@ -191,42 +184,30 @@ export function SubscriptionsPage() {
   );
 }
 
-function CycleFlow({ metrics }: { metrics: ReturnType<typeof subscriptionMetrics> }) {
-  const stages = [
-    ['Teste', metrics.trial, 'bg-muted text-foreground'],
-    ['Ativas', metrics.active, 'bg-primary text-primary-foreground'],
-    ['Renovação', metrics.renewals.length, 'bg-muted text-foreground'],
-    ['Carência', metrics.grace, 'bg-muted text-foreground'],
-    ['Em atraso', metrics.pastDue, 'bg-destructive text-destructive-foreground'],
+function RevenuePortfolio({ metrics }: { metrics: ReturnType<typeof subscriptionMetrics> }) {
+  const signals = [
+    ['Renovações próximas', metrics.renewals.length, formatCompactCurrency(metrics.renewalCents)],
+    ['Base saudável', `${metrics.healthyPercent}%`, `${metrics.healthy} ciclos sem risco`],
+    ['Exigem atenção', metrics.atRisk.length, metrics.atRisk.length ? 'priorize antes do vencimento' : 'nenhum ciclo crítico'],
   ] as const;
   return (
-    <section className="rounded-lg border border-border bg-card p-6">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fluxo de ciclo</p>
-      <div className="mt-6 grid gap-5 sm:grid-cols-5">
-        {stages.map(([label, value, tone], index) => (
-          <div key={label} className="relative text-center">
-            {index < stages.length - 1 && <span className="absolute left-[calc(50%+28px)] top-6 hidden h-px w-[calc(100%-56px)] bg-border sm:block" />}
-            <span className={cn('relative z-10 mx-auto grid h-[46px] w-[46px] place-items-center rounded-full text-xs font-bold', tone)}>{value}</span>
-            <span className="mt-3 block text-[10px] font-semibold">{label}</span>
+    <section className="overflow-hidden rounded-2xl border border-primary/15 bg-success-soft px-6 py-7 sm:px-8">
+      <div className="grid gap-7 xl:grid-cols-[minmax(240px,1.25fr)_repeat(3,minmax(0,1fr))] xl:items-end">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Carteira recorrente</p>
+          <p className="mt-3 text-sm text-muted-foreground">Receita contratada e decisões que precisam acontecer antes do próximo ciclo.</p>
+          <strong className="mt-5 block text-4xl font-bold tracking-[-0.045em] tabular-nums">{formatCompactCurrency(metrics.mrrCents)}</strong>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">MRR em {metrics.recurring} {metrics.recurring === 1 ? 'assinatura vigente' : 'assinaturas vigentes'}</p>
+        </div>
+        {signals.map(([label, value, detail]) => (
+          <div key={label} className="border-l border-primary/15 pl-5">
+            <p className="text-[11px] font-semibold text-foreground">{label}</p>
+            <strong className="mt-3 block text-2xl font-bold tracking-[-0.03em] tabular-nums">{value}</strong>
+            <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{detail}</p>
           </div>
         ))}
       </div>
-      <p className="mt-6 text-center text-[11px] text-muted-foreground">Contagem real por estágio · nenhuma estimativa inferida</p>
     </section>
-  );
-}
-
-function SubscriptionMetric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: 'success' }) {
-  return (
-    <Card className="min-h-[112px] shadow-none">
-      <CardContent className="p-4">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
-          <strong className="text-[24px]">{value}</strong>
-          <span className={cn('text-[10px] font-semibold', tone === 'success' && 'text-success')}>{detail}</span>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -238,7 +219,7 @@ function RenewalRadar({ metrics }: { metrics: ReturnType<typeof subscriptionMetr
     ['Em risco', metrics.atRisk.length, 'bg-destructive', 'text-destructive'],
   ] as const;
   return (
-    <aside className="rounded-lg border border-border bg-muted p-6">
+    <aside className="rounded-2xl border border-border/80 bg-muted/70 p-6">
       <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Radar de renovação</p>
       <strong className="mt-4 block text-[24px]">{formatCompactCurrency(metrics.renewalCents)}</strong>
       <p className="mt-1 text-[11px] text-muted-foreground">em ciclos nos próximos 30 dias</p>

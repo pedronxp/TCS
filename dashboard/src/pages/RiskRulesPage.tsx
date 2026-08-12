@@ -312,7 +312,7 @@ export function RiskRulesPage() {
         )}
       </AsyncBoundary>
 
-      {error && <p className="rounded-lg bg-destructive-soft p-3 text-sm text-foreground" role="alert">{error}</p>}
+      {error && <p className="rounded-2xl bg-destructive-soft p-4 text-sm text-foreground" role="alert">{error}</p>}
 
       <HighRiskDialog
         open={confirming}
@@ -352,7 +352,7 @@ function SimulationHero({
 }) {
   const row = jsonObject(simulation);
   return (
-    <section className="grid min-h-[156px] gap-5 rounded-lg border border-border bg-muted p-6 lg:grid-cols-[minmax(0,1fr)_188px_366px] lg:items-center" aria-labelledby="simulation-title">
+    <section className="grid min-h-[156px] gap-5 rounded-2xl border border-border/85 bg-muted/55 p-5 shadow-sm sm:p-6 lg:grid-cols-[minmax(0,1fr)_188px_366px] lg:items-center" aria-labelledby="simulation-title">
       <div>
         <span className="inline-flex rounded-full bg-primary px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-primary-foreground">Obrigatória</span>
         <h2 id="simulation-title" className="mt-3 text-lg font-bold">Simule antes de publicar</h2>
@@ -361,7 +361,7 @@ function SimulationHero({
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl bg-card/80 p-4">
         <Label htmlFor="risk-score" className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Pontuação</Label>
         <div className="mt-1 flex items-end gap-2">
           <Input
@@ -376,7 +376,7 @@ function SimulationHero({
         <Button size="sm" variant="outline" className="mt-2 w-full" onClick={onSimulate}><FlaskConical />Simular</Button>
       </div>
 
-      <div className="min-h-[100px] rounded-xl border border-border bg-muted p-5" aria-live="polite">
+      <div className="min-h-[100px] rounded-xl bg-card/80 p-5" aria-live="polite">
         <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Resultado simulado</p>
         {simulation && level ? (
           <div className="mt-3 flex items-center gap-3">
@@ -422,7 +422,7 @@ function MunicipalityPanel({
 }) {
   const isNew = !items.some((item) => item.municipality === selected);
   return (
-    <Card className="rounded-lg p-6 md:col-span-1">
+    <Card className="rounded-2xl border-border/85 p-5 shadow-sm sm:p-6 md:col-span-1">
       <h2 className="text-base font-bold">Escopo municipal</h2>
       <p className="mt-1 text-xs text-muted-foreground">Selecione a configuração</p>
       {isNew && (
@@ -446,8 +446,8 @@ function MunicipalityPanel({
             <button
               key={item.municipality}
               className={cn(
-                'flex min-h-[68px] w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                selected === item.municipality && 'border-primary bg-success-soft',
+                'flex min-h-[68px] w-full items-center gap-3 rounded-xl bg-muted/55 p-3 text-left transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                selected === item.municipality && 'bg-success-soft',
               )}
               onClick={() => onSelect(item)}
               aria-pressed={selected === item.municipality}
@@ -462,7 +462,7 @@ function MunicipalityPanel({
             </button>
           );
         })}
-        {!items.length && <p className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">Nenhuma regra cadastrada.</p>}
+        {!items.length && <p className="rounded-xl border border-dashed p-4 text-xs text-muted-foreground">Nenhuma regra cadastrada.</p>}
       </div>
       {canCreate && (
         <Button variant="outline" className="mt-5 w-full" onClick={onCreate}>
@@ -493,7 +493,7 @@ function TierPanel({
 }) {
   const currentVersion = selected?.versions[0];
   return (
-    <Card className="min-w-0 rounded-lg p-6 md:col-span-1">
+    <Card className="min-w-0 rounded-2xl border-border/85 p-5 shadow-sm sm:p-6 md:col-span-1">
       <h2 className="text-base font-bold">Faixas de classificação</h2>
       <p className="mt-1 truncate text-xs text-muted-foreground">
         {municipality || 'Novo município'}{currentVersion ? ` · ${currentVersion.status === 'draft' ? 'rascunho' : 'versão'} v${currentVersion.version}` : ''}
@@ -501,7 +501,7 @@ function TierPanel({
 
       <div className="mt-5 space-y-3">
         {tiers.map((tier) => (
-          <div key={tier.level} className="flex min-h-[72px] items-center gap-3 rounded-lg border bg-secondary/30 p-3">
+          <div key={tier.level} className="flex min-h-[72px] items-center gap-3 rounded-xl bg-secondary/55 p-3">
             <RiskLevelBadge level={tier.level} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold">{formatRange(tier.min, tier.max)}</p>
@@ -511,7 +511,7 @@ function TierPanel({
           </div>
         ))}
         {!tiers.length && (
-          <p className="rounded-lg border border-destructive/25 bg-destructive-soft p-3 text-xs text-foreground">
+          <p className="rounded-xl border border-destructive/25 bg-destructive-soft p-3 text-xs text-foreground">
             O JSON atual ainda não forma faixas R1–R4 válidas.
           </p>
         )}
@@ -520,7 +520,7 @@ function TierPanel({
       <details
         open={advancedOpen}
         onToggle={(event) => onAdvancedOpenChange(event.currentTarget.open)}
-        className="mt-5 rounded-lg border border-border bg-muted"
+        className="mt-5 rounded-xl bg-muted/65"
       >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-semibold">
           <span className="inline-flex items-center gap-2"><Braces className="h-4 w-4" />Configuração avançada (JSON)</span>
@@ -573,7 +573,7 @@ function VersionPanel({
 }) {
   const latest = selected?.versions[0];
   return (
-    <aside className="flex min-h-[544px] flex-col rounded-lg border border-border bg-card p-6 md:col-span-2 xl:col-span-1" aria-labelledby="risk-version-title">
+    <aside className="flex min-h-[544px] flex-col rounded-2xl border border-border/85 bg-card p-5 shadow-sm sm:p-6 md:col-span-2 xl:col-span-1" aria-labelledby="risk-version-title">
       <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Versão atual</p>
       <h2 id="risk-version-title" className="mt-3 text-lg font-bold">
         {municipality || 'Novo município'}{latest ? ` · v${latest.version}` : ''}
@@ -581,8 +581,8 @@ function VersionPanel({
       <div className="mt-3">{latest ? <StatusBadge value={latest.status} /> : <StatusBadge value="draft" />}</div>
 
       <div className={cn(
-        'mt-5 flex gap-3 rounded-lg border p-3 text-xs',
-        simulationReady ? 'border-success/25 bg-success-soft text-foreground' : 'border-border bg-muted text-muted-foreground',
+        'mt-5 flex gap-3 rounded-xl p-3 text-xs',
+        simulationReady ? 'bg-success-soft text-foreground' : 'bg-muted/65 text-muted-foreground',
       )}>
         {simulationReady ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : <FlaskConical className="h-4 w-4 shrink-0 text-muted-foreground" />}
         {simulationReady ? 'Simulação válida. A configuração pode ser versionada.' : 'Execute uma simulação válida para liberar as ações.'}
@@ -598,7 +598,7 @@ function VersionPanel({
           <button
             key={version.version}
             className={cn(
-              'flex w-full items-center justify-between rounded-lg px-2 py-3 text-left text-xs hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'flex w-full items-center justify-between rounded-xl px-2 py-3 text-left text-xs hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               targetVersion === version.version && 'bg-secondary',
             )}
             onClick={() => onSelectVersion(version)}

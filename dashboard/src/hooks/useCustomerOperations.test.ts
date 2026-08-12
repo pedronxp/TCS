@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCustomerOperations } from './useCustomerOperations';
+import { appointmentErrorMessage, parseCustomerOperations } from './useCustomerOperations';
 
 describe('operações do cliente', () => {
   it('preserva a origem web do agendamento e a autorização do laudo', () => {
@@ -41,5 +41,10 @@ describe('operações do cliente', () => {
     });
 
     expect(result.appointments[0].origin).toBe('app');
+  });
+
+  it('traduz falhas de criação em orientações acionáveis', () => {
+    expect(appointmentErrorMessage({ message: 'invalid_appointment_date' })).toBe('Escolha uma data e horário no futuro.');
+    expect(appointmentErrorMessage({ message: 'local_test_account_write_blocked' })).toContain('conta de teste');
   });
 });

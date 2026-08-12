@@ -87,9 +87,9 @@ export function StaffPage() {
 
       <div>
         <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Organização interna</p>
-        <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Equipe interna</h1>
+        <h1 className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.035em]">Pessoas e acessos</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Papéis, capacidade e responsabilidade em uma visão humana da operação. Mudanças em Owner ou Developer são de alto risco: exigem MFA e justificativa auditada.
+          Papéis internos, postura de acesso e responsabilidade operacional. Mudanças em Owner ou Developer são de alto risco: exigem MFA e justificativa auditada.
         </p>
         <Button className="mt-4 sm:hidden" onClick={openNewMember}>
           <Plus />
@@ -105,21 +105,28 @@ export function StaffPage() {
         emptyTitle="Sem equipe interna"
         emptyDescription="Nenhum perfil interno foi cadastrado."
       >
-        <section className="grid min-h-[174px] gap-6 rounded-lg border border-info/20 bg-info-soft p-6 lg:grid-cols-[1fr_auto] lg:items-center">
+        <section className="grid gap-7 rounded-2xl border border-primary/15 bg-success-soft p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
-            <p className="text-[10px] font-bold uppercase text-foreground">Time em destaque</p>
-            <h2 className="mt-4 text-2xl font-bold">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Postura de acesso</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-[-0.03em]">
               {stats.active} {stats.active === 1 ? 'pessoa conectada' : 'pessoas conectadas'} à operação
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Distribuição real entre papéis e estados de acesso configurados.
+              Visão da equipe com acesso vigente; permissões sensíveis continuam registradas na auditoria.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-            <StaffStatCircle label="Owner" value={stats.owner} tone="primary" />
-            <StaffStatCircle label="Developer" value={stats.developer} tone="info" />
-            <StaffStatCircle label="Ativos" value={stats.active} tone="success" />
-            <StaffStatCircle label="Suspensos" value={stats.suspended} tone="warning" />
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4">
+            {[
+              ['Owners', stats.owner],
+              ['Developers', stats.developer],
+              ['Ativos', stats.active],
+              ['Restritos', stats.suspended + stats.removed],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <strong className="block text-2xl font-bold tracking-[-0.03em] tabular-nums">{value}</strong>
+                <span className="mt-1 block text-[11px] font-medium text-muted-foreground">{label}</span>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -172,9 +179,9 @@ export function StaffPage() {
           </Card>
 
           <div className="space-y-5">
-            <aside className="rounded-lg bg-foreground p-6 text-background">
-              <p className="text-[10px] font-bold uppercase text-primary">Cobertura de papéis</p>
-              <div className="mt-7 space-y-6">
+            <aside className="rounded-2xl border border-border bg-muted/70 p-6">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Cobertura de papéis</p>
+              <div className="mt-6 space-y-5">
                 <CoverageBar label="Owners" value={stats.total ? stats.owner * 100 / stats.total : 0} tone="primary" />
                 <CoverageBar label="Developers" value={stats.total ? stats.developer * 100 / stats.total : 0} tone="info" />
                 <CoverageBar label="Acesso ativo" value={stats.total ? stats.active * 100 / stats.total : 0} tone="success" />
@@ -289,31 +296,6 @@ function StaffDraftDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function StaffStatCircle({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: 'primary' | 'info' | 'success' | 'warning';
-}) {
-  const tones = {
-    primary: 'bg-primary text-primary-foreground',
-    info: 'bg-info text-info-foreground',
-    success: 'bg-success text-success-foreground',
-    warning: 'bg-warning text-warning-foreground',
-  };
-  return (
-    <div className="text-center">
-      <span className={cn('mx-auto grid h-[52px] w-[52px] place-items-center rounded-full text-sm font-bold', tones[tone])}>
-        {value}
-      </span>
-      <span className="mt-3 block text-[10px] font-semibold">{label}</span>
-    </div>
   );
 }
 

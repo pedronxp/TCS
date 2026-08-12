@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
+import { customerDetailPath } from '@/lib/customerRoutes';
 import { cn } from '@/lib/utils';
 
 function formatActivity(value: string | null) {
@@ -101,24 +102,26 @@ export function CustomersPage() {
       <PageHeader
         eyebrow="Carteira de clientes"
         title="Clientes"
-        description="Organizações e contas individuais em uma visão comercial, operacional e técnica."
+        description="Encontre uma conta, entenda o momento operacional e intervenha antes que a implantação ou o acesso pare."
         actions={can('customer.write') ? (
-          <>
-            <Button variant="outline" onClick={() => openCreate('municipal')}>
-              <Plus />
-              Municipal
-            </Button>
-            <Button onClick={() => openCreate('individual')}>
-              <Plus />
-              Individual
-            </Button>
-          </>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <Plus />
+                Novo cliente
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => openCreate('municipal')}>Organização municipal</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openCreate('individual')}>Conta individual</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : undefined}
       />
 
       <CustomerOverview totals={totals} activePercent={activePercent} />
 
-      <Card>
+      <Card className="bg-card/80 shadow-none">
         <CardContent className="flex flex-col gap-3 p-2 sm:flex-row sm:items-center">
           <label className="relative min-w-0 flex-1 xl:max-w-[460px]">
             <span className="sr-only">Buscar clientes</span>
@@ -177,7 +180,7 @@ export function CustomersPage() {
       >
         {query.data && query.data.items.length > 0 ? (
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_264px]">
-            <Card className="min-w-0 overflow-hidden">
+            <Card className="min-w-0 overflow-hidden shadow-none">
               <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
                 <h2 className="stat-label">Carteira completa</h2>
                 <p className="text-xs font-medium text-muted-foreground">
@@ -205,7 +208,7 @@ export function CustomersPage() {
                           <div className="min-w-0">
                             <Link
                               className="block truncate text-[13px] font-semibold hover:text-primary transition-colors"
-                              to={`/app/clientes/${encodeURIComponent(customer.customer_id)}`}
+                              to={customerDetailPath(customer.customer_id)}
                             >
                               {customer.display_name}
                             </Link>
@@ -260,12 +263,12 @@ export function CustomersPage() {
       <OrganizationFormDialog
         open={creatingOrganization}
         onClose={closeCreate}
-        onSaved={(customerId) => navigate(`/app/clientes/${encodeURIComponent(customerId)}`)}
+        onSaved={(customerId) => navigate(customerDetailPath(customerId))}
       />
       <IndividualClientDialog
         open={creatingIndividual}
         onClose={closeCreate}
-        onSaved={(customerId) => navigate(`/app/clientes/${encodeURIComponent(customerId)}`)}
+        onSaved={(customerId) => navigate(customerDetailPath(customerId))}
       />
     </div>
   );
@@ -286,9 +289,9 @@ function CustomerOverview({
   ];
 
   return (
-    <section aria-label="Visão geral da carteira" className="grid grid-cols-2 gap-x-8 gap-y-10 xl:grid-cols-4">
-      {items.map((item) => (
-        <div key={item.label} className="min-w-0">
+    <section aria-label="Visão geral da carteira" className="grid grid-cols-2 gap-x-8 gap-y-7 rounded-2xl border border-border/80 bg-muted/45 px-6 py-6 xl:grid-cols-4">
+      {items.map((item, index) => (
+        <div key={item.label} className={cn('min-w-0 xl:pl-7', index > 0 && 'xl:border-l xl:border-border/80')}>
           <div className="stat-number mb-2">{item.value.toLocaleString('pt-BR')}</div>
           <div className="stat-label">{item.label}</div>
           <p className="mt-1.5 text-xs text-muted-foreground">{item.detail}</p>
@@ -313,7 +316,7 @@ function OnboardingRadar({
   ];
 
   return (
-    <Card>
+    <Card className="bg-muted/60 shadow-none">
       <CardContent className="p-6">
         <p className="stat-label">Radar de implantação</p>
         <strong className="mt-4 block text-2xl font-bold tracking-tight">{journeyTotal.toLocaleString('pt-BR')} clientes</strong>

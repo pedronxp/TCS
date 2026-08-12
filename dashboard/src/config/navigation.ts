@@ -10,9 +10,9 @@ import {
   GitBranch,
   Headphones,
   History,
-  Settings,
   Shield,
   Smartphone,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 import type { InternalPermission } from '@/types/internal';
@@ -41,17 +41,18 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
   {
     label: 'Negócio',
     items: [
+      { to: '/app/negocio/indicadores', label: 'Indicadores', icon: TrendingUp, permission: 'commercial.read' },
       { to: '/app/planos', label: 'Planos', icon: CreditCard, permission: 'commercial.read' },
       { to: '/app/assinaturas', label: 'Assinaturas', icon: ClipboardList, permission: 'commercial.read' },
-      { to: '/app/sessoes', label: 'Sessões', icon: Smartphone, permission: 'session.read' },
     ],
   },
   {
     label: 'Governança',
     items: [
-      { to: '/app/staff', label: 'Equipe interna', icon: Users, permission: 'staff.read' },
+      { to: '/app/staff', label: 'Pessoas e acessos', icon: Users, permission: 'staff.read' },
+      { to: '/app/sessoes', label: 'Sessões e segurança', icon: Smartphone, permission: 'session.read' },
       { to: '/app/auditoria', label: 'Auditoria', icon: History, permission: 'audit.read' },
-      { to: '/app/governanca/configuracoes', label: 'Configurações', icon: Settings, permission: 'configuration.publish' },
+      { to: '/app/governanca/arquivamento', label: 'Arquivamento', icon: Boxes, permission: 'configuration.publish' },
     ],
   },
 ];
