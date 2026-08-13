@@ -10,7 +10,7 @@ CREATE TABLE public.archive_restore_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id uuid NOT NULL,
   operation_id uuid NOT NULL,
-  inspection_id uuid NOT NULL REFERENCES public.vistorias(id) ON DELETE RESTRICT,
+  inspection_id text NOT NULL REFERENCES public.vistorias(id) ON DELETE RESTRICT,
   requested_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   requested_at timestamptz NOT NULL DEFAULT now(),
   reason text NOT NULL CHECK (char_length(trim(reason)) BETWEEN 8 AND 500),
