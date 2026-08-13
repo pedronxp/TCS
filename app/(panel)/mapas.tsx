@@ -20,6 +20,7 @@ import type { ValidCoordinates } from '../../utils/coordinateUtils';
 import { navSystemBottom } from '../../utils/useBottomTabPadding';
 import { safeBack } from '../../utils/navigationUtils';
 import { resolverApresentacaoRisco } from '../../utils/riscoUtils';
+import { matchesInspectionForm } from '../../utils/inspectionFormFilter';
 import { EmptyState, LoadingState } from '../../components/ui';
 import { TCSTheme } from '../../constants/Colors';
 
@@ -82,6 +83,13 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'baixo', label: 'Baixo' },
 ];
 
+const FORMULARIO_LABELS: Record<string, string> = {
+  inspecao_bueiro_drenagem_v1: 'Bueiro',
+  risco_incendio_vegetacao_v1: 'Vegetação',
+  risco_inundacao_v1: 'Alagamento',
+  avaliacao_arvore_cbmmg_v1: 'Árvores',
+};
+
 // Normaliza níveis legados (alto/medio/baixo → r3/r2/r1)
 function normalizeNivel(nivel: string): string {
   if (nivel === 'alto')  return 'r3';
@@ -127,6 +135,20 @@ function getMarkerRiscoShortLabel(marker: VistoriaMarker): string {
   return getMarkerRiscoLabel(marker) === 'RISCO IMINENTE' ? '!' : 'OK';
 }
 
+type InspectionMarkerIcon = keyof typeof Feather.glyphMap | 'fire';
+
+// Formulários operacionais recebem um símbolo próprio para que a leitura do
+// território não dependa apenas da cor do risco. Os demais mantêm o pin atual.
+function getInspectionMarkerIcon(formularioId?: string | null): InspectionMarkerIcon | null {
+  switch (formularioId) {
+    case 'inspecao_bueiro_drenagem_v1': return 'grid';
+    case 'risco_incendio_vegetacao_v1': return 'fire';
+    case 'risco_inundacao_v1': return 'droplet';
+    case 'avaliacao_arvore_cbmmg_v1': return 'git-branch';
+    default: return null;
+  }
+}
+
 // Tamanhos do marcador — visual neutro para não sumir no mapa do Android.
 const PIN_WRAP_WIDTH  = Platform.OS === 'android' ? 52 : 44;
 const PIN_WRAP_HEIGHT = Platform.OS === 'android' ? 78 : 68;
@@ -140,13 +162,17 @@ const MARKER_CENTER_OFFSET = { x: 0, y: 0 };
 const USE_NATIVE_ANDROID_MARKERS = Platform.OS === 'android';
 
 // Marcador customizado sem pinColor para manter renderização consistente no mapa nativo.
-function MarkerPin({ color, label }: { color: string; label: string }) {
+function MarkerPin({ color, label, icon }: { color: string; label: string; icon?: InspectionMarkerIcon | null }) {
   const { theme } = useTheme();
   return (
     <View style={markerStyles.markerWrap}>
       <View style={[markerStyles.pinShadow, { shadowColor: theme.foreground }]}>
         <View style={[markerStyles.pinHead, { borderColor: color, backgroundColor: theme.surface }]}>
-          <View style={[markerStyles.pinCenter, { backgroundColor: color, borderColor: theme.surface }]} />
+          {icon
+            ? icon === 'fire'
+              ? <Text style={{ fontSize: ICON_SIZE, lineHeight: ICON_SIZE + 2 }}>🔥</Text>
+              : <Feather name={icon} size={ICON_SIZE} color={color} />
+            : <View style={[markerStyles.pinCenter, { backgroundColor: color, borderColor: theme.surface }]} />}
           <View style={[markerStyles.riskAccent, { backgroundColor: color, borderColor: theme.surface }]} />
         </View>
         <View style={[markerStyles.pinTip, { borderColor: color, backgroundColor: theme.surface }]} />
@@ -262,6 +288,7 @@ export default function MapasScreen() {
   const [markers, setMarkers]           = useState<VistoriaMarker[]>([]);
   const [agendamentos, setAgendamentos] = useState<AgendamentoMarker[]>([]);
   const [filter, setFilter]             = useState<FilterKey>('todos');
+  const [formularioFilter, setFormularioFilter] = useState('todos');
   const [filtroPeriodo, setFiltroPeriodo] = useState<FilterPeriodo>('todos');
   const [mapStyle, setMapStyle]         = useState<MapStyle>('padrao');
   const [showStyleModal, setShowStyleModal] = useState(false);
@@ -555,6 +582,7 @@ export default function MapasScreen() {
   };
 
   const filteredMarkers = markers.filter(m => {
+    if (!matchesInspectionForm(m.formularioId, formularioFilter)) return false;
     const n = normalizeNivel(m.nivelRisco);
     if (filter === 'alto'  && !(n === 'r3' || n === 'r4')) return false;
     if (filter === 'medio' && n !== 'r2') return false;
@@ -569,7 +597,7 @@ export default function MapasScreen() {
   useEffect(() => {
     if (filteredMarkers.length === 0 && agendamentos.length === 0) return;
     refreshMarkerRendering();
-  }, [filteredMarkers.length, agendamentos.length, filter, filtroPeriodo, showHeatmap]);
+  }, [filteredMarkers.length, agendamentos.length, filter, formularioFilter, filtroPeriodo, showHeatmap]);
 
   const currentStyleConfig = MAP_STYLES.find(s => s.key === mapStyle)!;
   const initialRegion = userLocation
@@ -641,8 +669,9 @@ export default function MapasScreen() {
             currentRegionRef.current = region;
           }}
         >
-          {shouldRenderPins && filteredMarkers.map(m => (
-            USE_NATIVE_ANDROID_MARKERS ? (
+          {shouldRenderPins && filteredMarkers.map(m => {
+            const icon = getInspectionMarkerIcon(m.formularioId);
+            return USE_NATIVE_ANDROID_MARKERS && !icon ? (
               <Marker
                 key={m.id}
                 coordinate={{ latitude: m.lat, longitude: m.lng }}
@@ -660,10 +689,10 @@ export default function MapasScreen() {
                 centerOffset={MARKER_CENTER_OFFSET}
                 tracksViewChanges={tracksMarkerChanges}
               >
-                <MarkerPin color={getRiscoColor(m.nivelRisco, theme)} label={getMarkerRiscoShortLabel(m)} />
+                <MarkerPin color={getRiscoColor(m.nivelRisco, theme)} label={getMarkerRiscoShortLabel(m)} icon={icon} />
               </Marker>
-            )
-          ))}
+            );
+          })}
 
           {agendamentos.map(a => (
             USE_NATIVE_ANDROID_MARKERS ? (
@@ -784,6 +813,25 @@ export default function MapasScreen() {
               >
                 <Text style={[styles.chipText, { color: filtroPeriodo === p.key ? theme.onPrimary : theme.text }]}>
                   {p.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            <View style={[styles.filterDivider, { backgroundColor: theme.border }]} />
+            <TouchableOpacity
+              style={[styles.chip, formularioFilter === 'todos' ? { backgroundColor: theme.primary } : { backgroundColor: 'transparent' }]}
+              onPress={() => setFormularioFilter('todos')}
+            >
+              <Text style={[styles.chipText, { color: formularioFilter === 'todos' ? theme.onPrimary : theme.text }]}>Todos os formulários</Text>
+            </TouchableOpacity>
+            {Array.from(new Set(markers.map(marker => marker.formularioId).filter((id): id is string => Boolean(id)))).map(id => (
+              <TouchableOpacity
+                key={id}
+                style={[styles.chip, formularioFilter === id ? { backgroundColor: theme.primary } : { backgroundColor: 'transparent' }]}
+                onPress={() => setFormularioFilter(id)}
+              >
+                <Text style={[styles.chipText, { color: formularioFilter === id ? theme.onPrimary : theme.text }]}>
+                  {FORMULARIO_LABELS[id] ?? 'Outros'}
                 </Text>
               </TouchableOpacity>
             ))}

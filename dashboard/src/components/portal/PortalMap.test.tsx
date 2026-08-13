@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PortalMap, type PortalMapPoint } from './PortalMap';
+import { getPortalFormMarkerSymbol, PortalMap, type PortalMapPoint } from './PortalMap';
 
 const mapMocks = vi.hoisted(() => ({
   construct: vi.fn(),
@@ -45,8 +45,8 @@ vi.mock('maplibre-gl', () => {
 });
 
 const points: PortalMapPoint[] = [
-  { id: '1', protocol: 'TCS-001', status: 'concluída', address: 'Rua A', latitude: -8.1, longitude: -34.9 },
-  { id: '2', protocol: 'TCS-002', status: 'pendente', address: 'Rua B', latitude: -8.2, longitude: -35 },
+  { id: '1', protocol: 'TCS-001', status: 'concluída', address: 'Rua A', formularioId: null, latitude: -8.1, longitude: -34.9 },
+  { id: '2', protocol: 'TCS-002', status: 'pendente', address: 'Rua B', formularioId: null, latitude: -8.2, longitude: -35 },
 ];
 
 describe('PortalMap', () => {
@@ -84,5 +84,13 @@ describe('PortalMap', () => {
     render(<PortalMap points={[{ ...points[0], latitude: 91 }]} />);
     expect(screen.getByText('Nenhuma vistoria com coordenadas neste escopo.')).toBeVisible();
     expect(mapMocks.construct).not.toHaveBeenCalled();
+  });
+
+  it('identifica os formulários operacionais com os símbolos aprovados', () => {
+    expect(getPortalFormMarkerSymbol('inspecao_bueiro_drenagem_v1')).toBe('▦');
+    expect(getPortalFormMarkerSymbol('risco_incendio_vegetacao_v1')).toBe('🔥');
+    expect(getPortalFormMarkerSymbol('risco_inundacao_v1')).toBe('💧');
+    expect(getPortalFormMarkerSymbol('avaliacao_arvore_cbmmg_v1')).toBe('♣');
+    expect(getPortalFormMarkerSymbol('risco_edificio_v1')).toBeNull();
   });
 });
