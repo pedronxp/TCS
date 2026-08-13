@@ -257,10 +257,12 @@ export default function LaudoScreen() {
       const agora = new Date().toISOString();
       const laudoUrl = await uploadLaudoPdf(uri, vistoria.id, vistoria.municipio || 'geral');
       if (!laudoUrl) throw new Error('Falha ao enviar o documento oficial.');
-      const { error: updateError } = await supabase
-        .from('vistorias')
-        .update({ laudo_url: laudoUrl, laudo_gerado_em: agora })
-        .eq('id', vistoria.id);
+      const storedPath = laudoUrl.startsWith('laudos:') ? laudoUrl.slice('laudos:'.length) : laudoUrl;
+      const { error: updateError } = await supabase.rpc('finalize_inspection_laudo_generation', {
+        p_inspection_id: vistoria.id,
+        p_storage_path: storedPath,
+        p_generated_at: agora,
+      });
       if (updateError) throw updateError;
       setVistoria((v: any) => v ? { ...v, laudo_url: laudoUrl, laudo_gerado_em: agora } : v);
       const canShare = await Sharing.isAvailableAsync();
@@ -332,7 +334,10 @@ export default function LaudoScreen() {
       }
       // Registrar geração no Supabase
       const agora = new Date().toISOString();
-      supabase.from('vistorias').update({ termo_gerado_em: agora }).eq('id', vistoria.id).then(() => {});
+      supabase.rpc('mark_inspection_document_generated', {
+        p_inspection_id: vistoria.id,
+        p_document_type: 'termo',
+      }).then(() => {});
       setVistoria((v: any) => v ? { ...v, termo_gerado_em: agora } : v);
       notificarDocumentoGerado('termo', vistoria.endereco || '').catch(() => null);
       concluirOfertaCiencia(acknowledgementDocument, 'Termo');

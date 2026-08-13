@@ -20,7 +20,7 @@ export async function pingSupabaseKeepAlive(): Promise<void> {
       if (Date.now() - last < INTERVAL_MS) return;
     }
     // Query mínima — apenas acorda o banco, não retorna dados sensíveis
-    await supabase.from('users').select('uid').limit(1);
+    await supabase.auth.getSession();
     await AsyncStorage.setItem(KEEP_ALIVE_KEY, String(Date.now()));
     logger.info('system', 'Ping Supabase realizado — banco mantido ativo');
   } catch {

@@ -21,7 +21,11 @@ export function PortalInvitesPage() {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const allowedRoles = access?.role === 'supervisor' ? ['agent'] : ['agent', 'supervisor', 'coordinator'];
+  const allowedRoles = access?.role === 'master'
+    ? ['agent', 'supervisor', 'admin']
+    : access?.role === 'admin'
+      ? ['agent', 'supervisor']
+      : ['agent'];
   const mayInvite = can('invite.manage') || can('invite.agent');
 
   async function submit(event: FormEvent) {
@@ -40,12 +44,12 @@ export function PortalInvitesPage() {
       p_expires_in_hours: 72,
     });
     setSubmitting(false);
-    const result = data as { allowed?: boolean; delivery_token?: string; reason?: string } | null;
-    if (error || !result?.allowed || !result.delivery_token) {
+    const result = data as { allowed?: boolean; token?: string; reason?: string } | null;
+    if (error || !result?.allowed || !result.token) {
       setErrorMessage(result?.reason === 'limit_reached' ? 'O limite de pessoas do plano foi atingido.' : 'Não foi possível criar o convite. Revise o e-mail e tente novamente.');
       return;
     }
-    setInviteUrl(`${window.location.origin}/convite/${result.delivery_token}`);
+    setInviteUrl(`${window.location.origin}/convite/${result.token}`);
     setEmail('');
     void query.refetch();
   }

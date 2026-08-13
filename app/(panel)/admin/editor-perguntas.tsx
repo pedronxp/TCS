@@ -165,21 +165,12 @@ export default function EditorPerguntasScreen() {
     }
     setSalvando(true);
     try {
-      const novaVersao =
-        statusForm === 'publicado' ? versaoAtual + 1 : versaoAtual;
-
-      const updates: any = {
-        perguntas,
-        versao: novaVersao,
-        atualizadoEm: new Date().toISOString(),
-        tipoCalculo,
-        ...(classificacao !== null && { classificacao }),
-      };
-
-      const { error } = await supabase
-        .from('formularios')
-        .update(updates)
-        .eq('id', formId);
+      const { data: novaVersao, error } = await supabase.rpc('update_operational_form_questions', {
+        p_id: formId,
+        p_perguntas: perguntas,
+        p_tipo_calculo: tipoCalculo,
+        p_classificacao: classificacao,
+      });
 
       if (error) throw error;
 

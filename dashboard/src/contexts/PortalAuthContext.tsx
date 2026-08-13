@@ -29,6 +29,7 @@ interface PortalAuthValue {
   linkGoogleIdentity: () => Promise<string | null>;
   bootstrapIndividual: () => Promise<string | null>;
   bootstrapMunicipal: (input: MunicipalBootstrapInput) => Promise<string | null>;
+  beginAffiliation: (choice: 'individual' | 'municipal', token?: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   refreshAccess: () => Promise<void>;
   can: (permission: PortalPermission) => boolean;
@@ -221,6 +222,28 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     return null;
   }
 
+  async function beginAffiliation(choice: 'individual' | 'municipal', token?: string) {
+    if (!session) return 'Sessão autenticada obrigatória.';
+    const result = await supabase.rpc('begin_customer_affiliation', {
+      p_choice: choice,
+      p_token: token?.trim() || undefined,
+    });
+    if (result.error) {
+      if (result.error.message.includes('token_required')) return 'Informe o token municipal ou escolha continuar como agente individual.';
+      if (result.error.message.includes('email_mismatch')) return 'Este token foi emitido para outro e-mail.';
+      return 'Não foi possível concluir esta escolha de vínculo.';
+    }
+    const payload = result.data as { accepted?: boolean; reason?: string; affiliation_state?: string } | null;
+    if (choice === 'municipal' && payload?.accepted !== true) {
+      await hydrate(session);
+      return payload?.reason === 'token_required'
+        ? 'Seu cadastro ficou em análise até você informar um token municipal válido.'
+        : 'O token não pôde ser aceito. Seu cadastro continua em análise até uma nova tentativa.';
+    }
+    await hydrate(session);
+    return null;
+  }
+
   async function signOut() {
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) throw signOutError;
@@ -246,6 +269,7 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
       linkGoogleIdentity,
       bootstrapIndividual,
       bootstrapMunicipal,
+      beginAffiliation,
       signOut,
       refreshAccess,
       can,

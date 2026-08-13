@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { LogOut, Menu, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { TcsMark } from '@/components/brand/TcsMark';
@@ -18,7 +18,8 @@ import { cn } from '@/lib/utils';
 
 const mobilePriorities = ['Visão geral', 'Vistorias', 'Agenda', 'Documentos', 'Mapa'];
 const roleLabels = {
-  coordinator: 'Coordenação municipal',
+  master: 'Master municipal',
+  admin: 'Administração municipal',
   supervisor: 'Supervisão municipal',
   agent: 'Agente municipal',
 } as const;
@@ -146,13 +147,13 @@ export function PortalShell() {
 
 function PortalBrand({ audienceLabel }: { audienceLabel: string }) {
   return (
-    <Link to="/" className="flex h-[78px] items-center gap-3 px-6 text-foreground">
+    <div className="flex h-[78px] items-center gap-3 px-6 text-foreground" aria-label={`TCS ${audienceLabel}`}>
       <TcsMark decorative />
       <span className="min-w-0">
         <span className="block text-sm font-bold">TCS</span>
         <span className="mt-1 block truncate text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{audienceLabel}</span>
       </span>
-    </Link>
+    </div>
   );
 }
 

@@ -6,6 +6,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
 import { tempoRelativo } from '../../utils/htmlUtils';
@@ -146,6 +147,7 @@ function Dropdown({ label, value, options, onSelect, icon, accentColor }: Dropdo
 
 export default function EquipeScreen() {
   const { theme } = useTheme();
+  const { profile } = useAuth();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
   const [loading, setLoading] = useState(true);
@@ -162,43 +164,25 @@ export default function EquipeScreen() {
   // supervisorUid → agente UIDs vinculados via atribuicoes (vínculo real)
   const [atribuicoesMap, setAtribuicoesMap] = useState<Record<string, string[]>>({});
 
-  useEffect(() => { loadEquipe(); }, []);
+  useEffect(() => { loadEquipe(); }, [profile?.uid]);
 
   const loadEquipe = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data: user } = await supabase
-        .from('users').select('municipio, role').eq('uid', session.user.id).single();
-
-      const master = user?.role === 'master_admin';
+      if (!profile) return;
+      const master = profile.role === 'master_admin';
       if (master) setIsMaster(true);
 
-      let supQuery = supabase
-        .from('users')
-        .select('uid, name, municipio')
-        .eq('role', 'supervisor')
-        .eq('isApproved', true);
-      if (!master && user?.municipio) {
-        supQuery = supQuery.eq('municipio', user.municipio);
-      }
-      const { data: supervisorsList } = await supQuery;
+      const { data: supervisorsList, error: supervisorsError } = await supabase.rpc('list_operational_users', {
+        p_role: 'supervisor', p_municipio: null, p_include_unapproved: false, p_offset: 0, p_limit: 500,
+      });
+      if (supervisorsError) throw supervisorsError;
 
       if (supervisorsList) setSupervisores(supervisorsList as any[]);
 
-      let query = supabase
-        .from('users')
-        .select('uid, name, email, municipio')
-        .eq('role', 'agent')
-        .eq('isApproved', true);
-
-      if (!master) {
-        if (!user?.municipio) return;
-        query = query.eq('municipio', user.municipio);
-      }
-
-      const { data: agentesList } = await query;
+      const { data: agentesList, error: agentsError } = await supabase.rpc('list_operational_users', {
+        p_role: 'agent', p_municipio: null, p_include_unapproved: false, p_offset: 0, p_limit: 500,
+      });
+      if (agentsError) throw agentsError;
       if (!agentesList) return;
 
       // Buscar vínculos reais supervisor→agente via tabela atribuicoes

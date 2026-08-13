@@ -306,6 +306,17 @@ export const routeManifest = [
     penpot: '10 · Assinaturas',
   }),
   route({
+    id: 'protocol-registry',
+    path: '/app/protocolos',
+    audience: ['owner', 'developer', 'support', 'auditor'],
+    permission: 'protocol.read',
+    template: 'listing',
+    penpot: '35 · Registro de protocolos',
+    automatedVisualBaselines: null,
+    approvalStatus: 'approved-in-penpot',
+    visualSource: 'Penpot/TCS — Web Dashboard/35 · Registro de protocolos',
+  }),
+  route({
     id: 'sessions',
     path: '/app/sessoes',
     audience: ['owner'],

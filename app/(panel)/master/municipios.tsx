@@ -133,10 +133,11 @@ export default function MunicipiosScreen() {
         return;
       }
       const novos = [...atual, dom];
-      await supabase.from('municipios').upsert({
-        nome: mun.nome,
-        dominios_email: novos,
-      }, { onConflict: 'nome' });
+      const { error } = await supabase.rpc('set_municipio_email_domains', {
+        p_nome: mun.nome,
+        p_dominios: novos,
+      });
+      if (error) throw error;
       setMunicipios(prev => prev.map(m =>
         m.nome === mun.nome ? { ...m, dominiosEmail: novos } : m
       ));
@@ -175,15 +176,10 @@ export default function MunicipiosScreen() {
     }
     setSalvando(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const { error } = await supabase.from('municipios').insert({
-        nome,
-        estado,
-        uf,
-        ativo: true,
-        criado_em: new Date().toISOString(),
-        criado_por: session?.user?.id ?? null,
-        dominios_email: null,
+      const { error } = await supabase.rpc('create_municipio', {
+        p_nome: nome,
+        p_estado: estado,
+        p_uf: uf,
       });
       if (error) throw error;
       setMunicipios(prev => [...prev, { nome, totalVistorias: 0, altoRisco: 0, agentes: 0, dominiosEmail: null }]);
@@ -211,10 +207,11 @@ export default function MunicipiosScreen() {
       { text: 'Remover', style: 'destructive', onPress: async () => {
         try {
           const novos = (mun.dominiosEmail || []).filter(d => d !== dominio);
-          await supabase.from('municipios').upsert({
-            nome: mun.nome,
-            dominios_email: novos.length > 0 ? novos : null,
-          }, { onConflict: 'nome' });
+          const { error } = await supabase.rpc('set_municipio_email_domains', {
+            p_nome: mun.nome,
+            p_dominios: novos,
+          });
+          if (error) throw error;
           setMunicipios(prev => prev.map(m =>
             m.nome === mun.nome ? { ...m, dominiosEmail: novos.length > 0 ? novos : null } : m
           ));

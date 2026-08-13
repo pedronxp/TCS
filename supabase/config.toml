@@ -53,5 +53,22 @@ verify_jwt = false
 [functions.public-preview-access]
 verify_jwt = false
 
+[functions.trigger-build]
+verify_jwt = true
+
+[functions.send-auth-email]
+# Supabase Auth Hooks authenticate with Standard Webhooks signatures, not JWT.
+verify_jwt = false
+
+[functions.inspection-upload-authorize]
+verify_jwt = true
+
+[functions.dispatch-operational-notification]
+verify_jwt = true
+
+[functions.password-recovery-request]
+# Public entrypoint with origin, input and server-side quota controls in the function.
+verify_jwt = false
+
 [analytics]
 enabled = false

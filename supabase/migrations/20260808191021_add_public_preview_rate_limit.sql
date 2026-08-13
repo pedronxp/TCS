@@ -213,8 +213,8 @@ GRANT EXECUTE ON FUNCTION public.bootstrap_individual_customer(text, text) TO au
 
 CREATE OR REPLACE FUNCTION public.record_customer_onboarding_funnel(
   p_event text,
-  p_request_id uuid,
-  p_source text
+  p_request_id uuid DEFAULT gen_random_uuid(),
+  p_source text DEFAULT 'unknown'
 )
 RETURNS boolean
 LANGUAGE plpgsql

@@ -137,7 +137,7 @@ describe('checklist de ativação', () => {
       accountKind: 'organization',
       organizationId: 'org-1',
       organizationName: 'Município Piloto',
-      role: 'coordinator',
+      role: 'admin',
       membershipStatus: 'active',
       permissions: ['dashboard.read', 'settings.read', 'settings.manage'],
     });

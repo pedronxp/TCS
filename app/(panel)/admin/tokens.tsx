@@ -62,25 +62,20 @@ export default function TokensScreen() {
   const loadTokens = async () => {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data: me } = await supabase
-        .from('users').select('municipio, role').eq('uid', session.user.id).single();
-      if (!me) return;
+      if (!profile) return;
 
       let query = supabase
         .from('invite_tokens')
         .select('*')
         .order('criadoEm', { ascending: false });
 
-      if (me.role === 'master_admin') {
+      if (profile.role === 'master_admin') {
         // Master admin vê todos os tokens
       } else {
         // Admin comum vê SOMENTE os tokens que ELE GEROU + da SUA CIDADE
         query = query
-          .eq('criadoPor', session.user.id)
-          .eq('municipio', me.municipio);
+          .eq('criadoPor', profile.uid)
+          .eq('municipio', profile.municipio);
       }
 
       const { data, error: queryError } = await query;
@@ -90,26 +85,21 @@ export default function TokensScreen() {
       }
 
       // Filtro de segurança client-side (caso RLS não filtre corretamente)
-      const tokensSeguro = me.role === 'master_admin'
+      const tokensSeguro = profile.role === 'master_admin'
         ? (data || [])
-        : (data || []).filter(t => t.criadoPor === session.user.id);
+        : (data || []).filter(t => t.criadoPor === profile.uid);
 
       setTokens(tokensSeguro);
 
       // Para master_admin: buscar limites de cada admin que gerou tokens
-      if (me.role === 'master_admin') {
-        const adminUids = [...new Set(tokensSeguro.map((t: any) => t.criadoPor).filter(Boolean))];
-        if (adminUids.length > 0) {
-          const { data: limiteData } = await supabase
-            .from('users')
-            .select('uid, token_limit')
-            .in('uid', adminUids);
-          if (limiteData) {
-            const mapa: Record<string, number> = {};
-            limiteData.forEach((u: any) => { mapa[u.uid] = u.token_limit ?? 20; });
-            setAdminLimites(mapa);
-          }
-        }
+      if (profile.role === 'master_admin') {
+        const { data: limiteData, error: limiteError } = await supabase.rpc('list_operational_users', {
+          p_role: 'admin', p_municipio: null, p_include_unapproved: true, p_offset: 0, p_limit: 500,
+        });
+        if (limiteError) throw limiteError;
+        const mapa: Record<string, number> = {};
+        (limiteData || []).forEach((u: any) => { mapa[u.uid] = u.token_limit ?? 20; });
+        setAdminLimites(mapa);
       }
       setErro(null);
     } catch (e: any) {
@@ -192,7 +182,10 @@ export default function TokensScreen() {
     const unica = codigos.length === 1;
     if (unica) setCancelando(codigos[0]); else setLimpando(true);
     try {
-      await supabase.from('invite_tokens').delete().in('codigo', codigos);
+      const { error } = await supabase.rpc('cancel_legacy_invite_tokens', {
+        p_codigos: codigos,
+      });
+      if (error) throw error;
       setTokens(prev => prev.filter(t => !codigos.includes(t.codigo)));
       logger.info('token', `${codigos.length} token(s) removido(s): ${pending.titulo}`);
     } catch (e) {

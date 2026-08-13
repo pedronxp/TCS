@@ -84,12 +84,10 @@ export default function RiscoConfigScreen() {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ config, timestamp: Date.now() }));
       if (profile?.municipio) {
-        await supabase.from('risk_configs').upsert({
-          municipio: profile.municipio,
-          configuracao: config,
-          atualizado_por: profile.uid,
-          atualizado_em: new Date().toISOString(),
-        }, { onConflict: 'municipio' });
+        const { error } = await supabase.rpc('save_municipio_risk_config', {
+          p_configuracao: config,
+        });
+        if (error) throw error;
         setSyncStatus('cloud');
       }
       setEditMode(false);
@@ -108,7 +106,8 @@ export default function RiscoConfigScreen() {
     setConfig(DEFAULT_CONFIG);
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (profile?.municipio) {
-      await supabase.from('risk_configs').delete().eq('municipio', profile.municipio);
+      const { error } = await supabase.rpc('reset_municipio_risk_config');
+      if (error) throw error;
     }
     setSyncStatus(null);
     setEditMode(false);

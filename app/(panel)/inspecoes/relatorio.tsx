@@ -400,7 +400,10 @@ export default function RelatorioScreen() {
       // Registrar geração
       if (!isTrainingReport && draft.vistoriaId) {
         const agora = new Date().toISOString();
-        supabase.from('vistorias').update({ relatorio_gerado_em: agora }).eq('id', draft.vistoriaId).then(() => {});
+        supabase.rpc('mark_inspection_document_generated', {
+          p_inspection_id: draft.vistoriaId,
+          p_document_type: 'relatorio',
+        }).then(() => {});
         setDocTracking(t => ({ ...t, relatorio_gerado_em: agora }));
         notificarDocumentoGerado('relatorio', draft.endereco || '').catch(() => null);
       }
@@ -444,7 +447,10 @@ export default function RelatorioScreen() {
       // Registrar geração
       if (!isTrainingReport && draft?.vistoriaId) {
         const agora = new Date().toISOString();
-        supabase.from('vistorias').update({ termo_gerado_em: agora }).eq('id', draft.vistoriaId).then(() => {});
+        supabase.rpc('mark_inspection_document_generated', {
+          p_inspection_id: draft.vistoriaId,
+          p_document_type: 'termo',
+        }).then(() => {});
         setDocTracking(t => ({ ...t, termo_gerado_em: agora }));
         notificarDocumentoGerado('termo', draft?.endereco || '').catch(() => null);
       }

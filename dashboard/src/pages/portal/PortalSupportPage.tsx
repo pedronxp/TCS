@@ -4,10 +4,26 @@ import { Headphones, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
+
+type SupportTicket = Record<string, unknown>;
+
+const priorityLabels: Record<string, string> = {
+  low: 'Baixa',
+  normal: 'Normal',
+  high: 'Alta',
+  critical: 'Crítica',
+};
+
+const categoryLabels: Record<string, string> = {
+  operacao: 'Operação',
+  tecnico: 'Técnico',
+  financeiro: 'Financeiro',
+};
 
 export function PortalSupportPage() {
   const { access, can } = usePortalAuth();
@@ -18,6 +34,7 @@ export function PortalSupportPage() {
     enabled: Boolean(access),
   });
   const [open, setOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('operacao');
@@ -28,6 +45,7 @@ export function PortalSupportPage() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const formTitleRef = useRef<HTMLHeadingElement>(null);
   const pageTitleRef = useRef<HTMLHeadingElement>(null);
+
   useEffect(() => { if (open) formTitleRef.current?.focus(); }, [open]);
   useEffect(() => {
     if (mayCreate || !open) return;
@@ -69,12 +87,70 @@ export function PortalSupportPage() {
 
   return (
     <div className="page-stack">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Atendimento</p><h1 ref={pageTitleRef} tabIndex={-1} className="mt-2 text-3xl font-semibold">Suporte</h1><p className="mt-2 text-sm text-muted-foreground">Solicitações do seu escopo, protegidas pelo SLA do plano.</p></div>{mayCreate && <Button ref={triggerRef} aria-expanded={open} aria-controls="portal-support-form" onClick={() => open ? closeForm() : setOpen(true)}><Plus />{open ? 'Fechar formulário' : 'Abrir chamado'}</Button>}</header>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Atendimento</p>
+          <h1 ref={pageTitleRef} tabIndex={-1} className="mt-2 text-3xl font-semibold">Suporte</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Acompanhe solicitações e atualizações do seu escopo.</p>
+        </div>
+        {mayCreate && <Button ref={triggerRef} aria-expanded={open} aria-controls="portal-support-form" onClick={() => open ? closeForm() : setOpen(true)}><Plus />{open ? 'Fechar formulário' : 'Abrir chamado'}</Button>}
+      </header>
       {!mayCreate && <p className="rounded-md border bg-secondary p-3 text-sm text-muted-foreground" role="status">Seu acesso permite consultar chamados, mas não abrir novas solicitações.</p>}
       {successMessage && <p className="rounded-md border bg-card p-3 text-sm" role="status">{successMessage}</p>}
       {errorMessage && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{errorMessage}</p>}
       {open && mayCreate && <Card id="portal-support-form"><CardHeader><CardTitle ref={formTitleRef} tabIndex={-1} className="flex items-center gap-2"><Headphones />Novo chamado</CardTitle></CardHeader><CardContent><form className="grid gap-4" onSubmit={submit}><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Categoria<select className="mt-2 h-11 w-full rounded-md border bg-card px-3" value={category} onChange={(event) => setCategory(event.target.value)}><option value="operacao">Operação</option><option value="tecnico">Técnico</option><option value="financeiro">Financeiro</option></select></label><label className="text-sm font-medium">Prioridade<select className="mt-2 h-11 w-full rounded-md border bg-card px-3" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="low">Baixa</option><option value="normal">Normal</option><option value="high">Alta</option><option value="critical">Crítica</option></select></label></div><label className="text-sm font-medium">Assunto<Input className="mt-2" value={subject} onChange={(event) => setSubject(event.target.value)} minLength={3} maxLength={200} required /></label><label className="text-sm font-medium">Descrição<textarea className="mt-2 min-h-32 w-full rounded-md border bg-card p-3 text-sm" value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} required /></label><div className="flex gap-2"><Button disabled={submitting || !mayCreate}>{submitting ? 'Enviando…' : 'Enviar chamado'}</Button><Button type="button" variant="outline" onClick={closeForm}>Cancelar</Button></div></form></CardContent></Card>}
-      <Card><CardHeader><CardTitle>Chamados</CardTitle></CardHeader><CardContent>{query.isLoading && <p className="text-sm text-muted-foreground">Carregando chamados…</p>}{query.isError && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar os chamados.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}<ul className="divide-y">{query.data?.items.map((item) => <li key={String(item.id)} className="flex items-center justify-between gap-4 py-4"><div><p className="text-sm font-semibold">{String(item.title)}</p><p className="mt-1 text-xs text-muted-foreground">{String(item.subtitle)}</p></div><Badge>{String(item.status)}</Badge></li>)}</ul>{query.data?.items.length === 0 && <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhum chamado aberto.</p>}</CardContent></Card>
+      <Card>
+        <CardHeader><CardTitle>Chamados</CardTitle>{query.data && <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-sm"><SupportMetric label="Total" value={query.data.summary.total} /><SupportMetric label="Em aberto" value={query.data.summary.open} /></div>}</CardHeader>
+        <CardContent>
+          {query.isLoading && <p className="text-sm text-muted-foreground">Carregando chamados…</p>}
+          {query.isError && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar os chamados.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
+          <ul className="divide-y">
+            {query.data?.items.map((item) => {
+              const ticket = item as SupportTicket;
+              const title = ticketText(ticket.title, 'Chamado sem assunto');
+              return <li key={String(ticket.id)} className="py-4"><button type="button" className="flex w-full items-start justify-between gap-4 rounded-lg text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedTicket(ticket)} aria-label={`Ver detalhes de ${title}`}><div className="min-w-0"><p className="truncate text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-muted-foreground">{ticketText(ticket.subtitle, 'Sem protocolo')} · {categoryLabel(ticket.category)}</p><p className="mt-2 text-xs text-muted-foreground">Prioridade {priorityLabel(ticket.priority)} · {formatTicketDate(ticket.created_at)}</p></div><Badge>{ticketText(ticket.status, 'open')}</Badge></button></li>;
+            })}
+          </ul>
+          {query.data?.items.length === 0 && <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhum chamado aberto.</p>}
+        </CardContent>
+      </Card>
+      <Dialog open={Boolean(selectedTicket)} onOpenChange={(nextOpen) => !nextOpen && setSelectedTicket(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{ticketText(selectedTicket?.title, 'Chamado')}</DialogTitle>
+            <DialogDescription>{ticketText(selectedTicket?.subtitle, 'Sem protocolo')}</DialogDescription>
+          </DialogHeader>
+          {selectedTicket && <div className="space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-2"><TicketInfo label="Status" value={ticketText(selectedTicket.status, 'Em aberto')} /><TicketInfo label="Prioridade" value={priorityLabel(selectedTicket.priority)} /><TicketInfo label="Categoria" value={categoryLabel(selectedTicket.category)} /><TicketInfo label="Criado em" value={formatTicketDate(selectedTicket.created_at)} /></div><div className="rounded-lg border bg-muted/30 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Descrição</p><p className="mt-2 whitespace-pre-wrap leading-6 text-foreground">{ticketText(selectedTicket.description, 'Nenhuma descrição disponível.')}</p></div></div>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+function ticketText(value: unknown, fallback: string) {
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function priorityLabel(value: unknown) {
+  const key = ticketText(value, 'normal');
+  return priorityLabels[key] ?? key;
+}
+
+function categoryLabel(value: unknown) {
+  const key = ticketText(value, 'operacao');
+  return categoryLabels[key] ?? key;
+}
+
+function formatTicketDate(value: unknown) {
+  const date = typeof value === 'string' ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return 'Data não disponível';
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function TicketInfo({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-medium text-foreground">{value}</p></div>;
+}
+
+function SupportMetric({ label, value }: { label: string; value: unknown }) {
+  return <div className="rounded-lg border bg-muted/30 px-3 py-2"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold text-foreground">{typeof value === 'number' ? value : 0}</p></div>;
 }

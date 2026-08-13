@@ -9,6 +9,30 @@ AS $$
 BEGIN
   IF private.is_owner_admin() THEN RETURN NEW; END IF;
 
+  -- Membership projection is performed only by the SECURITY DEFINER trigger
+  -- that sets this transaction-scoped capability. It must also reconcile
+  -- already-approved legacy profiles, not only neutral signups.
+  IF current_setting('tcs.customer_bootstrap_user_id', true) = OLD.uid::text
+     AND NEW."isApproved" = true
+     AND NEW.municipio IS NOT NULL
+     AND NEW.organization_id IS NOT NULL
+     AND EXISTS (
+       SELECT 1
+       FROM public.organization_members AS membership
+       JOIN public.organizations AS organization ON organization.id = membership.organization_id
+       WHERE membership.user_id = OLD.uid
+         AND membership.organization_id = NEW.organization_id
+         AND membership.status = 'active'
+         AND organization.municipality_name = NEW.municipio
+         AND NEW.role = CASE
+           WHEN membership.role IN ('owner', 'coordinator') THEN 'admin'
+           WHEN membership.role = 'supervisor' THEN 'supervisor'
+           ELSE 'agent'
+         END
+     ) THEN
+    RETURN NEW;
+  END IF;
+
   IF current_setting('tcs.customer_bootstrap_user_id', true) = OLD.uid::text
      AND coalesce(OLD."isApproved", false) = false
      AND OLD.role = 'agent'

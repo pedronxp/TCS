@@ -24,7 +24,9 @@ export type InternalPermission =
   | 'build.request'
   | 'build.approve'
   | 'configuration.prepare'
-  | 'configuration.publish';
+  | 'configuration.publish'
+  | 'protocol.read'
+  | 'protocol.rotate';
 
 export interface InternalStaffProfile {
   id: string;

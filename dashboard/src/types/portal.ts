@@ -1,7 +1,7 @@
 export type PortalAccountKind = 'individual' | 'organization';
 export type CustomerLifecycleState = 'creating' | 'under_review' | 'trial' | 'contracting_pending' | 'active' | 'blocked';
 export type CustomerOnboardingItem = 'identity' | 'organization' | 'plan' | 'team' | 'configuration' | 'first_operation';
-export type MunicipalRole = 'coordinator' | 'supervisor' | 'agent';
+export type MunicipalRole = 'master' | 'admin' | 'supervisor' | 'agent';
 export type PortalMembershipStatus = 'invited' | 'active' | 'suspended' | 'removed';
 export type PortalSubscriptionStatus =
   | 'trial'
@@ -50,6 +50,8 @@ export interface PortalAccessContext {
   features: Record<string, boolean>;
   limits: Record<string, number | null>;
   usage: Record<string, number>;
+  periodStart?: string | null;
+  periodEnd?: string | null;
   permissions: PortalPermission[];
   creationAllowed: boolean;
   restrictionCause: string | null;

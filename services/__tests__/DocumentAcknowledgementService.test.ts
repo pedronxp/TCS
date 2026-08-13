@@ -58,6 +58,7 @@ jest.mock('../../utils/documentAcknowledgementDatabase', () => ({
   listPendingAcknowledgementEvents: jest.fn(),
   markAcknowledgementConfirmed: jest.fn(),
   markAcknowledgementFailed: jest.fn(),
+  markAcknowledgementSignatureUploaded: jest.fn(),
   markAcknowledgementSyncing: jest.fn(),
   saveAcknowledgementEvent: jest.fn(),
   saveGeneratedDocument: jest.fn(),
@@ -305,6 +306,58 @@ describe('DocumentAcknowledgementService', () => {
     expect(mockRpc).toHaveBeenCalledWith('finalize_document_acknowledgement', expect.objectContaining({
       p_payload: expect.objectContaining({ client_event_id: pendingEvent.clientEventId }),
     }));
+  });
+
+  it('reutiliza a assinatura já enviada quando uma tentativa anterior falhou', async () => {
+    const eventWithUploadedSignature = {
+      ...pendingEvent,
+      remoteSignaturePath: 'user/vistoria/document/signature.json',
+    };
+    databaseMock.getGeneratedDocument.mockReturnValue({
+      ...document,
+      remotePath: 'user/vistoria/document/document.pdf',
+    });
+    databaseMock.listPendingAcknowledgementEvents.mockReturnValue([eventWithUploadedSignature]);
+    mockRpc.mockResolvedValue({
+      data: {
+        event_id: pendingEvent.id,
+        protocol: 'TCS-CIE-20260717-50000000',
+        recorded_at_server: '2026-07-17T10:02:00.000Z',
+        signature_storage_path: eventWithUploadedSignature.remoteSignaturePath,
+        idempotent: true,
+      },
+      error: null,
+    });
+
+    await expect(syncPendingDocumentAcknowledgements()).resolves.toEqual({ success: 1, failed: 0 });
+
+    expect(storageMock.uploadDocumentSignatureEvidence).not.toHaveBeenCalled();
+    expect(mockRpc).toHaveBeenCalledWith('finalize_document_acknowledgement', expect.objectContaining({
+      p_payload: expect.objectContaining({
+        signature_storage_path: eventWithUploadedSignature.remoteSignaturePath,
+      }),
+    }));
+  });
+
+  it('informa que a vistoria ainda precisa ser sincronizada antes da ciência', async () => {
+    databaseMock.listPendingAcknowledgementEvents.mockReturnValue([pendingEvent]);
+    mockRpc.mockResolvedValue({ data: null, error: { code: 'P0002', message: 'inspection_not_found' } });
+
+    await expect(syncPendingDocumentAcknowledgements()).resolves.toEqual({ success: 0, failed: 1 });
+
+    expect(databaseMock.markAcknowledgementFailed).toHaveBeenCalledWith(pendingEvent.id, 'inspection_not_synced');
+  });
+
+  it('persiste a assinatura enviada mesmo quando a finalização falha', async () => {
+    databaseMock.listPendingAcknowledgementEvents.mockReturnValue([pendingEvent]);
+    mockRpc.mockResolvedValue({ data: null, error: { code: 'P0002', message: 'inspection_not_found' } });
+
+    await syncPendingDocumentAcknowledgements();
+
+    expect(databaseMock.markAcknowledgementSignatureUploaded).toHaveBeenCalledWith(
+      pendingEvent.id,
+      'user/vistoria/document/signature.json'
+    );
   });
 
   it('recusa documento remoto cujo hash não confere com a versão registrada', async () => {

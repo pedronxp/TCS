@@ -140,10 +140,11 @@ export default function AgendamentoDetalheScreen() {
 
               // 2. Sincroniza com Supabase se online
               if (isConnected) {
-                const { error } = await supabase
-                  .from('agendamentos')
-                  .update({ status: novoStatus })
-                  .eq('id', id);
+                const { error } = await supabase.rpc('transition_operational_appointment', {
+                  p_id: id,
+                  p_status: novoStatus,
+                  p_inspection_id: null,
+                });
                 if (!error) {
                   markAgendamentoSincronizado(id);
                 }
@@ -176,7 +177,8 @@ export default function AgendamentoDetalheScreen() {
             try {
               if (isConnected) {
                 // Online: deletar diretamente no Supabase e remover local
-                await supabase.from('agendamentos').delete().eq('id', id);
+                const { error } = await supabase.rpc('delete_operational_appointment', { p_id: id });
+                if (error) throw error;
                 // Remover registro local após confirmação remota
                 const { deleteAgendamento } = require('../../../utils/database');
                 deleteAgendamento(id as string);

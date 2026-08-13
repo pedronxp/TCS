@@ -17,7 +17,6 @@ import {
 import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { Textarea } from '@/components/ui/Textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useSubscriptionMutation } from '@/hooks/useSubscriptionMutation';
@@ -265,7 +264,8 @@ function SubscriptionDialog({
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
   const [graceEndsAt, setGraceEndsAt] = useState('');
-  const [overrides, setOverrides] = useState('{}');
+  const [inspectionLimit, setInspectionLimit] = useState('');
+  const [storageLimitGb, setStorageLimitGb] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mutation = useSubscriptionMutation();
@@ -282,7 +282,9 @@ function SubscriptionDialog({
     setPeriodStart(dateInput(subscription?.current_period_start) || dateInput(new Date().toISOString()));
     setPeriodEnd(dateInput(subscription?.current_period_end));
     setGraceEndsAt(dateInput(subscription?.grace_ends_at));
-    setOverrides(JSON.stringify(subscription?.overrides ?? {}, null, 2));
+    const existingOverrides = jsonObject(subscription?.overrides);
+    setInspectionLimit(numberFieldValue(jsonNumber(existingOverrides?.inspections_limit)));
+    setStorageLimitGb(numberFieldValue(jsonNumber(existingOverrides?.storage_limit_gb)));
     setError(null);
   }, [customers, open, subscription]);
 
@@ -324,11 +326,8 @@ function SubscriptionDialog({
       setError('Status trial exige data de término do trial.');
       return;
     }
-    try {
-      const parsed = JSON.parse(overrides);
-      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
-    } catch {
-      setError('Overrides devem ser um objeto JSON válido.');
+    if (!buildResourceOverrides(inspectionLimit, storageLimitGb)) {
+      setError('Informe limites inteiros não negativos ou deixe os campos vazios para seguir o plano.');
       return;
     }
     setError(null);
@@ -448,23 +447,18 @@ function SubscriptionDialog({
 
             {/* Overrides */}
             <section>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Overrides de Recursos e Limites
-              </h3>
-              <div className="space-y-2">
-                <Label htmlFor="subscription-overrides">JSON de configuração personalizada</Label>
-                <Textarea
-                  id="subscription-overrides"
-                  value={overrides}
-                  onChange={(event) => setOverrides(event.target.value)}
-                  rows={8}
-                  placeholder='{\n  "storage_limit_gb": 100,\n  "inspections_limit": 5000\n}'
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use para sobrescrever limites do plano. Deixe <code>{'{}'}</code> para usar configurações padrão.
-                </p>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Limites personalizados</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="subscription-inspections-limit">Limite adicional de vistorias</Label>
+                  <Input id="subscription-inspections-limit" type="number" min="0" step="1" inputMode="numeric" value={inspectionLimit} onChange={(event) => setInspectionLimit(event.target.value)} placeholder="Seguir o plano" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subscription-storage-limit">Armazenamento adicional (GB)</Label>
+                  <Input id="subscription-storage-limit" type="number" min="0" step="1" inputMode="numeric" value={storageLimitGb} onChange={(event) => setStorageLimitGb(event.target.value)} placeholder="Seguir o plano" />
+                </div>
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">Preencha somente o que precisar ajustar. Campos vazios mantêm os limites definidos pelo plano.</p>
             </section>
           </div>
 
@@ -504,7 +498,7 @@ function SubscriptionDialog({
               current_period_start: isoOrEmpty(periodStart),
               current_period_end: isoOrEmpty(periodEnd),
               grace_ends_at: isoOrEmpty(graceEndsAt),
-              overrides: JSON.parse(overrides),
+              overrides: buildResourceOverrides(inspectionLimit, storageLimitGb) ?? {},
             },
             reason,
           });
@@ -515,6 +509,28 @@ function SubscriptionDialog({
       />
     </>
   );
+}
+
+function numberFieldValue(value: number | null): string {
+  return value === null ? '' : String(value);
+}
+
+function buildResourceOverrides(inspections: string, storage: string): Record<string, number> | null {
+  const values = [
+    ['inspections_limit', inspections],
+    ['storage_limit_gb', storage],
+  ] as const;
+  const overrides: Record<string, number> = {};
+
+  for (const [key, rawValue] of values) {
+    const value = rawValue.trim();
+    if (!value) continue;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) return null;
+    overrides[key] = parsed;
+  }
+
+  return overrides;
 }
 
 function DateField({

@@ -505,7 +505,7 @@ export default function WizardAvaliacaoScreen() {
     }
 
     if (!isolatedMode && activeProfile?.uid) {
-      const { allowed, message } = await checkRateLimit(activeProfile.uid, 'criar_vistoria');
+      const { allowed, message } = await checkRateLimit('criar_vistoria');
       if (!allowed) {
         Alert.alert('Limite atingido', message || 'Muitas vistorias criadas hoje. Aguarde para continuar.');
         return;
@@ -652,10 +652,11 @@ export default function WizardAvaliacaoScreen() {
         try {
           updateAgendamentoVistoriaId(params.agendamentoId, id);
           if (isConnected) {
-            await supabase
-              .from('agendamentos')
-              .update({ status: 'concluido', vistoria_id: id })
-              .eq('id', params.agendamentoId);
+            await supabase.rpc('transition_operational_appointment', {
+              p_id: params.agendamentoId,
+              p_status: 'concluido',
+              p_inspection_id: id,
+            });
           }
         } catch {
           // não crítico — agendamento pode ser sincronizado depois

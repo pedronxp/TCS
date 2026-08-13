@@ -32,9 +32,28 @@ const FEATURE_LABELS: Record<string, string> = {
   municipal_coordination: 'Coordenação municipal',
 };
 
+const FEATURE_DESCRIPTIONS: Record<string, string> = {
+  inspection_standard: 'Formulários de vistoria e protocolo técnico.',
+  inspection_arv: 'Avaliação de risco de árvores.',
+  training_mode: 'Registros de treinamento separados da operação oficial.',
+  reports_basic: 'Emissão do relatório técnico da vistoria.',
+  reports_advanced: 'Relatórios com indicadores e consolidação avançada.',
+  reports_institutional: 'Relatórios institucionais da prefeitura.',
+  indicators_essential: 'Indicadores essenciais da operação.',
+  indicators_complete: 'Painel completo de indicadores.',
+  indicators_custom: 'Indicadores configurados pela prefeitura.',
+  municipal_coordination: 'Equipe, convites e coordenação municipal.',
+};
+
 const formatPrice = (cents?: number | null) => cents == null
   ? 'Personalizado'
   : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+
+const formatRenewal = (value?: string | null) => {
+  if (!value) return 'A definir';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'A definir' : date.toLocaleDateString('pt-BR');
+};
 
 export default function AssinaturaScreen() {
   const { theme } = useTheme();
@@ -43,8 +62,13 @@ export default function AssinaturaScreen() {
   const { context, loading, error, refresh } = useSubscription();
   const [inviteToken, setInviteToken] = React.useState('');
   const canCoordinate = ['owner', 'coordinator', 'supervisor'].includes(context?.membership?.role || '');
-  const usage = context?.usage || [];
-  const features = Object.entries(context?.features || {});
+  const usage = (context?.usage || []).filter(item => {
+    if (item.resource === 'storage_bytes') return false;
+    if (context?.plan?.audience === 'individual' && item.resource === 'invitations') return false;
+    return item.resource in RESOURCE_LABELS;
+  });
+  const features = Object.entries(context?.features || {})
+    .filter(([code, enabled]) => enabled && code in FEATURE_LABELS);
 
   const acceptInvite = async () => {
     const token = inviteToken.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -122,6 +146,7 @@ export default function AssinaturaScreen() {
                 <CommercialMetric label="Mensalidade" value={formatPrice(context.plan.commercial.monthly_price_cents)} theme={theme} />
                 <CommercialMetric label="Teste" value={`${context.plan.commercial.trial_days || 0} dias`} theme={theme} />
                 <CommercialMetric label="Carência" value={`${context.plan.commercial.grace_days || 0} dias`} theme={theme} />
+                <CommercialMetric label="Renovação" value={formatRenewal(context.subscription?.period_end)} theme={theme} />
               </View>
             ) : null}
           </View>
@@ -157,13 +182,16 @@ export default function AssinaturaScreen() {
             <StateBanner title="Modo de compatibilidade" description="Os recursos disponíveis permanecem liberados durante a migração." />
           ) : (
             <View style={[styles.featureCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              {features.map(([code, enabled], index) => (
+              {features.map(([code], index) => (
                 <View key={code}>
                   <View style={styles.feature}>
-                    <View style={[styles.featureIcon, { backgroundColor: enabled ? theme.successLight : theme.background }]}>
-                      <Feather name={enabled ? 'check' : 'lock'} color={enabled ? theme.success : theme.muted} size={17} />
+                    <View style={[styles.featureIcon, { backgroundColor: theme.successLight }]}>
+                      <Feather name="check" color={theme.success} size={17} />
                     </View>
-                    <Text style={[styles.featureText, { color: enabled ? theme.text : theme.textSecondary }]}>{FEATURE_LABELS[code] || code.replaceAll('_', ' ')}</Text>
+                    <View style={styles.featureCopy}>
+                      <Text style={[styles.featureText, { color: theme.text }]}>{FEATURE_LABELS[code]}</Text>
+                      <Text style={[styles.featureDescription, { color: theme.textSecondary }]}>{FEATURE_DESCRIPTIONS[code] || 'Recurso liberado para este plano.'}</Text>
+                    </View>
                   </View>
                   {index < features.length - 1 ? <View style={[styles.divider, { backgroundColor: theme.divider }]} /> : null}
                 </View>
@@ -253,7 +281,9 @@ const styles = StyleSheet.create({
   featureCard: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 16 },
   feature: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 12 },
   featureIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  featureText: { flex: 1, fontSize: 13, fontWeight: '600' },
+  featureCopy: { flex: 1, gap: 3 },
+  featureText: { fontSize: 13, fontWeight: '600' },
+  featureDescription: { fontSize: 11, lineHeight: 15 },
   divider: { height: 1 },
   inviteCard: { borderWidth: 1, borderRadius: 18, padding: 18 },
   inviteIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },

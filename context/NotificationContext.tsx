@@ -10,7 +10,6 @@ import {
   notificarSincronizacao,
   notificarNovaAtribuicao,
   notificarLembrete,
-  notificarNovoUsuarioCadastrado,
   limparNotificacoes,
   getBadgeCount,
   setBadgeCount,
@@ -24,7 +23,6 @@ interface NotificationContextValue {
   notificarSincronizacao: (count: number) => Promise<void>;
   notificarNovaAtribuicao: (endereco: string, prioridade: string) => Promise<void>;
   notificarLembrete: (mensagem: string, segundos: number) => Promise<void>;
-  notificarNovoUsuarioCadastrado: (adminPushToken: string, nomeUsuario: string, municipio: string) => Promise<void>;
   limparNotificacoes: () => Promise<void>;
   atualizarBadge: (count: number) => Promise<void>;
 }
@@ -79,7 +77,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     notificarSincronizacao,
     notificarNovaAtribuicao,
     notificarLembrete,
-    notificarNovoUsuarioCadastrado,
     limparNotificacoes,
     atualizarBadge,
   };

@@ -20,7 +20,7 @@ import {
 import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri, uploadLaudoPdf } from './StorageService';
 import { checkRealInternet } from '../context/ConnectivityContext';
-import { isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
+import { isRecoverableSubscriptionPeriodError, isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
 import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
 import { syncPendingDocumentAcknowledgements } from './DocumentAcknowledgementService';
 import { isCurrentSessionLocalTest } from '../utils/localTestMode';
@@ -139,9 +139,15 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
     const pendentes = getVistoriasNaoSincronizadas().map(vistoria => {
       // The calculoRisco migration was previously missing in the remote schema.
       // Release records exhausted by that specific historical schema error.
-      if (!isRecoverableCalculoRiscoSchemaError(vistoria)) return vistoria;
+      const recoversLegacyRiskSchema = isRecoverableCalculoRiscoSchemaError(vistoria);
+      const recoversLegacySubscriptionPeriod = isRecoverableSubscriptionPeriodError({
+        message: vistoria.erro_sync || undefined,
+      });
+      if (!recoversLegacyRiskSchema && !recoversLegacySubscriptionPeriod) return vistoria;
       resetTentativasSync(vistoria.id);
-      logger.info('sync', 'Vistoria recuperada apos atualizacao do schema calculoRisco', {
+      logger.info('sync', recoversLegacySubscriptionPeriod
+        ? 'Vistoria recuperada apos reparo do periodo de assinatura'
+        : 'Vistoria recuperada apos atualizacao do schema calculoRisco', {
         id: vistoria.id,
       });
       return { ...vistoria, tentativas_sync: 0, erro_sync: null };
@@ -153,12 +159,6 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
     } catch (e: any) {
       logger.warn('sync', `Falha no sync de agendamentos: ${e?.message}`);
     }
-
-    // A fila de ciência é independente da fila de vistorias. Ela precisa rodar
-    // mesmo quando não há nenhuma vistoria aguardando upsert.
-    const acknowledgementSync = await syncPendingDocumentAcknowledgements();
-    sucesso += acknowledgementSync.success;
-    falha += acknowledgementSync.failed;
 
     if (pendentes.length > 0) {
       logger.info('sync', `Iniciando sync: ${pendentes.length} pendente(s)${isRetry ? ` (retry #${_currentRetryAttempt})` : ''}`);
@@ -254,6 +254,13 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
         }
       }
     }
+
+    // Uma ciência referencia uma vistoria já existente no servidor. Portanto,
+    // ela é processada apenas após a fila de vistorias, inclusive quando não há
+    // nenhuma vistoria pendente nesta execução.
+    const acknowledgementSync = await syncPendingDocumentAcknowledgements();
+    sucesso += acknowledgementSync.success;
+    falha += acknowledgementSync.failed;
 
     // ── Notificações & Auto-retry ──────────────────────────────────────────
 
@@ -468,10 +475,7 @@ async function syncAgendamentos(): Promise<void> {
     try {
       if (ag.status === 'deletado') {
         // Tombstone: excluir do Supabase e remover registro local
-        const { error } = await supabase
-          .from('agendamentos')
-          .delete()
-          .eq('id', ag.id);
+        const { error } = await supabase.rpc('delete_operational_appointment', { p_id: ag.id });
         if (!error) {
           deleteAgendamento(ag.id);
           logger.info('sync', `Agendamento deletado remotamente`, { id: ag.id });
@@ -480,26 +484,27 @@ async function syncAgendamentos(): Promise<void> {
         }
       } else {
         // Criar ou atualizar no Supabase
-        const { error } = await supabase
-          .from('agendamentos')
-          .upsert({
+        const { error } = await supabase.rpc('upsert_operational_appointment', {
+          p_payload: {
             id: ag.id,
             titulo: ag.titulo,
             endereco: ag.endereco ?? null,
             municipio: ag.municipio,
             data_agendada: ag.data_agendada,
-            criado_por_uid: ag.criado_por_uid,
-            criado_por_nome: ag.criado_por_nome ?? null,
             agente_uid: ag.agente_uid ?? null,
-            agente_nome: ag.agente_nome ?? null,
             lat: ag.lat ?? null,
             lng: ag.lng ?? null,
             observacoes: ag.observacoes ?? null,
-            status: ag.status,
-            origem: ag.origem ?? 'app',
-            criado_em: ag.criado_em ?? new Date().toISOString(),
-            vistoria_id: ag.vistoria_id ?? null,
+          },
+        });
+        if (!error && (ag.status === 'concluido' || ag.status === 'cancelado')) {
+          const { error: transitionError } = await supabase.rpc('transition_operational_appointment', {
+            p_id: ag.id,
+            p_status: ag.status,
+            p_inspection_id: ag.vistoria_id ?? null,
           });
+          if (transitionError) throw transitionError;
+        }
         if (!error) {
           markAgendamentoSincronizado(ag.id);
           logger.info('sync', `Agendamento sincronizado`, { id: ag.id, status: ag.status });
@@ -638,6 +643,12 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
     try {
       const laudoUrl = await uploadLaudoPdf(v.laudo_local_uri, v.id, v.municipio || 'geral');
       if (!laudoUrl) throw new Error('Upload do laudo não retornou URL');
+      const { error: finalizeError } = await supabase.rpc('finalize_inspection_laudo_generation', {
+        p_inspection_id: v.id,
+        p_storage_path: laudoUrl.replace(/^laudos:/, ''),
+        p_generated_at: v.laudo_gerado_em ?? new Date().toISOString(),
+      });
+      if (finalizeError) throw finalizeError;
       v.laudo_url = laudoUrl;
       v.laudo_gerado_em = v.laudo_gerado_em ?? new Date().toISOString();
       v.laudo_local_uri = null;

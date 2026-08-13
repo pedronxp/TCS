@@ -19,6 +19,42 @@ const PATH_PREFIX = {
 
 type BucketKey = keyof typeof PATH_PREFIX;
 
+type SignedInspectionUpload = {
+  bucket: 'fotos' | 'laudos' | 'document-evidence';
+  path: string;
+  token: string;
+  persistencePath: string;
+  contentType: string;
+};
+
+async function authorizeInspectionUpload(
+  inspectionId: string,
+  kind: 'photo' | 'laudo' | 'evidence_pdf' | 'evidence_signature',
+  contentType: string,
+  documentId?: string,
+): Promise<SignedInspectionUpload> {
+  const { data, error } = await supabase.functions.invoke('inspection-upload-authorize', {
+    body: { inspectionId, kind, contentType, documentId },
+  });
+  if (error || !data?.bucket || !data?.path || !data?.token || !data?.persistencePath) {
+    throw error ?? new Error('Não foi possível autorizar o upload do arquivo.');
+  }
+  return data as SignedInspectionUpload;
+}
+
+async function uploadWithAuthorization(
+  authorization: SignedInspectionUpload,
+  bytes: Uint8Array,
+): Promise<void> {
+  const { error } = await supabase.storage
+    .from(authorization.bucket)
+    .uploadToSignedUrl(authorization.path, authorization.token, bytes, {
+      contentType: authorization.contentType,
+      upsert: authorization.bucket === 'laudos',
+    });
+  if (error) throw error;
+}
+
 /**
  * Codifica bucket + remotePath em uma string persistível.
  * Exemplo: encodePath('vistorias', '2026/SP/abc.jpg') → 'vistorias:2026/SP/abc.jpg'
@@ -64,14 +100,9 @@ export async function uploadDocumentEvidenceFile(
   documentId: string
 ): Promise<string> {
   const bytes = await readLocalFileBytes(localUri);
-  const remotePath = evidencePath(ownerUserId, vistoriaId, documentId, 'document.pdf');
-  const { error } = await supabase.storage
-    .from(BUCKET_DOCUMENT_EVIDENCE)
-    .upload(remotePath, bytes, { contentType: 'application/pdf', upsert: false });
-  if (error && !/duplicate|already exists|resource already exists/i.test(error.message)) {
-    throw error;
-  }
-  return remotePath;
+  const authorization = await authorizeInspectionUpload(vistoriaId, 'evidence_pdf', 'application/pdf', documentId);
+  await uploadWithAuthorization(authorization, bytes);
+  return authorization.path;
 }
 
 /** Armazena traços validados como JSON; SVG arbitrário nunca é aceito. */
@@ -81,15 +112,10 @@ export async function uploadDocumentSignatureEvidence(
   vistoriaId: string,
   documentId: string
 ): Promise<string> {
-  const remotePath = evidencePath(ownerUserId, vistoriaId, documentId, 'signature.json');
   const bytes = new TextEncoder().encode(json);
-  const { error } = await supabase.storage
-    .from(BUCKET_DOCUMENT_EVIDENCE)
-    .upload(remotePath, bytes, { contentType: 'application/json', upsert: false });
-  if (error && !/duplicate|already exists|resource already exists/i.test(error.message)) {
-    throw error;
-  }
-  return remotePath;
+  const authorization = await authorizeInspectionUpload(vistoriaId, 'evidence_signature', 'application/json', documentId);
+  await uploadWithAuthorization(authorization, bytes);
+  return authorization.path;
 }
 
 export function encodeDocumentEvidencePath(remotePath: string): string {
@@ -153,31 +179,22 @@ export async function getSignedUrl(
  *
  * @note Para exibir a imagem, chame getSignedUrl(storedPath).
  */
-export async function uploadImageFromLocalUri(localUri: string, remotePath: string): Promise<string> {
+export async function uploadImageFromLocalUri(localUri: string, vistoriaId: string): Promise<string> {
   try {
     const bytes = await readLocalFileBytes(localUri);
-    const scopedPath = await scopeCustomerStoragePath(remotePath);
-
     const fileExt = localUri.split('.').pop() || 'jpg';
     const mimeType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
+    const authorization = await authorizeInspectionUpload(vistoriaId, 'photo', mimeType);
 
-    logger.info('sync', `Iniciando upload de imagem: ${scopedPath}`, { size: bytes.byteLength });
+    logger.info('sync', `Iniciando upload de imagem: ${authorization.path}`, { size: bytes.byteLength });
+    await uploadWithAuthorization(authorization, bytes);
 
-    const { error } = await supabase.storage
-      .from(BUCKET_FOTOS)
-      .upload(scopedPath, bytes, { contentType: mimeType, cacheControl: '36000', upsert: false });
-
-    if (error && !/duplicate|already exists|resource already exists/i.test(error.message)) {
-      logger.error('sync', `Falha no upload supabase: ${error.message}`, { path: scopedPath });
-      throw error;
-    }
-
-    logger.info('sync', `Upload concluído`, { path: scopedPath });
-    return encodePath('fotos', scopedPath);
+    logger.info('sync', `Upload concluído`, { path: authorization.path });
+    return authorization.persistencePath;
 
   } catch (error: any) {
     reportClientTechnicalEventSafely({ category: 'storage', severity: 'error', summary: 'Falha no upload de imagem', metadata: { operation: 'upload_image', bucket: BUCKET_FOTOS } });
-    logger.error('sync', `Erro em uploadImageFromLocalUri: ${error?.message || error}`, { localUri, remotePath });
+    logger.error('sync', `Erro em uploadImageFromLocalUri: ${error?.message || error}`, { localUri, vistoriaId });
     throw error;
   }
 }
@@ -195,18 +212,9 @@ export async function uploadFotoVistoria(
 ): Promise<string | null> {
   try {
     const bytes = await readLocalFileBytes(localUri);
-    const remotePath = await scopeCustomerStoragePath(`${municipio}/${vistoriaId}.jpg`);
-
-    const { error } = await supabase.storage
-      .from(BUCKET_FOTOS)
-      .upload(remotePath, bytes, { contentType: 'image/jpeg', cacheControl: '86400', upsert: true });
-
-    if (error) {
-      logger.warn('sync', `Falha upload foto: ${error.message}`, { remotePath });
-      return null;
-    }
-
-    return encodePath('fotos', remotePath);
+    const authorization = await authorizeInspectionUpload(vistoriaId, 'photo', 'image/jpeg');
+    await uploadWithAuthorization(authorization, bytes);
+    return authorization.persistencePath;
   } catch (e: any) {
     reportClientTechnicalEventSafely({ category: 'storage', severity: 'warning', summary: 'Falha no upload de foto da vistoria', metadata: { operation: 'upload_inspection_photo', bucket: BUCKET_FOTOS } });
     logger.warn('sync', `Erro upload foto vistoria: ${e?.message}`, { vistoriaId });
@@ -216,8 +224,8 @@ export async function uploadFotoVistoria(
 
 /**
  * Faz upload do PDF de laudo para o bucket `laudos`.
- * Retorna URL assinada de 7 dias (laudos são exibidos diretamente via link,
- * não persistidos como imagens — expiração longa é aceitável para esse caso).
+ * Retorna o caminho codificado do storage. A URL assinada é criada somente ao
+ * exibir o documento; nunca é persistida como dado de vistoria.
  */
 export async function uploadLaudoPdf(
   localUri: string,
@@ -225,23 +233,10 @@ export async function uploadLaudoPdf(
   municipio: string
 ): Promise<string | null> {
   try {
-    const remotePath = await scopeCustomerStoragePath(`${municipio}/${vistoriaId}.pdf`);
     const bytes = await readLocalFileBytes(localUri);
-
-    const { error } = await supabase.storage
-      .from(BUCKET_LAUDOS)
-      .upload(remotePath, bytes, { contentType: 'application/pdf', cacheControl: '3600', upsert: true });
-
-    if (error) {
-      logger.warn('sync', `Falha upload laudo: ${error.message}`, { remotePath });
-      return null;
-    }
-
-    const { data } = await supabase.storage
-      .from(BUCKET_LAUDOS)
-      .createSignedUrl(remotePath, 60 * 60 * 24 * 7);
-
-    return data?.signedUrl ?? null;
+    const authorization = await authorizeInspectionUpload(vistoriaId, 'laudo', 'application/pdf');
+    await uploadWithAuthorization(authorization, bytes);
+    return authorization.persistencePath;
   } catch (e: any) {
     reportClientTechnicalEventSafely({ category: 'storage', severity: 'warning', summary: 'Falha no upload do laudo', metadata: { operation: 'upload_report', bucket: BUCKET_LAUDOS } });
     logger.warn('sync', `Erro upload laudo PDF: ${e?.message}`, { vistoriaId });

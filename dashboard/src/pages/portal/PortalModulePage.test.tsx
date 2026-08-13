@@ -103,7 +103,7 @@ describe('estados dos módulos do portal', () => {
     expect(screen.getByRole('link', { name: 'Consultar assinatura' })).toHaveAttribute('href', '/portal/municipal/assinatura');
   });
 
-  it.each([{ reports_basic: true }, { reports_advanced: true }])(
+  it.each<[Record<string, boolean>]>([[{ reports_basic: true }], [{ reports_advanced: true }]])(
     'libera relatórios para funcionalidades profissionais alternativas: %o',
     (features) => {
       mocks.access.features = features;

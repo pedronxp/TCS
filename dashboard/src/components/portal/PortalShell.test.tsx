@@ -75,6 +75,13 @@ describe('fundação do portal', () => {
     expect(screen.getByRole('heading', { name: 'Conteúdo municipal' })).toBeVisible();
   });
 
+  it('mantém a marca TCS como identidade não navegável', () => {
+    authState.access = municipalAccess();
+    renderShell();
+
+    expect(screen.queryByRole('link', { name: /TCS\s*Portal municipal/i })).not.toBeInTheDocument();
+  });
+
   it('mantém o foco preso na navegação móvel e restaura o acionador', async () => {
     const user = userEvent.setup();
     authState.access = municipalAccess();
@@ -85,7 +92,6 @@ describe('fundação do portal', () => {
     await user.click(trigger);
     const dialog = screen.getByRole('dialog', { name: 'Navegação do portal' });
     const close = screen.getByRole('button', { name: 'Fechar menu' });
-    const brand = screen.getByRole('link', { name: /TCS\s*Portal municipal/i });
     const signOut = screen.getAllByRole('button', { name: 'Sair' }).find((button) => dialog.contains(button));
 
     expect(dialog).toBeVisible();
@@ -94,11 +100,9 @@ describe('fundação do portal', () => {
     expect(trigger.closest('[aria-hidden="true"]')).not.toBeNull();
 
     await user.tab({ shift: true });
-    expect(brand).toHaveFocus();
-    await user.tab({ shift: true });
     expect(signOut).toHaveFocus();
     await user.tab();
-    expect(brand).toHaveFocus();
+    expect(close).toHaveFocus();
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Navegação do portal' })).not.toBeInTheDocument();

@@ -48,12 +48,9 @@ export default function GrupoDetalheScreen() {
   const carregarAgentesDisponiveis = async () => {
     setLoadingAgentes(true);
     try {
-      const { data } = await supabase
-        .from('users')
-        .select('uid, name')
-        .eq('role', 'agent')
-        .eq('isApproved', true)
-        .eq('municipio', profile?.municipio ?? '');
+      const { data } = await supabase.rpc('list_operational_users', {
+        p_role: 'agent', p_municipio: null, p_include_unapproved: false, p_offset: 0, p_limit: 500,
+      });
       if (data) {
         const uidsJaMembros = new Set(membros.map(m => m.agente_uid));
         setAgentesDisponiveis((data as AgentUser[]).filter(a => !uidsJaMembros.has(a.uid)));

@@ -20,6 +20,7 @@ export interface UserProfile {
   nameChanged?: boolean;
   phone?: string | null;
   organizationId?: string | null;
+  tokenLimit?: number | null;
 }
 
 interface AuthContextData {
@@ -62,13 +63,9 @@ async function loadProfileFromCache(uid: string): Promise<UserProfile | null> {
 
 type FetchProfileResult = UserProfile | null | 'timeout';
 
-async function fetchProfile(userId: string): Promise<FetchProfileResult> {
+async function fetchProfile(_userId: string): Promise<FetchProfileResult> {
   try {
-    const queryPromise = supabase
-      .from('users')
-      .select('uid, name, email, role, municipio, isApproved, "createdAt", "nameChanged", phone, organization_id')
-      .eq('uid', userId)
-      .single();
+    const queryPromise = supabase.rpc('get_my_user_profile');
 
     const timeoutPromise = new Promise<'timeout'>(resolve =>
       setTimeout(() => resolve('timeout'), 10000)
@@ -80,7 +77,7 @@ async function fetchProfile(userId: string): Promise<FetchProfileResult> {
 
     const { data, error } = result;
     if (error || !data) return null;
-    return { ...data, organizationId: (data as any).organization_id ?? null } as UserProfile;
+    return data as UserProfile;
   } catch {
     return 'timeout';
   }

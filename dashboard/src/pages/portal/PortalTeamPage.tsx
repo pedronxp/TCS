@@ -129,7 +129,7 @@ export function PortalTeamPage() {
                   <select className="mt-2 h-11 w-full rounded-md border bg-card px-3" value={role} onChange={(event) => setRole(event.target.value)}>
                     <option value="agent">Agente</option>
                     <option value="supervisor">Supervisor</option>
-                    <option value="coordinator">Coordenador</option>
+                    {access?.role === 'master' && <option value="admin">Administrador</option>}
                   </select>
                 </label>
                 <label className="text-sm font-medium">Status
@@ -159,7 +159,7 @@ export function PortalTeamPage() {
 }
 
 function roleLabel(value: string) {
-  return ({ coordinator: 'Coordenador', supervisor: 'Supervisor', agent: 'Agente', owner: 'Coordenador' } as Record<string, string>)[value] ?? value;
+  return ({ master: 'Master', admin: 'Administrador', supervisor: 'Supervisor', agent: 'Agente' } as Record<string, string>)[value] ?? value;
 }
 
 function statusLabel(value: string) {

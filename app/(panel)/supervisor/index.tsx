@@ -44,16 +44,13 @@ export default function SupervisorDashboardScreen() {
           .eq('municipio', profile.municipio)
           .order('dataVistoria', { ascending: false })
           .limit(20),
-        supabase
-          .from('users')
-          .select('uid', { count: 'exact', head: true })
-          .eq('municipio', profile.municipio)
-          .eq('role', 'agent')
-          .eq('isApproved', true),
+        supabase.rpc('list_operational_users', {
+          p_role: 'agent', p_municipio: null, p_include_unapproved: false, p_offset: 0, p_limit: 500,
+        }),
       ]);
 
       setVistorias(vistoriasRes.data || []);
-      setAgentesAtivos(agentesRes.count || 0);
+      setAgentesAtivos((agentesRes.data || []).length);
     } catch (e) {
       logger.error('system', 'Erro supervisor dashboard', { erro: String(e) });
     } finally {

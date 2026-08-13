@@ -22,6 +22,7 @@ export function ConsoleShell() {
     '/app/auditoria',
     '/app/planos',
     '/app/assinaturas',
+    '/app/protocolos',
     '/app/suporte',
     '/app/staff',
     '/app/desenvolvimento/versoes',

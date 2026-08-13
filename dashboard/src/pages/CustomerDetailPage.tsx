@@ -19,6 +19,7 @@ import {
   Pencil,
   RefreshCw,
   UnlockKeyhole,
+  UserPlus,
 } from 'lucide-react';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { IndividualEditDialog } from '@/components/customers/IndividualEditDialog';
@@ -275,6 +276,7 @@ export function CustomerDetailWorkspace({
         operationsLoading={operationsLoading}
         operationsError={operationsError}
         onRetryOperations={onRetryOperations}
+        onCustomerChanged={onSaved}
       />
 
       <OrganizationFormDialog
@@ -326,6 +328,7 @@ function CustomerSection({
   operationsLoading,
   operationsError,
   onRetryOperations,
+  onCustomerChanged,
 }: {
   section: string;
   detail: CustomerDetail;
@@ -333,11 +336,12 @@ function CustomerSection({
   operationsLoading: boolean;
   operationsError: Error | null;
   onRetryOperations?: () => void;
+  onCustomerChanged?: () => void;
 }) {
   if (section === 'resumo') return <Summary detail={detail} />;
   if (section === 'assinatura') return <Subscription detail={detail} />;
   if (section === 'consumo') return <Usage detail={detail} />;
-  if (section === 'equipe') return <Team detail={detail} />;
+  if (section === 'equipe') return <Team detail={detail} onCustomerChanged={onCustomerChanged} />;
   if (section === 'operacao') return <OperationsOverview detail={detail} />;
   if (section === 'sessoes') return <Sessions detail={detail} />;
   if (section === 'vistorias') return <Inspections detail={detail} />;
@@ -649,8 +653,10 @@ function OperationsOverview({ detail }: { detail: CustomerDetail }) {
   );
 }
 
-function Team({ detail }: { detail: CustomerDetail }) {
+function Team({ detail, onCustomerChanged }: { detail: CustomerDetail; onCustomerChanged?: () => void }) {
+  const { profile } = useAuth();
   const [selected, setSelected] = useState<CustomerUser | null>(null);
+  const [linking, setLinking] = useState(false);
   const [params, setParams] = useSearchParams();
   const selectedMemberId = params.get('membro');
   const managedMember = selected ?? detail.users.find((user) => user.user_id === selectedMemberId) ?? null;
@@ -666,13 +672,12 @@ function Team({ detail }: { detail: CustomerDetail }) {
     setParams(next, { replace: true });
     setSelected(null);
   };
-  if (!detail.users.length) {
-    return <AsyncEmpty title="Nenhum membro" description="Não há pessoas vinculadas a esta organização." />;
-  }
+  const canLinkIndividual = profile?.role === 'owner' || profile?.role === 'support';
 
   return (
     <>
-    <DataTable headers={['Membro', 'Papel', 'Status', 'Último acesso', 'Acesso']}>
+    {canLinkIndividual && <div className="flex justify-end"><Button type="button" variant="outline" onClick={() => setLinking(true)}><UserPlus />Vincular agente existente</Button></div>}
+    {detail.users.length ? <DataTable headers={['Membro', 'Papel', 'Status', 'Último acesso', 'Acesso']}>
       {detail.users.map((user) => {
         return (
           <tr
@@ -708,13 +713,80 @@ function Team({ detail }: { detail: CustomerDetail }) {
           </tr>
         );
       })}
-    </DataTable>
+    </DataTable> : <AsyncEmpty title="Nenhum membro" description="Não há pessoas vinculadas a esta organização." />}
     <MemberAccessSheet
       customerId={detail.customer.customer_id}
       user={managedMember}
       onOpenChange={(open) => { if (!open) closeMember(); }}
     />
+    <LinkExistingAgentDialog open={linking} organizationId={detail.customer.subject_id} onOpenChange={setLinking} onLinked={onCustomerChanged} />
     </>
+  );
+}
+
+function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked }: {
+  open: boolean;
+  organizationId: string;
+  onOpenChange: (open: boolean) => void;
+  onLinked?: () => void;
+}) {
+  const [userId, setUserId] = useState('');
+  const [role, setRole] = useState('agent');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    const { error } = await supabase.rpc('internal_link_customer_to_organization', {
+      p_user_id: userId.trim(),
+      p_organization_id: organizationId,
+      p_role: role,
+    });
+    setSaving(false);
+    if (error) {
+      setMessage('Não foi possível concluir o vínculo. Confira o ID da conta e tente novamente.');
+      return;
+    }
+    toast.success('Agente vinculado à prefeitura e registro auditado.');
+    setUserId('');
+    onOpenChange(false);
+    onLinked?.();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Vincular agente existente</DialogTitle>
+          <DialogDescription>Use o ID da conta individual confirmado pelo suporte. A operação fica registrada na auditoria e não permite buscar pessoas pelo município.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={submit}>
+          <div>
+            <Label htmlFor="existing-agent-user-id">ID da conta individual</Label>
+            <Input id="existing-agent-user-id" value={userId} onChange={(event) => setUserId(event.target.value)} placeholder="UUID do usuário" required />
+          </div>
+          <div>
+            <Label htmlFor="existing-agent-role">Papel municipal</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger id="existing-agent-role"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="agent">Agente</SelectItem>
+                <SelectItem value="supervisor">Supervisor</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="master">Master</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {message && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive">{message}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Vinculando…' : 'Confirmar vínculo'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
