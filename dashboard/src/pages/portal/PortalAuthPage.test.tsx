@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { axe } from 'vitest-axe';
@@ -55,7 +55,7 @@ function suspendedMunicipalAccess(): PortalAccessContext {
     displayName: 'Coordenação TCS',
     organizationId: 'org-1',
     organizationName: 'Município Piloto',
-    role: 'coordinator',
+    role: 'admin',
     membershipStatus: 'suspended',
     subscriptionStatus: 'active',
     cancelAtPeriodEnd: false,
@@ -113,21 +113,39 @@ describe('entrada autenticada do portal', () => {
     expect(screen.queryByText(/customer-terms-2026-08/i)).not.toBeInTheDocument();
   });
 
+  it('permite ler termos e privacidade antes de aceitar o cadastro', async () => {
+    const user = userEvent.setup();
+    portalAuthState.session = null;
+    render(<MemoryRouter initialEntries={['/criar-conta']}><PortalAuthPage mode="sign-up" /></MemoryRouter>);
+
+    const acceptance = screen.getByRole('checkbox', { name: /Li e aceito os Termos de Uso/ });
+    expect(acceptance).not.toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Termos de Uso' }));
+    const termsDialog = await screen.findByRole('dialog');
+    expect(termsDialog).toHaveTextContent('Termos de Uso');
+    await user.click(within(termsDialog).getAllByRole('button', { name: 'Fechar' })[0]);
+
+    await user.click(screen.getByRole('button', { name: 'Política de Privacidade' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Política de Privacidade');
+    expect(acceptance).not.toBeChecked();
+  });
+
   it('mantém os onboardings individual e municipal distintos e acessíveis', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/entrar']}><PortalAuthPage mode="sign-in" /></MemoryRouter>);
 
     const individual = screen.getByRole('radio', { name: /Profissional individual/ });
-    const municipal = screen.getByRole('radio', { name: /Prefeitura ou município/ });
+    const municipal = screen.getByRole('radio', { name: /Tenho vínculo municipal/ });
     expect(individual).toBeChecked();
 
-    individual.focus();
-    await user.keyboard('{ArrowRight}');
+    await user.click(municipal);
 
     expect(municipal).toBeChecked();
     expect(municipal).toHaveFocus();
-    expect(screen.getByRole('group', { name: 'Dados iniciais da implantação' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Continuar com implantação municipal' })).toBeDisabled();
+    expect(screen.getByRole('group', { name: 'Token municipal' })).toBeVisible();
+    expect(screen.getByLabelText('Token de vínculo')).toBeRequired();
+    expect(screen.getByRole('button', { name: 'Validar token municipal' })).toBeDisabled();
   });
 
   it('permite encerrar a sessão e usar outra conta durante a configuração', async () => {
@@ -152,6 +170,22 @@ describe('entrada autenticada do portal', () => {
 });
 
 describe('autenticação pública do portal', () => {
+  it('apresenta credenciais inválidas como orientação neutra, sem painel destrutivo', async () => {
+    const user = userEvent.setup();
+    portalAuthState.session = null;
+    portalAuthState.signIn.mockResolvedValueOnce('E-mail ou senha não conferem. Tente novamente.');
+    render(<MemoryRouter initialEntries={['/entrar']}><PortalAuthPage mode="sign-in" /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('E-mail'), 'pessoa@exemplo.com');
+    await user.type(screen.getByLabelText('Senha'), 'senha-incorreta');
+    await user.click(screen.getByRole('button', { name: 'Entrar no portal' }));
+
+    const notice = await screen.findByRole('alert');
+    expect(notice).toHaveTextContent('E-mail ou senha não conferem');
+    expect(notice).toHaveClass('bg-warning-soft', 'text-foreground');
+    expect(notice).not.toHaveClass('bg-destructive-soft', 'text-destructive');
+  });
+
   it('preserva query params nos caminhos secundários de entrada', () => {
     portalAuthState.session = null;
     render(<MemoryRouter initialEntries={['/entrar?returnTo=%2Fportal%2Fagenda']}><PortalAuthPage mode="sign-in" /></MemoryRouter>);

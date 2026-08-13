@@ -41,7 +41,7 @@ describe('contrato de acesso do portal', () => {
       display_name: 'Coordenação',
       organization_id: '632ec060-0db8-444c-b914-4854375687da',
       organization_name: 'Município Piloto',
-      role: 'coordinator',
+      role: 'admin',
       membership_status: 'active',
       subscription_status: 'grace',
       permissions: ['dashboard.read', 'team.manage', 'internal_staff.manage'],
@@ -50,7 +50,7 @@ describe('contrato de acesso do portal', () => {
       usage: { users: 4 },
       creation_allowed: true,
     });
-    expect(parsed?.role).toBe('coordinator');
+    expect(parsed?.role).toBe('admin');
     expect(parsed?.permissions).toEqual(['dashboard.read', 'team.manage']);
     expect(parsed?.subscriptionStatus).toBe('grace');
   });
@@ -64,14 +64,16 @@ describe('contrato de acesso do portal', () => {
     })).toBeNull();
   });
 
-  it('reconhece somente owner ou developer internos ativos na entrada pública', () => {
+  it('reconhece todos os papéis internos ativos na entrada pública', () => {
     expect(parseInternalCustomerEntryContext({ role: 'owner', status: 'active' })).toMatchObject({
       accountKind: 'internal',
       entryState: 'internal_only',
     });
     expect(parseInternalCustomerEntryContext({ role: 'developer', status: 'active' })?.accountKind).toBe('internal');
+    expect(parseInternalCustomerEntryContext({ role: 'support', status: 'active' })?.accountKind).toBe('internal');
+    expect(parseInternalCustomerEntryContext({ role: 'auditor', status: 'active' })?.accountKind).toBe('internal');
     expect(parseInternalCustomerEntryContext({ role: 'owner', status: 'suspended' })).toBeNull();
-    expect(parseInternalCustomerEntryContext({ role: 'support', status: 'active' })).toBeNull();
+    expect(parseInternalCustomerEntryContext({ role: 'unknown', status: 'active' })).toBeNull();
   });
 
   it('não permite redirecionamento externo, travessia ou troca de portal', () => {
@@ -116,17 +118,17 @@ describe('contrato de acesso do portal', () => {
   });
 
   it('não concede destinos internos ao coordenador municipal', () => {
-    const coordinator = getPortalNavigation(context({
+    const admin = getPortalNavigation(context({
       accountKind: 'organization',
       organizationId: 'org',
-      role: 'coordinator',
+      role: 'admin',
       membershipStatus: 'active',
       permissions: [
         'dashboard.read', 'inspection.read', 'team.read', 'team.manage',
         'billing.read', 'settings.read', 'settings.manage',
       ],
     }));
-    expect(coordinator.every((item) => item.path.startsWith('/portal/municipal'))).toBe(true);
-    expect(coordinator.some((item) => item.path.startsWith('/app'))).toBe(false);
+    expect(admin.every((item) => item.path.startsWith('/portal/municipal'))).toBe(true);
+    expect(admin.some((item) => item.path.startsWith('/app'))).toBe(false);
   });
 });

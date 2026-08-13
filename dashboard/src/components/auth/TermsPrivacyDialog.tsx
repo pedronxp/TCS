@@ -1,22 +1,26 @@
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 
 /**
  * Modal de Termos de Uso e Política de Privacidade — acessível a partir do
  * checkbox de aceite do cadastro, para que o usuário possa ler antes de marcar.
  */
-export function TermsPrivacyDialog() {
+export function TermsPrivacyDialog({ document }: { document: 'terms' | 'privacy' }) {
+  const isTerms = document === 'terms';
+  const title = isTerms ? 'Termos de Uso' : 'Política de Privacidade';
   return (
     <Dialog>
-      <button
-        type="button"
-        className="text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-      >
-        <span>Termos de Uso</span>
-      </button>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="rounded text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {title}
+        </button>
+      </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Termos de Uso e Política de Privacidade</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>TCS — Relatório de Risco · vigente em 2026-08</DialogDescription>
         </DialogHeader>
         <div className="space-y-6 text-sm leading-6 text-muted-foreground">

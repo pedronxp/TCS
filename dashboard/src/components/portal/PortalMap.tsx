@@ -9,6 +9,7 @@ export interface PortalMapPoint {
   protocol: string;
   status: string;
   address: string;
+  formularioId: string | null;
   latitude: number | null;
   longitude: number | null;
 }

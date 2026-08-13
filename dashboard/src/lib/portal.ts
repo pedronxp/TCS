@@ -19,7 +19,7 @@ type PortalRpc = (name: string, args?: Record<string, unknown>) => PromiseLike<R
 const rpc = supabase.rpc.bind(supabase) as unknown as PortalRpc;
 
 const accountKinds = new Set<PortalAccountKind>(['individual', 'organization']);
-const roles = new Set<MunicipalRole>(['coordinator', 'supervisor', 'agent']);
+const roles = new Set<MunicipalRole>(['master', 'admin', 'supervisor', 'agent']);
 const membershipStatuses = new Set<PortalMembershipStatus>(['invited', 'active', 'suspended', 'removed']);
 const subscriptionStatuses = new Set<PortalSubscriptionStatus>([
   'trial', 'active', 'grace', 'past_due', 'canceled', 'expired', 'none',
@@ -98,6 +98,8 @@ export function parsePortalAccessContext(value: unknown, user?: User | null): Po
     features: featureRecord(source.features),
     limits: limitRecord(source.limits),
     usage: numericRecord(source.usage),
+    periodStart: string(source.period_start),
+    periodEnd: string(source.period_end),
     permissions: Array.isArray(source.permissions)
       ? source.permissions.filter((item): item is PortalPermission =>
         typeof item === 'string' && permissions.has(item as PortalPermission))
@@ -116,7 +118,7 @@ export async function fetchPortalAccessContext(user?: User | null) {
 export function parseInternalCustomerEntryContext(value: unknown): PortalCustomerEntryContext | null {
   const source = record(value);
   const role = string(source?.role);
-  if (!source || source.status !== 'active' || (role !== 'owner' && role !== 'developer')) return null;
+  if (!source || source.status !== 'active' || !['owner', 'developer', 'support', 'auditor'].includes(role ?? '')) return null;
   return {
     accountKind: 'internal',
     entryState: 'internal_only',

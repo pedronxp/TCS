@@ -26,26 +26,29 @@ export function PortalMapPage() {
   const root = portalHome(access?.accountKind);
   const search = searchParams.get('busca') ?? '';
   const status = searchParams.get('status') ?? 'all';
+  const formulario = searchParams.get('formulario') ?? 'all';
   const points: PortalMapPoint[] = useMemo(() => (query.data?.items ?? []).map((item) => ({
     id: String(item.id),
     protocol: String(item.protocol ?? item.title ?? 'Vistoria'),
     status: String(item.status ?? 'Sem status'),
     address: String(item.address ?? item.subtitle ?? 'Endereço não informado'),
+    formularioId: typeof item.formulario_id === 'string' ? item.formulario_id : null,
     latitude: coordinateOrNull(item.latitude, -90, 90),
     longitude: coordinateOrNull(item.longitude, -180, 180),
   })), [query.data?.items]);
   const statusOptions = useMemo(() => Array.from(new Set(points.map((point) => point.status))).filter(Boolean), [points]);
+  const formularioOptions = useMemo(() => Array.from(new Set(points.map((point) => point.formularioId).filter((value): value is string => Boolean(value)))), [points]);
   const visiblePoints = points.filter((point) => {
     const term = search.trim().toLocaleLowerCase('pt-BR');
     const matchesSearch = `${point.protocol} ${point.address}`.toLocaleLowerCase('pt-BR').includes(term);
-    return matchesSearch && (status === 'all' || point.status === status);
+    return matchesSearch && (status === 'all' || point.status === status) && (formulario === 'all' || point.formularioId === formulario);
   });
   const locatedCount = visiblePoints.filter((point) => point.latitude !== null && point.longitude !== null).length;
 
-  function updateFilter(key: 'busca' | 'status', value: string) {
+  function updateFilter(key: 'busca' | 'status' | 'formulario', value: string) {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
-      if (!value || (key === 'status' && value === 'all')) next.delete(key);
+      if (!value || ((key === 'status' || key === 'formulario') && value === 'all')) next.delete(key);
       else next.set(key, value);
       return next;
     }, { replace: true });
@@ -64,6 +67,14 @@ export function PortalMapPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <span className="sr-only">Buscar vistoria ou endereço</span>
             <Input className="pl-9 sm:w-64" placeholder="Buscar vistoria ou endereço" value={search} onChange={(event) => updateFilter('busca', event.target.value)} />
+          </label>
+          <label className="relative">
+            <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">Filtrar mapa por formulário</span>
+            <select className="h-11 min-w-44 rounded-md border border-border bg-card pl-9 pr-8 text-sm" value={formulario} onChange={(event) => updateFilter('formulario', event.target.value)}>
+              <option value="all">Todos os formulários</option>
+              {formularioOptions.map((option) => <option key={option} value={option}>{formularioLabel(option)}</option>)}
+            </select>
           </label>
           <label className="relative">
             <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -119,4 +130,13 @@ export function PortalMapPage() {
 function humanize(value: string) {
   const normalized = value.replace(/_/g, ' ');
   return normalized.charAt(0).toLocaleUpperCase('pt-BR') + normalized.slice(1);
+}
+
+function formularioLabel(value: string) {
+  return ({
+    inspecao_bueiro_drenagem_v1: 'Bueiro e drenagem',
+    risco_incendio_vegetacao_v1: 'Incêndio em vegetação',
+    risco_inundacao_v1: 'Alagamento e inundação',
+    avaliacao_arvore_cbmmg_v1: 'Vistoria de árvores',
+  } as Record<string, string>)[value] ?? humanize(value);
 }

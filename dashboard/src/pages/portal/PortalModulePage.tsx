@@ -22,6 +22,12 @@ const moduleCopy: Record<string, { title: string; description: string; action?: 
   perfil: { title: 'Perfil e segurança', description: 'Seus dados, sessões e opções de segurança da conta.', eyebrow: 'Conta' },
 };
 
+export function hasPortalReports(features: Record<string, boolean> | undefined) {
+  return features?.reports === true
+    || features?.reports_basic === true
+    || features?.reports_advanced === true;
+}
+
 export function PortalModulePage({ section }: { section: string }) {
   const { access } = usePortalAuth();
   const location = useLocation();
@@ -29,7 +35,7 @@ export function PortalModulePage({ section }: { section: string }) {
   const search = searchParams.get('busca') ?? '';
   const status = searchParams.get('status') ?? 'all';
   const copy = moduleCopy[section] ?? { title: section, description: 'Módulo do portal.', eyebrow: 'Portal' };
-  const locked = section === 'relatorios' && access?.features.reports !== true;
+  const locked = section === 'relatorios' && !hasPortalReports(access?.features);
   const query = useQuery({
     queryKey: ['portal', 'workspace', section, access?.userId, access?.accountKind, access?.organizationId, access?.role],
     queryFn: () => fetchPortalWorkspace(section),
@@ -92,6 +98,11 @@ export function PortalModulePage({ section }: { section: string }) {
         <PlanLockedState root={root} canReadBilling={access?.permissions?.includes('billing.read') === true} />
       ) : (
         <>
+          {section === 'consumo' && <ConsumptionOverview
+            used={access?.usage.inspections ?? 0}
+            limit={access?.limits.inspections ?? null}
+            renewal={access?.periodEnd ?? null}
+          />}
           {query.data && Object.keys(query.data.summary).length > 0 && (
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do módulo">
               {Object.entries(query.data.summary).map(([key, value]) => (
@@ -163,6 +174,18 @@ export function PortalModulePage({ section }: { section: string }) {
         </>
       )}
     </div>
+  );
+}
+
+function ConsumptionOverview({ used, limit, renewal }: { used: number; limit: number | null; renewal: string | null }) {
+  const available = limit === null ? 'Sem limite' : Math.max(limit - used, 0).toLocaleString('pt-BR');
+  const renewalDate = renewal && !Number.isNaN(Date.parse(renewal)) ? new Date(renewal).toLocaleDateString('pt-BR') : 'Não informado';
+  return (
+    <section className="grid gap-4 sm:grid-cols-3" aria-label="Consumo disponível">
+      <Card><CardContent className="p-5"><p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Vistorias usadas</p><p className="mt-3 text-2xl font-bold tabular-nums">{used.toLocaleString('pt-BR')}</p></CardContent></Card>
+      <Card><CardContent className="p-5"><p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Disponível no ciclo</p><p className="mt-3 text-2xl font-bold tabular-nums">{available}</p></CardContent></Card>
+      <Card><CardContent className="p-5"><p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Renovação</p><p className="mt-3 text-2xl font-bold">{renewalDate}</p></CardContent></Card>
+    </section>
   );
 }
 

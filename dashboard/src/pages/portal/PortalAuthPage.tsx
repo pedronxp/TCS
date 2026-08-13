@@ -6,6 +6,7 @@ import { AuthFrame, AuthLoadingCard } from '@/components/auth/AuthFrame';
 import { TermsPrivacyDialog } from '@/components/auth/TermsPrivacyDialog';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { safePortalDestination } from '@/lib/portal';
@@ -21,7 +22,7 @@ const portalAside = {
 export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const {
     access, entryContext, session, loading, signIn, signUp, signInWithGoogle,
-    bootstrapIndividual, bootstrapMunicipal, signOut,
+    beginAffiliation, signOut,
   } = usePortalAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,11 +37,8 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [switchingAccount, setSwitchingAccount] = useState(false);
   const [success, setSuccess] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [accountKind, setAccountKind] = useState<'individual' | 'organization'>('individual');
-  const [organizationName, setOrganizationName] = useState('');
-  const [municipalityName, setMunicipalityName] = useState('');
-  const [stateCode, setStateCode] = useState('');
-  const [responsibleName, setResponsibleName] = useState('');
+  const [accountKind, setAccountKind] = useState<'individual' | 'municipal'>('individual');
+  const [municipalToken, setMunicipalToken] = useState('');
   const query = new URLSearchParams(location.search);
   const status = query.get('status');
   const returnTo = query.get('returnTo');
@@ -155,23 +153,13 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   async function activateCustomer() {
     if (!termsAccepted) return;
-    if (accountKind === 'organization' && (
-      !organizationName.trim() || !municipalityName.trim()
-      || stateCode.trim().length !== 2 || !responsibleName.trim()
-    )) {
-      setMessage('Preencha organização, município, UF e responsável.');
+    if (accountKind === 'municipal' && !municipalToken.trim()) {
+      setMessage('Informe o token municipal. Se ainda não o tiver, escolha continuar como agente individual.');
       return;
     }
     setSubmitting(true);
     setMessage(null);
-    const bootstrapError = accountKind === 'individual'
-      ? await bootstrapIndividual()
-      : await bootstrapMunicipal({
-        displayName: organizationName,
-        municipalityName,
-        stateCode,
-        responsibleName,
-      });
+    const bootstrapError = await beginAffiliation(accountKind, municipalToken);
     setSubmitting(false);
     if (bootstrapError) setMessage(bootstrapError);
   }
@@ -200,21 +188,19 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 onChange={setAccountKind}
               />
               <AccountKindOption
-                value="organization"
-                checked={accountKind === 'organization'}
-                disabled={entryContext?.municipalBootstrapEnabled === false}
-                title="Prefeitura ou município"
-                description="Inicia uma implantação provisória com o primeiro administrador."
+                value="municipal"
+                checked={accountKind === 'municipal'}
+                disabled={false}
+                title="Tenho vínculo municipal"
+                description="Informe o token recebido da prefeitura."
                 onChange={setAccountKind}
               />
             </fieldset>
-            {accountKind === 'organization' && (
-              <fieldset className="grid gap-3 rounded-md border border-border p-4 sm:grid-cols-2">
-                <legend className="px-1 text-sm font-semibold">Dados iniciais da implantação</legend>
-                <label className="text-sm font-medium">Nome da organização<Input className="mt-2" autoComplete="organization" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} required /></label>
-                <label className="text-sm font-medium">Município<Input className="mt-2" value={municipalityName} onChange={(event) => setMunicipalityName(event.target.value)} required /></label>
-                <label className="text-sm font-medium">UF<Input className="mt-2 uppercase" value={stateCode} maxLength={2} onChange={(event) => setStateCode(event.target.value.toUpperCase())} required /></label>
-                <label className="text-sm font-medium">Responsável<Input className="mt-2" autoComplete="name" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} required /></label>
+            {accountKind === 'municipal' && (
+              <fieldset className="grid gap-3 rounded-md border border-border p-4">
+                <legend className="px-1 text-sm font-semibold">Token municipal</legend>
+                <label className="text-sm font-medium">Token de vínculo<Input className="mt-2 uppercase" value={municipalToken} onChange={(event) => setMunicipalToken(event.target.value.toUpperCase())} required /></label>
+                <p className="text-xs leading-5 text-muted-foreground">Se você fechar esta etapa sem um token válido, o cadastro ficará em análise até a próxima tentativa. Sem vínculo, escolha a opção de agente individual.</p>
               </fieldset>
             )}
             <label className="flex items-start gap-3 text-sm text-muted-foreground">
@@ -234,12 +220,12 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               disabled={!termsAccepted || submitting || (
                 accountKind === 'individual'
                   ? entryContext?.individualBootstrapEnabled === false
-                  : entryContext?.municipalBootstrapEnabled === false
+                  : false
               )}
               onClick={() => void activateCustomer()}
             >
               {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-              {submitting ? 'Preparando…' : accountKind === 'individual' ? 'Continuar com acesso individual' : 'Continuar com implantação municipal'}
+              {submitting ? 'Preparando…' : accountKind === 'individual' ? 'Continuar como agente individual' : 'Validar token municipal'}
             </Button>
             <p className="text-center text-xs leading-5 text-muted-foreground">Você poderá consultar os planos antes da contratação definitiva.</p>
             <Button asChild variant="outline" className="w-full"><Link to="/#planos">Consultar planos</Link></Button>
@@ -330,20 +316,22 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                     {confirmPassword && password !== confirmPassword && <span className="mt-2 block text-xs font-normal text-destructive">As senhas não correspondem.</span>}
                   </div>
                 )}
-                {message && <div className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</div>}
+              {message && <div className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="alert">{message}</div>}
                 {mode === 'sign-up' && (
                   <div className="flex items-start gap-3 text-sm text-muted-foreground">
                     <input
                       type="checkbox"
                       id="portal-terms"
+                      aria-label="Li e aceito os Termos de Uso e a Política de Privacidade vigentes."
                       className="mt-1 h-4 w-4"
                       checked={termsAccepted}
                       onChange={(event) => setTermsAccepted(event.target.checked)}
                     />
-                    <label htmlFor="portal-terms" className="cursor-pointer">
-                      Li e aceito os Termos de Uso e a Política de Privacidade vigentes.
-                    </label>
-                    <TermsPrivacyDialog />
+                    <span className="cursor-default">Li e aceito os</span>
+                    <TermsPrivacyDialog document="terms" />
+                    <span className="cursor-default">e a</span>
+                    <TermsPrivacyDialog document="privacy" />
+                    <label htmlFor="portal-terms" className="cursor-pointer">vigentes.</label>
                   </div>
                 )}
                 <Button type="submit" className="w-full" disabled={submitting || (mode === 'sign-up' && !termsAccepted)}>
@@ -363,6 +351,39 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                   {mode === 'sign-in' ? 'Criar conta' : 'Entrar'}
                 </Link>
               </p>
+              <Dialog>
+                <button
+                  type="button"
+                  className="mt-4 block w-full text-center text-[12px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  É da equipe interna TCS? Entrar no Console
+                </button>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Acesso ao Console TCS</DialogTitle>
+                    <DialogDescription>O Console é a área administrativa reservada aos administradores da TCS.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 text-sm leading-6 text-muted-foreground">
+                    <p>
+                      Use o Console apenas se você for membro da equipe interna TCS (administrador, suporte ou técnico).
+                      Contas de clientes e municípios não têm acesso a essa área.
+                    </p>
+                    <p>
+                      Contas municipais continuam acessando por aqui, no Portal, em <strong className="text-foreground">/entrar</strong>.
+                      Não é necessário usar o Console.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Se você tentar o Console com uma conta de cliente, será redirecionado de volta ao Portal.
+                    </p>
+                  </div>
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <DialogClose asChild>
+                      <Button variant="outline" type="button">Continuar no Portal</Button>
+                    </DialogClose>
+                    <Button asChild type="button"><Link to="/login">Ir para o Console</Link></Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </CardContent>
@@ -379,12 +400,12 @@ function AccountKindOption({
   description,
   onChange,
 }: {
-  value: 'individual' | 'organization';
+  value: 'individual' | 'municipal';
   checked: boolean;
   disabled: boolean;
   title: string;
   description: string;
-  onChange: (value: 'individual' | 'organization') => void;
+  onChange: (value: 'individual' | 'municipal') => void;
 }) {
   return (
     <label
