@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(45);
+SELECT extensions.plan(61);
 CREATE TEMP TABLE portal_tap_output(line text);
 CREATE TEMP TABLE portal_direct_checks(name text PRIMARY KEY, passed boolean NOT NULL);
 CREATE TEMP TABLE protocol_direct_checks(name text PRIMARY KEY, passed boolean NOT NULL, value text);
@@ -478,6 +478,176 @@ SELECT extensions.is(
   (public.portal_get_workspace('relatorios')->'summary'->>'inspections')::integer,
   1,
   'relatórios contam a vistoria individual sincronizada'
+);
+
+-- === ENTREGA A1: contexto de acesso tipado ===
+-- Fixtures dedicados aos quatro cenários contratuais. Uma organização sem
+-- assinatura isola o "Master sem assinatura"; um agente suspenso isola o
+-- "membership_inactive". O histórico de subscriptions é preservado.
+
+RESET ROLE;
+INSERT INTO auth.users(id, email, email_confirmed_at, raw_user_meta_data)
+VALUES
+  ('51000000-0000-4000-8000-000000000009', 'master-no-sub@example.test', now(), '{}'::jsonb),
+  ('51000000-0000-4000-8000-000000000010', 'agent-suspended@example.test', now(), '{}'::jsonb),
+  ('51000000-0000-4000-8000-000000000011', 'master-pastdue@example.test', now(), '{}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+DELETE FROM public.users WHERE uid IN (
+  '51000000-0000-4000-8000-000000000009',
+  '51000000-0000-4000-8000-000000000010',
+  '51000000-0000-4000-8000-000000000011'
+);
+INSERT INTO public.users(uid, email, name, username, role, "isApproved")
+VALUES
+  ('51000000-0000-4000-8000-000000000009', 'master-no-sub@example.test', 'Master Sem Assinatura', 'master-no-sub', 'admin', true),
+  ('51000000-0000-4000-8000-000000000010', 'agent-suspended@example.test', 'Agent Suspenso', 'agent-suspended', 'agent', true),
+  ('51000000-0000-4000-8000-000000000011', 'master-pastdue@example.test', 'Master Past Due', 'master-pastdue', 'admin', true)
+ON CONFLICT (uid) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name;
+
+-- Organização C: master ativo (009), porém sem assinatura alguma (cenário 2).
+-- Organização D: master ativo (011) com assinatura past_due (cenário 2b).
+-- Organização A mantém sua assinatura ativa original; nada é removido.
+INSERT INTO public.organizations(id, slug, display_name, municipality_name, status)
+VALUES
+  ('52000000-0000-4000-8000-000000000003', 'portal-org-c', 'Portal Org C', 'Município C', 'pilot'),
+  ('52000000-0000-4000-8000-000000000004', 'portal-org-d', 'Portal Org D', 'Município D', 'pilot')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.organization_members(organization_id, user_id, role, status, joined_at, scope)
+VALUES
+  ('52000000-0000-4000-8000-000000000003', '51000000-0000-4000-8000-000000000009', 'master', 'active', now(), '{}'::jsonb),
+  ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000010', 'agent', 'suspended', now(), '{}'::jsonb),
+  ('52000000-0000-4000-8000-000000000004', '51000000-0000-4000-8000-000000000011', 'master', 'active', now(), '{}'::jsonb)
+ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status, scope = EXCLUDED.scope;
+
+-- Assinatura past_due para a organização D (cenário de causa subscription_past_due
+-- para um master). O histórico permanece; nenhum registro ativo é removido.
+-- A org C permanece deliberadamente sem assinatura.
+INSERT INTO public.subscriptions(plan_id, plan_version_id, organization_id, status, current_period_start, current_period_end)
+SELECT plan.id, version.id, '52000000-0000-4000-8000-000000000004'::uuid, 'past_due', date_trunc('month', now()), date_trunc('month', now()) + interval '1 month'
+FROM public.plans plan
+JOIN public.plan_versions version ON version.plan_id = plan.id AND version.version = plan.current_version
+WHERE plan.code = 'municipal_basic'
+ON CONFLICT DO NOTHING;
+
+-- Cenário 1: Master ativo com assinatura ativa (reutiliza Master A / Org A).
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"51000000-0000-4000-8000-000000000002","role":"authenticated"}', true);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'creation_allowed',
+  'true',
+  'A1.1 master ativo com assinatura ativa permite criação'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'restriction_cause',
+  NULL::text,
+  'A1.2 master ativo com assinatura ativa não possui causa de restrição'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'role',
+  'master',
+  'A1.3 master ativo recebe o papel master no contrato tipado'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.ok(
+  (public.get_portal_access_context()->'invite_permissions'->>'can_invite')::boolean,
+  'A1.4 master ativo possui permissão efetiva de convite'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.ok(
+  (public.get_portal_access_context()->'invite_permissions'->'target_roles' ? 'admin')::boolean,
+  'A1.5 master ativo convida admin, supervisor e agent'
+);
+
+-- Cenário 2: Master ativo sem assinatura (Org C sem nenhuma assinatura ativa).
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"51000000-0000-4000-8000-000000000009","role":"authenticated"}', true);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'creation_allowed',
+  'false',
+  'A1.6 master sem assinatura não permite criação'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'restriction_cause',
+  'subscription_inactive',
+  'A1.7 master sem assinatura recebe causa subscription_inactive'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'subscription_status',
+  'none',
+  'A1.8 master sem assinatura recebe status none'
+);
+
+-- Cenário 2b: Master com assinatura past_due mantém consulta, bloqueia criação.
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"51000000-0000-4000-8000-000000000011","role":"authenticated"}', true);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'creation_allowed',
+  'false',
+  'A1.9 master com assinatura past_due não permite criação'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'restriction_cause',
+  'subscription_past_due',
+  'A1.10 master com assinatura past_due recebe causa subscription_past_due'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'subscription_status',
+  'past_due',
+  'A1.11 master past_due mantém o status legível para consulta'
+);
+
+-- Cenário 3: Agent suspenso (membership_inactive tem precedência sobre assinatura).
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"51000000-0000-4000-8000-000000000010","role":"authenticated"}', true);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'creation_allowed',
+  'false',
+  'A1.12 agent suspenso não permite criação'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'restriction_cause',
+  'membership_inactive',
+  'A1.13 agent suspenso recebe causa membership_inactive'
+);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context()->>'membership_status',
+  'suspended',
+  'A1.14 agent suspenso recebe status de membership suspenso'
+);
+
+-- Cenário 4: Dono interno (internal_staff) não recebe contexto de portal de cliente.
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"51000000-0000-4000-8000-000000000006","role":"authenticated"}', true);
+INSERT INTO portal_tap_output
+SELECT extensions.is(
+  public.get_portal_access_context(),
+  NULL::jsonb,
+  'A1.15 dono interno não recebe contexto de portal de cliente'
+);
+
+-- O histórico de subscriptions permanece intacto: a org A ainda possui sua
+-- assinatura ativa original além das novas inserções.
+INSERT INTO portal_tap_output
+SELECT extensions.ok(
+  EXISTS (
+    SELECT 1 FROM public.subscriptions
+    WHERE organization_id = '52000000-0000-4000-8000-000000000001' AND status = 'active'
+  ),
+  'A1.16 histórico de assinaturas ativas é preservado'
 );
 
 INSERT INTO portal_tap_output SELECT * FROM extensions.finish();

@@ -27,6 +27,7 @@ function context(overrides: Partial<PortalAccessContext> = {}): PortalAccessCont
     limits: { inspections: 150 },
     usage: { inspections: 12 },
     permissions: ['dashboard.read', 'inspection.read', 'billing.read', 'profile.read'],
+    invitePermissions: { canInvite: false, targetRoles: [] },
     creationAllowed: true,
     restrictionCause: null,
     ...overrides,

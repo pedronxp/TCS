@@ -7,8 +7,11 @@ import type {
   PortalAccountKind,
   PortalCustomerEntryContext,
   PortalDashboardData,
+  PortalInvitePermissions,
+  PortalInviteTargetRole,
   PortalMembershipStatus,
   PortalPermission,
+  PortalRestrictionCause,
   PortalSubscriptionStatus,
   PortalWorkspaceData,
 } from '@/types/portal';
@@ -30,6 +33,11 @@ const permissions = new Set<PortalPermission>([
   'invite.agent', 'invite.manage', 'usage.read', 'billing.read', 'billing.manage',
   'support.read', 'support.create', 'settings.read', 'settings.manage',
   'profile.read', 'profile.manage',
+]);
+const inviteTargetRoles = new Set<PortalInviteTargetRole>(['admin', 'supervisor', 'agent']);
+const restrictionCauses = new Set<PortalRestrictionCause>([
+  'subscription_inactive', 'subscription_past_due', 'membership_inactive',
+  'plan_feature', 'permission', 'rollout_disabled',
 ]);
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -70,6 +78,30 @@ function featureRecord(value: unknown): Record<string, boolean> {
   return Object.fromEntries(Object.entries(source).map(([key, enabled]) => [key, enabled === true]));
 }
 
+// ENTREGA A1: permissões efetivas de convite. can_invite é derivado do servidor
+// (role + membership ativa); target_roles caem para [] se ausentes/inválidos.
+function parseInvitePermissions(value: unknown): PortalInvitePermissions {
+  const source = record(value);
+  if (!source) return { canInvite: false, targetRoles: [] };
+  const rawRoles = source.target_roles;
+  const targetRoles: PortalInviteTargetRole[] = Array.isArray(rawRoles)
+    ? rawRoles.filter((item): item is PortalInviteTargetRole =>
+      typeof item === 'string' && inviteTargetRoles.has(item as PortalInviteTargetRole))
+    : [];
+  return {
+    canInvite: source.can_invite === true,
+    targetRoles,
+  };
+}
+
+function parseRestrictionCause(value: unknown): PortalRestrictionCause | null {
+  const cause = string(value);
+  if (!cause) return null;
+  return restrictionCauses.has(cause as PortalRestrictionCause)
+    ? cause as PortalRestrictionCause
+    : null;
+}
+
 export function parsePortalAccessContext(value: unknown, user?: User | null): PortalAccessContext | null {
   const source = record(value);
   const kind = string(source?.account_kind);
@@ -104,8 +136,9 @@ export function parsePortalAccessContext(value: unknown, user?: User | null): Po
       ? source.permissions.filter((item): item is PortalPermission =>
         typeof item === 'string' && permissions.has(item as PortalPermission))
       : [],
+    invitePermissions: parseInvitePermissions(source.invite_permissions),
     creationAllowed: boolean(source.creation_allowed),
-    restrictionCause: string(source.restriction_cause),
+    restrictionCause: parseRestrictionCause(source.restriction_cause),
   };
 }
 
