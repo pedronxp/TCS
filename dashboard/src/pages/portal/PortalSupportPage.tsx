@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Headphones, Plus } from 'lucide-react';
+import { AlertCircle, Headphones, MessageCircle, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -120,7 +120,7 @@ export function PortalSupportPage() {
             <DialogTitle>{ticketText(selectedTicket?.title, 'Chamado')}</DialogTitle>
             <DialogDescription>{ticketText(selectedTicket?.subtitle, 'Sem protocolo')}</DialogDescription>
           </DialogHeader>
-          {selectedTicket && <div className="space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-2"><TicketInfo label="Status" value={ticketText(selectedTicket.status, 'Em aberto')} /><TicketInfo label="Prioridade" value={priorityLabel(selectedTicket.priority)} /><TicketInfo label="Categoria" value={categoryLabel(selectedTicket.category)} /><TicketInfo label="Criado em" value={formatTicketDate(selectedTicket.created_at)} /></div><div className="rounded-lg border bg-muted/30 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Descrição</p><p className="mt-2 whitespace-pre-wrap leading-6 text-foreground">{ticketText(selectedTicket.description, 'Nenhuma descrição disponível.')}</p></div></div>}
+          {selectedTicket && <div className="space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-2"><TicketInfo label="Status" value={ticketText(selectedTicket.status, 'Em aberto')} /><TicketInfo label="Prioridade" value={priorityLabel(selectedTicket.priority)} /><TicketInfo label="Categoria" value={categoryLabel(selectedTicket.category)} /><TicketInfo label="Criado em" value={formatTicketDate(selectedTicket.created_at)} /></div><div className="rounded-lg border bg-muted/30 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Descrição</p><p className="mt-2 whitespace-pre-wrap leading-6 text-foreground">{ticketText(selectedTicket.description, 'Nenhuma descrição disponível.')}</p></div><PublicResponseTimeline ticketId={String(selectedTicket.id ?? '')} /></div>}
         </DialogContent>
       </Dialog>
     </div>
@@ -149,6 +149,88 @@ function formatTicketDate(value: unknown) {
 
 function TicketInfo({ label, value }: { label: string; value: string }) {
   return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-medium text-foreground">{value}</p></div>;
+}
+
+/**
+ * Linha do tempo de respostas públicas do chamado, visível ao cliente municipal.
+ *
+ * Restrição de paridade operacional: o portal nunca pode exibir notas internas da equipe
+ * (event_type "note"). O backend ainda não expõe um contrato de eventos voltado ao portal
+ * (portal_get_support_events). Até que esse endpoint exista, a seção apresenta o estado
+ * "em integração" — sem inventar respostas e sem ler a tabela support_ticket_events diretamente.
+ */
+function PublicResponseTimeline({ ticketId }: { ticketId: string }) {
+  const query = useQuery({
+    queryKey: ['portal', 'support-events', ticketId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('portal_get_support_events', { p_ticket_id: ticketId });
+      if (error) throw new Error(error.message);
+      return data as Array<Record<string, unknown>>;
+    },
+    retry: 0,
+  });
+
+  return (
+    <div className="rounded-lg border p-4" aria-label="Respostas do suporte">
+      <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <MessageCircle className="h-4 w-4" aria-hidden="true" />Respostas do suporte
+      </p>
+
+      {query.isLoading && (
+        <p className="mt-3 text-sm text-muted-foreground" role="status">Carregando respostas…</p>
+      )}
+
+      {query.isError && (
+        <div className="mt-3 space-y-3" role="alert">
+          <div className="flex items-start gap-3 rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <div>
+              <p className="font-medium">Respostas em integração</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Acompanhe o andamento do chamado pela situação acima. A linha do tempo de respostas
+                da equipe aparecerá aqui assim que o contrato de eventos do portal for liberado, sem
+                nova implantação. Suas mensagens permanecem registradas no protocolo.
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Notas internas da equipe nunca são exibidas neste espaço.
+          </p>
+        </div>
+      )}
+
+      {query.data && query.data.length === 0 && (
+        <p className="mt-3 text-sm text-muted-foreground">Nenhuma resposta registrada ainda.</p>
+      )}
+
+      {query.data && query.data.length > 0 && (() => {
+        // Barreira de apresentação: o portal nunca exibe notas internas (event_type "note"),
+        // mesmo que o contrato eventualmente as retorne. Somente respostas voltadas ao cliente.
+        const publicEvents = query.data.filter((event) => {
+          const type = ticketText(event.event_type, '');
+          return type !== 'note';
+        });
+        if (publicEvents.length === 0) return <p className="mt-3 text-sm text-muted-foreground">Nenhuma resposta registrada ainda.</p>;
+        return (
+          <ol className="mt-3 space-y-3" role="list">
+            {publicEvents.map((event) => {
+              const message = ticketText(event.message, '');
+              const createdAt = formatTicketDate(event.created_at);
+              return (
+                <li key={String(event.id)} className="rounded-md border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium text-foreground">Resposta do suporte</p>
+                    <time className="text-xs text-muted-foreground">{createdAt}</time>
+                  </div>
+                  {message && <p className="mt-1 whitespace-pre-wrap leading-6 text-foreground">{message}</p>}
+                </li>
+              );
+            })}
+          </ol>
+        );
+      })()}
+    </div>
+  );
 }
 
 function SupportMetric({ label, value }: { label: string; value: unknown }) {
