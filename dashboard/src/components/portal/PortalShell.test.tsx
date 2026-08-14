@@ -65,7 +65,7 @@ describe('fundação do portal', () => {
     renderShell();
 
     expect(screen.getAllByText('Portal municipal').length).toBeGreaterThan(0);
-    expect(screen.getByText('Agente municipal')).toBeVisible();
+    expect(screen.getByText('Agente municipal', { exact: true })).toBeVisible();
     expect(screen.getByText('Operação')).toBeVisible();
     expect(screen.getByText('Conta e suporte')).toBeVisible();
     expect(screen.getByText('Assinatura ativa')).toHaveClass('text-foreground');
@@ -73,6 +73,28 @@ describe('fundação do portal', () => {
     expect(screen.getByRole('link', { name: 'Início' })).toHaveClass('text-foreground');
     expect(screen.queryByRole('link', { name: 'Equipe' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Conteúdo municipal' })).toBeVisible();
+  });
+
+  it('mostra a tag Papel · Município no cabeçalho e na sidebar', () => {
+    authState.access = municipalAccess({ role: 'master' });
+    renderShell();
+
+    const tags = screen.getAllByText('Master municipal · Município Piloto');
+    expect(tags.length).toBeGreaterThan(0);
+    expect(tags[0]).toBeVisible();
+  });
+
+  it('expõe link para assinatura na faixa de bloqueio quando a criação está indisponível', () => {
+    authState.access = municipalAccess({
+      role: 'master',
+      creationAllowed: false,
+      restrictionCause: 'subscription_past_due',
+      permissions: ['dashboard.read', 'inspection.read', 'billing.read'],
+    });
+    renderShell();
+
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Ver assinatura em /portal/municipal/assinatura');
   });
 
   it('mantém a marca TCS como identidade não navegável', () => {

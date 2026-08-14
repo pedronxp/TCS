@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { LogOut, Menu, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { TcsMark } from '@/components/brand/TcsMark';
@@ -12,7 +12,7 @@ import {
   type PortalNavigationGroup,
   type PortalNavigationItem,
 } from '@/config/portalNavigation';
-import { portalRestrictionMessage, portalSubscriptionPresentation } from '@/lib/portal';
+import { portalHome, portalRestrictionMessage, portalSubscriptionPresentation } from '@/lib/portal';
 import type { PortalAccessContext } from '@/types/portal';
 import { cn } from '@/lib/utils';
 
@@ -43,6 +43,7 @@ export function PortalShell() {
   const home = access.accountKind === 'organization' ? '/portal/municipal' : '/portal/individual';
   const audienceLabel = access.accountKind === 'organization' ? 'Portal municipal' : 'Portal individual';
   const identityDetail = getIdentityDetail(access);
+  const roleMunicipalityTag = getRoleMunicipalityTag(access);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -63,6 +64,7 @@ export function PortalShell() {
       </a>
       <aside className="glass fixed inset-y-0 left-0 z-50 hidden w-[272px] flex-col border-r border-border text-foreground lg:flex">
         <PortalBrand audienceLabel={audienceLabel} />
+        {roleMunicipalityTag && <RoleMunicipalityTag tag={roleMunicipalityTag} />}
         <PortalNavigation items={navigation} home={home} />
         <PortalIdentity name={access.displayName} detail={identityDetail} onSignOut={handleSignOut} signingOut={signingOut} error={signOutError} />
       </aside>
@@ -87,6 +89,7 @@ export function PortalShell() {
                 </Button>
               </DialogPrimitive.Close>
             </div>
+            {roleMunicipalityTag && <RoleMunicipalityTag tag={roleMunicipalityTag} />}
             <PortalNavigation items={navigation} home={home} onNavigate={() => setMobileOpen(false)} />
             <PortalIdentity name={access.displayName} detail={identityDetail} onSignOut={handleSignOut} signingOut={signingOut} error={signOutError} />
           </DialogPrimitive.Content>
@@ -105,13 +108,22 @@ export function PortalShell() {
               <p className="mt-1 truncate text-sm font-semibold">{access.organizationName ?? access.displayName}</p>
             </div>
           </div>
-          <Badge variant={subscription.tone} className="shrink-0 text-foreground">{subscription.label}</Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            {roleMunicipalityTag && <Badge variant="outline" className="hidden text-foreground sm:inline-flex">{roleMunicipalityTag}</Badge>}
+            <Badge variant={subscription.tone} className="text-foreground">{subscription.label}</Badge>
+          </div>
         </header>
 
         {!access.creationAllowed && (
           <div className="border-b border-warning/30 bg-warning-soft px-4 py-3 text-sm text-foreground sm:px-6 lg:px-8" role="status">
             <span className="font-semibold">Ações de criação indisponíveis. </span>
-            {portalRestrictionMessage(access.restrictionCause)}
+            {portalRestrictionMessage(access.restrictionCause)}{' '}
+            <Link
+              to={blockageDestination(access)}
+              className="font-semibold underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {blockageActionLabel(access)}
+            </Link>
           </div>
         )}
 
@@ -223,4 +235,36 @@ function PortalIdentity({
 function getIdentityDetail(access: PortalAccessContext) {
   if (access.accountKind === 'organization' && access.role) return roleLabels[access.role];
   return access.planName ?? 'Conta individual';
+}
+
+function getRoleMunicipalityTag(access: PortalAccessContext) {
+  if (access.accountKind !== 'organization' || !access.role) return null;
+  const role = roleLabels[access.role];
+  return access.organizationName ? `${role} · ${access.organizationName}` : role;
+}
+
+function RoleMunicipalityTag({ tag }: { tag: string }) {
+  return (
+    <p className="px-6 pb-2 text-xs font-semibold text-muted-foreground" aria-label="Papel e município">
+      {tag}
+    </p>
+  );
+}
+
+function blockageDestination(access: PortalAccessContext) {
+  const root = portalHome(access.accountKind);
+  const causes = ['subscription_past_due', 'subscription_inactive', 'plan_feature'];
+  if (access.permissions.includes('billing.read') && (causes.includes(access.restrictionCause ?? '') || access.subscriptionStatus === 'none')) {
+    return `${root}/assinatura`;
+  }
+  return root;
+}
+
+function blockageActionLabel(access: PortalAccessContext) {
+  const root = portalHome(access.accountKind);
+  const causes = ['subscription_past_due', 'subscription_inactive', 'plan_feature'];
+  if (access.permissions.includes('billing.read') && (causes.includes(access.restrictionCause ?? '') || access.subscriptionStatus === 'none')) {
+    return `Ver assinatura em ${root}/assinatura`;
+  }
+  return 'Voltar para o início';
 }

@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { axe } from 'vitest-axe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortalBillingPage } from './PortalBillingPage';
@@ -74,7 +75,23 @@ vi.mock('@/contexts/PortalAuthContext', () => ({
   }),
 }));
 
-vi.mock('@/lib/portal', () => ({ fetchPortalWorkspace: vi.fn() }));
+vi.mock('@/lib/portal', () => ({
+  fetchPortalWorkspace: vi.fn(),
+  portalHome: (kind: string) => (kind === 'organization' ? '/portal/municipal' : '/portal/individual'),
+  portalRestrictionMessage: (cause: string | null) => cause ?? '',
+  portalSubscriptionPresentation: (status: string, cancelAtPeriodEnd = false) => ({
+    label: status === 'active' ? 'Assinatura ativa'
+      : status === 'past_due' ? 'Pagamento pendente'
+      : status === 'canceled' ? 'Cancelada'
+      : status === 'expired' ? 'Expirada'
+      : status === 'trial' ? 'Período de teste'
+      : status === 'grace' ? 'Em carência'
+      : 'Sem assinatura',
+    tone: status === 'active' ? 'success' : status === 'canceled' || status === 'expired' || status === 'none' ? 'destructive' : 'warning',
+    preservesRead: status !== 'none',
+    allowsCreate: ['trial', 'active', 'grace'].includes(status) && !(cancelAtPeriodEnd && status === 'past_due'),
+  }),
+}));
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     rpc: state.rpc,
@@ -119,7 +136,7 @@ describe('conta e administração do portal', () => {
     document.documentElement.dataset.theme = theme;
 
     const { container } = render(<PortalBillingPage />);
-    const badge = screen.getByText('past_due');
+    const badge = screen.getByText('Pagamento pendente');
 
     expect(badge).toHaveClass('bg-warning-soft', 'text-foreground');
     expect(badge).not.toHaveClass('text-warning');
@@ -482,5 +499,26 @@ describe('conta e administração do portal', () => {
     await user.type(screen.getByLabelText('E-mail'), 'agente@exemplo.com');
     await user.click(screen.getByRole('button', { name: 'Criar convite' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Convite criado');
+  });
+
+  it('desabilita o convite e explica quando a assinatura bloqueia a criação', () => {
+    state.access.subscriptionStatus = 'canceled';
+    state.access.creationAllowed = false;
+    state.access.restrictionCause = 'subscription_inactive';
+    render(<PortalInvitesPage />, { wrapper: MemoryRouter });
+
+    const button = screen.getByRole('button', { name: 'Criar convite' });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/desabilitado porque a assinatura/i)).toBeVisible();
+  });
+
+  it('preserva consulta ao histórico mesmo com assinatura bloqueada', () => {
+    state.access.subscriptionStatus = 'canceled';
+    state.access.creationAllowed = false;
+    state.access.restrictionCause = 'subscription_inactive';
+    render(<PortalInvitesPage />, { wrapper: MemoryRouter });
+
+    expect(screen.getByRole('heading', { name: 'Convites' })).toBeVisible();
+    expect(screen.getByText('Histórico')).toBeVisible();
   });
 });

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { PUBLIC_PLANS, formatPublicPlanPrice } from '@/config/publicPlans';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { portalSubscriptionPresentation } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -38,6 +39,7 @@ export function PortalBillingPage() {
   const inspectionsUsed = access.usage.inspections ?? 0;
   const inspectionsLimit = access.limits.inspections ?? null;
   const inspectionsAvailable = inspectionsLimit === null ? 'Sem limite' : Math.max(inspectionsLimit - inspectionsUsed, 0).toLocaleString('pt-BR');
+  const subscription = portalSubscriptionPresentation(access.subscriptionStatus, access.cancelAtPeriodEnd);
 
   async function checkout(planId: string) {
     const selectedPlan = plans.find((plan) => plan.id === planId);
@@ -55,9 +57,14 @@ export function PortalBillingPage() {
   }
 
   return <div className="page-stack">
-    <p className="rounded-md border border-border bg-secondary p-3 text-sm text-muted-foreground" role="status">Status confirmado pelo portal: {access.subscriptionStatus}. Alterações de plano dependem da confirmação do provedor.</p>
+    {subscription.preservesRead && !subscription.allowsCreate && (
+      <p className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="status">
+        Suas consultas continuam disponíveis. Novas operações de criação estão pausadas enquanto a assinatura não está regularizada.
+      </p>
+    )}
+    <p className="rounded-md border border-border bg-secondary p-3 text-sm text-muted-foreground" role="status">Status confirmado pelo portal: {subscription.label}. Alterações de plano dependem da confirmação do provedor.</p>
     <header><p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Conta</p><h1 className="mt-2 text-3xl font-semibold">Assinatura</h1><p className="mt-2 text-sm text-muted-foreground">Seu plano, consumo atual e opções disponíveis para ampliar a capacidade.</p></header>
-    <Card><CardHeader className="sm:flex-row sm:items-center sm:justify-between"><div><CardTitle>Plano atual</CardTitle><p className="mt-1 text-sm text-muted-foreground">{access.planName ?? 'Nenhum plano contratado'}</p></div><Badge variant={access.subscriptionStatus === 'active' ? 'success' : 'warning'} className={access.subscriptionStatus === 'active' ? undefined : 'text-foreground'}>{access.subscriptionStatus === 'active' ? 'Plano ativo' : access.subscriptionStatus}</Badge></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Info label="Versão contratada" value={access.planVersionId ? access.planVersionId.slice(0, 8) : '—'} /><Info label="Vistorias usadas" value={inspectionsUsed.toLocaleString('pt-BR')} /><Info label="Vistorias disponíveis" value={inspectionsAvailable} /><Info label="Renovação" value={formatDate(access.periodEnd)} /><Info label="Cancelamento ao fim do ciclo" value={access.cancelAtPeriodEnd ? 'Agendado' : 'Não'} /></CardContent></Card>
+    <Card><CardHeader className="sm:flex-row sm:items-center sm:justify-between"><div><CardTitle>Plano atual</CardTitle><p className="mt-1 text-sm text-muted-foreground">{access.planName ?? 'Nenhum plano contratado'}</p></div><Badge variant={subscription.tone} className={subscription.tone === 'success' ? undefined : 'text-foreground'}>{subscription.label}</Badge></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Info label="Versão contratada" value={access.planVersionId ? access.planVersionId.slice(0, 8) : '—'} /><Info label="Vistorias usadas" value={inspectionsUsed.toLocaleString('pt-BR')} /><Info label="Vistorias disponíveis" value={inspectionsAvailable} /><Info label="Renovação" value={formatDate(access.periodEnd)} /><Info label="Cancelamento ao fim do ciclo" value={access.cancelAtPeriodEnd ? 'Agendado' : 'Não'} /></CardContent></Card>
     {can('billing.manage') && <><fieldset className="flex flex-wrap gap-2"><legend className="sr-only">Periodicidade</legend>{([['monthly', 'Mensal'], ['annual', 'Anual']] as const).map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium ${periodicity === value ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground'}`}><input className="sr-only" type="radio" name="periodicity" value={value} checked={periodicity === value} onChange={() => setPeriodicity(value)} />{label}</label>)}</fieldset>{message && <p className="rounded-md border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="alert">{message}</p>}<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{plans.map((plan, index) => { const current = normalizePlanCode(plan.id) === normalizePlanCode(access.planName); const upgrade = currentIndex >= 0 && index > currentIndex; return <Card key={plan.id} className={current ? 'border-primary' : undefined}><CardContent className="flex h-full flex-col p-6"><CreditCard className="h-6 w-6 text-primary" /><div className="mt-4 flex items-center justify-between gap-2"><h2 className="text-xl font-semibold">{plan.name}</h2>{current && <Badge variant="success">Atual</Badge>}</div><p className="mt-2 text-2xl font-bold">{formatPublicPlanPrice(periodicity === 'annual' ? plan.annualPriceCents : plan.monthlyPriceCents)} <span className="text-sm font-medium text-muted-foreground">por {periodicity === 'annual' ? 'ano' : 'mês'}</span></p><ul className="my-5 space-y-2">{plan.limits.map((limit) => <li key={limit} className="flex gap-2 text-sm text-muted-foreground"><Check className="h-4 w-4 text-success" />{limit}</li>)}</ul>{current ? <Button className="mt-auto" variant="outline" disabled>Plano em uso</Button> : <Button className="mt-auto" onClick={() => void checkout(plan.id)} disabled={submitting !== null || (currentIndex >= 0 && !upgrade)}>{submitting === plan.id ? 'Preparando…' : upgrade ? `Fazer upgrade para ${plan.name}` : 'Plano indisponível para downgrade'}</Button>}</CardContent></Card>; })}</section></>}
   </div>;
 }
