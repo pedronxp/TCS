@@ -29,6 +29,42 @@ import type { Json } from '@/types/supabase';
 
 const statuses = ['trial', 'active', 'grace', 'past_due', 'suspended', 'canceled', 'expired'];
 
+/**
+ * Legenda de transição da assinatura em PT: descreve o próximo passo para cada
+ * mudança de status/plano em vez de apenas trocar a situação silenciosamente.
+ * Apresentação apenas — não autoriza nada que o backend não valide.
+ */
+function transitionCaption(status: string, planChanged: boolean): { tone: 'info' | 'warning' | 'danger'; text: string } | null {
+  if (planChanged) {
+    return {
+      tone: 'info',
+      text: 'Mudança de plano: trocar o plano aplica a nova configuração a partir do próximo ciclo e registra o plano anterior na auditoria.',
+    };
+  }
+  switch (status) {
+    case 'trial':
+      return { tone: 'info', text: 'Período de teste: o cliente avalia o plano até a data final. A ativação definitiva acontece ao confirmar o status ativo.' };
+    case 'grace':
+      return { tone: 'warning', text: 'Carência ativa: o acesso continua, mas a renovação precisa ser regularizada até a data limite.' };
+    case 'past_due':
+      return { tone: 'warning', text: 'Pagamento pendente: o acesso de consulta permanece, mas novas operações ficam pausadas até a regularização.' };
+    case 'suspended':
+      return { tone: 'danger', text: 'Acesso suspenso: nenhuma operação é permitida. Reative a assinatura para restaurar o acesso completo.' };
+    case 'canceled':
+      return { tone: 'danger', text: 'Cancelamento registrado: a data é preservada na auditoria. Para retomar, abra uma nova assinatura ou reative dentro do ciclo.' };
+    case 'expired':
+      return { tone: 'danger', text: 'Assinatura expirada: inicie uma nova contratação para restaurar o acesso.' };
+    default:
+      return null;
+  }
+}
+
+const captionToneClass: Record<'info' | 'warning' | 'danger', string> = {
+  info: 'border-info/30 bg-info-soft text-foreground',
+  warning: 'border-warning/30 bg-warning-soft text-foreground',
+  danger: 'border-destructive/30 bg-destructive-soft text-foreground',
+};
+
 interface SubscriptionRow {
   id: string;
   plan_id: string;
@@ -291,6 +327,8 @@ function SubscriptionDialog({
   const customer = customers.find((item) => item.customer_id === customerId);
   const compatiblePlans = plans.filter((plan) => plan.audience === (customer?.kind === 'organization' ? 'organization' : 'individual'));
   const selectedPlan = plans.find((plan) => plan.id === planId);
+  const planChanged = Boolean(subscription) && subscription?.plan_id !== planId && Boolean(planId);
+  const transition = transitionCaption(status, planChanged);
   const calculatedMrr = useMemo(() => {
     if (!subscription) return null;
     return monthlyPriceCents(subscription);
@@ -387,6 +425,11 @@ function SubscriptionDialog({
                 <DateField label="Início da assinatura" value={startsAt} onChange={setStartsAt} required />
                 {status === 'trial' && <DateField label="Fim do trial" value={trialEndsAt} onChange={setTrialEndsAt} required />}
               </div>
+              {transition && (
+                <p className={cn('mt-3 rounded-lg border px-3 py-2 text-xs leading-5', captionToneClass[transition.tone])} role="status">
+                  {transition.text}
+                </p>
+              )}
             </section>
 
             {/* Período de Cobrança */}
@@ -420,9 +463,19 @@ function SubscriptionDialog({
               <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Carência e Cancelamento</h3>
               <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
                 <DateField label="Carência até" value={graceEndsAt} onChange={setGraceEndsAt} />
-                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">Ao confirmar o status cancelado, o servidor registra automaticamente a data e preserva o estado anterior na auditoria.</p>
+                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">Ao confirmar o status cancelado, o servidor registra automaticamente a data e preserva o estado anterior na auditoria. {subscription?.canceled_at && <>Cancelado em {new Date(subscription.canceled_at).toLocaleDateString('pt-BR')}; reative dentro do ciclo para restaurar o acesso.</>}</p>
               </div>
             </section>
+
+            {/* Consume / limites do plano */}
+            {selectedPlan && (
+              <section>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Consumo e limites do plano</h3>
+                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                  Os limites de vistorias, armazenamento e sessões seguem o plano <strong className="text-foreground">{selectedPlan.name}</strong>. Acompanhe o consumo real no painel do cliente (aba Consumo) e use os overrides abaixo somente para ajustes pontuais.
+                </p>
+              </section>
+            )}
 
             {/* MRR e Indicadores */}
             {subscription && (
