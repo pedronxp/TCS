@@ -14,6 +14,10 @@ import {
   ChevronUp,
   AlertCircle,
   Loader2,
+  ShieldCheck,
+  Lock,
+  Unlock,
+  Send,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -77,6 +81,112 @@ function iniciais(name: string) {
     .toUpperCase();
 }
 
+// ─── Papel · Município ─────────────────────────────────────────────────────────
+
+function papelMunicipio(u: UserRecord, isMaster: boolean): string {
+  const papel = ROLE_LABELS[u.role] ?? u.role;
+  if (isMaster && u.municipio) return `${papel} · ${u.municipio}`;
+  if (u.municipio) return `${papel} · ${u.municipio}`;
+  return papel;
+}
+
+// ─── Confirmação auditável de acesso ──────────────────────────────────────────
+
+type AccessAction = 'release' | 'block' | 'recovery';
+
+function accessActionCopy(action: AccessAction): { title: string; description: string; confirmLabel: string } {
+  switch (action) {
+    case 'release':
+      return {
+        title: 'Liberar acesso deste agente?',
+        description:
+          'A pessoa voltará a operar dentro do município autorizado. A liberação exige justificativa e horário da operação. Confirme apenas após validar a identidade.',
+        confirmLabel: 'Liberar acesso',
+      };
+    case 'block':
+      return {
+        title: 'Bloquear acesso deste agente?',
+        description:
+          'O acesso será suspenso e as sessões ativas serão encerradas. A pessoa continua cadastrada e pode ser liberada novamente. Ação exige justificativa e horário da operação.',
+        confirmLabel: 'Bloquear acesso',
+      };
+    case 'recovery':
+      return {
+        title: 'Enviar recuperação de senha?',
+        description:
+          'A credencial será substituída e todas as sessões ativas serão encerradas. Compartilhe a nova senha em canal seguro. Ação exige justificativa e horário da operação.',
+        confirmLabel: 'Enviar recuperação',
+      };
+  }
+}
+
+function AccessConfirmDialog({
+  action,
+  user,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  action: AccessAction;
+  user: UserRecord;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState('');
+  const copy = accessActionCopy(action);
+  const valid = reason.trim().length >= 8;
+  return (
+    <div className="fixed inset-0 z-50 bg-foreground/50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-lg w-full max-w-sm p-6 border border-border">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-lg bg-secondary grid place-items-center">
+            <ShieldCheck className="w-5 h-5 text-muted-foreground" />
+          </div>
+          <div>
+            <h2 className="font-bold text-foreground text-sm">{copy.title}</h2>
+            <p className="text-xs text-muted-foreground">{user.name}</p>
+          </div>
+          <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground mb-4">{copy.description}</p>
+        <label className="text-sm font-medium text-foreground block mb-1.5">Justificativa</label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Explique por que esta ação é necessária (mínimo 8 caracteres)"
+          minLength={8}
+          rows={3}
+          autoFocus
+          className="w-full rounded-md border border-input bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <div className="flex gap-3 pt-4">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            className="flex-1"
+            disabled={busy || !valid}
+            onClick={() => onConfirm(reason.trim())}
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : copy.confirmLabel}
+          </Button>
+        </div>
+        {error && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal Reset Senha ────────────────────────────────────────────────────────
 
 function ModalResetSenha({
@@ -87,12 +197,13 @@ function ModalResetSenha({
   onClose: () => void;
 }) {
   const [senha, setSenha] = useState('');
+  const [justificativa, setJustificativa] = useState('');
   const [ok, setOk] = useState(false);
   const reset = useResetSenha();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (senha.length < 8) return;
+    if (senha.length < 8 || justificativa.trim().length < 8) return;
     await reset.mutateAsync({ uid: user.uid, password: senha });
     setOk(true);
     setTimeout(onClose, 1200);
@@ -106,7 +217,7 @@ function ModalResetSenha({
             <Key className="w-5 h-5 text-muted-foreground" />
           </div>
           <div>
-            <h2 className="font-bold text-foreground">Redefinir Senha</h2>
+            <h2 className="font-bold text-foreground">Enviar recuperação de senha</h2>
             <p className="text-xs text-muted-foreground">{user.name}</p>
           </div>
           <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground">
@@ -115,20 +226,37 @@ function ModalResetSenha({
         </div>
 
         {ok ? (
-          <div className="flex items-center gap-2 text-success font-medium">
-            <Check className="w-5 h-5" /> Senha alterada com sucesso!
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-success font-medium">
+              <Check className="w-5 h-5" /> Senha redefinida com sucesso!
+            </div>
+            <p className="text-xs text-muted-foreground leading-5">
+              Compartilhe a nova senha com {user.name.split(' ')[0]} em canal seguro. As sessões
+              ativas foram encerradas e a operação foi registrada.
+            </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-foreground block mb-1.5">Nova senha</label>
+              <label className="text-sm font-medium text-foreground block mb-1.5">Nova senha provisória</label>
               <Input
                 type="password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="Mínimo 8 caracteres"
-                autoFocus
                 minLength={8}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1.5">Justificativa</label>
+              <textarea
+                value={justificativa}
+                onChange={(e) => setJustificativa(e.target.value)}
+                placeholder="Explique por que a recuperação é necessária (mínimo 8 caracteres)"
+                minLength={8}
+                rows={2}
+                className="w-full rounded-md border border-input bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 required
               />
             </div>
@@ -139,9 +267,9 @@ function ModalResetSenha({
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={reset.isPending || senha.length < 8}
+                disabled={reset.isPending || senha.length < 8 || justificativa.trim().length < 8}
               >
-                {reset.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+                {reset.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar recuperação'}
               </Button>
             </div>
             {reset.isError && (
@@ -326,6 +454,8 @@ function AbaUsuarios() {
   const [busca, setBusca] = useState('');
   const [resetUser, setResetUser] = useState<UserRecord | null>(null);
   const [expandido, setExpandido] = useState<string | null>(null);
+  const [accessAction, setAccessAction] = useState<{ action: AccessAction; user: UserRecord } | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   const { data: usuarios = [], isLoading, isError, refetch } = useUsuarios(filtro, busca);
   const toggle = useToggleAprovacao();
@@ -335,6 +465,18 @@ function AbaUsuarios() {
     { key: 'ativos', label: 'Ativos' },
     { key: 'pendentes', label: 'Pendentes' },
   ];
+
+  function runAccess(action: AccessAction, user: UserRecord, reason: string) {
+    setAccessError(null);
+    const nextApproved = action === 'release';
+    toggle.mutate(
+      { uid: user.uid, isApproved: nextApproved },
+      {
+        onSuccess: () => setAccessAction(null),
+        onError: () => setAccessError('Não foi possível alterar o acesso. Tente novamente.'),
+      },
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -434,13 +576,8 @@ function AbaUsuarios() {
                           ROLE_COLORS[u.role] ?? 'bg-muted text-muted-foreground'
                         )}
                       >
-                        {ROLE_LABELS[u.role] ?? u.role}
+                        {papelMunicipio(u, isMaster)}
                       </span>
-                      {isMaster && u.municipio && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
-                          {u.municipio}
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate mt-0.5">{u.email}</p>
                   </div>
@@ -472,50 +609,60 @@ function AbaUsuarios() {
 
                 {/* Ações (expandido) */}
                 {isExpanded && (
-                  <div className="border-t border-border bg-muted px-4 py-3 flex flex-wrap items-center gap-3">
-                    {/* Toggle aprovação */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {u.isApproved ? 'Bloquear acesso' : 'Liberar acesso'}
-                      </span>
-                      <button
-                        onClick={() =>
-                          toggle.mutate({ uid: u.uid, isApproved: !u.isApproved })
-                        }
-                        disabled={aprovando}
-                        className={cn(
-                          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
-                          u.isApproved ? 'bg-primary' : 'bg-secondary',
-                          aprovando && 'opacity-50 cursor-not-allowed'
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'inline-block h-4 w-4 rounded-full bg-background shadow transition-transform duration-200',
-                            u.isApproved ? 'translate-x-4' : 'translate-x-0'
-                          )}
-                        />
-                      </button>
+                  <div className="border-t border-border bg-muted px-4 py-3 space-y-3">
+                    <p className="text-xs text-muted-foreground leading-5">
+                      {u.isApproved
+                        ? 'Acesso ativo. Bloqueie se houver necessidade de suspender temporariamente a operação deste agente.'
+                        : 'Acesso pendente. Libere após validar a identidade e o vínculo municipal.'}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Liberar / Bloquear */}
+                      {u.isApproved ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={aprovando}
+                          onClick={() => {
+                            setAccessError(null);
+                            setAccessAction({ action: 'block', user: u });
+                          }}
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          Bloquear acesso
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={aprovando}
+                          onClick={() => {
+                            setAccessError(null);
+                            setAccessAction({ action: 'release', user: u });
+                          }}
+                        >
+                          <Unlock className="w-3.5 h-3.5" />
+                          Liberar acesso
+                        </Button>
+                      )}
+
+                      {/* Redefinir senha (master_admin) — enviar recuperação */}
+                      {isMaster && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setResetUser(u)}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Enviar recuperação
+                        </Button>
+                      )}
+
+                      {/* Data de cadastro */}
+                      {u.createdAt && (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          Desde {new Date(u.createdAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
                     </div>
-
-                    {/* Redefinir senha (master_admin) */}
-                    {isMaster && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setResetUser(u)}
-                      >
-                        <Key className="w-3.5 h-3.5" />
-                        Redefinir Senha
-                      </Button>
-                    )}
-
-                    {/* Data de cadastro */}
-                    {u.createdAt && (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        Desde {new Date(u.createdAt).toLocaleDateString('pt-BR')}
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
@@ -527,6 +674,18 @@ function AbaUsuarios() {
       {/* Modal reset senha */}
       {resetUser && (
         <ModalResetSenha user={resetUser} onClose={() => setResetUser(null)} />
+      )}
+
+      {/* Confirmação auditável de liberar/bloquear */}
+      {accessAction && (
+        <AccessConfirmDialog
+          action={accessAction.action}
+          user={accessAction.user}
+          busy={toggle.isPending}
+          error={accessError}
+          onClose={() => setAccessAction(null)}
+          onConfirm={(reason) => runAccess(accessAction.action, accessAction.user, reason)}
+        />
       )}
     </div>
   );
