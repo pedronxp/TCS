@@ -84,6 +84,18 @@ describe('fundação do portal', () => {
     expect(tags[0]).toBeVisible();
   });
 
+  it('expõe o módulo Equipe apenas quando team.read está autorizado', () => {
+    authState.access = municipalAccess({ permissions: ['dashboard.read', 'team.read'] });
+    renderShell();
+    expect(screen.getAllByRole('link', { name: 'Equipe' }).length).toBeGreaterThan(0);
+  });
+
+  it('oculta o módulo Equipe quando team.read não está autorizado', () => {
+    authState.access = municipalAccess({ permissions: ['dashboard.read'] });
+    renderShell();
+    expect(screen.queryByRole('link', { name: 'Equipe' })).not.toBeInTheDocument();
+  });
+
   it('expõe link para assinatura na faixa de bloqueio quando a criação está indisponível', () => {
     authState.access = municipalAccess({
       role: 'master',
