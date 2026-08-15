@@ -24,7 +24,18 @@ REVOKE ALL ON TABLE private.signup_invite_claims FROM PUBLIC, anon, authenticate
 -- No client should be able to complete a legacy invitation or mark a token as
 -- consumed while impersonating another account. Signup is handled by the auth
 -- lifecycle and prepare_legacy_invite_signup instead.
-REVOKE ALL ON FUNCTION public.consumir_token(text, uuid, text, text) FROM PUBLIC, anon, authenticated;
+DO $block$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'consumir_token'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'text, uuid, text, text'
+  ) THEN
+    REVOKE ALL ON FUNCTION public.consumir_token(text, uuid, text, text) FROM PUBLIC, anon, authenticated;
+  END IF;
+END $block$;
 REVOKE ALL ON FUNCTION public.mark_token_used(text, uuid, text, text) FROM PUBLIC, anon, authenticated;
 
 -- Privileged routines: remove the default PUBLIC/anon entry point and retain
