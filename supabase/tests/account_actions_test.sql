@@ -6,7 +6,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(14);
+SELECT extensions.plan(20);
 CREATE TEMP TABLE tap_output(line text);
 CREATE TEMP TABLE direct_checks(name text PRIMARY KEY, passed boolean NOT NULL);
 GRANT SELECT, INSERT ON tap_output, direct_checks TO authenticated;
@@ -210,6 +210,107 @@ INSERT INTO tap_output SELECT extensions.is(
 INSERT INTO tap_output SELECT extensions.ok(
   NOT has_function_privilege('authenticated','public.internal_reset_password(uuid,text)','EXECUTE'),
   'browser can no longer execute password reset that takes a manager-typed password'
+);
+
+-- CORREÇÃO P0: Sobrecarga legada de set_user_approval(uuid, boolean) foi removida.
+-- 9) Sobrecarga de 2 parâmetros não existe mais.
+INSERT INTO tap_output SELECT extensions.ok(
+  NOT has_function_privilege('authenticated','public.set_user_approval(uuid,boolean)','EXECUTE'),
+  'legacy set_user_approval(uuid,boolean) without reason/aal2/operation_id was revoked'
+);
+
+-- CORREÇÃO P0: Bloquear/desbloquear usa account_locked, não isApproved.
+-- 10) Desbloquear uma conta pendente (isApproved=false, account_locked=true) não a aprova.
+-- Criar conta pendente e bloqueada.
+ALTER TABLE public.users DISABLE TRIGGER block_local_test_all_writes;
+ALTER TABLE public.users DISABLE TRIGGER block_local_test_users;
+ALTER TABLE public.users DISABLE TRIGGER users_protect_authorization_fields;
+
+INSERT INTO auth.users(id, email, raw_user_meta_data)
+VALUES ('60000000-0000-4000-8000-000000000006', 'acc-pending-locked@example.test', '{}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.users(uid, email, name, role, municipio, "isApproved", account_locked)
+VALUES ('60000000-0000-4000-8000-000000000006', 'acc-pending-locked@example.test', 'Pending Locked', 'agent', 'Cataguases', false, true)
+ON CONFLICT (uid) DO UPDATE SET
+  email = EXCLUDED.email, name = EXCLUDED.name, role = EXCLUDED.role,
+  municipio = EXCLUDED.municipio, "isApproved" = EXCLUDED."isApproved",
+  account_locked = EXCLUDED.account_locked;
+
+ALTER TABLE public.users ENABLE TRIGGER block_local_test_all_writes;
+ALTER TABLE public.users ENABLE TRIGGER block_local_test_users;
+ALTER TABLE public.users ENABLE TRIGGER users_protect_authorization_fields;
+
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"60000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
+
+-- Desbloquear (account_locked=false).
+PERFORM public.set_account_lock_state('60000000-0000-4000-8000-000000000006', false, 'desbloquear conta pendente teste', '62000000-0000-4000-8000-000000000008');
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT account_locked FROM public.users WHERE uid='60000000-0000-4000-8000-000000000006'),
+  false,
+  'unlocking sets account_locked=false'
+);
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT "isApproved" FROM public.users WHERE uid='60000000-0000-4000-8000-000000000006'),
+  false,
+  'unlocking a pending account does NOT auto-approve (isApproved remains false)'
+);
+
+-- 11) Bloquear uma conta aprovada (isApproved=true, account_locked=false) mantém isApproved=true.
+-- Criar conta aprovada.
+ALTER TABLE public.users DISABLE TRIGGER block_local_test_all_writes;
+ALTER TABLE public.users DISABLE TRIGGER block_local_test_users;
+ALTER TABLE public.users DISABLE TRIGGER users_protect_authorization_fields;
+
+INSERT INTO auth.users(id, email, raw_user_meta_data)
+VALUES ('60000000-0000-4000-8000-000000000007', 'acc-approved-active@example.test', '{}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.users(uid, email, name, role, municipio, "isApproved", account_locked)
+VALUES ('60000000-0000-4000-8000-000000000007', 'acc-approved-active@example.test', 'Approved Active', 'agent', 'Cataguases', true, false)
+ON CONFLICT (uid) DO UPDATE SET
+  email = EXCLUDED.email, name = EXCLUDED.name, role = EXCLUDED.role,
+  municipio = EXCLUDED.municipio, "isApproved" = EXCLUDED."isApproved",
+  account_locked = EXCLUDED.account_locked;
+
+ALTER TABLE public.users ENABLE TRIGGER block_local_test_all_writes;
+ALTER TABLE public.users ENABLE TRIGGER block_local_test_users;
+ALTER TABLE public.users ENABLE TRIGGER users_protect_authorization_fields;
+
+RESET ROLE; SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"60000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
+
+-- Bloquear (account_locked=true).
+PERFORM public.set_account_lock_state('60000000-0000-4000-8000-000000000007', true, 'bloquear conta aprovada teste', '62000000-0000-4000-8000-000000000009');
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT account_locked FROM public.users WHERE uid='60000000-0000-4000-8000-000000000007'),
+  true,
+  'locking sets account_locked=true'
+);
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT "isApproved" FROM public.users WHERE uid='60000000-0000-4000-8000-000000000007'),
+  true,
+  'locking an approved account preserves isApproved=true'
+);
+
+-- 12) Auditoria de bloqueio registra before/after com ambos campos.
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT EXISTS (
+    SELECT 1 FROM public.internal_access_events
+    WHERE actor_id='60000000-0000-4000-8000-000000000001'
+      AND action='account.lock'
+      AND target_id='60000000-0000-4000-8000-000000000007'
+      AND metadata->'before'->>'account_locked' = 'false'
+      AND metadata->'after'->>'account_locked' = 'true'
+      AND metadata->'before'->>'isApproved' = 'true'
+      AND metadata->'after'->>'isApproved' = 'true'
+  )),
+  'lock audit records both account_locked and isApproved in before/after'
 );
 
 RESET ROLE;

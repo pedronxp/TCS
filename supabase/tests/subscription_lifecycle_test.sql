@@ -6,7 +6,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(27);
+SELECT extensions.plan(34);
 CREATE TEMP TABLE tap_output(line text);
 CREATE TEMP TABLE direct_checks(name text PRIMARY KEY, passed boolean NOT NULL);
 GRANT SELECT, INSERT ON tap_output, direct_checks TO authenticated;
@@ -328,6 +328,142 @@ INSERT INTO tap_output SELECT extensions.is(
   (SELECT plan_version_id::text FROM public.subscriptions WHERE id='73000000-0000-4000-8000-000000000002'),
   '72000000-0000-4000-8000-000000000031',
   'archived plan subscription keeps historical plan_version_id');
+
+-- CORREÇÃO P0: Plano retired é terminal; não pode voltar a draft/active.
+-- 15) Tentar ativar plano retired é recusado.
+SELECT pg_temp.as_owner();
+PERFORM public.manage_plan_lifecycle('71000000-0000-4000-8000-000000000003', 'retire', 'aposentar plano legacy para testes', '80000000-0000-4000-8000-000000000013');
+
+DO $$
+DECLARE caught text := 'not_thrown';
+BEGIN
+  BEGIN
+    PERFORM pg_temp.as_owner();
+    PERFORM public.manage_plan_lifecycle('71000000-0000-4000-8000-000000000003', 'activate', 'tentativa de reativar retired', '80000000-0000-4000-8000-000000000014');
+  EXCEPTION WHEN others THEN caught := SQLSTATE; END;
+  INSERT INTO direct_checks VALUES('retired_cannot_activate', caught = '22023');
+END $$;
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT passed FROM direct_checks WHERE name='retired_cannot_activate'),
+  'retired plan cannot be activated (terminal state)');
+
+-- 16) Tentar desativar (draft) plano retired é recusado.
+DO $$
+DECLARE caught text := 'not_thrown';
+BEGIN
+  BEGIN
+    PERFORM pg_temp.as_owner();
+    PERFORM public.manage_plan_lifecycle('71000000-0000-4000-8000-000000000003', 'deactivate', 'tentativa de desativar retired', '80000000-0000-4000-8000-000000000015');
+  EXCEPTION WHEN others THEN caught := SQLSTATE; END;
+  INSERT INTO direct_checks VALUES('retired_cannot_deactivate', caught = '22023');
+END $$;
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT passed FROM direct_checks WHERE name='retired_cannot_deactivate'),
+  'retired plan cannot be deactivated (terminal state)');
+
+-- CORREÇÃO P0: Upgrade/downgrade só aceita plano com status='active'.
+-- 17) Tentar upgrade para plano draft é recusado.
+DO $$
+DECLARE caught text := 'not_thrown';
+BEGIN
+  BEGIN
+    PERFORM pg_temp.as_owner();
+    PERFORM public.manage_subscription_lifecycle('73000000-0000-4000-8000-000000000001', 'upgrade', '71000000-0000-4000-8000-000000000001', 'tentativa upgrade para draft', '80000000-0000-4000-8000-000000000016');
+  EXCEPTION WHEN others THEN caught := SQLSTATE; END;
+  INSERT INTO direct_checks VALUES('draft_plan_rejected', caught = '42501');
+END $$;
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT passed FROM direct_checks WHERE name='draft_plan_rejected'),
+  'upgrade to draft plan is rejected (must be active)');
+
+-- 18) Tentar downgrade para plano draft é recusado.
+DO $$
+DECLARE caught text := 'not_thrown';
+BEGIN
+  BEGIN
+    PERFORM pg_temp.as_owner();
+    PERFORM public.manage_subscription_lifecycle('73000000-0000-4000-8000-000000000001', 'downgrade', '71000000-0000-4000-8000-000000000001', 'tentativa downgrade para draft', '80000000-0000-4000-8000-000000000017');
+  EXCEPTION WHEN others THEN caught := SQLSTATE; END;
+  INSERT INTO direct_checks VALUES('draft_plan_downgrade_rejected', caught = '42501');
+END $$;
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT passed FROM direct_checks WHERE name='draft_plan_downgrade_rejected'),
+  'downgrade to draft plan is rejected (must be active)');
+
+-- CORREÇÃO P0: Persistir pending_plan_version_id no agendamento.
+-- 19) Downgrade persiste pending_plan_version_id (versão exata aceita).
+SELECT pg_temp.as_owner();
+-- Criar plano Pro com duas versões ativas: v2 (current) e v3 (futura simulada).
+INSERT INTO public.plan_versions(id, plan_id, version, configuration, published_at, created_by)
+VALUES ('72000000-0000-4000-8000-000000000023', '71000000-0000-4000-8000-000000000002', 3, '{"price":60}'::jsonb, now(), '70000000-0000-4000-8000-000000000001')
+ON CONFLICT (id) DO UPDATE SET
+  plan_id=EXCLUDED.plan_id, version=EXCLUDED.version,
+  configuration=EXCLUDED.configuration, published_at=EXCLUDED.published_at;
+
+-- Criar nova assinatura para testar downgrade com versão persistida.
+INSERT INTO public.subscriptions(id, plan_id, user_id, organization_id, status, plan_version_id, current_period_start, current_period_end)
+VALUES ('73000000-0000-4000-8000-000000000004', '71000000-0000-4000-8000-000000000002', NULL, '74000000-0000-4000-8000-000000000001', 'active', '72000000-0000-4000-8000-000000000023', now(), now() + interval '20 days')
+ON CONFLICT (id) DO UPDATE SET
+  plan_id=EXCLUDED.plan_id, organization_id=EXCLUDED.organization_id, status=EXCLUDED.status,
+  plan_version_id=EXCLUDED.plan_version_id,
+  current_period_start=EXCLUDED.current_period_start,
+  current_period_end=EXCLUDED.current_period_end,
+  cancel_at_period_end=false, pending_action=NULL, pending_plan_id=NULL,
+  pending_plan_version_id=NULL, canceled_at=NULL;
+
+-- Agendar downgrade para Basic (v1).
+CREATE TEMP TABLE down_result AS
+  SELECT public.manage_subscription_lifecycle(
+    '73000000-0000-4000-8000-000000000004', 'downgrade', '71000000-0000-4000-8000-000000000001',
+    'downgrade com versão persistida', '80000000-0000-4000-8000-000000000018') AS v;
+GRANT SELECT ON down_result TO authenticated;
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT v->>'pending_action' FROM down_result), 'downgrade',
+  'downgrade sets pending_action');
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT pending_plan_version_id::text FROM public.subscriptions WHERE id='73000000-0000-4000-8000-000000000004'),
+  '72000000-0000-4000-8000-000000000011',
+  'downgrade persists pending_plan_version_id (exact version accepted)');
+
+-- 20) Alterar current_version do plano Basic para v2 (simular edição posterior).
+UPDATE public.plans SET current_version = 2 WHERE id = '71000000-0000-4000-8000-000000000001';
+
+-- Inserir plan_version v2 do Basic (simulação de edição).
+INSERT INTO public.plan_versions(id, plan_id, version, configuration, published_at, created_by)
+VALUES ('72000000-0000-4000-8000-000000000012', '71000000-0000-4000-8000-000000000001', 2, '{"price":15}'::jsonb, now(), '70000000-0000-4000-8000-000000000001')
+ON CONFLICT (id) DO UPDATE SET
+  plan_id=EXCLUDED.plan_id, version=EXCLUDED.version,
+  configuration=EXCLUDED.configuration, published_at=EXCLUDED.published_at;
+
+-- 21) Job aplica a versão persistida (v1), não a nova current_version (v2).
+-- Forçar período encerrado para aplicação imediata.
+UPDATE public.subscriptions
+SET current_period_end = now() - interval '1 hour'
+WHERE id = '73000000-0000-4000-8000-000000000004';
+
+RESET ROLE;
+CREATE TEMP TABLE apply_down(v jsonb);
+GRANT SELECT ON apply_down TO authenticated;
+GRANT INSERT ON apply_down TO service_role;
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"70000000-0000-4000-8000-000000000001","role":"service_role","aal":"aal2"}', true);
+INSERT INTO apply_down SELECT public.apply_pending_subscription_transitions(100);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"70000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT (v->>'downgraded')::int FROM apply_down), 1,
+  'service_role job applies 1 pending downgrade');
+
+INSERT INTO tap_output SELECT extensions.is(
+  (SELECT plan_version_id::text FROM public.subscriptions WHERE id='73000000-0000-4000-8000-000000000004'),
+  '72000000-0000-4000-8000-000000000011',
+  'job applies persisted pending_plan_version_id (v1), not new current_version (v2)');
 
 RESET ROLE;
 INSERT INTO tap_output SELECT * FROM extensions.finish();
