@@ -12,7 +12,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(19);
+SELECT extensions.plan(24);
 CREATE TEMP TABLE tap_output(line text);
 CREATE TEMP TABLE direct_checks(name text PRIMARY KEY, passed boolean NOT NULL);
 GRANT SELECT, INSERT ON tap_output, direct_checks TO authenticated;
@@ -286,6 +286,114 @@ GRANT SELECT ON idem2 TO authenticated;
 INSERT INTO tap_output SELECT extensions.is(
   (SELECT count(*)::bigint FROM public.internal_operations WHERE operation_id='96000000-0000-4000-8000-000000000007'),
   1::bigint, 'internal note idempotent (one operation row)');
+
+-- CORREÇÃO P0: Fail-closed para visibility — apenas 'shared' explícito aparece.
+-- 14) Evento sem visibility não aparece na timeline do cliente.
+RESET ROLE;
+INSERT INTO public.support_ticket_events(ticket_id, actor_id, event_type, message, metadata)
+VALUES ('95000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000002', 'status_change', 'status alterado', '{}'::jsonb);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-4000-8000-000000000003","role":"authenticated","aal":"aal2"}', true);
+
+CREATE TEMP TABLE tl_no_visibility AS
+  SELECT public.portal_get_support_timeline('95000000-0000-4000-8000-000000000001') AS t;
+GRANT SELECT ON tl_no_visibility TO authenticated;
+
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements((SELECT t->'events' FROM tl_no_visibility)) AS ev
+    WHERE ev->>'event_type' = 'status_change'
+  )),
+  'event without visibility metadata does not appear in client timeline (fail-closed)'
+);
+
+-- 15) Evento com visibility='internal' não aparece na timeline do cliente.
+RESET ROLE;
+INSERT INTO public.support_ticket_events(ticket_id, actor_id, event_type, message, metadata)
+VALUES ('95000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000002', 'internal_flag', 'marcação interna', '{"visibility":"internal"}'::jsonb);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-4000-8000-000000000003","role":"authenticated","aal":"aal2"}', true);
+
+CREATE TEMP TABLE tl_internal AS
+  SELECT public.portal_get_support_timeline('95000000-0000-4000-8000-000000000001') AS t;
+GRANT SELECT ON tl_internal TO authenticated;
+
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements((SELECT t->'events' FROM tl_internal)) AS ev
+    WHERE ev->>'event_type' = 'internal_flag'
+  )),
+  'event with visibility=internal does not appear in client timeline'
+);
+
+-- 16) Evento com visibility desconhecida não aparece na timeline do cliente.
+RESET ROLE;
+INSERT INTO public.support_ticket_events(ticket_id, actor_id, event_type, message, metadata)
+VALUES ('95000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000002', 'unknown_visibility', 'evento com visibilidade desconhecida', '{"visibility":"unknown_value"}'::jsonb);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-4000-8000-000000000003","role":"authenticated","aal":"aal2"}', true);
+
+CREATE TEMP TABLE tl_unknown AS
+  SELECT public.portal_get_support_timeline('95000000-0000-4000-8000-000000000001') AS t;
+GRANT SELECT ON tl_unknown TO authenticated;
+
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements((SELECT t->'events' FROM tl_unknown)) AS ev
+    WHERE ev->>'event_type' = 'unknown_visibility'
+  )),
+  'event with unknown visibility value does not appear in client timeline (fail-closed)'
+);
+
+-- 17) Somente eventos explicitamente shared aparecem.
+CREATE TEMP TABLE tl_final AS
+  SELECT public.portal_get_support_timeline('95000000-0000-4000-8000-000000000001') AS t;
+GRANT SELECT ON tl_final TO authenticated;
+
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT bool_and(ev->>'visibility' = 'shared')
+   FROM jsonb_array_elements((SELECT t->'events' FROM tl_final)) AS ev),
+  'all events in client timeline have visibility=shared explicitly'
+);
+
+-- CORREÇÃO P0: Checagem de status após carregar o ticket.
+-- 18) Criar novo ticket para testar ordem de checagem.
+RESET ROLE;
+INSERT INTO public.support_tickets(id, organization_id, requester_id, user_id, category, subject, description, priority, status)
+VALUES ('95000000-0000-4000-8000-000000000002',
+  '94000000-0000-4000-8000-000000000001',
+  '90000000-0000-4000-8000-000000000003',
+  '90000000-0000-4000-8000-000000000003',
+  'comercial', 'Dúvida sobre upgrade', 'Gostaria de fazer upgrade', 'normal', 'closed')
+ON CONFLICT (id) DO UPDATE SET
+  organization_id=EXCLUDED.organization_id, requester_id=EXCLUDED.requester_id, user_id=EXCLUDED.user_id,
+  category=EXCLUDED.category, subject=EXCLUDED.subject, description=EXCLUDED.description,
+  priority=EXCLUDED.priority, status='closed';
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-4000-8000-000000000003","role":"authenticated","aal":"aal2"}', true);
+
+-- Cliente tenta responder a ticket fechado; erro deve ser 'ticket_closed' (22023), não 'not_found'.
+DO $$
+DECLARE caught text := 'not_thrown';
+BEGIN
+  BEGIN
+    PERFORM public.portal_reply_support_ticket(
+      '95000000-0000-4000-8000-000000000002','tentativa responder fechado');
+  EXCEPTION WHEN others THEN caught := SQLSTATE; END;
+  INSERT INTO direct_checks VALUES('closed_ticket_after_load', caught = '22023');
+END $$;
+INSERT INTO tap_output SELECT extensions.ok(
+  (SELECT passed FROM direct_checks WHERE name='closed_ticket_after_load'),
+  'status check happens after ticket is loaded (correct error code 22023)'
+);
 
 RESET ROLE;
 INSERT INTO tap_output SELECT * FROM extensions.finish();
