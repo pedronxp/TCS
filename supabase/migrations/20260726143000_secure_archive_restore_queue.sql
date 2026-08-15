@@ -10,7 +10,7 @@ CREATE TABLE public.archive_restore_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id uuid NOT NULL,
   operation_id uuid NOT NULL,
-  inspection_id text NOT NULL REFERENCES public.vistorias(id) ON DELETE RESTRICT,
+  inspection_id uuid NOT NULL REFERENCES public.vistorias(id) ON DELETE RESTRICT,
   requested_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   requested_at timestamptz NOT NULL DEFAULT now(),
   reason text NOT NULL CHECK (char_length(trim(reason)) BETWEEN 8 AND 500),
@@ -179,7 +179,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.request_internal_archive_restore(
-  p_inspection_ids text[],
+  p_inspection_ids uuid[],
   p_reason text,
   p_operation_id uuid
 )
@@ -190,7 +190,7 @@ AS $$
 DECLARE
   actor uuid := auth.uid();
   batch uuid := gen_random_uuid();
-  current_inspection_id text;
+  current_inspection_id uuid;
   request_id uuid;
   request_status text;
   is_bulk boolean;
@@ -470,11 +470,11 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.list_internal_archive_lifecycle(integer) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.request_internal_archive_restore(text[], text, uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.request_internal_archive_restore(uuid[], text, uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.decide_internal_archive_restore(uuid, boolean, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.claim_internal_archive_restore(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.list_internal_archive_lifecycle(integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.request_internal_archive_restore(text[], text, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_internal_archive_restore(uuid[], text, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.decide_internal_archive_restore(uuid, boolean, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_internal_archive_restore(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION public.finalize_archive_restore_internal(uuid, uuid, jsonb) FROM PUBLIC, anon, authenticated;
