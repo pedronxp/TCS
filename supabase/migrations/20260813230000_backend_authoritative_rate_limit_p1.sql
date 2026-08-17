@@ -49,12 +49,58 @@ REVOKE ALL ON FUNCTION public.enforce_my_operational_rate_limit(text) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.enforce_my_operational_rate_limit(text) TO authenticated;
 
 -- Retire a API legada que permitia ao cliente escolher outra identidade e teto.
-REVOKE ALL ON FUNCTION public.check_rate_limit(uuid,text,integer,integer) FROM PUBLIC,anon,authenticated;
+-- check_rate_limit is absent from the versioned migration history (legacy
+-- object whose definition was dropped from this branch). Condition this revoke
+-- on catalog existence so the migration runs on a clean schema and keeps
+-- hardening effective on legacy catalogs where the RPC exists.
+DO $block$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'check_rate_limit'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'uuid, text, integer, integer'
+  ) THEN
+    REVOKE ALL ON FUNCTION public.check_rate_limit(uuid, text, integer, integer) FROM PUBLIC, anon, authenticated;
+  END IF;
+END $block$;
 
 -- These helpers may still be used by authenticated RLS policies, but anonymous
--- callers have no legitimate self identity and must not execute them.
-REVOKE ALL ON FUNCTION public.get_my_municipio() FROM anon;
-REVOKE ALL ON FUNCTION public.get_my_role() FROM anon;
-REVOKE ALL ON FUNCTION public.is_approved() FROM anon;
+-- callers have no legitimate self identity and must not execute them. Their
+-- definitions are absent from the versioned history on this branch; condition
+-- on catalog existence so the migration runs clean and hardens legacy catalogs.
+DO $block$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'get_my_municipio'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = ''
+  ) THEN
+    REVOKE ALL ON FUNCTION public.get_my_municipio() FROM anon;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'get_my_role'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = ''
+  ) THEN
+    REVOKE ALL ON FUNCTION public.get_my_role() FROM anon;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'is_approved'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = ''
+  ) THEN
+    REVOKE ALL ON FUNCTION public.is_approved() FROM anon;
+  END IF;
+END $block$;
 REVOKE ALL ON FUNCTION public.training_expire_elapsed_classes() FROM anon;
-REVOKE ALL ON FUNCTION public.cleanup_password_recovery_requests() FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.cleanup_password_recovery_requests() FROM PUBLIC, anon, authenticated;

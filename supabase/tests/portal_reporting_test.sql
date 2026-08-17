@@ -7,7 +7,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(18);
+SELECT extensions.plan(20);
 CREATE TEMP TABLE tap_output(line text);
 CREATE TEMP TABLE direct_checks(name text PRIMARY KEY, passed boolean NOT NULL);
 GRANT SELECT, INSERT ON direct_checks TO authenticated;
@@ -149,6 +149,8 @@ SELECT extensions.ok(
 
 -- CORREÇÃO P0: Supervisor não pode consultar dados individuais de outro Agent.
 -- Criar segundo Agent em Cataguases para testar privacidade dentro do mesmo município.
+-- Fixtures de auth.users exigem privilégio admin; rodamos como postgres.
+RESET ROLE;
 INSERT INTO auth.users(id, email, raw_user_meta_data)
 VALUES ('50000000-0000-4000-8000-000000000003', 'supervisor-cataguases@example.test', '{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
@@ -298,17 +300,23 @@ SELECT extensions.is((SELECT jsonb_array_length(r->'productivity') FROM rep10), 
 WITH rep11 AS (SELECT public.portal_get_reporting(jsonb_build_object('from', (now() - interval '30 days')::text, 'to', (now() + interval '1 day')::text)) AS r)
 SELECT extensions.is((SELECT r->'scope'->>'organizationId' FROM rep11), '51000000-0000-4000-8000-000000000001', 'scope organizationId resolved server-side to Cataguases');
 
--- 12) Linhas de exportação não vazias e dentro do escopo (Cataguases: 3 linhas).
+-- 12) Linhas de exportação não vazias e dentro do escopo. Um agente visualiza
+-- apenas as próprias três vistorias (a vistoria do Agente 2 é protegida pela
+-- salvaguarda portal_agent_allowed,	validada pelos testes 5B/5C).
 WITH rep12 AS (SELECT public.portal_get_reporting(jsonb_build_object('from', (now() - interval '30 days')::text, 'to', (now() + interval '1 day')::text)) AS r)
-SELECT extensions.is((SELECT jsonb_array_length(r->'export'->'rows') FROM rep12), 4, 'export rows limited to own municipality (now 4 with agent 2)');
+SELECT extensions.is((SELECT jsonb_array_length(r->'export'->'rows') FROM rep12), 3, 'agent sees only own three inspections in export (fourth owned by Agent 2 is protected)');
 
 -- CORREÇÃO P0: Teste de formulário UUID fora do escopo (outro município).
 -- Criar formulário em Ubá e tentar consultá-lo como agente Cataguases.
-INSERT INTO public.formularios(id, municipio, versao, ativo, "criadoEm")
-VALUES ('54000000-0000-4000-8000-000000000001', 'Ubá', 1, true, now())
+-- Fixture exige privilégio admin; rodamos como postgres.
+RESET ROLE;
+INSERT INTO public.formularios(id, titulo, municipio, versao, ativo, "criadoEm")
+VALUES ('54000000-0000-4000-8000-000000000001', 'Formulário Ubá', 'Ubá', 1, true, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- 13) UUID de formulário de outro município deve falhar (42501).
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"50000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
 DO $$
 DECLARE
   caught text := 'not_thrown';
@@ -329,19 +337,47 @@ SELECT extensions.ok(
 
 -- CORREÇÃO P0: Teste de agregados duplicados (documentos + ciência).
 -- Criar documentos e eventos de ciência para garantir que não há duplicação.
-INSERT INTO public.generated_documents(id, organization_id, vistoria_id, status, created_by, created_at)
+-- Fixtures exigem privilégio admin; rodamos como postgres.
+RESET ROLE;
+INSERT INTO public.generated_documents(
+  id, organization_id, vistoria_id, owner_user_id, document_type,
+  document_version, template_version, content_snapshot, content_hash,
+  pdf_hash, storage_path, byte_size, status, training_mode,
+  created_by, created_at, created_at_device
+)
 VALUES
-  ('55000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', '52000000-0000-4000-8000-000000000001', 'completed', '50000000-0000-4000-8000-000000000001', now() - interval '1 day'),
-  ('55000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000001', '52000000-0000-4000-8000-000000000002', 'pending', '50000000-0000-4000-8000-000000000001', now() - interval '2 days')
+  ('55000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', '52000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001'::uuid, 'report',
+   1, '1', '{}'::jsonb, 'd0b425e00e15a0d36b9b361f02bab63563aed6cb4665083905386c55d5b679fa',
+   'fafcc7372d9cf30b40698387175c0e243909152431231ebe0a7d57f284b04bbd', 'vistorias/52000000-0000-4000-8000-000000000001/55000000-0000-4000-8000-000000000001.pdf',
+   1024, 'available', false,
+   '50000000-0000-4000-8000-000000000001'::uuid, now() - interval '1 day', now() - interval '1 day'),
+  ('55000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000001', '52000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000001'::uuid, 'report',
+   1, '1', '{}'::jsonb, 'dab741b6289e7dccc1ed42330cae1accc2b755ce8079c2cd5d4b5366c9f769a6',
+   '4ec55065d7cedfc297f99f3637c15d23d33c94294ee05a9cabfade500ae3b702', 'vistorias/52000000-0000-4000-8000-000000000002/55000000-0000-4000-8000-000000000002.pdf',
+   2048, 'available', false,
+   '50000000-0000-4000-8000-000000000001'::uuid, now() - interval '2 days', now() - interval '2 days')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.document_acknowledgement_events(id, organization_id, document_id, outcome, created_by, recorded_at_server)
+INSERT INTO public.document_acknowledgement_events(
+  id, client_event_id, document_id, organization_id, owner_user_id,
+  outcome, declaration_version, declaration_text, declaration_hash,
+  recipient_name, recipient_relationship, reason,
+  occurred_at_device, created_by, recorded_at_server, protocol
+)
 VALUES
-  ('56000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', '55000000-0000-4000-8000-000000000001', 'delivered', '50000000-0000-4000-8000-000000000001', now() - interval '1 day'),
-  ('56000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000001', '55000000-0000-4000-8000-000000000002', 'pending', '50000000-0000-4000-8000-000000000001', now() - interval '2 days')
+  ('56000000-0000-4000-8000-000000000001', '56000000-0000-4000-8000-000000000091', '55000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001'::uuid,
+   'unable_to_sign', '1', 'Declaração de ciência 1', '93c6e6dabd76e04afc238e82feb574ae05b54c3f0c7871066f150f96ac9428d1',
+   'Morador 1', 'proprietario', 'Ausência do responsável',
+   now() - interval '1 day', '50000000-0000-4000-8000-000000000001'::uuid, now() - interval '1 day', 'TCS-CIE-20260815-56000000'),
+  ('56000000-0000-4000-8000-000000000002', '56000000-0000-4000-8000-000000000092', '55000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001'::uuid,
+   'refused', '1', 'Declaração de ciência 2', 'f92be99c754e4d877338e454208296d5f1e7b50e3e2ec3bbe8cc7dbd8d0596c0',
+   'Morador 2', 'inquilino', 'Recusa formal do morador',
+   now() - interval '2 days', '50000000-0000-4000-8000-000000000001'::uuid, now() - interval '2 days', 'TCS-CIE-20260815-56000001')
 ON CONFLICT (id) DO NOTHING;
 
 -- 14) Agregados de documentos não duplicam por causa de ciência.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"50000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
 WITH rep14 AS (SELECT public.portal_get_reporting(jsonb_build_object('from', (now() - interval '30 days')::text, 'to', (now() + interval '1 day')::text)) AS r)
 SELECT extensions.is(
   (SELECT sum((bucket->>'count')::int) FROM jsonb_array_elements((SELECT r->'documents'->'documents' FROM rep14)) AS bucket),
@@ -359,6 +395,8 @@ SELECT extensions.is(
 
 -- CORREÇÃO P0: Teste de limite de exportação aplicado antes de jsonb_agg.
 -- Criar 550 vistorias para garantir que o limite de 500 é aplicado.
+-- Fixture exige privilégio admin; rodamos como postgres.
+RESET ROLE;
 DO $$
 DECLARE
   i integer;
@@ -382,6 +420,8 @@ BEGIN
 END $$;
 
 -- 16) Exportação limitada a 500 linhas mesmo com 554 vistorias (4 originais + 550 bulk).
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"50000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
 WITH rep16 AS (SELECT public.portal_get_reporting(jsonb_build_object('from', (now() - interval '30 days')::text, 'to', (now() + interval '1 day')::text)) AS r)
 SELECT extensions.is(
   (SELECT jsonb_array_length(r->'export'->'rows') FROM rep16),
@@ -389,11 +429,11 @@ SELECT extensions.is(
   'export rows bounded to 500 even with 554 inspections'
 );
 
--- 17) Volume reflete todas as 554 vistorias (não limitado como exportação).
+-- 17) Volume reflete todas as 553 vistorias visíveis ao agente (3 originais próprias + 550 bulk; a vistoria do Agente 2 é protegida pela salvaguarda portal_agent_allowed).
 SELECT extensions.is(
   (SELECT (public.portal_get_reporting(jsonb_build_object('from', (now() - interval '30 days')::text, 'to', (now() + interval '1 day')::text))->>'volume')::bigint),
-  554::bigint,
-  'volume reflects all inspections, not limited by export bound'
+  553::bigint,
+  'volume reflects all own inspections visible to agent, not limited by export bound'
 );
 
 RESET ROLE;

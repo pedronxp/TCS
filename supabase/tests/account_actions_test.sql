@@ -146,7 +146,7 @@ INSERT INTO tap_output SELECT extensions.ok(
   'support role lacks account.lock permission'
 );
 
--- 6) Owner bloqueia conta (isApproved=false) com audit before/after e idempotência.
+-- 6) Owner bloqueia conta aprovada (preserva isApproved=true) com audit before/after e idempotência.
 RESET ROLE; SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub":"60000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
 WITH lck AS (
@@ -155,7 +155,7 @@ WITH lck AS (
 INSERT INTO tap_output SELECT extensions.is(
   (SELECT (r->>'locked')::boolean FROM lck),
   true,
-  'owner locks account (isApproved=false)'
+  'owner locks approved account (locked=true)'
 );
 INSERT INTO tap_output SELECT extensions.is(
   (SELECT count(*)::bigint FROM public.internal_access_events
@@ -164,10 +164,11 @@ INSERT INTO tap_output SELECT extensions.is(
   1::bigint,
   'lock transition audited'
 );
+RESET ROLE;
 INSERT INTO tap_output SELECT extensions.is(
-  (SELECT ("isApproved") FROM public.users WHERE uid='60000000-0000-4000-8000-000000000005'),
-  false,
-  'locked account persisted as isApproved=false'
+  (SELECT "isApproved" FROM public.users WHERE uid='60000000-0000-4000-8000-000000000005'),
+  true,
+  'locking an approved account preserves isApproved=true'
 );
 
 -- 7) Invite de recuperação gera token, NUNCA aceita senha do gestor.
@@ -215,13 +216,14 @@ INSERT INTO tap_output SELECT extensions.ok(
 -- CORREÇÃO P0: Sobrecarga legada de set_user_approval(uuid, boolean) foi removida.
 -- 9) Sobrecarga de 2 parâmetros não existe mais.
 INSERT INTO tap_output SELECT extensions.ok(
-  NOT has_function_privilege('authenticated','public.set_user_approval(uuid,boolean)','EXECUTE'),
+  to_regprocedure('public.set_user_approval(uuid,boolean)') IS NULL,
   'legacy set_user_approval(uuid,boolean) without reason/aal2/operation_id was revoked'
 );
 
 -- CORREÇÃO P0: Bloquear/desbloquear usa account_locked, não isApproved.
 -- 10) Desbloquear uma conta pendente (isApproved=false, account_locked=true) não a aprova.
 -- Criar conta pendente e bloqueada.
+RESET ROLE;
 ALTER TABLE public.users DISABLE TRIGGER block_local_test_all_writes;
 ALTER TABLE public.users DISABLE TRIGGER block_local_test_users;
 ALTER TABLE public.users DISABLE TRIGGER users_protect_authorization_fields;
@@ -245,14 +247,18 @@ RESET ROLE; SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub":"60000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
 
 -- Desbloquear (account_locked=false).
-PERFORM public.set_account_lock_state('60000000-0000-4000-8000-000000000006', false, 'desbloquear conta pendente teste', '62000000-0000-4000-8000-000000000008');
-
+CREATE TEMP TABLE t10_unlock AS
+  SELECT public.set_account_lock_state('60000000-0000-4000-8000-000000000006', false, 'desbloquear conta pendente teste', '62000000-0000-4000-8000-000000000008') AS r;
+RESET ROLE;
 INSERT INTO tap_output SELECT extensions.is(
-  (SELECT account_locked FROM public.users WHERE uid='60000000-0000-4000-8000-000000000006'),
-  false,
-  'unlocking sets account_locked=false'
+  ((SELECT (r->>'locked')::boolean FROM t10_unlock) = false
+   AND (SELECT account_locked FROM public.users WHERE uid='60000000-0000-4000-8000-000000000006') = false
+   AND (SELECT count(*)::bigint FROM public.internal_access_events
+        WHERE actor_id='60000000-0000-4000-8000-000000000001' AND action='account.lock'
+          AND target_id='60000000-0000-4000-8000-000000000006' AND result='allowed') >= 1::bigint),
+  true,
+  'unlocking sets account_locked=false (RPC locked + persisted + audited)'
 );
-
 INSERT INTO tap_output SELECT extensions.is(
   (SELECT "isApproved" FROM public.users WHERE uid='60000000-0000-4000-8000-000000000006'),
   false,
@@ -261,6 +267,7 @@ INSERT INTO tap_output SELECT extensions.is(
 
 -- 11) Bloquear uma conta aprovada (isApproved=true, account_locked=false) mantém isApproved=true.
 -- Criar conta aprovada.
+RESET ROLE;
 ALTER TABLE public.users DISABLE TRIGGER block_local_test_all_writes;
 ALTER TABLE public.users DISABLE TRIGGER block_local_test_users;
 ALTER TABLE public.users DISABLE TRIGGER users_protect_authorization_fields;
@@ -284,14 +291,18 @@ RESET ROLE; SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub":"60000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
 
 -- Bloquear (account_locked=true).
-PERFORM public.set_account_lock_state('60000000-0000-4000-8000-000000000007', true, 'bloquear conta aprovada teste', '62000000-0000-4000-8000-000000000009');
-
+CREATE TEMP TABLE t11_lock AS
+  SELECT public.set_account_lock_state('60000000-0000-4000-8000-000000000007', true, 'bloquear conta aprovada teste', '62000000-0000-4000-8000-000000000009') AS r;
+RESET ROLE;
 INSERT INTO tap_output SELECT extensions.is(
-  (SELECT account_locked FROM public.users WHERE uid='60000000-0000-4000-8000-000000000007'),
+  ((SELECT (r->>'locked')::boolean FROM t11_lock) = true
+   AND (SELECT account_locked FROM public.users WHERE uid='60000000-0000-4000-8000-000000000007') = true
+   AND (SELECT count(*)::bigint FROM public.internal_access_events
+        WHERE actor_id='60000000-0000-4000-8000-000000000001' AND action='account.lock'
+          AND target_id='60000000-0000-4000-8000-000000000007' AND result='allowed') >= 1::bigint),
   true,
-  'locking sets account_locked=true'
+  'locking sets account_locked=true (RPC locked + persisted + audited)'
 );
-
 INSERT INTO tap_output SELECT extensions.is(
   (SELECT "isApproved" FROM public.users WHERE uid='60000000-0000-4000-8000-000000000007'),
   true,
@@ -315,5 +326,5 @@ INSERT INTO tap_output SELECT extensions.ok(
 
 RESET ROLE;
 INSERT INTO tap_output SELECT * FROM extensions.finish();
-SELECT jsonb_agg(line) AS tap_results FROM tap_output;
+SELECT line FROM tap_output;
 ROLLBACK;

@@ -1,44 +1,108 @@
 BEGIN;
-SELECT plan(6);
 
--- Verify that anon cannot execute mark_token_used (function exists)
-SELECT throws_ok(
-  $$SELECT public.mark_token_used('test', gen_random_uuid(), 'test@example.com', 'Test User')$$,
-  '42501',
-  NULL,
-  'anon should not have EXECUTE on mark_token_used'
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SELECT extensions.plan(13);
+
+-- mark_token_used is server-owned. Browser roles must never execute it.
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.mark_token_used(text, uuid, text, text)') IS NULL THEN false
+       ELSE NOT has_function_privilege('anon', 'public.mark_token_used(text, uuid, text, text)', 'EXECUTE') END,
+  'anon cannot execute mark_token_used'
 );
 
--- Verify that consumir_token does not exist (should not error on absence)
-SELECT is(
-  (SELECT count(*) FROM pg_proc p
-   JOIN pg_namespace n ON p.pronamespace = n.oid
-   WHERE n.nspname = 'public'
-     AND p.proname = 'consumir_token'
-     AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'text, uuid, text, text'),
-  0::bigint,
-  'consumir_token should not exist in schema'
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.mark_token_used(text, uuid, text, text)') IS NULL THEN false
+       ELSE NOT has_function_privilege('authenticated', 'public.mark_token_used(text, uuid, text, text)', 'EXECUTE') END,
+  'authenticated cannot execute mark_token_used'
 );
 
--- Verify that if consumir_token existed, anon would not have EXECUTE
--- (This is tested by the conditional revoke in the migration)
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1 FROM pg_proc p
-    JOIN pg_namespace n ON p.pronamespace = n.oid
-    JOIN pg_proc_acl_exploded acl ON p.oid = acl.oid
-    WHERE n.nspname = 'public'
-      AND p.proname = 'consumir_token'
-      AND acl.grantee = 'anon'
-      AND acl.privilege_type = 'EXECUTE'
+-- consumir_token is absent from the versioned history. The test passes when the
+-- RPC is missing; when present on a legacy catalog, anon/authenticated must not
+-- have EXECUTE (the conditional revoke in the migration enforces this).
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.consumir_token(text, uuid, text, text)') IS NULL THEN true
+       ELSE NOT has_function_privilege('anon', 'public.consumir_token(text, uuid, text, text)', 'EXECUTE') END,
+  'anon cannot execute consumir_token when present'
+);
+
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.consumir_token(text, uuid, text, text)') IS NULL THEN true
+       ELSE NOT has_function_privilege('authenticated', 'public.consumir_token(text, uuid, text, text)', 'EXECUTE') END,
+  'authenticated cannot execute consumir_token when present'
+);
+
+-- master_delete_user is absent from the versioned history but hardened on legacy
+-- catalogs. The P0 semantics: anon gets no EXECUTE; authenticated retains
+-- EXECUTE. Pass when missing; enforce the P0 semantics when present.
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.master_delete_user(uuid, boolean)') IS NULL THEN true
+       ELSE NOT has_function_privilege('anon', 'public.master_delete_user(uuid, boolean)', 'EXECUTE') END,
+  'anon cannot execute master_delete_user when present'
+);
+
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.master_delete_user(uuid, boolean)') IS NULL THEN true
+       ELSE has_function_privilege('authenticated', 'public.master_delete_user(uuid, boolean)', 'EXECUTE') END,
+  'authenticated retains EXECUTE on master_delete_user when present (P0 semantics)'
+);
+
+-- get_push_token_by_uid is defined by the reconcile migration on a clean catalog
+-- (consumed by the notify-expiring-tokens Edge Function) and hardened on legacy
+-- catalogs. anon/authenticated must never have EXECUTE.
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.get_push_token_by_uid(uuid)') IS NULL THEN true
+       ELSE NOT has_function_privilege('anon', 'public.get_push_token_by_uid(uuid)', 'EXECUTE') END,
+  'anon cannot execute get_push_token_by_uid when present'
+);
+
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.get_push_token_by_uid(uuid)') IS NULL THEN true
+       ELSE NOT has_function_privilege('authenticated', 'public.get_push_token_by_uid(uuid)', 'EXECUTE') END,
+  'authenticated cannot execute get_push_token_by_uid when present'
+);
+
+-- provision_organization_with_coordinator must use the real signature
+-- (jsonb, text, text, text, text). Browser roles must not execute it.
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.provision_organization_with_coordinator(jsonb, text, text, text, text)') IS NULL THEN false
+       ELSE NOT has_function_privilege('anon', 'public.provision_organization_with_coordinator(jsonb, text, text, text, text)', 'EXECUTE') END,
+  'anon cannot execute provision_organization_with_coordinator'
+);
+
+SELECT extensions.ok(
+  CASE WHEN to_regprocedure('public.provision_organization_with_coordinator(jsonb, text, text, text, text)') IS NULL THEN false
+       ELSE NOT has_function_privilege('authenticated', 'public.provision_organization_with_coordinator(jsonb, text, text, text, text)', 'EXECUTE') END,
+  'authenticated cannot execute provision_organization_with_coordinator'
+);
+
+-- Private tables must have RLS enabled so accidental future grants fail closed.
+SELECT extensions.is(
+  (
+    SELECT relrowsecurity
+    FROM pg_class
+    WHERE oid = 'private.customer_affiliation_states'::regclass
   ),
-  'anon should not have EXECUTE on consumir_token if it existed'
+  true,
+  'customer_affiliation_states should have RLS enabled'
+);
+SELECT extensions.is(
+  (
+    SELECT relrowsecurity
+    FROM pg_class
+    WHERE oid = 'private.inspection_ownership_audit'::regclass
+  ),
+  true,
+  'inspection_ownership_audit should have RLS enabled'
+);
+SELECT extensions.is(
+  (
+    SELECT relrowsecurity
+    FROM pg_class
+    WHERE oid = 'private.signup_invite_claims'::regclass
+  ),
+  true,
+  'signup_invite_claims should have RLS enabled'
 );
 
--- Verify private tables have RLS enabled
-SELECT has_row_level_security('private', 'customer_affiliation_states', 'customer_affiliation_states should have RLS enabled');
-SELECT has_row_level_security('private', 'inspection_ownership_audit', 'inspection_ownership_audit should have RLS enabled');
-SELECT has_row_level_security('private', 'signup_invite_claims', 'signup_invite_claims should have RLS enabled');
-
-SELECT * FROM finish();
+SELECT * FROM extensions.finish();
 ROLLBACK;

@@ -6,7 +6,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(34);
+SELECT extensions.plan(35);
 CREATE TEMP TABLE tap_output(line text);
 CREATE TEMP TABLE direct_checks(name text PRIMARY KEY, passed boolean NOT NULL);
 GRANT SELECT, INSERT ON tap_output, direct_checks TO authenticated;
@@ -331,8 +331,11 @@ INSERT INTO tap_output SELECT extensions.is(
 
 -- CORREÇÃO P0: Plano retired é terminal; não pode voltar a draft/active.
 -- 15) Tentar ativar plano retired é recusado.
+-- O plano 003 já foi aposentado no teste da linha 118 (status='retired'); a
+-- chamada de aposentaria novamente seria não-idempotente e violaria o próprio
+-- contrato de estado terminal, então apenas posicionamos o owner e tentamos
+-- a transição proibida.
 SELECT pg_temp.as_owner();
-PERFORM public.manage_plan_lifecycle('71000000-0000-4000-8000-000000000003', 'retire', 'aposentar plano legacy para testes', '80000000-0000-4000-8000-000000000013');
 
 DO $$
 DECLARE caught text := 'not_thrown';
@@ -363,12 +366,23 @@ INSERT INTO tap_output SELECT extensions.ok(
 
 -- CORREÇÃO P0: Upgrade/downgrade só aceita plano com status='active'.
 -- 17) Tentar upgrade para plano draft é recusado.
+-- Nota: o plano 001 e ativado no teste 1 e nao permanece draft; criamos um
+-- plano exclusivamente draft para validar a rejeicao sem depender do estado
+-- mutavel das fixtures anteriores.
+INSERT INTO public.plans(id, code, name, audience, status, current_version) VALUES
+  ('71000000-0000-4000-8000-000000000009', 'b3_draft_fixture', 'B3 Draft Fixture', 'organization', 'draft', 1)
+ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status, current_version=EXCLUDED.current_version,
+  code=EXCLUDED.code, name=EXCLUDED.name, audience=EXCLUDED.audience;
+INSERT INTO public.plan_versions(id, plan_id, version, configuration, published_at, created_by) VALUES
+  ('72000000-0000-4000-8000-000000000091', '71000000-0000-4000-8000-000000000009', 1, '{"price":5}'::jsonb, now(), '70000000-0000-4000-8000-000000000001')
+ON CONFLICT (id) DO UPDATE SET plan_id=EXCLUDED.plan_id, version=EXCLUDED.version,
+  configuration=EXCLUDED.configuration, published_at=EXCLUDED.published_at;
 DO $$
 DECLARE caught text := 'not_thrown';
 BEGIN
   BEGIN
     PERFORM pg_temp.as_owner();
-    PERFORM public.manage_subscription_lifecycle('73000000-0000-4000-8000-000000000001', 'upgrade', '71000000-0000-4000-8000-000000000001', 'tentativa upgrade para draft', '80000000-0000-4000-8000-000000000016');
+    PERFORM public.manage_subscription_lifecycle('73000000-0000-4000-8000-000000000001', 'upgrade', '71000000-0000-4000-8000-000000000009', 'tentativa upgrade para draft', '80000000-0000-4000-8000-000000000016');
   EXCEPTION WHEN others THEN caught := SQLSTATE; END;
   INSERT INTO direct_checks VALUES('draft_plan_rejected', caught = '42501');
 END $$;
@@ -382,7 +396,7 @@ DECLARE caught text := 'not_thrown';
 BEGIN
   BEGIN
     PERFORM pg_temp.as_owner();
-    PERFORM public.manage_subscription_lifecycle('73000000-0000-4000-8000-000000000001', 'downgrade', '71000000-0000-4000-8000-000000000001', 'tentativa downgrade para draft', '80000000-0000-4000-8000-000000000017');
+    PERFORM public.manage_subscription_lifecycle('73000000-0000-4000-8000-000000000001', 'downgrade', '71000000-0000-4000-8000-000000000009', 'tentativa downgrade para draft', '80000000-0000-4000-8000-000000000017');
   EXCEPTION WHEN others THEN caught := SQLSTATE; END;
   INSERT INTO direct_checks VALUES('draft_plan_downgrade_rejected', caught = '42501');
 END $$;
@@ -401,8 +415,11 @@ ON CONFLICT (id) DO UPDATE SET
   configuration=EXCLUDED.configuration, published_at=EXCLUDED.published_at;
 
 -- Criar nova assinatura para testar downgrade com versão persistida.
+INSERT INTO public.organizations(id, slug, display_name, status) VALUES
+  ('74000000-0000-4000-8000-000000000004', 'b3-org4', 'B3 Org4', 'pilot')
+ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.subscriptions(id, plan_id, user_id, organization_id, status, plan_version_id, current_period_start, current_period_end)
-VALUES ('73000000-0000-4000-8000-000000000004', '71000000-0000-4000-8000-000000000002', NULL, '74000000-0000-4000-8000-000000000001', 'active', '72000000-0000-4000-8000-000000000023', now(), now() + interval '20 days')
+VALUES ('73000000-0000-4000-8000-000000000004', '71000000-0000-4000-8000-000000000002', NULL, '74000000-0000-4000-8000-000000000004', 'active', '72000000-0000-4000-8000-000000000023', now(), now() + interval '20 days')
 ON CONFLICT (id) DO UPDATE SET
   plan_id=EXCLUDED.plan_id, organization_id=EXCLUDED.organization_id, status=EXCLUDED.status,
   plan_version_id=EXCLUDED.plan_version_id,
@@ -467,5 +484,5 @@ INSERT INTO tap_output SELECT extensions.is(
 
 RESET ROLE;
 INSERT INTO tap_output SELECT * FROM extensions.finish();
-SELECT jsonb_agg(line) AS tap_results FROM tap_output;
+SELECT line FROM tap_output;
 ROLLBACK;

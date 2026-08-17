@@ -397,5 +397,5 @@ INSERT INTO tap_output SELECT extensions.ok(
 
 RESET ROLE;
 INSERT INTO tap_output SELECT * FROM extensions.finish();
-SELECT jsonb_agg(line) AS tap_results FROM tap_output;
+SELECT line FROM tap_output;
 ROLLBACK;

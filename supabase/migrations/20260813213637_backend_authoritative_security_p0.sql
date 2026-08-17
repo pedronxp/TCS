@@ -50,12 +50,27 @@ GRANT EXECUTE ON FUNCTION public.internal_reset_password(uuid, text) TO authenti
 ALTER FUNCTION public.internal_reset_password(uuid, text)
   SET search_path TO 'public', 'auth', 'extensions', 'pg_catalog';
 
-REVOKE ALL ON FUNCTION public.master_delete_user(uuid, boolean) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.master_delete_user(uuid, boolean) TO authenticated;
-ALTER FUNCTION public.master_delete_user(uuid, boolean)
-  SET search_path TO 'public', 'auth', 'pg_catalog';
+-- master_delete_user is absent from the versioned history. In legacy
+-- environments where it exists, retain the hardening: revoke PUBLIC/anon,
+-- grant EXECUTE only to authenticated, and pin search_path. On clean
+-- catalogs this is a no-op so the migration applies deterministically.
+DO $block$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'master_delete_user'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'uuid, boolean'
+  ) THEN
+    REVOKE ALL ON FUNCTION public.master_delete_user(uuid, boolean) FROM PUBLIC, anon;
+    GRANT EXECUTE ON FUNCTION public.master_delete_user(uuid, boolean) TO authenticated;
+    ALTER FUNCTION public.master_delete_user(uuid, boolean)
+      SET search_path TO 'public', 'auth', 'pg_catalog';
+  END IF;
+END $block$;
 
-REVOKE ALL ON FUNCTION public.provision_organization_with_coordinator(jsonb, text, text, boolean, text)
+REVOKE ALL ON FUNCTION public.provision_organization_with_coordinator(jsonb, text, text, text, text)
   FROM PUBLIC, anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.portal_get_workspace(text) FROM PUBLIC, anon;
@@ -66,7 +81,24 @@ GRANT EXECUTE ON FUNCTION public.portal_create_organization_invite(text, text, i
 
 -- Push tokens are private device credentials. Edge functions use service_role;
 -- browser roles must never be allowed to resolve another user's token.
-REVOKE ALL ON FUNCTION public.get_push_token_by_uid(uuid) FROM PUBLIC, anon, authenticated;
+-- NOTE: the definition of public.get_push_token_by_uid(uuid) is absent from the
+-- versioned migration history but is referenced from
+-- supabase/functions/notify-expiring-tokens/index.ts and generated types. This
+-- conditional revoke lets the migration run on a clean catalog and keeps the
+-- hardening effective on legacy environments where the RPC exists. Recovery of
+-- the missing RPC definition belongs to a separate task.
+DO $block$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'get_push_token_by_uid'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'uuid'
+  ) THEN
+    REVOKE ALL ON FUNCTION public.get_push_token_by_uid(uuid) FROM PUBLIC, anon, authenticated;
+  END IF;
+END $block$;
 
 -- Keep the compatibility RPC callable during signup, but eliminate account
 -- enumeration. The authoritative auth flow returns generic errors on conflict.

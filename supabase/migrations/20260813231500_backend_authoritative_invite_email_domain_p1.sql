@@ -51,4 +51,21 @@ END;
 $function$;
 
 -- No caller needs a separate municipal-domain oracle anymore.
-REVOKE ALL ON FUNCTION public.check_email_domain(text,text) FROM PUBLIC,anon,authenticated;
+-- check_email_domain is absent from the versioned history (its original
+-- definition migration was dropped during the paridade reorganization). In
+-- legacy catalogs where it still exists, retain the hardening: revoke PUBLIC,
+-- anon and authenticated so no browser role can call the now-redundant domain
+-- oracle. On a clean catalog this is a no-op so the migration applies
+-- deterministically alongside the versioned history.
+DO $block$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'check_email_domain'
+      AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'text, text'
+  ) THEN
+    REVOKE ALL ON FUNCTION public.check_email_domain(text, text) FROM PUBLIC, anon, authenticated;
+  END IF;
+END $block$;
