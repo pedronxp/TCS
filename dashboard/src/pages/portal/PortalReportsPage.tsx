@@ -7,9 +7,13 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { portalHome, portalRestrictionMessage } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
 
+type PortalRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{
+  data: unknown;
+  error: { message: string } | null;
+}>;
+
 type Filters = {
   period: string;
-  status: string;
   form: string;
   risk: string;
   neighborhood: string;
@@ -18,7 +22,6 @@ type Filters = {
 
 const DEFAULT_FILTERS: Filters = {
   period: 'last_30_days',
-  status: 'all',
   form: 'all',
   risk: 'all',
   neighborhood: 'all',
@@ -30,40 +33,99 @@ const periodOptions: Array<{ value: string; label: string }> = [
   { value: 'last_30_days', label: 'Últimos 30 dias' },
   { value: 'last_90_days', label: 'Últimos 90 dias' },
   { value: 'this_year', label: 'Este ano' },
-  { value: 'custom', label: 'Personalizado' },
-];
-
-const statusOptions: Array<{ value: string; label: string }> = [
-  { value: 'all', label: 'Todas as situações' },
-  { value: 'pending', label: 'Pendentes' },
-  { value: 'in_progress', label: 'Em andamento' },
-  { value: 'completed', label: 'Concluídas' },
-  { value: 'refused', label: 'Recusadas' },
 ];
 
 const riskOptions: Array<{ value: string; label: string }> = [
   { value: 'all', label: 'Todos os riscos' },
-  { value: 'low', label: 'Baixo' },
-  { value: 'medium', label: 'Médio' },
-  { value: 'high', label: 'Alto' },
-  { value: 'critical', label: 'Crítico' },
+  { value: 'baixo', label: 'Baixo' },
+  { value: 'médio', label: 'Médio' },
+  { value: 'alto', label: 'Alto' },
+  { value: 'crítico', label: 'Crítico' },
 ];
 
 type ReportingResult = {
   indicators: Array<{ key: string; label: string; value: number | string; detail?: string }>;
   rows: Array<Record<string, unknown>>;
   charts: Array<{ key: string; label: string; series: Array<{ label: string; value: number }> }>;
+  teamMembers?: Array<{ id: string; label: string }>;
 };
 
-function parseReportingResult(value: unknown): ReportingResult {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function asRecords(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => Boolean(asRecord(item)))
+    : [];
+}
+
+function countEntries(value: unknown, countKey: string) {
+  return asRecords(value).reduce((total, entry) => {
+    const count = Number(entry[countKey]);
+    return total + (Number.isFinite(count) ? count : 0);
+  }, 0);
+}
+
+function chart(key: string, label: string, entries: Array<Record<string, unknown>>, labelKey: string, valueKey: string) {
+  return {
+    key,
+    label,
+    series: entries.flatMap((entry) => {
+      const value = Number(entry[valueKey]);
+      const itemLabel = typeof entry[labelKey] === 'string' ? entry[labelKey] : null;
+      return itemLabel && Number.isFinite(value) ? [{ label: itemLabel, value }] : [];
+    }),
+  };
+}
+
+export function parseReportingResult(value: unknown): ReportingResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('invalid_reporting_response');
   }
   const source = value as Record<string, unknown>;
-  const indicators = Array.isArray(source.indicators) ? source.indicators as ReportingResult['indicators'] : [];
-  const rows = Array.isArray(source.rows) ? source.rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)) as Array<Record<string, unknown>> : [];
-  const charts = Array.isArray(source.charts) ? source.charts.filter((chart) => chart && typeof chart === 'object') as ReportingResult['charts'] : [];
-  return { indicators, rows, charts };
+  const risk = asRecord(source.risk) ?? {};
+  const schedule = asRecord(source.schedule) ?? {};
+  const documents = asRecord(source.documents) ?? {};
+  const consumption = asRecord(source.consumption) ?? {};
+  const exported = asRecord(source.export) ?? {};
+  const riskBreakdown = asRecords(risk.breakdown);
+  const scheduleDistribution = asRecords(schedule.distribution);
+  const documentDistribution = asRecords(documents.documents);
+  const acknowledgementDistribution = asRecords(documents.acknowledgements);
+  const productivity = asRecords(source.productivity);
+  const resources = asRecords(consumption.resources);
+  const volume = Number(source.volume);
+  const indicators = [
+    { key: 'inspections', label: 'Vistorias', value: Number.isFinite(volume) ? volume : 0 },
+    { key: 'appointments', label: 'Agendamentos', value: countEntries(scheduleDistribution, 'count') },
+    { key: 'documents', label: 'Documentos', value: countEntries(documentDistribution, 'count') },
+    { key: 'acknowledgements', label: 'Ciências', value: countEntries(acknowledgementDistribution, 'count') },
+  ];
+  const charts = [
+    chart('risk', 'Distribuição de risco', riskBreakdown, 'risk', 'count'),
+    chart('schedule', 'Situação dos agendamentos', scheduleDistribution, 'status', 'count'),
+    chart('team', 'Vistorias por integrante', productivity, 'memberName', 'inspections'),
+    chart('consumption', 'Consumo no período', resources, 'resourceCode', 'consumed'),
+  ].filter((item) => item.series.length > 0);
+  const teamMembers = productivity.flatMap((member) => {
+    const id = typeof member.memberId === 'string' ? member.memberId : null;
+    const label = typeof member.memberName === 'string' ? member.memberName : null;
+    return id && label ? [{ id, label }] : [];
+  });
+  return { indicators, rows: asRecords(exported.rows), charts, teamMembers };
+}
+
+export function toReportingRpcFilters(filters: Filters, now = new Date()): Record<string, string> {
+  const daysByPeriod: Record<string, number> = { last_7_days: 6, last_30_days: 29, last_90_days: 89 };
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (daysByPeriod[filters.period] ?? 0)));
+  if (filters.period === 'this_year') from.setUTCMonth(0, 1);
+  const payload: Record<string, string> = { from: from.toISOString(), to: now.toISOString() };
+  if (filters.form !== 'all') payload.formId = filters.form;
+  if (filters.risk !== 'all') payload.risk = filters.risk;
+  if (filters.neighborhood !== 'all') payload.location = filters.neighborhood;
+  if (filters.team !== 'all') payload.teamMemberId = filters.team;
+  return payload;
 }
 
 export function PortalReportsPage() {
@@ -78,22 +140,17 @@ export function PortalReportsPage() {
   const query = useQuery({
     queryKey: ['portal', 'reporting', access.userId, access.accountKind, access.organizationId ?? null, access?.role ?? null, filters],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('portal_get_reporting', {
-        p_period: filters.period,
-        p_status: filters.status,
-        p_form: filters.form,
-        p_risk: filters.risk,
-        p_neighborhood: filters.neighborhood,
-        p_team: filters.team,
+      const { data, error } = await (supabase.rpc as PortalRpc)('portal_get_reporting', {
+        p_filters: toReportingRpcFilters(filters),
       });
       if (error) throw new Error(error.message);
       return parseReportingResult(data);
     },
   });
 
-  const neighborhoods = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.neighborhood ?? '')).filter(Boolean))), [query.data]);
-  const teams = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.team ?? row.agent_name ?? '')).filter(Boolean))), [query.data]);
-  const forms = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.form ?? row.type ?? '')).filter(Boolean))), [query.data]);
+  const neighborhoods = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.location ?? '')).filter(Boolean))), [query.data]);
+  const teams = query.data?.teamMembers ?? [];
+  const forms = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.formId ?? '')).filter(Boolean))), [query.data]);
 
   function updateFilter<Key extends keyof Filters>(key: Key, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -142,7 +199,7 @@ export function PortalReportsPage() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Análise</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-0.025em]">Relatórios e estatísticas</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Filtre por período, situação, formulário, risco, bairro e equipe. Os indicadores e a tabela usam exatamente o recorte exibido na exportação.
+          Filtre por período, formulário, risco, bairro e equipe. Os indicadores e a tabela usam exatamente o recorte autorizado pelo servidor e exibido na exportação.
         </p>
       </header>
 
@@ -152,11 +209,6 @@ export function PortalReportsPage() {
           <label className="text-sm font-medium">Período
             <select className="mt-2 h-11 w-full rounded-md border bg-card px-3 text-sm" value={filters.period} onChange={(event) => updateFilter('period', event.target.value)}>
               {periodOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-medium">Situação
-            <select className="mt-2 h-11 w-full rounded-md border bg-card px-3 text-sm" value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
-              {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           <label className="text-sm font-medium">Formulário
@@ -179,7 +231,7 @@ export function PortalReportsPage() {
           <label className="text-sm font-medium">Equipe
             <select className="mt-2 h-11 w-full rounded-md border bg-card px-3 text-sm" value={filters.team} onChange={(event) => updateFilter('team', event.target.value)}>
               <option value="all">Toda a equipe</option>
-              {teams.map((team) => <option key={team} value={team}>{team}</option>)}
+              {teams.map((team) => <option key={team.id} value={team.id}>{team.label}</option>)}
             </select>
           </label>
         </CardContent>
@@ -203,7 +255,7 @@ export function PortalReportsPage() {
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-secondary text-primary"><AlertCircle aria-hidden="true" /></span>
               <h2 className="mt-5 text-xl font-semibold">Relatórios em integração</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                O contrato <code className="rounded bg-secondary px-1 py-0.5 text-xs">portal_get_reporting</code> ainda não está disponível no backend. Os indicadores e a tabela aparecerão aqui assim que o endpoint for liberado, sem necessidade de nova implantação do portal.
+                Não foi possível carregar o contrato <code className="rounded bg-secondary px-1 py-0.5 text-xs">portal_get_reporting</code>. Nenhum indicador foi estimado; tente novamente em instantes.
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 <Button variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>
@@ -334,7 +386,7 @@ function formatCell(value: unknown) {
 }
 
 function suffixFromFilters(filters: Filters) {
-  return `${filters.period}-${filters.status}-${filters.risk}`.replace(/[^a-z0-9-]/gi, '').slice(0, 32);
+  return `${filters.period}-${filters.risk}`.replace(/[^a-z0-9-]/gi, '').slice(0, 32);
 }
 
 function humanize(value: string) {

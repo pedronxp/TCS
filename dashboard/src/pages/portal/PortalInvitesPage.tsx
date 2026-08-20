@@ -28,8 +28,7 @@ export function PortalInvitesPage() {
       ? ['agent', 'supervisor']
       : ['agent'];
   const mayInvite = can('invite.manage') || can('invite.agent');
-  const subscriptionBlocksCreation = Boolean(access) && !access.creationAllowed;
-  const inviteDisabled = !mayInvite || subscriptionBlocksCreation;
+  const subscriptionBlocksCreation = access ? !access.creationAllowed : false;
   const root = portalHome(access?.accountKind ?? 'individual');
 
   async function submit(event: FormEvent) {

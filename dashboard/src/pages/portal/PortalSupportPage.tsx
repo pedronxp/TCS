@@ -10,6 +10,11 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
 
+type PortalRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{
+  data: unknown;
+  error: { message: string } | null;
+}>;
+
 type SupportTicket = Record<string, unknown>;
 
 const priorityLabels: Record<string, string> = {
@@ -151,21 +156,32 @@ function TicketInfo({ label, value }: { label: string; value: string }) {
   return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-medium text-foreground">{value}</p></div>;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
 /**
  * Linha do tempo de respostas públicas do chamado, visível ao cliente municipal.
  *
- * Restrição de paridade operacional: o portal nunca pode exibir notas internas da equipe
- * (event_type "note"). O backend ainda não expõe um contrato de eventos voltado ao portal
- * (portal_get_support_events). Até que esse endpoint exista, a seção apresenta o estado
- * "em integração" — sem inventar respostas e sem ler a tabela support_ticket_events diretamente.
+ * O contrato do portal é fail-closed: eventos sem visibility='shared' são
+ * descartados também no cliente como defesa em profundidade.
  */
+export function parsePublicSupportTimeline(value: unknown): Array<Record<string, unknown>> {
+  const source = asRecord(value);
+  if (!source || !Array.isArray(source.events)) return [];
+  return source.events.filter((event): event is Record<string, unknown> => {
+    const item = asRecord(event);
+    return item?.visibility === 'shared';
+  });
+}
+
 function PublicResponseTimeline({ ticketId }: { ticketId: string }) {
   const query = useQuery({
     queryKey: ['portal', 'support-events', ticketId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('portal_get_support_events', { p_ticket_id: ticketId });
+      const { data, error } = await (supabase.rpc as PortalRpc)('portal_get_support_timeline', { p_ticket_id: ticketId });
       if (error) throw new Error(error.message);
-      return data as Array<Record<string, unknown>>;
+      return parsePublicSupportTimeline(data);
     },
     retry: 0,
   });
@@ -204,12 +220,7 @@ function PublicResponseTimeline({ ticketId }: { ticketId: string }) {
       )}
 
       {query.data && query.data.length > 0 && (() => {
-        // Barreira de apresentação: o portal nunca exibe notas internas (event_type "note"),
-        // mesmo que o contrato eventualmente as retorne. Somente respostas voltadas ao cliente.
-        const publicEvents = query.data.filter((event) => {
-          const type = ticketText(event.event_type, '');
-          return type !== 'note';
-        });
+        const publicEvents = query.data.filter((event) => event.visibility === 'shared');
         if (publicEvents.length === 0) return <p className="mt-3 text-sm text-muted-foreground">Nenhuma resposta registrada ainda.</p>;
         return (
           <ol className="mt-3 space-y-3" role="list">

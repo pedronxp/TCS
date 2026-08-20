@@ -12,6 +12,7 @@ import { PortalProfilePage } from './PortalProfilePage';
 import { PortalSettingsPage } from './PortalSettingsPage';
 import { PortalSupportPage } from './PortalSupportPage';
 import { PortalTeamPage } from './PortalTeamPage';
+import type { PortalAccessContext, PortalPermission } from '@/types/portal';
 
 const state = vi.hoisted(() => ({
   access: {
@@ -36,7 +37,7 @@ const state = vi.hoisted(() => ({
     ],
     creationAllowed: true,
     restrictionCause: null,
-  },
+  } as PortalAccessContext,
   queryOptions: [] as Array<{ queryKey: readonly unknown[]; enabled?: boolean }>,
   workspaceItems: [] as Array<Record<string, unknown>>,
   sessions: [] as Array<Record<string, unknown>>,
@@ -69,7 +70,7 @@ vi.mock('@/contexts/PortalAuthContext', () => ({
   usePortalAuth: () => ({
     access: state.access,
     user: state.user,
-    can: (permission: string) => state.access.permissions.includes(permission),
+    can: (permission: string) => state.access.permissions.includes(permission as PortalPermission),
     signOut: state.signOut,
     linkGoogleIdentity: state.linkGoogleIdentity,
   }),

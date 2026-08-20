@@ -25,6 +25,7 @@ import {
   useToggleAprovacao,
   useResetSenha,
   type FiltroUsuario,
+  type UserAccessAction,
   type UserRecord,
 } from '@/hooks/useUsuarios';
 import {
@@ -92,7 +93,7 @@ function papelMunicipio(u: UserRecord, isMaster: boolean): string {
 
 // ─── Confirmação auditável de acesso ──────────────────────────────────────────
 
-type AccessAction = 'release' | 'block' | 'recovery';
+type AccessAction = UserAccessAction;
 
 function accessActionCopy(action: AccessAction): { title: string; description: string; confirmLabel: string } {
   switch (action) {
@@ -109,13 +110,6 @@ function accessActionCopy(action: AccessAction): { title: string; description: s
         description:
           'O acesso será suspenso e as sessões ativas serão encerradas. A pessoa continua cadastrada e pode ser liberada novamente. Ação exige justificativa e horário da operação.',
         confirmLabel: 'Bloquear acesso',
-      };
-    case 'recovery':
-      return {
-        title: 'Enviar recuperação de senha?',
-        description:
-          'A credencial será substituída e todas as sessões ativas serão encerradas. Compartilhe a nova senha em canal seguro. Ação exige justificativa e horário da operação.',
-        confirmLabel: 'Enviar recuperação',
       };
   }
 }
@@ -468,9 +462,8 @@ function AbaUsuarios() {
 
   function runAccess(action: AccessAction, user: UserRecord, reason: string) {
     setAccessError(null);
-    const nextApproved = action === 'release';
     toggle.mutate(
-      { uid: user.uid, isApproved: nextApproved },
+      { uid: user.uid, action, reason },
       {
         onSuccess: () => setAccessAction(null),
         onError: () => setAccessError('Não foi possível alterar o acesso. Tente novamente.'),

@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { PortalAcknowledgementsPage } from './PortalAcknowledgementsPage';
+import type { PortalAccessContext, PortalPermission } from '@/types/portal';
 
 const state = vi.hoisted(() => ({
   access: {
@@ -26,7 +27,7 @@ const state = vi.hoisted(() => ({
     permissions: ['dashboard.read', 'inspection.read', 'document.read'],
     creationAllowed: true,
     restrictionCause: null,
-  },
+  } as PortalAccessContext,
   queryData: { items: [] as Array<Record<string, unknown>>, summary: {} },
   isLoading: false,
   isError: false,
@@ -45,7 +46,7 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@/contexts/PortalAuthContext', () => ({
-  usePortalAuth: () => ({ access: state.access, can: (permission: string) => state.access.permissions.includes(permission) }),
+  usePortalAuth: () => ({ access: state.access, can: (permission: string) => state.access.permissions.includes(permission as PortalPermission) }),
 }));
 
 vi.mock('@/lib/portal', () => ({

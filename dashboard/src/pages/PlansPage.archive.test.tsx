@@ -71,7 +71,7 @@ describe('Plano arquivado (retired)', () => {
     });
 
     const note = screen.getByText((_, node) =>
-      Boolean(node?.getAttribute('role') === 'status') && /Plano arquivado/i.test(node.textContent ?? ''),
+      Boolean(node && node.getAttribute('role') === 'status' && /Plano arquivado/i.test(node.textContent ?? '')),
     );
     expect(note).toBeVisible();
     expect(note).toHaveTextContent(/assinaturas ativas continuam válidas, mas novas ativações não são permitidas/i);

@@ -83,7 +83,11 @@ describe('Aprovação e acesso de usuários', () => {
     await user.click(confirm);
 
     expect(toggleMock).toHaveBeenCalledTimes(1);
-    expect(toggleMock.mock.calls[0][0]).toEqual({ uid: 'user-pending', isApproved: true });
+    expect(toggleMock.mock.calls[0][0]).toEqual({
+      uid: 'user-pending',
+      action: 'release',
+      reason: 'Identidade validada na sede.',
+    });
   });
 
   it('abre diálogo de bloqueio para usuário ativo sem remover o histórico', async () => {

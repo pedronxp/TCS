@@ -26,7 +26,7 @@ export function PortalTeamPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasManagePermission = can('team.manage');
-  const subscriptionBlocks = Boolean(access) && !access.creationAllowed;
+  const subscriptionBlocks = access ? !access.creationAllowed : false;
   const mayManage = hasManagePermission && !subscriptionBlocks;
   const manageTriggerRef = useRef<HTMLButtonElement | null>(null);
   const manageTitleRef = useRef<HTMLHeadingElement>(null);

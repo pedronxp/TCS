@@ -170,6 +170,15 @@ export const routeManifest = [
     penpot: '28 · Portal Individual',
   })),
   portalRoute({
+    id: 'portal-individual-ciencias',
+    path: '/portal/individual/ciencias',
+    audience: ['individual'],
+    permission: 'document.read',
+    template: 'listing',
+    penpot: '28 · Portal Individual',
+    automatedVisualBaselines: null,
+  }),
+  portalRoute({
     id: 'portal-individual-inspection-detail',
     path: '/portal/individual/vistorias/:inspectionId',
     audience: ['individual'],
@@ -206,6 +215,15 @@ export const routeManifest = [
     template,
     penpot: '29 · Municipal — Coordenador + 30 · Supervisor + 31 · Agente',
   })),
+  portalRoute({
+    id: 'portal-municipal-ciencias',
+    path: '/portal/municipal/ciencias',
+    audience: ['coordinator', 'supervisor', 'agent'],
+    permission: 'document.read',
+    template: 'listing',
+    penpot: '29 · Municipal — Coordenador + 30 · Supervisor + 31 · Agente',
+    automatedVisualBaselines: null,
+  }),
   portalRoute({
     id: 'portal-municipal-inspection-detail',
     path: '/portal/municipal/vistorias/:inspectionId',

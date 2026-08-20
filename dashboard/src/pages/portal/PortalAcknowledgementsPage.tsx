@@ -72,7 +72,7 @@ export function PortalAcknowledgementsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const subscriptionBlocks = Boolean(access) && !access.creationAllowed;
+  const subscriptionBlocks = access ? !access.creationAllowed : false;
   const items = (query.data?.items ?? []) as AcknowledgementItem[];
 
   function setActionError(message: string) {
