@@ -42,10 +42,10 @@ export function CookieConsent() {
             </div>
           )}
         </div>
-        <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary" onClick={() => save('necessary')} aria-label="Fechar e usar somente o necessário"><X className="h-4 w-4" /></button>
+        <button className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary lg:h-9 lg:w-9" onClick={() => save('necessary')} aria-label="Fechar e usar somente o necessário"><X className="h-4 w-4" /></button>
       </div>
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-        <button className="min-h-11 px-3 text-sm font-semibold text-primary" onClick={() => setDetails((value) => !value)}>{details ? 'Ocultar detalhes' : 'Ver detalhes'}</button>
+        <button className="min-h-11 px-3 text-sm font-semibold text-primary lg:min-h-0" onClick={() => setDetails((value) => !value)}>{details ? 'Ocultar detalhes' : 'Ver detalhes'}</button>
         <Button variant="outline" onClick={() => save('necessary')}><ShieldCheck />Somente necessários</Button>
         <Button onClick={() => save('all')}>Aceitar opcionais</Button>
       </div>

@@ -22,7 +22,7 @@ const state = vi.hoisted(() => ({
     planId: 'plan-1',
     planVersionId: 'version-1',
     planName: 'Municipal Básico',
-    features: {},
+    features: { reports: true },
     limits: {},
     usage: { inspections: 0 },
     permissions: ['dashboard.read', 'report.read'],
@@ -67,6 +67,7 @@ beforeEach(() => {
   state.access.creationAllowed = true;
   state.access.restrictionCause = null;
   state.access.subscriptionStatus = 'active';
+  state.access.features = { reports: true };
   state.refetch.mockReset();
   state.rpc.mockReset();
   vi.stubGlobal('URL', { createObjectURL: vi.fn().mockReturnValue('blob:fake'), revokeObjectURL: vi.fn() });
@@ -152,6 +153,13 @@ describe('relatórios e estatísticas municipais', () => {
     expect(screen.getByRole('heading', { name: 'Relatórios em integração' })).toBeVisible();
     expect(screen.getByText('portal_get_reporting')).toBeInTheDocument();
     screen.getByRole('button', { name: /Tentar novamente/i });
+  });
+
+  it('bloqueia relatórios fora do plano antes de consultar o contrato', () => {
+    state.access.features = { reports: false };
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Relatórios não incluídos neste plano' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Consultar assinatura' })).toHaveAttribute('href', '/portal/municipal/assinatura');
   });
 
   it('mostra estado vazio quando o contrato retorna sem indicadores nem linhas', () => {

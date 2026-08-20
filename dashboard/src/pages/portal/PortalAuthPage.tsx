@@ -286,7 +286,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                   <label className="block text-sm font-medium" htmlFor="portal-password">Senha</label>
                   <span className="relative mt-2 block">
                     <Input id="portal-password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} maxLength={SENHA_MAX} required />
-                    <button type="button" className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                    <button type="button" className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-lg:h-11 max-lg:w-11" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                       {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                     </button>
                   </span>
@@ -309,7 +309,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                     <label className="block text-sm font-medium" htmlFor="portal-confirm-password">Confirmar senha</label>
                     <span className="relative mt-2 block">
                       <Input id="portal-confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} maxLength={SENHA_MAX} required />
-                      <button type="button" className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                      <button type="button" className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-lg:h-11 max-lg:w-11" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                         {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                       </button>
                     </span>
@@ -318,27 +318,29 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 )}
               {message && <div className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="alert">{message}</div>}
                 {mode === 'sign-up' && (
-                  <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      id="portal-terms"
-                      aria-label="Li e aceito os Termos de Uso e a Política de Privacidade vigentes."
-                      className="mt-1 h-4 w-4"
-                      checked={termsAccepted}
-                      onChange={(event) => setTermsAccepted(event.target.checked)}
-                    />
-                    <span className="cursor-default">Li e aceito os</span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                    <label htmlFor="portal-terms" className="inline-flex min-h-11 items-center gap-3 cursor-pointer lg:min-h-0">
+                      <input
+                        type="checkbox"
+                        id="portal-terms"
+                        aria-label="Li e aceito os Termos de Uso e a Política de Privacidade vigentes."
+                        className="h-4 w-4 shrink-0"
+                        checked={termsAccepted}
+                        onChange={(event) => setTermsAccepted(event.target.checked)}
+                      />
+                      <span>Li e aceito os</span>
+                    </label>
                     <TermsPrivacyDialog document="terms" />
                     <span className="cursor-default">e a</span>
                     <TermsPrivacyDialog document="privacy" />
-                    <label htmlFor="portal-terms" className="cursor-pointer">vigentes.</label>
+                    <label htmlFor="portal-terms" className="inline-flex min-h-11 items-center cursor-pointer lg:min-h-0">vigentes.</label>
                   </div>
                 )}
                 <Button type="submit" className="w-full" disabled={submitting || (mode === 'sign-up' && !termsAccepted)}>
                   {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                   {submitting ? 'Aguarde…' : mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta'}
                 </Button>
-                {mode === 'sign-in' && <Link className="block text-center text-sm font-semibold text-primary hover:underline" to={`/recuperar-senha${location.search}`}>Esqueci minha senha</Link>}
+                {mode === 'sign-in' && <Link className="inline-flex min-h-11 w-full items-center justify-center text-sm font-semibold text-primary hover:underline lg:min-h-0" to={`/recuperar-senha${location.search}`}>Esqueci minha senha</Link>}
               </form>
               <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
               <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting || (mode === 'sign-up' && !termsAccepted)} aria-busy={submitting}>
@@ -354,7 +356,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               <Dialog>
                 <button
                   type="button"
-                  className="mt-4 block w-full text-center text-[12px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center text-center text-[12px] font-medium text-muted-foreground hover:text-foreground hover:underline lg:min-h-0"
                 >
                   É da equipe interna TCS? Entrar no Console
                 </button>

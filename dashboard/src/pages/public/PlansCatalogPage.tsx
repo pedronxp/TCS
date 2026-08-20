@@ -85,7 +85,7 @@ function PlanCard({ plan }: { plan: PublicPlan }) {
   const isMunicipal = plan.audience === 'municipal';
   return (
     <Card role="article" className={`flex flex-col rounded-2xl border p-6 transition-all duration-200 shadow-xs ${plan.highlighted ? 'border-primary bg-primary text-primary-foreground shadow-md' : 'border-border/80 bg-card text-card-foreground hover:border-primary/40'}`}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="text-2xl font-bold tracking-tight">{plan.name}</h3>
         {plan.highlighted && (
           <Badge className="rounded-lg border-primary-foreground/20 bg-primary-foreground text-primary font-bold text-[10px]">
@@ -97,8 +97,10 @@ function PlanCard({ plan }: { plan: PublicPlan }) {
 
       <div className="mt-6 pt-4 border-t border-border/40">
         {plan.contractualBase && <p className={`mb-1 text-[10px] font-bold uppercase tracking-wider ${plan.highlighted ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>Valor-base</p>}
-        <span className="text-3xl font-extrabold tracking-tight">{formatPublicPlanPrice(plan.monthlyPriceCents)}</span>
-        <span className={`ml-2 text-xs ${plan.highlighted ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>/ mês</span>
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-2xl font-extrabold tracking-tight sm:text-3xl">{formatPublicPlanPrice(plan.monthlyPriceCents)}</span>
+          <span className={`text-xs ${plan.highlighted ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>/ mês</span>
+        </div>
         <p className={`mt-1 text-xs ${plan.highlighted ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
           {formatPublicPlanPrice(plan.annualPriceCents)} no plano anual
         </p>

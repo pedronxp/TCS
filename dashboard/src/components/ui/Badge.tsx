@@ -14,7 +14,7 @@ const badgeVariants = cva(
         secondary: 'border-border/60 bg-secondary/80 text-foreground',
         destructive:
           'border-destructive/25 bg-destructive-soft text-destructive',
-        success: 'border-success/25 bg-success-soft text-success-foreground',
+        success: 'border-success/25 bg-success-soft text-foreground',
         warning: 'border-warning/25 bg-warning-soft text-warning-foreground',
         info: 'border-info/25 bg-info-soft text-info',
         outline: 'border-border/80 bg-card/60 text-foreground',

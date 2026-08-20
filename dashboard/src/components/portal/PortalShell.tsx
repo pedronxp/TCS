@@ -58,7 +58,7 @@ export function PortalShell() {
 
   return (
     <DialogPrimitive.Root open={mobileOpen} onOpenChange={setMobileOpen}>
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="portal-shell min-h-screen overflow-x-hidden bg-background text-foreground">
       <a href="#portal-content" className="sr-only z-[100] rounded-md bg-card px-4 py-2 shadow-sm focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
         Pular para o conteúdo
       </a>
@@ -103,8 +103,8 @@ export function PortalShell() {
                 <Menu aria-hidden="true" />
               </Button>
             </DialogPrimitive.Trigger>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{audienceLabel}</p>
+            <div className="min-w-0 overflow-hidden">
+              <p className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{audienceLabel}</p>
               <p className="mt-1 truncate text-sm font-semibold">{access.organizationName ?? access.displayName}</p>
             </div>
           </div>

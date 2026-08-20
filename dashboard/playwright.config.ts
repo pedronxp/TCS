@@ -5,10 +5,10 @@ const baseURL = 'http://127.0.0.1:4173';
 export default defineConfig({
   testDir: './tests/visual',
   timeout: 45_000,
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'line',
   snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{projectName}/{arg}{ext}',
   expect: {

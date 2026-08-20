@@ -136,6 +136,9 @@ export function PortalReportsPage() {
   if (!access) return null;
   const root = portalHome(access.accountKind);
   const subscriptionBlocks = !access.creationAllowed;
+  const reportsIncluded = access.features.reports === true
+    || access.features.reports_basic === true
+    || access.features.reports_advanced === true;
 
   const query = useQuery({
     queryKey: ['portal', 'reporting', access.userId, access.accountKind, access.organizationId ?? null, access?.role ?? null, filters],
@@ -146,6 +149,7 @@ export function PortalReportsPage() {
       if (error) throw new Error(error.message);
       return parseReportingResult(data);
     },
+    enabled: reportsIncluded,
   });
 
   const neighborhoods = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.location ?? '')).filter(Boolean))), [query.data]);
@@ -186,6 +190,27 @@ export function PortalReportsPage() {
     } finally {
       setExporting(null);
     }
+  }
+
+  if (!reportsIncluded) {
+    return (
+      <div className="page-stack">
+        <header>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Análise</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.025em]">Relatórios e estatísticas</h1>
+        </header>
+        <Card>
+          <CardContent className="grid min-h-64 place-items-center p-8 text-center">
+            <div>
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-secondary text-primary"><ChartNoAxesCombined aria-hidden="true" /></span>
+              <h2 className="mt-5 text-xl font-semibold">Relatórios não incluídos neste plano</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Atualize a assinatura para liberar indicadores, filtros e exportações autorizadas.</p>
+              <Button asChild className="mt-5"><a href={`${root}/assinatura`}>Consultar assinatura</a></Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

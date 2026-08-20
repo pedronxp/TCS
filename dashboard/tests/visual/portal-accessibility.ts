@@ -127,7 +127,7 @@ export async function expectPortalTextZoom(page: Page, context: string) {
         element.left < -1
         || element.right > window.innerWidth + 1
         || element.scrollWidth > element.clientWidth + 1)
-      .slice(0, 8),
+      .slice(0, 20),
   }));
   expect(
     geometry.scrollWidth,

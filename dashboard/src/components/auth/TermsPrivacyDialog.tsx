@@ -13,7 +13,7 @@ export function TermsPrivacyDialog({ document }: { document: 'terms' | 'privacy'
       <DialogTrigger asChild>
         <button
           type="button"
-          className="rounded text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex min-h-11 items-center rounded text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-0"
         >
           {title}
         </button>

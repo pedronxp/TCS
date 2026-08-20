@@ -67,7 +67,7 @@ function accessContext(kind: PortalFixtureKind) {
     display_name: organization ? 'Marina Coordenadora' : 'Ana Cliente',
     organization_id: organization ? organizationId : null,
     organization_name: organization ? 'Prefeitura de Aurora' : null,
-    role: organization ? 'coordinator' : null,
+    role: organization ? 'admin' : null,
     membership_status: organization ? 'active' : null,
     subscription_status: 'active',
     cancel_at_period_end: false,
@@ -169,7 +169,7 @@ function workspace(section: string) {
     },
     equipe: {
       items: [
-        { id: 'member-1', user_id: userId, title: 'Marina Coordenadora', subtitle: 'coordinator', status: 'active' },
+        { id: 'member-1', user_id: userId, title: 'Marina Coordenadora', subtitle: 'admin', status: 'active' },
         { id: 'member-2', user_id: '61000000-0000-4000-8000-000000000002', title: 'Carlos Supervisor', subtitle: 'supervisor', status: 'active' },
         { id: 'member-3', user_id: '61000000-0000-4000-8000-000000000003', title: 'Joana Agente', subtitle: 'agent', status: 'active' },
       ],

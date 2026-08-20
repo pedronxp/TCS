@@ -114,12 +114,12 @@ export function CheckoutReturnPage() {
 
             {!isChecking && <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {status === 'expired' ? (
-                <Button asChild><Link to="/planos">Ver opções de contratação</Link></Button>
+                <Button asChild className="min-h-11 lg:min-h-10"><Link to="/planos">Ver opções de contratação</Link></Button>
               ) : (
-                <Button asChild variant={isCompleted ? 'default' : 'outline'}><Link to={portalDestination}>{isCompleted ? 'Abrir portal' : 'Voltar ao portal'}</Link></Button>
+                <Button asChild className="min-h-11 lg:min-h-10" variant={isCompleted ? 'default' : 'outline'}><Link to={portalDestination}>{isCompleted ? 'Abrir portal' : 'Voltar ao portal'}</Link></Button>
               )}
               {(status === 'failed' || status === 'expired') && (
-                <Button asChild variant="ghost"><a href="mailto:suporte@tcs.app?subject=Ajuda%20com%20checkout">Falar com o suporte</a></Button>
+                <Button asChild className="min-h-11 lg:min-h-10" variant="ghost"><a href="mailto:suporte@tcs.app?subject=Ajuda%20com%20checkout">Falar com o suporte</a></Button>
               )}
             </div>}
             {status === 'pending' && <p className="mt-4 text-xs leading-5 text-muted-foreground">A consulta será repetida automaticamente enquanto esta página permanecer aberta.</p>}
