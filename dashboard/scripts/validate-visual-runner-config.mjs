@@ -5,11 +5,7 @@ import { fileURLToPath } from 'node:url';
 const configPath = fileURLToPath(new URL('../playwright.config.ts', import.meta.url));
 const config = await readFile(configPath, 'utf8');
 
-assert.match(config, /fullyParallel:\s*true/, 'Visual snapshots must run in parallel.');
-assert.match(
-  config,
-  /workers:\s*process\.env\.CI\s*\?\s*4\s*:\s*undefined/,
-  'CI must allocate four workers to the isolated visual snapshots.',
-);
+assert.match(config, /fullyParallel:\s*false/, 'Visual snapshots must run serially.');
+assert.match(config, /workers:\s*1/, 'CI must use one worker for deterministic snapshots.');
 
-console.log('Visual runner parallelism is configured for CI.');
+console.log('Visual runner serial execution is configured for CI.');
