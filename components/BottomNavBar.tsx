@@ -34,6 +34,7 @@ const TABS_SUPERVISOR: NavTab[] = [
 const TABS_ADMIN: NavTab[] = [
   { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/admin', matchPaths: ['/admin'] },
   { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'formularios', label: 'Formulários', icon: 'edit-3', route: '/(panel)/admin/form-editor', matchPaths: ['/admin/form-editor', '/admin/editor-perguntas'] },
   { key: 'relatorios', label: 'Relatórios', icon: 'bar-chart-2', route: '/(panel)/admin/relatorios', matchPaths: ['/admin/relatorios'] },
   { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
@@ -42,12 +43,13 @@ const TABS_MASTER: NavTab[] = [
   { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/master', matchPaths: ['/master'] },
   { key: 'inspecoes', label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
   { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'formularios', label: 'Formulários', icon: 'edit-3', route: '/(panel)/admin/form-editor', matchPaths: ['/admin/form-editor', '/admin/editor-perguntas'] },
   { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const NAVBAR_VISIBLE_PATHS = [
   '/dashboard', '/inspecoes', '/perfil', '/modulos', '/mapas',
-  '/admin', '/supervisor', '/master', '/admin/relatorios', '/admin/estatisticas',
+  '/admin', '/supervisor', '/master', '/admin/relatorios', '/admin/estatisticas', '/admin/form-editor', '/admin/editor-perguntas',
 ];
 
 interface BottomNavBarInnerProps {

@@ -16,10 +16,12 @@ import {
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdministrativeMutation } from '@/hooks/useAdministrativeMutation';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import type { InternalPermission } from '@/types/internal';
 
 interface Draft {
   userId: string;
@@ -36,10 +38,40 @@ interface StaffRow {
   updated_at: string;
 }
 
+type PermissionEffect = 'grant' | 'revoke';
+
+interface PermissionDraft {
+  userId: string;
+  displayName: string | null;
+  overrides: Partial<Record<InternalPermission, PermissionEffect>>;
+}
+
+const permissionGroups: ReadonlyArray<{ label: string; permissions: ReadonlyArray<readonly [InternalPermission, string]> }> = [
+  { label: 'Console e clientes', permissions: [
+    ['console.read', 'Acesso ao console'], ['dashboard.executive.read', 'Visão executiva'], ['dashboard.technical.read', 'Visão técnica'],
+    ['customer.read', 'Consultar clientes'], ['customer.sensitive.read', 'Ver dados sensíveis'], ['customer.sensitive.request', 'Solicitar dados sensíveis'], ['customer.write', 'Editar clientes'],
+  ] },
+  { label: 'Operação e negócio', permissions: [
+    ['commercial.read', 'Consultar comercial'], ['commercial.write', 'Alterar planos e assinaturas'], ['support.read', 'Consultar suporte'], ['support.write', 'Responder suporte'],
+    ['session.read', 'Consultar sessões'], ['session.terminate', 'Encerrar sessões'], ['protocol.read', 'Consultar protocolos'], ['protocol.rotate', 'Rotacionar protocolos'],
+  ] },
+  { label: 'Governança e segurança', permissions: [
+    ['staff.read', 'Consultar equipe interna'], ['staff.manage', 'Gerenciar equipe interna'], ['audit.read', 'Consultar auditoria'],
+    ['account.approve', 'Aprovar contas'], ['account.lock', 'Bloquear contas'], ['account.recover_invite', 'Recuperar convite de conta'],
+    ['token.manage', 'Gerenciar tokens'], ['notification.manage', 'Enviar avisos'],
+  ] },
+  { label: 'Técnico', permissions: [
+    ['technical.read', 'Consultar dados técnicos'], ['technical.write', 'Alterar configurações técnicas'], ['build.request', 'Solicitar build'], ['build.approve', 'Aprovar build'],
+    ['configuration.prepare', 'Preparar configuração'], ['configuration.publish', 'Publicar configuração'],
+  ] },
+];
+
 export function StaffPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const { user, profile } = useAuth();
+  const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
+  const [confirmingPermissions, setConfirmingPermissions] = useState(false);
+  const { user, profile, can } = useAuth();
   const query = useQuery({
     queryKey: ['internal-staff', user?.id, profile?.role],
     queryFn: async () => {
@@ -65,6 +97,33 @@ export function StaffPage() {
     },
     invalidate: [['internal-staff'], ['audit-timeline']],
   });
+  const permissionOverrides = useQuery({
+    queryKey: ['internal-staff-permission-overrides', user?.id, profile?.role],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as (fn: string, args?: Record<string, never>) => PromiseLike<{
+        data: Array<{ staff_user_id: string; permission: InternalPermission; effect: PermissionEffect }> | null;
+        error: { message: string } | null;
+      }>)('list_internal_staff_permission_overrides');
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: can('staff.manage'),
+  });
+  const permissionMutation = useAdministrativeMutation<{ draft: PermissionDraft; reason: string }, unknown>({
+    mutationFn: async (input, operationId) => {
+      const entries = Object.entries(input.draft.overrides) as Array<[InternalPermission, PermissionEffect]>;
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>)('manage_internal_staff_permissions', {
+        p_user_id: input.draft.userId,
+        p_grants: entries.filter(([, effect]) => effect === 'grant').map(([permission]) => permission),
+        p_revokes: entries.filter(([, effect]) => effect === 'revoke').map(([permission]) => permission),
+        p_reason: input.reason,
+        p_operation_id: operationId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    invalidate: [['internal-staff-permission-overrides'], ['audit-timeline']],
+  });
 
   const rows = useMemo(() => query.data ?? [], [query.data]);
   const stats = useMemo(() => staffStats(rows), [rows]);
@@ -72,6 +131,16 @@ export function StaffPage() {
   function openNewMember() {
     setDraft({ userId: '', role: 'developer', status: 'active' });
     setConfirming(false);
+  }
+
+  function openPermissions(member: StaffRow) {
+    const overrides = Object.fromEntries(
+      (permissionOverrides.data ?? [])
+        .filter((item) => item.staff_user_id === member.user_id)
+        .map((item) => [item.permission, item.effect]),
+    ) as PermissionDraft['overrides'];
+    setPermissionDraft({ userId: member.user_id, displayName: member.display_name, overrides });
+    setConfirmingPermissions(false);
   }
 
   return (
@@ -141,7 +210,7 @@ export function StaffPage() {
                 {rows.map((member) => (
                   <li
                     key={member.user_id}
-                    className="grid min-h-[82px] grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-4 border-b py-3 last:border-0"
+                    className="grid min-h-[82px] grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b py-3 last:border-0"
                   >
                     <span className={cn(
                       'grid h-11 w-11 place-items-center rounded-full text-[11px] font-bold',
@@ -161,6 +230,11 @@ export function StaffPage() {
                       <StatusBadge value={member.role} />
                       <StatusBadge value={member.status} />
                     </div>
+                    {can('staff.manage') && (
+                      <Button variant="outline" size="sm" onClick={() => openPermissions(member)}>
+                        Permissões
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -223,7 +297,93 @@ export function StaffPage() {
           }}
         />
       )}
+      <StaffPermissionDialog
+        draft={permissionDraft}
+        open={Boolean(permissionDraft && !confirmingPermissions)}
+        onChange={setPermissionDraft}
+        onClose={() => setPermissionDraft(null)}
+        onContinue={() => setConfirmingPermissions(true)}
+      />
+      {permissionDraft && (
+        <HighRiskDialog
+          open={confirmingPermissions}
+          title="Confirmar alteração de permissões"
+          description="As permissões efetivas serão recalculadas no servidor. A mudança exige MFA, justificativa e registro de auditoria."
+          confirmLabel="Salvar permissões"
+          onClose={() => setConfirmingPermissions(false)}
+          onConfirm={async (reason) => {
+            const result = await permissionMutation.mutateAsync({ draft: permissionDraft, reason });
+            if (!result.ok) throw new Error(result.error);
+            setConfirmingPermissions(false);
+            setPermissionDraft(null);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+function StaffPermissionDialog({
+  draft,
+  open,
+  onChange,
+  onClose,
+  onContinue,
+}: {
+  draft: PermissionDraft | null;
+  open: boolean;
+  onChange: (draft: PermissionDraft) => void;
+  onClose: () => void;
+  onContinue: () => void;
+}) {
+  if (!draft) return null;
+  const currentDraft = draft;
+  function setEffect(permission: InternalPermission, value: string) {
+    const overrides = { ...currentDraft.overrides };
+    if (value === 'inherit') delete overrides[permission];
+    else overrides[permission] = value as PermissionEffect;
+    onChange({ ...currentDraft, overrides });
+  }
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Permissões de {currentDraft.displayName || 'membro interno'}</DialogTitle>
+          <DialogDescription>
+            “Herdar” aplica o papel atual. “Conceder” adiciona uma exceção e “remover” bloqueia uma permissão que o papel concederia.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-6">
+          {permissionGroups.map((group) => (
+            <section key={group.label} className="space-y-3">
+              <h3 className="text-sm font-semibold">{group.label}</h3>
+              <div className="divide-y rounded-lg border">
+                {group.permissions.map(([permission, label]) => (
+                  <div key={permission} className="grid grid-cols-[minmax(0,1fr)_160px] items-center gap-4 p-3">
+                    <div>
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{permission}</p>
+                    </div>
+                    <Select value={currentDraft.overrides[permission] ?? 'inherit'} onValueChange={(value) => setEffect(permission, value)}>
+                      <SelectTrigger aria-label={`Estado de ${label}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inherit">Herdar papel</SelectItem>
+                        <SelectItem value="grant">Conceder</SelectItem>
+                        <SelectItem value="revoke">Remover</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={onContinue}><ShieldCheck />Revisar alteração</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

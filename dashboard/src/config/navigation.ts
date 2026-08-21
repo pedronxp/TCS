@@ -13,6 +13,8 @@ import {
   History,
   Shield,
   Smartphone,
+  KeyRound,
+  BellRing,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -37,6 +39,8 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
       { to: '/app', label: 'Visão executiva', icon: Gauge, permission: 'dashboard.executive.read' },
       { to: '/app/clientes', label: 'Clientes', icon: Building2, permission: 'customer.read' },
       { to: '/app/suporte', label: 'Suporte', icon: Headphones, permission: 'support.read' },
+      { to: '/app/operacao/estatisticas', label: 'Estatísticas da operação', icon: Activity, permission: 'dashboard.executive.read' },
+      { to: '/app/desenvolvimento/formularios', label: 'Formulários', icon: FileCode2, permission: 'technical.read' },
     ],
   },
   {
@@ -52,7 +56,10 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
     label: 'Governança',
     items: [
       { to: '/app/staff', label: 'Pessoas e acessos', icon: Users, permission: 'staff.read' },
+      { to: '/app/tokens', label: 'Tokens de convite', icon: KeyRound, permission: 'token.manage' },
+      { to: '/app/avisos', label: 'Avisos e notificações', icon: BellRing, permission: 'technical.write' },
       { to: '/app/sessoes', label: 'Sessões e segurança', icon: Smartphone, permission: 'session.read' },
+      { to: '/app/dispositivo', label: 'Dispositivos', icon: Smartphone, permission: 'session.read' },
       { to: '/app/auditoria', label: 'Auditoria', icon: History, permission: 'audit.read' },
       { to: '/app/governanca/arquivamento', label: 'Arquivamento', icon: Boxes, permission: 'configuration.publish' },
     ],
@@ -67,6 +74,7 @@ export const DEVELOPER_NAVIGATION: NavigationGroup[] = [
       { to: '/app/clientes', label: 'Clientes', icon: Building2, permission: 'customer.read' },
       { to: '/app/suporte', label: 'Suporte', icon: Headphones, permission: 'support.read' },
       { to: '/app/protocolos', label: 'Protocolos', icon: Hash, permission: 'protocol.read' },
+      { to: '/app/operacao/estatisticas', label: 'Estatísticas da operação', icon: Activity, permission: 'dashboard.technical.read' },
     ],
   },
   {
@@ -85,6 +93,10 @@ export const DEVELOPER_NAVIGATION: NavigationGroup[] = [
     label: 'Governança',
     items: [
       { to: '/app/auditoria', label: 'Auditoria', icon: History, permission: 'audit.read' },
+      { to: '/app/tokens', label: 'Tokens de convite', icon: KeyRound, permission: 'token.manage' },
+      { to: '/app/avisos', label: 'Avisos e notificações', icon: BellRing, permission: 'technical.write' },
+      { to: '/app/sessoes', label: 'Sessões e segurança', icon: Smartphone, permission: 'session.read' },
+      { to: '/app/dispositivo', label: 'Dispositivos', icon: Smartphone, permission: 'session.read' },
     ],
   },
 ];

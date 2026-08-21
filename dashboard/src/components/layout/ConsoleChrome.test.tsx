@@ -108,7 +108,7 @@ describe('Chrome do console', () => {
     expect(screen.getAllByRole('link', { name: /Visão executiva/ }).some((link) => link.getAttribute('href') === '/app')).toBe(true);
     expect(screen.getByPlaceholderText('Buscar cliente por nome ou documento…')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Novo cliente/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Abrir fila de suporte' })).toHaveAttribute('href', '/app/suporte');
+    expect(screen.getByRole('button', { name: 'Abrir notificações' })).toBeVisible();
   });
 
   it('mantém navegação recolhida com área de toque confortável', () => {
@@ -153,7 +153,7 @@ describe('Chrome do console', () => {
 
     expect(screen.getAllByText('Saúde técnica').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /Saúde técnica/ }).some((link) => link.getAttribute('href') === '/app')).toBe(true);
-    expect(screen.getByRole('link', { name: 'Abrir alertas técnicos' })).toHaveAttribute('href', '/app/desenvolvimento/logs');
+    expect(screen.getByRole('button', { name: 'Abrir notificações' })).toBeVisible();
     expect(screen.queryByRole('link', { name: 'Visão executiva' })).not.toBeInTheDocument();
   });
 

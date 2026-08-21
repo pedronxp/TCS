@@ -1,16 +1,25 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
 export type TokenRecord = {
-  codigo: string;
+  managementId: string;
   role: string;
   municipio: string | null;
-  criadoPor: string | null;
   usado: boolean;
   criadoEm: string;
   expiresAt: string | null;
-  notificadoExpirando: boolean;
+  status: 'active' | 'used' | 'expired' | 'revoked';
+};
+
+type TokenRpcRow = {
+  management_id: string;
+  role: string;
+  municipio: string | null;
+  created_at: string;
+  expires_at: string | null;
+  used: boolean;
+  status: TokenRecord['status'];
 };
 
 export function useTokens() {
@@ -19,106 +28,40 @@ export function useTokens() {
   return useQuery({
     queryKey: ['tokens', profile?.role, profile?.municipio],
     queryFn: async () => {
-      let query = supabase
-        .from('invite_tokens')
-        .select('*')
-        .order('criadoEm', { ascending: false });
-
-      const municipio = profile?.municipio;
-      if (profile?.role !== 'master_admin' && municipio) {
-        query = query.eq('municipio', municipio);
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: TokenRpcRow[] | null; error: { message: string } | null }>)('list_console_invite_tokens', {
+        p_municipio: profile?.role === 'master_admin' ? null : profile?.municipio ?? null,
+      });
       if (error) throw error;
       return (data ?? []).map((token): TokenRecord => ({
-        codigo: token.codigo,
-        role: token.role ?? 'agente',
+        managementId: token.management_id,
+        role: token.role,
         municipio: token.municipio,
-        criadoPor: token.criadoPor,
-        usado: Boolean(token.usado),
-        criadoEm: token.criadoEm,
-        expiresAt: token.expiraEm,
-        notificadoExpirando: token.notificadoExpirando,
+        usado: token.used,
+        criadoEm: token.created_at,
+        expiresAt: token.expires_at,
+        status: token.status,
       }));
     },
-    enabled: !!profile,
+    enabled: Boolean(profile),
   });
-}
-
-function gerarCodigo(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const seg = () =>
-    Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  return `${seg()}-${seg()}-${seg()}`;
 }
 
 export function useCriarToken() {
-  const qc = useQueryClient();
-  const { profile } = useAuth();
+  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      role,
-      municipio,
-      horasValidade,
-    }: {
-      role: string;
-      municipio: string;
-      horasValidade: number;
-    }) => {
-      const codigo = gerarCodigo();
-      const expiresAt = new Date(Date.now() + horasValidade * 3_600_000).toISOString();
-
-      const { error } = await supabase.from('invite_tokens').insert({
-        codigo,
-        role,
-        municipio,
-        criadoPor: profile?.uid ?? null,
-        usado: false,
-        criadoEm: new Date().toISOString(),
-        expiraEm: expiresAt,
+    mutationFn: async ({ role, municipio, horasValidade, reason }: { role: string; municipio: string; horasValidade: number; reason: string }) => {
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: { token?: string } | null; error: { message: string } | null }>)('create_console_invite_token', {
+        p_role: role,
+        p_municipio: municipio.trim(),
+        p_expires_in_minutes: Math.round(horasValidade * 60),
+        p_reason: reason.trim(),
+        p_operation_id: crypto.randomUUID(),
       });
       if (error) throw error;
-      return codigo;
+      if (!data?.token) throw new Error('O servidor não retornou o token de convite.');
+      return data.token;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
-  });
-}
-
-export function useCancelarToken() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (codigo: string) => {
-      const { error } = await supabase.from('invite_tokens').delete().eq('codigo', codigo);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
-  });
-}
-
-export function useLimparTokens() {
-  const qc = useQueryClient();
-  const { profile } = useAuth();
-
-  return useMutation({
-    mutationFn: async (tipo: 'expirados' | 'usados') => {
-      let query = supabase.from('invite_tokens').delete();
-
-      const municipio = profile?.municipio;
-      if (profile?.role !== 'master_admin' && municipio) {
-        query = query.eq('municipio', municipio);
-      }
-
-      if (tipo === 'expirados') {
-        query = query.lt('expiraEm', new Date().toISOString()).eq('usado', false);
-      } else {
-        query = query.eq('usado', true);
-      }
-
-      const { error } = await query;
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tokens'] }),
   });
 }

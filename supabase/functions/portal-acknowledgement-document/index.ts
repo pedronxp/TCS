@@ -1,0 +1,52 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.100.0';
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+function json(body: Record<string, unknown>, status = 200) {
+  return Response.json(body, { status, headers: corsHeaders });
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);
+  const authorization = request.headers.get('Authorization');
+  const token = authorization?.replace(/^Bearer\s+/i, '');
+  if (!authorization || !token) return json({ ok: false, error: 'authentication_required' }, 401);
+  const { data: { user }, error: authError } = await admin.auth.getUser(token);
+  if (authError || !user) return json({ ok: false, error: 'invalid_session' }, 401);
+
+  let body: Record<string, unknown>;
+  try { body = await request.json(); } catch { return json({ ok: false, error: 'invalid_json' }, 400); }
+  const eventId = typeof body.event_id === 'string' ? body.event_id : '';
+  const asset = body.asset === 'signature' ? 'signature' : body.asset === 'document' ? 'document' : '';
+  const mode = body.mode === 'download' ? 'download' : 'view';
+  if (!/^[0-9a-f-]{36}$/i.test(eventId) || !asset) return json({ ok: false, error: 'invalid_request' }, 400);
+
+  const caller = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { data, error } = await caller.rpc('portal_authorize_acknowledgement_document', { p_event_id: eventId, p_asset: asset });
+  if (error || !data) return json({ ok: false, error: error?.code === '42501' ? 'evidence_not_allowed' : 'evidence_not_found' }, error?.code === '42501' ? 403 : 404);
+  const descriptor = data as { bucket?: unknown; path?: unknown; filename?: unknown; expires_in?: unknown; asset?: unknown };
+  const path = typeof descriptor.path === 'string' ? descriptor.path : '';
+  if (descriptor.bucket !== 'document-evidence' || descriptor.asset !== asset || !path || path.startsWith('/') || path.split('/').includes('..')) {
+    return json({ ok: false, error: 'invalid_storage_path' }, 422);
+  }
+  const expiresIn = Math.min(60, Math.max(15, Number(descriptor.expires_in) || 60));
+  const { data: signed, error: signedError } = await admin.storage.from('document-evidence').createSignedUrl(
+    path,
+    expiresIn,
+    mode === 'download' ? { download: typeof descriptor.filename === 'string' ? descriptor.filename : true } : undefined,
+  );
+  if (signedError || !signed?.signedUrl) return json({ ok: false, error: 'evidence_signing_failed' }, 502);
+  return json({ ok: true, signed_url: signed.signedUrl, expires_in: expiresIn, disposition: mode, asset });
+});

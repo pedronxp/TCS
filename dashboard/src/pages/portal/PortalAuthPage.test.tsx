@@ -27,6 +27,7 @@ const portalAuthState = vi.hoisted(() => ({
   signInWithGoogle: vi.fn().mockResolvedValue(null),
   bootstrapIndividual: vi.fn().mockResolvedValue(null),
   bootstrapMunicipal: vi.fn().mockResolvedValue(null),
+  recordOnboardingEvent: vi.fn().mockResolvedValue(undefined),
   signOut: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -44,6 +45,7 @@ afterEach(() => {
   portalAuthState.signInWithGoogle.mockReset().mockResolvedValue(null);
   portalAuthState.bootstrapIndividual.mockReset().mockResolvedValue(null);
   portalAuthState.bootstrapMunicipal.mockReset().mockResolvedValue(null);
+  portalAuthState.recordOnboardingEvent.mockReset().mockResolvedValue(undefined);
   portalAuthState.signOut.mockReset().mockResolvedValue(undefined);
   delete document.documentElement.dataset.theme;
 });

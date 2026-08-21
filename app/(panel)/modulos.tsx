@@ -110,6 +110,7 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
       {
         key: 'intelligence', title: 'Operação e inteligência', description: 'Dados técnicos e controle', items: [
           ...baseOperation,
+          { title: 'Formulários', description: 'Criar, editar e publicar modelos técnicos', icon: 'edit-3', route: '/(panel)/admin/form-editor' },
           { title: 'Relatórios', description: 'Laudos e exportações', icon: 'file-text', route: '/(panel)/admin/relatorios' },
           { title: 'Estatísticas', description: 'Indicadores globais', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas' },
           { title: 'Tokens', description: 'Convites e acesso', icon: 'key', route: '/(panel)/admin/tokens' },
@@ -133,6 +134,7 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
       {
         key: 'technical', title: 'Operação técnica', description: 'Vistorias e inteligência local', items: [
           ...baseOperation,
+          { title: 'Formulários', description: 'Criar, editar e publicar modelos técnicos', icon: 'edit-3', route: '/(panel)/admin/form-editor' },
           { title: 'Relatórios', description: 'Exportar laudos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
           { title: 'Estatísticas', description: 'Métricas municipais', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas' },
           { title: 'Logs', description: 'Atividades recentes', icon: 'terminal', route: '/(panel)/admin/logs' },

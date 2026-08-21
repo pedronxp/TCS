@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertCircle,
   CheckCircle2,
   Clock,
   Copy,
+  Download,
+  Eye,
   ExternalLink,
   FileCheck2,
   Link2,
@@ -20,6 +22,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalRestrictionMessage } from '@/lib/portal';
+import { supabase } from '@/lib/supabase';
 
 type AcknowledgementStatus = 'pending' | 'link_sent' | 'acknowledged' | 'refused' | 'unable_to_sign';
 
@@ -41,7 +44,14 @@ type AcknowledgementItem = {
   can_generate?: boolean;
   can_revoke?: boolean;
   can_copy?: boolean;
+  acknowledgement_id?: string;
+  document_available?: boolean;
+  signature_available?: boolean;
+  acknowledged_at?: string;
 };
+
+type EvidenceAsset = 'document' | 'signature';
+type AuthorizedEvidence = { eventId: string; asset: EvidenceAsset; mode: 'view' | 'download'; url: string };
 
 const statusMeta: Record<AcknowledgementStatus, { label: string; tone: 'warning' | 'success' | 'destructive' | 'outline'; icon: typeof Clock }> = {
   pending: { label: 'Pendente', tone: 'warning', icon: Clock },
@@ -72,6 +82,8 @@ export function PortalAcknowledgementsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
+  const [authorizedEvidence, setAuthorizedEvidence] = useState<AuthorizedEvidence | null>(null);
   const subscriptionBlocks = access ? !access.creationAllowed : false;
   const items = (query.data?.items ?? []) as AcknowledgementItem[];
 
@@ -103,6 +115,27 @@ export function PortalAcknowledgementsPage() {
       setActionError('Não foi possível copiar o link. Copie manualmente da lista.');
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function openEvidence(item: AcknowledgementItem, asset: EvidenceAsset, mode: 'view' | 'download') {
+    const eventId = item.acknowledgement_id;
+    if (!eventId || evidenceBusy) return;
+    setError(null);
+    setAuthorizedEvidence(null);
+    const action = `${eventId}-${asset}-${mode}`;
+    setEvidenceBusy(action);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('portal-acknowledgement-document', {
+        body: { event_id: eventId, asset, mode },
+      });
+      const url = secureEvidenceUrl(data, asset, mode);
+      if (invokeError || !url) throw new Error('evidence_not_authorized');
+      setAuthorizedEvidence({ eventId, asset, mode, url });
+    } catch {
+      setError('Não foi possível autorizar esta evidência. Tente novamente.');
+    } finally {
+      setEvidenceBusy(null);
     }
   }
 
@@ -179,6 +212,9 @@ export function PortalAcknowledgementsPage() {
                   onNewLink={() => void runLinkAction(item, 'new')}
                   onResume={() => void runLinkAction(item, 'generate')}
                   onCopy={() => void copyLink(item)}
+                  evidenceBusy={evidenceBusy}
+                  authorizedEvidence={authorizedEvidence}
+                  onEvidence={(asset, mode) => void openEvidence(item, asset, mode)}
                 />
               ))}
             </ul>
@@ -198,6 +234,9 @@ function AcknowledgementRow({
   onNewLink,
   onResume,
   onCopy,
+  evidenceBusy,
+  authorizedEvidence,
+  onEvidence,
 }: {
   item: AcknowledgementItem;
   busy: string | null;
@@ -207,6 +246,9 @@ function AcknowledgementRow({
   onNewLink: () => void;
   onResume: () => void;
   onCopy: () => void;
+  evidenceBusy: string | null;
+  authorizedEvidence: AuthorizedEvidence | null;
+  onEvidence: (asset: EvidenceAsset, mode: 'view' | 'download') => void;
 }) {
   const status = resolveStatus(String(item.status ?? 'pending'));
   const meta = statusMeta[status];
@@ -216,6 +258,8 @@ function AcknowledgementRow({
   const concluded = status === 'acknowledged';
   const revoked = status === 'refused' || status === 'unable_to_sign';
   const id = String(item.id);
+  const eventId = item.acknowledgement_id;
+  const evidenceAction = (asset: EvidenceAsset, mode: 'view' | 'download') => `${eventId}-${asset}-${mode}`;
 
   return (
     <li className="grid gap-3 px-6 py-5 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
@@ -230,6 +274,22 @@ function AcknowledgementRow({
         )}
         {item.reason && (
           <p className="mt-2 rounded-md border bg-secondary p-2 text-xs leading-5 text-muted-foreground">Motivo: {item.reason}</p>
+        )}
+        {eventId && item.document_available && (
+          <div className="mt-3 rounded-lg border bg-secondary/50 p-3">
+            <p className="text-xs font-bold">Evidências da ciência</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Os arquivos são liberados por link temporário, somente para usuários autorizados.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => onEvidence('document', 'view')} disabled={Boolean(evidenceBusy)}>{evidenceBusy === evidenceAction('document', 'view') ? 'Autorizando…' : <><Eye aria-hidden="true" />Visualizar documento</>}</Button>
+              <Button variant="ghost" size="sm" onClick={() => onEvidence('document', 'download')} disabled={Boolean(evidenceBusy)}>{evidenceBusy === evidenceAction('document', 'download') ? 'Autorizando…' : <><Download aria-hidden="true" />Baixar documento</>}</Button>
+              {item.signature_available && <Button variant="outline" size="sm" onClick={() => onEvidence('signature', 'view')} disabled={Boolean(evidenceBusy)}>{evidenceBusy === evidenceAction('signature', 'view') ? 'Autorizando…' : <><Eye aria-hidden="true" />Visualizar assinatura</>}</Button>}
+              {item.signature_available && <Button variant="ghost" size="sm" onClick={() => onEvidence('signature', 'download')} disabled={Boolean(evidenceBusy)}>{evidenceBusy === evidenceAction('signature', 'download') ? 'Autorizando…' : <><Download aria-hidden="true" />Baixar assinatura</>}</Button>}
+            </div>
+            {authorizedEvidence?.eventId === eventId && authorizedEvidence.asset === 'signature' && authorizedEvidence.mode === 'view' && <SignaturePreview url={authorizedEvidence.url} />}
+            {authorizedEvidence?.eventId === eventId && (
+              <Button asChild size="sm" className="mt-3"><a href={authorizedEvidence.url} target="_blank" rel="noopener noreferrer">{authorizedEvidence.mode === 'download' ? 'Baixar arquivo autorizado' : 'Abrir arquivo autorizado'}</a></Button>
+            )}
+          </div>
         )}
       </div>
       <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -253,11 +313,7 @@ function AcknowledgementRow({
             {busy === `revoke-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <X aria-hidden="true" />}Revogar link
           </Button>
         )}
-        {concluded && (
-          <Button variant="ghost" size="sm" onClick={onNewLink} disabled={Boolean(busy)} title="Emitir novo link para o mesmo documento">
-            {busy === `new-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Send aria-hidden="true" />}Emitir novo link
-          </Button>
-        )}
+        {concluded && null}
         {revoked && (
           <Button variant="outline" size="sm" onClick={onNewLink} disabled={Boolean(busy)} title="Emitir novo link para tentar novamente">
             {busy === `new-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ExternalLink aria-hidden="true" />}Emitir novo link
@@ -266,6 +322,49 @@ function AcknowledgementRow({
       </div>
     </li>
   );
+}
+
+function secureEvidenceUrl(value: unknown, asset: EvidenceAsset, mode: 'view' | 'download') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const response = value as Record<string, unknown>;
+  if (response.ok !== true || response.asset !== asset || response.disposition !== mode || typeof response.signed_url !== 'string') return null;
+  try {
+    const url = new URL(response.signed_url);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+type SignatureStroke = { points: Array<{ x: number; y: number }> };
+
+function SignaturePreview({ url }: { url: string }) {
+  const [strokes, setStrokes] = useState<SignatureStroke[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    setStrokes(null);
+    void fetch(url)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('signature_unavailable')))
+      .then((value: unknown) => {
+        if (active) setStrokes(parseSignatureStrokes(value));
+      })
+      .catch(() => { if (active) setStrokes([]); });
+    return () => { active = false; };
+  }, [url]);
+  if (strokes === null) return <p className="mt-3 text-xs text-muted-foreground">Carregando assinatura…</p>;
+  if (!strokes.length) return <p className="mt-3 text-xs text-muted-foreground">Não foi possível renderizar a assinatura. Use o download para acessar a evidência original.</p>;
+  return <div className="mt-3 overflow-hidden rounded-lg border bg-card p-2"><p className="mb-2 text-xs font-medium">Assinatura capturada</p><svg viewBox="0 0 600 200" className="h-32 w-full rounded bg-white" role="img" aria-label="Assinatura capturada"><title>Assinatura capturada</title>{strokes.map((stroke, index) => <polyline key={index} points={stroke.points.map((point) => `${point.x * 600},${point.y * 200}`).join(' ')} fill="none" stroke="#172033" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />)}</svg></div>;
+}
+
+function parseSignatureStrokes(value: unknown): SignatureStroke[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((stroke) => {
+    if (!stroke || typeof stroke !== 'object' || Array.isArray(stroke)) return null;
+    const points = (stroke as { points?: unknown }).points;
+    if (!Array.isArray(points)) return null;
+    const valid = points.filter((point): point is { x: number; y: number } => Boolean(point) && typeof point === 'object' && !Array.isArray(point) && Number.isFinite((point as { x?: unknown }).x) && Number.isFinite((point as { y?: unknown }).y) && (point as { x: number }).x >= 0 && (point as { x: number }).x <= 1 && (point as { y: number }).y >= 0 && (point as { y: number }).y <= 1);
+    return valid.length ? { points: valid } : null;
+  }).filter((stroke): stroke is SignatureStroke => stroke !== null);
 }
 
 function portalRestrictionCause(blocked: boolean) {

@@ -16,7 +16,7 @@ export function AsyncLoading({ label = 'Carregando dados…', rows = 3 }: { labe
 }
 
 export function AsyncError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const message = error instanceof Error ? error.message : 'Não foi possível carregar os dados.';
+  const message = error instanceof Error ? error.message : error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' ? error.message : 'Não foi possível carregar os dados.';
   return <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Falha ao carregar</AlertTitle><AlertDescription><p>{message}</p>{onRetry && <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}><RefreshCw />Tentar novamente</Button>}</AlertDescription></Alert>;
 }
 

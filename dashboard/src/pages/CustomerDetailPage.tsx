@@ -1,4 +1,5 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -17,6 +18,7 @@ import {
   LockKeyhole,
   Loader2,
   Pencil,
+  Plus,
   RefreshCw,
   UnlockKeyhole,
   UserPlus,
@@ -24,7 +26,7 @@ import {
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { IndividualEditDialog } from '@/components/customers/IndividualEditDialog';
 import { CustomerMap } from '@/components/customers/CustomerMap';
-import { StatusBadge } from '@/components/domain/Badges';
+import { AccountPermissionBadge, StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary, AsyncEmpty, AsyncError, AsyncLoading } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -64,6 +66,7 @@ import {
   useCreateCustomerAppointment,
   useCustomerOperations,
 } from '@/hooks/useCustomerOperations';
+import { useSubscriptionMutation } from '@/hooks/useSubscriptionMutation';
 import { supabase } from '@/lib/supabase';
 import { ptBrLabel } from '@/lib/ptBrLabels';
 import { cn } from '@/lib/utils';
@@ -171,7 +174,7 @@ export function CustomerDetailWorkspace({
   const customerBasePath = customerDetailPath(customerId);
 
   return (
-    <section className="page-stack max-w-[1094px]">
+    <section className="page-stack mx-auto w-full max-w-[1240px]">
       <form
         id="customer-edit-form"
         className="hidden"
@@ -205,10 +208,7 @@ export function CustomerDetailWorkspace({
 
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge value={customer.status} />
-            <StatusBadge
-              value={detail.subscription?.status ?? null}
-              fallback="Sem assinatura"
-            />
+            {customer.kind === 'individual' && <AccountPermissionBadge role={detail.users[0]?.role} />}
             {canEdit && (
               <Button variant="outline" className="h-11 min-w-24" onClick={() => setEditing(true)}>
                 <Pencil className="h-4 w-4" />
@@ -230,7 +230,7 @@ export function CustomerDetailWorkspace({
       )}
 
       <nav
-        className="flex min-h-[52px] items-stretch overflow-x-auto rounded-lg border bg-card px-2"
+        className="flex min-h-[56px] items-stretch overflow-x-auto rounded-2xl border border-border/70 bg-card/85 px-2 shadow-sm"
         aria-label="Seções do cliente"
       >
         {primarySections.map(([key, label]) => (
@@ -257,7 +257,7 @@ export function CustomerDetailWorkspace({
               <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuContent align="end" sideOffset={8} className="w-52">
             {moreSections.map(([key, label]) => (
               <DropdownMenuItem key={key} asChild>
                 <Link to={`${customerBasePath}/${key}`} aria-current={activeSection === key ? 'page' : undefined}>
@@ -277,6 +277,8 @@ export function CustomerDetailWorkspace({
         operationsError={operationsError}
         onRetryOperations={onRetryOperations}
         onCustomerChanged={onSaved}
+        canEdit={canEdit}
+        onSaved={onSaved}
       />
 
       <OrganizationFormDialog
@@ -329,6 +331,8 @@ function CustomerSection({
   operationsError,
   onRetryOperations,
   onCustomerChanged,
+  canEdit,
+  onSaved,
 }: {
   section: string;
   detail: CustomerDetail;
@@ -337,9 +341,11 @@ function CustomerSection({
   operationsError: Error | null;
   onRetryOperations?: () => void;
   onCustomerChanged?: () => void;
+  canEdit?: boolean;
+  onSaved?: () => void;
 }) {
   if (section === 'resumo') return <Summary detail={detail} />;
-  if (section === 'assinatura') return <Subscription detail={detail} />;
+  if (section === 'assinatura') return <Subscription detail={detail} canEdit={canEdit} onSaved={onSaved} />;
   if (section === 'consumo') return <Usage detail={detail} />;
   if (section === 'equipe') return <Team detail={detail} onCustomerChanged={onCustomerChanged} />;
   if (section === 'operacao') return <OperationsOverview detail={detail} />;
@@ -377,31 +383,40 @@ function Summary({ detail }: { detail: CustomerDetail }) {
   const usagePercent = highestUsagePercent(detail);
   const health = calculateCustomerHealth(detail);
   const activities = useMemo(() => buildRecentActivity(detail), [detail]);
+  const lastAccessAt = latestDate([customer.last_access_at, ...detail.users.map((item) => item.last_login)]);
+  const latestInspection = [...detail.inspections]
+    .filter((item) => item.occurred_at)
+    .sort((left, right) => new Date(right.occurred_at ?? 0).getTime() - new Date(left.occurred_at ?? 0).getTime())[0];
 
   return (
     <div className="space-y-6">
-      <section className="surface-muted grid min-h-[210px] gap-8 p-7 md:grid-cols-[1fr_auto] md:items-center">
-        <div className="self-start md:self-center">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Visão geral do cliente
-          </p>
-          <h2 className="mt-4 text-[25px] font-bold leading-8">
+      <section className="surface-muted grid gap-6 p-6 sm:p-7 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Visão geral do cliente</p>
+            <span className="h-1 w-1 rounded-full bg-muted-foreground" aria-hidden="true" />
+            <span className="text-xs font-medium text-primary">Atualizado com dados operacionais</span>
+          </div>
+          <h2 className="mt-3 text-[26px] font-bold leading-8 tracking-[-0.025em]">
             {subscription?.plan_name || 'Cliente sem plano atribuído'}
           </h2>
-          <p className="mt-2 max-w-[600px] text-sm leading-5 text-muted-foreground">
-            {health.description}
-          </p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{health.description}</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Contexto da conta">
+            <SummaryFact label="Último acesso" value={lastAccessAt ? formatRelative(lastAccessAt) : 'Sem acesso registrado'} />
+            <SummaryFact label="Próxima renovação" value={subscription?.current_period_end ? formatShortDate(subscription.current_period_end) : 'Não informada'} />
+            <SummaryFact label={customer.kind === 'organization' ? 'Equipe ativa' : 'Conta ativa'} value={customer.kind === 'organization' ? `${customer.active_users} pessoas` : customer.status === 'active' ? 'Sim' : 'Não'} />
+          </div>
         </div>
-        <div className="flex min-w-40 flex-col items-center justify-center">
+        <div className="flex min-w-40 flex-col items-center justify-center border-t border-border/60 pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
           <div
-            className="grid h-[118px] w-[118px] place-items-center rounded-full"
+            className="grid h-[124px] w-[124px] place-items-center rounded-full"
             style={{
               background: `conic-gradient(hsl(var(--chart-1)) ${health.score * 3.6}deg, hsl(var(--card)) 0deg)`,
             }}
             role="img"
             aria-label={`Saúde operacional calculada em ${health.score} de 100`}
           >
-            <div className="grid h-[96px] w-[96px] place-items-center rounded-full bg-card text-center">
+            <div className="grid h-[100px] w-[100px] place-items-center rounded-full bg-card text-center">
               <span>
                 <strong className="block text-[30px] leading-8">{health.score}</strong>
                 <span className="text-[9px] font-bold uppercase text-muted-foreground">Saúde</span>
@@ -443,8 +458,8 @@ function Summary({ detail }: { detail: CustomerDetail }) {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[336px_minmax(0,430px)_minmax(250px,288px)]">
-        <Card className="min-h-[246px] shadow-none">
+      <section className="grid gap-5 xl:grid-cols-[minmax(300px,0.9fr)_minmax(360px,1.15fr)_minmax(280px,0.85fr)]">
+        <Card className="shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-[17px]">Conta e plano</CardTitle>
           </CardHeader>
@@ -456,15 +471,16 @@ function Summary({ detail }: { detail: CustomerDetail }) {
               <DefinitionRow
                 label="Próxima renovação"
                 value={subscription?.current_period_end ? formatShortDate(subscription.current_period_end) : 'Não informada'}
-                last
               />
+              <DefinitionRow label="Cliente desde" value={customer.created_at ? formatMonthYear(customer.created_at) : 'Não informado'} />
+              <DefinitionRow label="Último acesso" value={lastAccessAt ? formatRelative(lastAccessAt) : 'Sem acesso registrado'} last />
             </dl>
           </CardContent>
         </Card>
 
-        <Card className="min-h-[246px] shadow-none">
+        <Card className="shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[17px]">Atividade recente</CardTitle>
+            <div className="flex items-center justify-between gap-3"><CardTitle className="text-[17px]">Atividade recente</CardTitle><span className="text-xs text-muted-foreground">{activities.length} evento(s)</span></div>
           </CardHeader>
           <CardContent>
             {activities.length ? (
@@ -520,16 +536,57 @@ function Summary({ detail }: { detail: CustomerDetail }) {
             Abrir dados completos
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
+          <div className="h-px bg-border" />
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Operação e acesso</p>
+            <dl className="mt-3 space-y-2.5 text-xs">
+              <SnapshotRow label="Sessões ativas" value={String(activeSessions)} />
+              <SnapshotRow label="Política de sessão" value={ptBrLabel(customer.session_policy, 'Não informada')} />
+              <SnapshotRow label="Última vistoria" value={latestInspection?.occurred_at ? formatRelative(latestInspection.occurred_at) : 'Nenhuma'} />
+              {latestInspection?.risk ? <SnapshotRow label="Risco mais recente" value={latestInspection.risk.toUpperCase()} /> : null}
+            </dl>
+          </div>
         </aside>
       </section>
     </div>
   );
 }
 
-function Subscription({ detail }: { detail: CustomerDetail }) {
+function SummaryFact({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-border/60 bg-card/55 px-3.5 py-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 truncate text-sm font-semibold">{value}</p></div>;
+}
+
+function SnapshotRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-medium text-foreground">{value}</dd></div>;
+}
+
+function Subscription({ detail, canEdit, onSaved }: { detail: CustomerDetail; canEdit?: boolean; onSaved?: () => void }) {
   const subscription = detail.subscription;
+  const [assigning, setAssigning] = useState(false);
+  const [editing, setEditing] = useState(false);
+
   if (!subscription) {
-    return <AsyncEmpty title="Sem assinatura" description="Este cliente ainda não possui plano atribuído." />;
+    return (
+      <>
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed p-8 text-center">
+          <p className="text-sm font-medium">Sem assinatura</p>
+          <p className="text-sm text-muted-foreground">Este cliente ainda não possui plano atribuído.</p>
+          {canEdit && (
+            <Button variant="outline" onClick={() => setAssigning(true)}>
+              <Plus className="h-4 w-4" />
+              Atribuir plano
+            </Button>
+          )}
+        </div>
+        <AssignPlanDialog
+          open={assigning}
+          customerId={detail.customer.customer_id}
+          customerKind={detail.customer.kind}
+          onClose={() => setAssigning(false)}
+          onSaved={() => { setAssigning(false); onSaved?.(); }}
+        />
+      </>
+    );
   }
 
   return (
@@ -543,9 +600,25 @@ function Subscription({ detail }: { detail: CustomerDetail }) {
               {subscriptionStatusDescription(subscription.status)}
             </p>
           </div>
-          <StatusBadge value={subscription.status} />
+          <div className="flex shrink-0 flex-col items-end gap-3">
+            <StatusBadge value={subscription.status} />
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+                Editar assinatura
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
+      <EditSubscriptionDialog
+        open={editing}
+        customerId={detail.customer.customer_id}
+        customerKind={detail.customer.kind}
+        subscription={subscription}
+        onClose={() => setEditing(false)}
+        onSaved={() => { setEditing(false); onSaved?.(); }}
+      />
       <div className="grid gap-4 lg:grid-cols-2">
         <DefinitionCard title="Ciclo da assinatura">
           <DefinitionRow label="Início da assinatura" value={formatDate(subscription.starts_at)} />
@@ -567,6 +640,432 @@ function Subscription({ detail }: { detail: CustomerDetail }) {
         <strong className="text-foreground">Como interpretar:</strong> a situação indica se o plano está liberado; o período mostra o ciclo atual.
       </div>
     </div>
+  );
+}
+
+function EditSubscriptionDialog({
+  open,
+  customerId,
+  customerKind,
+  subscription,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  customerId: string;
+  customerKind: string;
+  subscription: CustomerDetail['subscription'];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  if (!subscription) return null;
+  const audience = customerKind === 'organization' ? 'organization' : 'individual';
+
+  const toDateInput = (iso: string | null | undefined) => iso ? iso.slice(0, 10) : '';
+
+  const [planId, setPlanId] = useState(subscription.plan_id);
+  const [status, setStatus] = useState(subscription.status);
+  const [startsAt, setStartsAt] = useState(toDateInput(subscription.starts_at));
+  const [trialEndsAt, setTrialEndsAt] = useState(toDateInput(subscription.trial_ends_at));
+  const [periodStart, setPeriodStart] = useState(toDateInput(subscription.current_period_start));
+  const [periodEnd, setPeriodEnd] = useState(toDateInput(subscription.current_period_end));
+  const [graceEndsAt, setGraceEndsAt] = useState(toDateInput(subscription.grace_ends_at));
+  const [overridesText, setOverridesText] = useState(() =>
+    subscription.overrides && typeof subscription.overrides === 'object' && Object.keys(subscription.overrides).length
+      ? JSON.stringify(subscription.overrides, null, 2)
+      : ''
+  );
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const mutation = useSubscriptionMutation();
+
+  const plans = useQuery({
+    queryKey: ['commercial-plans-options'],
+    queryFn: async () => {
+      const { data, error: err } = await supabase
+        .from('plans')
+        .select('id,name,audience,status')
+        .neq('audience', 'compatibility')
+        .neq('status', 'retired')
+        .order('name');
+      if (err) throw err;
+      return data;
+    },
+    enabled: open,
+  });
+  const compatiblePlans = (plans.data ?? []).filter((p) => p.audience === audience);
+
+  useEffect(() => {
+    if (!open) return;
+    setPlanId(subscription.plan_id);
+    setStatus(subscription.status);
+    setStartsAt(toDateInput(subscription.starts_at));
+    setTrialEndsAt(toDateInput(subscription.trial_ends_at));
+    setPeriodStart(toDateInput(subscription.current_period_start));
+    setPeriodEnd(toDateInput(subscription.current_period_end));
+    setGraceEndsAt(toDateInput(subscription.grace_ends_at));
+    setOverridesText(
+      subscription.overrides && typeof subscription.overrides === 'object' && Object.keys(subscription.overrides).length
+        ? JSON.stringify(subscription.overrides, null, 2)
+        : ''
+    );
+    setError(null);
+    setConfirming(false);
+  }, [open, subscription]);
+
+  function requestSave() {
+    if (!planId) { setError('Selecione um plano.'); return; }
+    if (!startsAt || !periodStart) { setError('Informe as datas de início.'); return; }
+    if (status === 'trial' && !trialEndsAt) { setError('Status trial exige data de término do trial.'); return; }
+    if (overridesText.trim()) {
+      try { JSON.parse(overridesText); } catch { setError('Overrides deve ser JSON válido.'); return; }
+    }
+    setError(null);
+    setConfirming(true);
+  }
+
+  if (!open) return null;
+
+  return (
+    <>
+      <Dialog open={!confirming} onOpenChange={(next) => !next && onClose()}>
+        <DialogContent className="max-w-2xl gap-0 p-0">
+          <div className="sticky top-0 z-10 border-b bg-card px-6 py-4">
+            <DialogHeader>
+              <DialogTitle>Editar assinatura</DialogTitle>
+              <DialogDescription className="mt-1">
+                Altere plano, status, datas e permissões da assinatura. A operação será auditada.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="space-y-6 overflow-y-auto p-6" style={{ maxHeight: '70vh' }}>
+            {/* Plano */}
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Plano</h3>
+              <div className="mt-3 space-y-2">
+                <Label htmlFor="edit-sub-plan">Plano contratado</Label>
+                {plans.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Carregando planos…</p>
+                ) : (
+                  <Select value={planId} onValueChange={setPlanId}>
+                    <SelectTrigger id="edit-sub-plan">
+                      <SelectValue placeholder="Selecione o plano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    {compatiblePlans.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}{p.status === 'draft' ? ' (rascunho)' : ''}
+                      </SelectItem>
+                    ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </section>
+
+            {/* Status */}
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Status</h3>
+              <div className="mt-3 space-y-2">
+                <Label htmlFor="edit-sub-status">Situação da assinatura</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger id="edit-sub-status">
+                    <SelectValue placeholder="Selecione a situação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                  {(['trial', 'active', 'grace', 'past_due', 'suspended', 'canceled', 'expired'] as const).map((s) => (
+                    <SelectItem key={s} value={s}>{ptBrLabel(s)}</SelectItem>
+                  ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </section>
+
+            {/* Datas */}
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Datas</h3>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-starts-at">Início da assinatura</Label>
+                  <Input id="edit-starts-at" type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-period-start">Início do período atual</Label>
+                  <Input id="edit-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-period-end">Próxima renovação</Label>
+                  <Input id="edit-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+                </div>
+                {(status === 'trial' || trialEndsAt) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-trial-ends">
+                      Fim do trial{status === 'trial' && <span className="ml-0.5 text-destructive">*</span>}
+                    </Label>
+                    <Input id="edit-trial-ends" type="date" value={trialEndsAt} onChange={(e) => setTrialEndsAt(e.target.value)} />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-grace-ends">Carência até</Label>
+                  <Input id="edit-grace-ends" type="date" value={graceEndsAt} onChange={(e) => setGraceEndsAt(e.target.value)} placeholder="Sem carência" />
+                </div>
+              </div>
+            </section>
+
+            {/* Overrides / Permissões do plano */}
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Permissões e limites (overrides)</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                JSON que sobrepõe os limites padrão do plano. Deixe vazio para usar os limites do plano sem customização.
+              </p>
+              <div className="mt-3 space-y-2">
+                <Label htmlFor="edit-overrides">Overrides (JSON)</Label>
+                <Textarea
+                  id="edit-overrides"
+                  value={overridesText}
+                  onChange={(e) => setOverridesText(e.target.value)}
+                  placeholder={'{\n  "inspections": 500,\n  "users": 20\n}'}
+                  className="font-mono text-xs"
+                  rows={6}
+                />
+              </div>
+            </section>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <div className="sticky bottom-0 flex justify-end gap-3 border-t bg-card px-6 py-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={mutation.isPending}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={requestSave} disabled={mutation.isPending || !planId}>
+              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+              Salvar alterações
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <HighRiskDialog
+        open={confirming}
+        title="Confirmar edição de assinatura"
+        description="A operação exige MFA, justificativa e será registrada na auditoria."
+        confirmLabel="Salvar assinatura"
+        onClose={() => setConfirming(false)}
+        onConfirm={async (reason) => {
+          const overrides = overridesText.trim() ? JSON.parse(overridesText) : {};
+          const result = await mutation.mutateAsync({
+            customerId,
+            subscriptionId: subscription.id,
+            action: 'update',
+            payload: {
+              plan_id: planId,
+              status,
+              starts_at: startsAt ? new Date(startsAt).toISOString() : '',
+              trial_ends_at: trialEndsAt ? new Date(trialEndsAt).toISOString() : '',
+              current_period_start: periodStart ? new Date(periodStart).toISOString() : '',
+              current_period_end: periodEnd ? new Date(periodEnd).toISOString() : '',
+              grace_ends_at: graceEndsAt ? new Date(graceEndsAt).toISOString() : '',
+              overrides,
+            },
+            reason,
+          });
+          if (!result.ok) throw new Error(result.error || 'Não foi possível salvar a assinatura.');
+          setConfirming(false);
+          onSaved();
+        }}
+      />
+    </>
+  );
+}
+
+function AssignPlanDialog({
+  open,
+  customerId,
+  customerKind,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  customerId: string;
+  customerKind: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const audience = customerKind === 'organization' ? 'organization' : 'individual';
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [planId, setPlanId] = useState('');
+  const [status, setStatus] = useState('trial');
+  const [startsAt, setStartsAt] = useState(today);
+  const [trialEndsAt, setTrialEndsAt] = useState('');
+  const [periodStart, setPeriodStart] = useState(today);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const mutation = useSubscriptionMutation();
+
+  const plans = useQuery({
+    queryKey: ['commercial-plans-options'],
+    queryFn: async () => {
+      const { data, error: err } = await supabase
+        .from('plans')
+        .select('id,name,audience,status')
+        .neq('audience', 'compatibility')
+        .neq('status', 'retired')
+        .order('name');
+      if (err) throw err;
+      return data;
+    },
+    enabled: open,
+  });
+
+  const compatiblePlans = (plans.data ?? []).filter((p) => p.audience === audience);
+
+  useEffect(() => {
+    if (!open) return;
+    setStatus('trial');
+    setStartsAt(today);
+    setTrialEndsAt('');
+    setPeriodStart(today);
+    setError(null);
+    setConfirming(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (compatiblePlans.length && !compatiblePlans.some((p) => p.id === planId)) {
+      setPlanId(compatiblePlans[0].id);
+    }
+  }, [compatiblePlans, planId]);
+
+  function requestSave() {
+    if (!planId) { setError('Selecione um plano.'); return; }
+    if (!startsAt || !periodStart) { setError('Informe as datas de início.'); return; }
+    if (status === 'trial' && !trialEndsAt) { setError('Status trial exige data de término do trial.'); return; }
+    setError(null);
+    setConfirming(true);
+  }
+
+  if (!open) return null;
+
+  return (
+    <>
+      <Dialog open={!confirming} onOpenChange={(next) => !next && onClose()}>
+        <DialogContent className="max-w-lg gap-0 p-0">
+          <div className="sticky top-0 z-10 border-b bg-card px-6 py-4">
+            <DialogHeader>
+              <DialogTitle>Atribuir plano</DialogTitle>
+              <DialogDescription className="mt-1">
+                Crie a assinatura inicial para este cliente. A operação será auditada.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="space-y-6 p-6">
+            <div className="space-y-2">
+              <Label htmlFor="assign-plan">Plano</Label>
+              {plans.isLoading ? (
+                <p className="text-sm text-muted-foreground">Carregando planos…</p>
+              ) : compatiblePlans.length === 0 ? (
+                <p className="text-sm text-destructive">Nenhum plano disponível para este tipo de cliente.</p>
+              ) : (
+                <Select value={planId} onValueChange={setPlanId}>
+                  <SelectTrigger id="assign-plan">
+                    <SelectValue placeholder="Selecione o plano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                  {compatiblePlans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}{p.status === 'draft' ? ' (rascunho)' : ''}
+                    </SelectItem>
+                  ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="assign-status">Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger id="assign-status">
+                    <SelectValue placeholder="Selecione a situação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                  {(['trial', 'active', 'grace', 'past_due', 'suspended', 'canceled', 'expired'] as const).map((s) => (
+                    <SelectItem key={s} value={s}>{ptBrLabel(s)}</SelectItem>
+                  ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="assign-starts-at">Início da assinatura</Label>
+                <Input id="assign-starts-at" type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+              </div>
+              {status === 'trial' && (
+                <div className="space-y-2">
+                  <Label htmlFor="assign-trial-ends">Fim do trial <span className="text-destructive">*</span></Label>
+                  <Input id="assign-trial-ends" type="date" value={trialEndsAt} onChange={(e) => setTrialEndsAt(e.target.value)} />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="assign-period-start">Início do período</Label>
+                <Input id="assign-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+              </div>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <div className="sticky bottom-0 flex justify-end gap-3 border-t bg-card px-6 py-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={mutation.isPending}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={requestSave} disabled={mutation.isPending || !planId}>
+              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+              Criar assinatura
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <HighRiskDialog
+        open={confirming}
+        title="Confirmar criação de assinatura"
+        description="A operação exige MFA, justificativa e será registrada na auditoria."
+        confirmLabel="Criar assinatura"
+        onClose={() => setConfirming(false)}
+        onConfirm={async (reason) => {
+          const result = await mutation.mutateAsync({
+            customerId,
+            subscriptionId: null,
+            action: 'create',
+            payload: {
+              plan_id: planId,
+              status,
+              starts_at: startsAt ? new Date(startsAt).toISOString() : '',
+              trial_ends_at: trialEndsAt ? new Date(trialEndsAt).toISOString() : '',
+              current_period_start: periodStart ? new Date(periodStart).toISOString() : '',
+              current_period_end: '',
+              grace_ends_at: '',
+              overrides: {},
+            },
+            reason,
+          });
+          if (!result.ok) throw new Error(result.error || 'Não foi possível criar a assinatura.');
+          setConfirming(false);
+          onSaved();
+        }}
+      />
+    </>
   );
 }
 
@@ -696,7 +1195,7 @@ function Team({ detail, onCustomerChanged }: { detail: CustomerDetail; onCustome
               <strong>{user.name || 'Sem nome'}</strong>
               <p className="text-xs text-muted-foreground">{user.email || 'E-mail protegido'}</p>
             </td>
-            <td className="p-3">{ptBrLabel(user.role, 'Não informado')}</td>
+            <td className="p-3"><AccountPermissionBadge role={user.role} /></td>
             <td className="p-3"><StatusBadge value={user.status} /></td>
             <td className="p-3">{formatDate(user.last_login)}</td>
             <td className="p-3">
@@ -834,12 +1333,12 @@ function MemberAccessSheet({ customerId, user, onOpenChange }: {
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader className="pr-8">
           <SheetTitle>{user.name || 'Membro sem nome'}</SheetTitle>
-          <SheetDescription>{user.email || 'E-mail protegido'} · {ptBrLabel(user.role, 'Sem papel')} · Equipe da organização</SheetDescription>
+          <SheetDescription>{user.email || 'E-mail protegido'} · Equipe da organização</SheetDescription>
         </SheetHeader>
         <div className="mt-7 space-y-6">
           <section className="rounded-2xl border border-border/80 bg-card p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Identidade e acesso</p>
-            <div className="mt-3 flex items-center justify-between gap-3"><StatusBadge value={user.status} /><span className="text-xs text-muted-foreground">Último acesso: {formatDate(user.last_login)}</span></div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><StatusBadge value={user.status} /><AccountPermissionBadge role={user.role} /></div><span className="text-xs text-muted-foreground">Último acesso: {formatDate(user.last_login)}</span></div>
             {canManage && <div className="mt-4">{user.status === 'active' ? <Button variant="outline" onClick={() => setPendingAction('block')} disabled={mutation.isPending}><LockKeyhole />Bloquear acesso</Button> : <Button onClick={() => setPendingAction('unblock')} disabled={mutation.isPending}><UnlockKeyhole />Liberar acesso</Button>}</div>}
           </section>
           {canManage && <section className="rounded-2xl border border-border/85 bg-card p-4">
@@ -986,6 +1485,7 @@ function Audit({ detail }: { detail: CustomerDetail }) {
           <Card className="shadow-none">
             <CardContent className="flex flex-wrap items-center gap-2 p-4">
               <StatusBadge value={event.event_type} />
+              {event.summary && <p className="basis-full text-sm font-medium text-foreground sm:basis-auto">{event.summary}</p>}
               <span className="text-xs text-muted-foreground">
                 {event.entity_type}{event.entity_id ? ` · ${event.entity_id.slice(0, 12)}` : ''}
               </span>

@@ -63,6 +63,9 @@ verify_jwt = false
 [functions.inspection-upload-authorize]
 verify_jwt = true
 
+[functions.portal-acknowledgement-document]
+verify_jwt = true
+
 [functions.dispatch-operational-notification]
 verify_jwt = true
 

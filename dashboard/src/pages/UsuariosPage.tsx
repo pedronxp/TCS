@@ -6,7 +6,6 @@ import {
   Search,
   X,
   Plus,
-  Trash2,
   RotateCcw,
   Copy,
   Check,
@@ -31,8 +30,6 @@ import {
 import {
   useTokens,
   useCriarToken,
-  useCancelarToken,
-  useLimparTokens,
   type TokenRecord,
 } from '@/hooks/useTokens';
 import { cn } from '@/lib/utils';
@@ -281,11 +278,10 @@ function ModalResetSenha({
 function useMunicipios() {
   const [municipios, setMunicipios] = useState<string[]>([]);
   useEffect(() => {
-    supabase
-      .from('municipios')
-      .select('nome')
-      .order('nome')
-      .then(({ data }) => setMunicipios((data ?? []).map((m: { nome: string }) => m.nome)));
+    void (async () => {
+      const { data } = await (supabase.rpc as (fn: string, args?: Record<string, never>) => PromiseLike<{ data: Array<{ nome: string }> | null; error: { message: string } | null }>)('list_internal_token_municipalities');
+      setMunicipios((data ?? []).map((municipality) => municipality.nome));
+    })();
   }, []);
   return municipios;
 }
@@ -309,11 +305,12 @@ function ModalNovoToken({
   const [horas, setHoras] = useState(72);
   const [codigoGerado, setCodigoGerado] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [reason, setReason] = useState('');
   const criar = useCriarToken();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const codigo = await criar.mutateAsync({ role, municipio, horasValidade: horas });
+    const codigo = await criar.mutateAsync({ role, municipio, horasValidade: horas, reason });
     setCodigoGerado(codigo);
   }
 
@@ -416,6 +413,11 @@ function ModalNovoToken({
               </div>
             </div>
 
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1.5" htmlFor="legacy-token-reason">Justificativa</label>
+              <textarea id="legacy-token-reason" value={reason} onChange={(event) => setReason(event.target.value)} minLength={8} maxLength={500} className="w-full min-h-20 rounded-md border border-input bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" required />
+            </div>
+
             <div className="flex gap-3 pt-1">
               <Button type="button" variant="outline" className="flex-1" onClick={() => onClose()}>
                 Cancelar
@@ -423,7 +425,7 @@ function ModalNovoToken({
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={criar.isPending || (!municipioPadrao && !municipio)}
+                disabled={criar.isPending || (!municipioPadrao && !municipio) || reason.trim().length < 8}
               >
                 {criar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Criar Token'}
               </Button>
@@ -691,36 +693,20 @@ function AbaTokens() {
   const [novoTokenOpen, setNovoTokenOpen] = useState(false);
 
   const { data: tokens = [], isLoading, isError, refetch } = useTokens();
-  const cancelar = useCancelarToken();
-  const limpar = useLimparTokens();
+  const ativos = tokens.filter((token) => token.status === 'active');
+  const expirados = tokens.filter((token) => token.status === 'expired');
+  const usados = tokens.filter((token) => token.status === 'used');
+  const revogados = tokens.filter((token) => token.status === 'revoked');
 
-  const agora = Date.now();
-
-  const ativos = tokens.filter(
-    (t) => !t.usado && (!t.expiresAt || new Date(t.expiresAt).getTime() > agora)
-  );
-  const expirados = tokens.filter(
-    (t) => !t.usado && t.expiresAt && new Date(t.expiresAt).getTime() <= agora
-  );
-  const usados = tokens.filter((t) => t.usado);
-
-  function TokenCard({ t, secao }: { t: TokenRecord; secao: 'ativo' | 'expirado' | 'usado' }) {
-    const [copied, setCopied] = useState(false);
+  function TokenCard({ t }: { t: TokenRecord }) {
     const { texto, cor } = tempoRestante(t.expiresAt);
-    const podeConcelar = secao === 'ativo';
-
-    function copiar() {
-      navigator.clipboard.writeText(t.codigo);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
 
     return (
       <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="font-mono font-bold text-foreground text-sm tracking-wide">
-              {t.codigo}
+              Código protegido
             </span>
             <span
               className={cn(
@@ -742,45 +728,16 @@ function AbaTokens() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {secao === 'ativo' && (
-            <button
-              onClick={copiar}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              title="Copiar código"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-success" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
-          )}
-          {podeConcelar && (
-            <button
-              onClick={() => cancelar.mutate(t.codigo)}
-              disabled={cancelar.isPending}
-              className="text-muted-foreground hover:text-destructive transition-colors"
-              title="Cancelar token"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-        </div>
       </div>
     );
   }
 
   function Secao({
     titulo,
-    tipo,
     lista,
-    podeLimpar,
   }: {
     titulo: string;
-    tipo: 'ativo' | 'expirado' | 'usado';
     lista: TokenRecord[];
-    podeLimpar?: 'expirados' | 'usados';
   }) {
     return (
       <div>
@@ -789,23 +746,13 @@ function AbaTokens() {
             {titulo}{' '}
             <span className="font-normal text-muted-foreground normal-case">({lista.length})</span>
           </h3>
-          {podeLimpar && lista.length > 0 && (
-            <button
-              onClick={() => limpar.mutate(podeLimpar)}
-              disabled={limpar.isPending}
-              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors"
-            >
-              <Trash2 className="w-3 h-3" />
-              Limpar todos
-            </button>
-          )}
         </div>
         {lista.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">Nenhum token.</p>
         ) : (
           <div className="space-y-2">
             {lista.map((t) => (
-              <TokenCard key={t.codigo} t={t} secao={tipo} />
+              <TokenCard key={t.managementId} t={t} />
             ))}
           </div>
         )}
@@ -841,9 +788,10 @@ function AbaTokens() {
         </div>
       ) : (
         <div className="space-y-8">
-          <Secao titulo="Ativos" tipo="ativo" lista={ativos} />
-          <Secao titulo="Expirados" tipo="expirado" lista={expirados} podeLimpar="expirados" />
-          <Secao titulo="Utilizados" tipo="usado" lista={usados} podeLimpar="usados" />
+          <Secao titulo="Ativos" lista={ativos} />
+          <Secao titulo="Expirados" lista={expirados} />
+          <Secao titulo="Utilizados" lista={usados} />
+          <Secao titulo="Revogados" lista={revogados} />
         </div>
       )}
 

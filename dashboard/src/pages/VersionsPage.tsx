@@ -31,6 +31,11 @@ type VersionRow = {
   adoption: number;
 };
 
+type ReleaseCatalog = {
+  settings: { published_version: string; minimum_version: string; development_version: string; updated_at: string };
+  rows: VersionRow[];
+};
+
 type ReleaseAction = 'set_development' | 'publish' | 'set_minimum';
 
 export function VersionsPage() {
@@ -48,30 +53,19 @@ export function VersionsPage() {
   const query = useQuery({
     queryKey: ['release-catalog', user?.id, profile?.role],
     queryFn: async () => {
-      const [versions, settings, events] = await Promise.all([
-        supabase
-          .from('internal_app_versions')
-          .select('version,status,changelog,published_at,updated_at')
-          .order('updated_at', { ascending: false }),
-        supabase
-          .from('internal_release_settings')
-          .select('published_version,minimum_version,development_version,updated_at')
-          .single(),
-        supabase.from('technical_events').select('app_version').not('app_version', 'is', null).limit(5000),
-      ]);
-      const firstError = versions.error || settings.error || events.error;
-      if (firstError) throw firstError;
-      const counts = new Map<string, number>();
-      for (const event of events.data || []) {
-        if (event.app_version) counts.set(event.app_version, (counts.get(event.app_version) || 0) + 1);
-      }
+      const { data, error } = await (supabase.rpc as (fn: string, args?: Record<string, never>) => PromiseLike<{ data: import('@/types/supabase').Json | null; error: { message: string } | null }>)('get_internal_release_catalog');
+      if (error) throw error;
+      const root = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : {};
+      const settings = root.settings && typeof root.settings === 'object' && !Array.isArray(root.settings) ? root.settings as Record<string, unknown> : {};
       return {
-        settings: settings.data,
-        rows: (versions.data || []).map((row): VersionRow => ({
-          ...row,
-          adoption: counts.get(row.version) || 0,
-        })),
-      };
+        settings: {
+          published_version: typeof settings.published_version === 'string' ? settings.published_version : '',
+          minimum_version: typeof settings.minimum_version === 'string' ? settings.minimum_version : '',
+          development_version: typeof settings.development_version === 'string' ? settings.development_version : '',
+          updated_at: typeof settings.updated_at === 'string' ? settings.updated_at : '',
+        },
+        rows: Array.isArray(root.rows) ? root.rows as VersionRow[] : [],
+      } satisfies ReleaseCatalog;
     },
   });
 

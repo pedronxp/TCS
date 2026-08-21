@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, LogOut, ShieldCheck, Monitor, Smartphone, Tablet, Activity, Filter, RefreshCw } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { HighAssuranceDialog } from '@/components/security/HighAssuranceDialog';
 import { PageHeader } from '@/components/domain/PageHeader';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
@@ -33,7 +35,14 @@ interface SessionRow {
   status: string;
   started_at: string;
   last_heartbeat_at: string;
+  ended_at?: string | null;
+  end_reason?: string | null;
   organizations: SessionOrganization | null;
+}
+
+interface SessionDetail {
+  session: SessionRow;
+  same_device_sessions: Array<Pick<SessionRow, 'id' | 'status' | 'started_at' | 'last_heartbeat_at'>>;
 }
 
 interface SessionOverview {
@@ -42,34 +51,32 @@ interface SessionOverview {
   platforms: Record<'web' | 'android' | 'ios', number>;
 }
 
+interface SessionWorkspace {
+  items: SessionRow[];
+  total: number;
+  overview: { active_total: number; platforms: Record<'web' | 'android' | 'ios', number> };
+}
+
 export function SessionsPage() {
+  const [urlParams] = useSearchParams();
   const [status, setStatus] = useState('active');
   const [platform, setPlatform] = useState('all');
+  const [search, setSearch] = useState(() => urlParams.get('busca') || '');
+  const deferredSearch = useDeferredValue(search);
   const [selected, setSelected] = useState<SessionRow | null>(null);
-  const [reviewed, setReviewed] = useState<SessionRow | null>(null);
+  const [reviewed, setReviewed] = useState<SessionDetail | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const { can, user, profile } = useAuth();
   const query = useQuery({
-    queryKey: ['internal-sessions', user?.id, profile?.role, status, platform],
+    queryKey: ['internal-sessions', user?.id, profile?.role, status, platform, deferredSearch],
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
-    queryFn: async () => {
-      let request = supabase
-        .from('active_sessions')
-        .select(sessionSelect, { count: 'exact' })
-        .order('last_heartbeat_at', { ascending: false })
-        .limit(200);
-      if (status !== 'all') request = request.eq('status', status);
-      if (platform !== 'all') request = request.eq('platform', platform);
-      const { data, error, count } = await request;
-      if (error) throw error;
-      return { items: (data ?? []) as unknown as SessionRow[], total: count ?? data?.length ?? 0 };
-    },
+    queryFn: () => loadSessionWorkspace(status, platform, deferredSearch),
   });
   const overview = useQuery({
     queryKey: ['internal-sessions-overview', user?.id, profile?.role],
-    queryFn: loadSessionOverview,
+    queryFn: () => loadSessionOverview(),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -105,8 +112,9 @@ export function SessionsPage() {
 
       <PageHeader
         eyebrow="Segurança e Acessos"
-        title="Sessões Conectadas"
-        description="Monitoramento em tempo real de dispositivos ativos, políticas de expiração e comportamento incomum."
+        title="Sessões"
+        description="Acessos ativos e histórico de encerramentos, atualizados automaticamente a cada 30 segundos."
+        actions={<Button asChild variant="outline"><Link to="/app/dispositivo">Ver dispositivos</Link></Button>}
       />
 
       <AsyncBoundary
@@ -167,6 +175,8 @@ export function SessionsPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full sm:w-60 rounded-xl" placeholder="Usuário, organização ou dispositivo" aria-label="Pesquisar sessões" />
 
             <Button
               variant="outline"
@@ -286,11 +296,11 @@ export function SessionsPage() {
         }}
       />
       <SessionReviewDialog
-        session={reviewed}
+        detail={reviewed}
         canTerminate={can('session.terminate')}
         onClose={() => setReviewed(null)}
         onTerminate={() => {
-          if (reviewed) setSelected(reviewed);
+          if (reviewed) setSelected(reviewed.session);
           setReviewed(null);
         }}
       />
@@ -302,8 +312,9 @@ export function SessionsPage() {
     setReviewError(null);
     setReviewingId(session.id);
     try {
-      await recordSessionReview(session.id);
-      setReviewed(session);
+      const { data, error } = await (supabase.rpc as (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: Error | null }>)('get_internal_session_detail', { p_session_id: session.id });
+      if (error || !isSessionDetail(data)) throw new Error(error?.message ?? 'session_detail_invalid');
+      setReviewed(data);
     } catch {
       setReviewError('Não foi possível registrar esta revisão na auditoria. Tente novamente.');
     } finally {
@@ -312,47 +323,25 @@ export function SessionsPage() {
   }
 }
 
-const sessionSelect = [
-  'id',
-  'user_id',
-  'organization_id',
-  'device_id',
-  'device_name',
-  'platform',
-  'status',
-  'started_at',
-  'last_heartbeat_at',
-  'organizations(display_name,session_policy,session_timeout_minutes,offline_tolerance_minutes)',
-].join(',');
-
 async function loadSessionOverview(): Promise<SessionOverview> {
-  const [sessions, web, android, ios] = await Promise.all([
-    supabase
-      .from('active_sessions')
-      .select(sessionSelect, { count: 'exact' })
-      .eq('status', 'active')
-      .order('last_heartbeat_at', { ascending: false })
-      .limit(200),
-    countActivePlatform('web'),
-    countActivePlatform('android'),
-    countActivePlatform('ios'),
-  ]);
-  if (sessions.error) throw sessions.error;
+  const workspace = await loadSessionWorkspace('active', 'all', '');
   return {
-    items: (sessions.data ?? []) as unknown as SessionRow[],
-    total: sessions.count ?? sessions.data?.length ?? 0,
-    platforms: { web, android, ios },
+    items: workspace.items,
+    total: workspace.overview.active_total,
+    platforms: workspace.overview.platforms,
   };
 }
 
-async function countActivePlatform(platform: 'web' | 'android' | 'ios') {
-  const { count, error } = await supabase
-    .from('active_sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'active')
-    .eq('platform', platform);
+async function loadSessionWorkspace(status: string, platform: string, search: string): Promise<SessionWorkspace> {
+  const { data, error } = await (supabase.rpc as (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: Error | null }>)('get_internal_session_workspace', {
+    p_status: status === 'all' ? null : status,
+    p_platform: platform === 'all' ? null : platform,
+    p_search: search.trim() || null,
+    p_limit: 200,
+  });
   if (error) throw error;
-  return count ?? 0;
+  if (!data || typeof data !== 'object') throw new Error('session_workspace_invalid');
+  return data as SessionWorkspace;
 }
 
 function SessionPulse({
@@ -584,17 +573,18 @@ function RiskAlert({
 }
 
 function SessionReviewDialog({
-  session,
+  detail,
   canTerminate,
   onClose,
   onTerminate,
 }: {
-  session: SessionRow | null;
+  detail: SessionDetail | null;
   canTerminate: boolean;
   onClose: () => void;
   onTerminate: () => void;
 }) {
-  if (!session) return null;
+  if (!detail) return null;
+  const { session } = detail;
   const risk = findSessionAnomalies([session])[0];
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -614,9 +604,17 @@ function SessionReviewDialog({
           <ReviewRow label="Identificador de Usuário" value={shortId(session.user_id)} />
           <ReviewRow label="Organização Vinculada" value={session.organizations?.display_name || 'Não vinculada'} />
           <ReviewRow label="Dispositivo / SO" value={session.device_name || session.platform} />
+          <ReviewRow label="Início da sessão" value={formatTimestamp(session.started_at)} />
           <ReviewRow label="Última atividade" value={relativeActivity(session.last_heartbeat_at)} />
+          {session.ended_at ? <ReviewRow label="Encerrada em" value={formatTimestamp(session.ended_at)} /> : null}
+          {session.end_reason ? <ReviewRow label="Motivo do encerramento" value={session.end_reason} /> : null}
           {risk && <ReviewRow label="Motivo do Alerta" value={risk.reason} tone="warning" />}
         </dl>
+        <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs">
+          <p className="font-semibold text-foreground">Histórico deste dispositivo</p>
+          <p className="mt-1 text-muted-foreground">{detail.same_device_sessions.length} sessão(ões) encontradas para este usuário e dispositivo.</p>
+          {detail.same_device_sessions.length > 1 ? <ul className="mt-2 space-y-1 text-muted-foreground">{detail.same_device_sessions.slice(0, 3).map((item) => <li key={item.id}>{ptBrLabel(item.status)} · iniciada em {formatTimestamp(item.started_at)}</li>)}</ul> : null}
+        </div>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" className="rounded-xl" onClick={onClose}>Fechar</Button>
           {canTerminate && session.status === 'active' ? (
@@ -653,11 +651,10 @@ function PlatformIcon({ platform }: { platform: string }) {
   }
 }
 
-async function recordSessionReview(sessionId: string) {
-  const { error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ error: { message: string } | null }>)('record_internal_session_review', {
-    p_session_id: sessionId,
-  });
-  if (error) throw error;
+function isSessionDetail(value: unknown): value is SessionDetail {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const detail = value as Record<string, unknown>;
+  return Boolean(detail.session && typeof detail.session === 'object' && Array.isArray(detail.same_device_sessions));
 }
 
 function mostCommon(values: string[]) {
@@ -679,6 +676,11 @@ function formatMinutes(minutes: number) {
 
 function shortId(value: string) {
   return value.length > 12 ? `${value.slice(0, 8)}…` : value;
+}
+
+function formatTimestamp(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Data não informada' : date.toLocaleString('pt-BR');
 }
 
 function relativeActivity(value: string) {

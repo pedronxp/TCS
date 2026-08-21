@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 20;
+const DB_VERSION = 21;
 
 let db: SQLite.SQLiteDatabase | null = null;
 let acknowledgementSchemaEnsured = false;
@@ -321,6 +321,18 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
     if (currentVersion < 20) {
       // Protocolo oficial Ã© devolvido apenas pelo servidor apÃ³s a sincronizaÃ§Ã£o.
       try { database.runSync(`ALTER TABLE vistorias_offline ADD COLUMN protocolo TEXT`); } catch { /* jÃ¡ existe */ }
+    }
+
+    if (currentVersion < 21) {
+      // Mantém no dispositivo a disponibilidade do catálogo nativo publicada no servidor.
+      // Assim, uma desativação continua respeitada mesmo quando o aplicativo ficar offline.
+      database.runSync(`
+        CREATE TABLE IF NOT EXISTS formulario_catalogo_cache (
+          codigo_sistema TEXT PRIMARY KEY,
+          ativo INTEGER NOT NULL,
+          atualizado_em TEXT NOT NULL
+        )
+      `);
     }
 
     database.runSync(
@@ -827,6 +839,26 @@ export function getFormularioCacheById(id: string): FormularioCache | null {
     `SELECT * FROM formularios_cache WHERE id = ?`,
     [id]
   ) ?? null;
+}
+
+export function replaceSystemFormCatalog(items: Array<{ codigoSistema: string; ativo: boolean; atualizadoEm: string }>): void {
+  const database = getDb();
+  database.withTransactionSync(() => {
+    database.runSync('DELETE FROM formulario_catalogo_cache');
+    for (const item of items) {
+      database.runSync(
+        'INSERT INTO formulario_catalogo_cache (codigo_sistema, ativo, atualizado_em) VALUES (?, ?, ?)',
+        [item.codigoSistema, item.ativo ? 1 : 0, item.atualizadoEm],
+      );
+    }
+  });
+}
+
+export function getInactiveSystemFormCodes(): string[] {
+  const database = getDb();
+  return database
+    .getAllSync<{ codigo_sistema: string }>('SELECT codigo_sistema FROM formulario_catalogo_cache WHERE ativo = 0')
+    .map((item) => item.codigo_sistema);
 }
 
 // ─── Agendamentos ───────────────────────────────────────────────────────────

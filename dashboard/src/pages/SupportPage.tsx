@@ -100,9 +100,9 @@ export function SupportPage() {
   const plans = useQuery({
     queryKey: ['support-plans', user?.id, profile?.role],
     queryFn: async () => {
-      const { data, error } = await supabase.from('plans').select('id,name').neq('status', 'retired').order('name');
+      const { data, error } = await (supabase.rpc as (fn: string, args?: Record<string, never>) => PromiseLike<{ data: Array<{ id: string; name: string }> | null; error: { message: string } | null }>)('list_internal_support_plan_options');
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
   const query = useQuery({

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuditPage } from './AuditPage';
@@ -23,9 +24,21 @@ const auditEvent = {
   createdAt: new Date().toISOString(),
 };
 
+const technicalEvent = {
+  source: 'technical',
+  id: 'technical-123456789',
+  type: 'telemetry.sync.error',
+  entity: 'technical_event',
+  entityId: 'sync-123',
+  actor: 'Sistema',
+  result: 'failed',
+  reason: 'Falha de sincronização.',
+  createdAt: new Date().toISOString(),
+};
+
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({
-    data: [auditEvent],
+    data: [auditEvent, technicalEvent],
     isLoading: false,
     error: null,
     refetch: vi.fn(),
@@ -52,6 +65,17 @@ describe('Timeline de auditoria', () => {
     expect(screen.getByRole('region', { name: 'Resumo da auditoria' })).toBeVisible();
     expect(screen.getByText('Contexto sanitizado')).toBeVisible();
     expect(screen.getByText('Publicação aprovada após revisão.')).toBeVisible();
+  });
+
+  it('mantém falhas técnicas fora da auditoria de negócio até serem solicitadas', async () => {
+    const user = userEvent.setup();
+    render(<AuditPage />);
+
+    expect(screen.queryByText('Telemetria de sincronização: erro')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Eventos técnicos' }));
+
+    expect(screen.getByText('Telemetria de sincronização: erro')).toBeVisible();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

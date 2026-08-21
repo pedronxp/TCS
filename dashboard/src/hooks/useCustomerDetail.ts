@@ -106,8 +106,9 @@ function parseOnboarding(value: Json | undefined): CustomerOnboarding | null {
 
 function parseAudit(record: JsonObject): CustomerAuditEvent {
   return {
-    id: jsonNumber(record.id) ?? 0, event_type: requiredString(record, 'event_type'),
+    id: jsonString(record.id) ?? String(jsonNumber(record.id) ?? 0), event_type: requiredString(record, 'event_type'),
     entity_type: requiredString(record, 'entity_type'), entity_id: jsonString(record.entity_id),
+    summary: jsonString(record.summary),
     metadata: record.metadata ?? {}, created_at: requiredString(record, 'created_at'),
   };
 }

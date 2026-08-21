@@ -46,8 +46,19 @@ export async function registrarPushToken(): Promise<void> {
     if (!token) return;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || isLocalTestSession(session)) return;
-    const { error } = await supabase.rpc('update_my_push_token', { p_token: token });
-    if (error) throw error;
+    const platform = Platform.OS === 'android' || Platform.OS === 'ios' ? Platform.OS : 'unknown';
+    const { error } = await supabase.rpc('register_my_notification_endpoint', {
+      p_platform: platform,
+      p_provider: 'expo',
+      p_endpoint: token,
+      p_subscription: null,
+    });
+    // The fallback preserves notifications while an older remote schema is
+    // being upgraded. New installs use the multi-device endpoint registry.
+    if (error) {
+      const fallback = await supabase.rpc('update_my_push_token', { p_token: token });
+      if (fallback.error) throw error;
+    }
   } catch (error) {
     logger.warn('notifications', 'Erro ao registrar push token', { erro: String(error) });
   }

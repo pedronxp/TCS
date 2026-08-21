@@ -156,17 +156,10 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
     if (demo) return;
     setLoading(true);
     setError(null);
-    const [plansResult, featuresResult] = await Promise.all([
-      supabase
-        .from('plans')
-        .select('id,code,name,description,audience,status,current_version,plan_features(feature_code,enabled),plan_limits(resource_code,hard_limit,warning_percent),plan_versions(version,configuration,published_at),support_sla_policies(priority,response_minutes,resolution_minutes,escalation_minutes)')
-        .order('name'),
-      supabase.from('features').select('code,name,category,description,active').order('category').order('name'),
-    ]);
-    const firstError = plansResult.error || featuresResult.error;
-    if (firstError) setError(firstError.message);
+    const { data, error: rpcError } = await (supabase.rpc as (fn: string, args?: Record<string, never>) => PromiseLike<{ data: { plans?: PlanRow[]; features?: FeatureRow[] } | null; error: { message: string } | null }>)('list_internal_plan_catalog');
+    if (rpcError) setError(rpcError.message);
     else {
-      setPlans((plansResult.data || []).map((plan): PlanRow => ({
+      setPlans((data?.plans ?? []).map((plan): PlanRow => ({
         id: plan.id,
         code: plan.code,
         name: plan.name,
@@ -179,7 +172,7 @@ export function PlansPage({ demo = false }: { demo?: boolean }) {
         plan_versions: plan.plan_versions,
         support_sla_policies: plan.support_sla_policies.map((policy) => ({ ...policy, priority: parsePriority(policy.priority) })),
       })));
-      setFeatures(featuresResult.data || []);
+      setFeatures(data?.features ?? []);
     }
     setLoading(false);
   }, [demo]);

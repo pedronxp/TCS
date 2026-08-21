@@ -120,14 +120,15 @@ describe('gestão municipal de ciências', () => {
     await waitFor(() => expect(state.writeText).toHaveBeenCalledWith('https://portal.tcs.test/ciencia/token-2'));
   });
 
-  it('oculta Gerar link externo quando a ciência está concluída e oferece Emitir novo link', () => {
+  it('oculta emissão de link quando a ciência está concluída e expõe evidências autorizadas', () => {
     state.queryData.items = [{
-      id: 'ack-3', title: 'TCS-003', subtitle: 'Ciência concluída', status: 'acknowledged',
+      id: 'ack-3', acknowledgement_id: '00000000-0000-0000-0000-000000000003', title: 'TCS-003', subtitle: 'Ciência concluída', status: 'acknowledged', document_available: true, signature_available: true,
     }];
     renderPage();
     expect(screen.getByText('Concluída')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Gerar link externo/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Emitir novo link/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Visualizar documento/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Baixar assinatura/i })).toBeEnabled();
   });
 
   it('apresenta recusada com motivo e Emitir novo link', () => {

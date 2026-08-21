@@ -38,6 +38,7 @@ export function AuditPage() {
   const [result, setResult] = useState('all');
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
   const [category, setCategory] = useState<Category>('all');
+  const [showTechnicalEvents, setShowTechnicalEvents] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(search);
   const from = rangeStart(timeRange);
@@ -57,8 +58,10 @@ export function AuditPage() {
     },
   });
   const rows = useMemo(
-    () => consolidateAuditRows(query.data ?? []).filter((row) => matchesCategory(row, category)),
-    [category, query.data],
+    () => consolidateAuditRows(query.data ?? [])
+      .filter((row) => showTechnicalEvents || row.source !== 'technical')
+      .filter((row) => matchesCategory(row, category)),
+    [category, query.data, showTechnicalEvents],
   );
   const selected = rows.find((row) => auditKey(row) === selectedKey) ?? rows[0] ?? null;
   const metrics = useMemo(() => ({
@@ -67,7 +70,7 @@ export function AuditPage() {
     needsReview: rows.filter((row) => ['denied', 'failed', 'error'].includes(row.result)).length,
     actors: new Set(rows.map((row) => row.actor).filter((actor) => actor !== 'Sistema')).size,
   }), [rows]);
-  const hasFilters = Boolean(search || source !== 'all' || result !== 'all' || timeRange !== '30d' || category !== 'all');
+  const hasFilters = Boolean(search || source !== 'all' || result !== 'all' || timeRange !== '30d' || category !== 'all' || showTechnicalEvents);
 
   function clearFilters() {
     setSearch('');
@@ -75,6 +78,7 @@ export function AuditPage() {
     setResult('all');
     setTimeRange('30d');
     setCategory('all');
+    setShowTechnicalEvents(false);
   }
 
   return (
@@ -144,6 +148,14 @@ export function AuditPage() {
               onClick={() => setCategory(category === 'configuration' ? 'all' : 'configuration')}
               label="Configuração"
             />
+            <FilterChip
+              active={showTechnicalEvents}
+              onClick={() => {
+                if (showTechnicalEvents) setSource('all');
+                setShowTechnicalEvents((visible) => !visible);
+              }}
+              label="Eventos técnicos"
+            />
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -161,7 +173,10 @@ export function AuditPage() {
                   <AuditSelect
                     label="Fonte"
                     value={source}
-                    onValueChange={setSource}
+                    onValueChange={(nextSource) => {
+                      setSource(nextSource);
+                      setShowTechnicalEvents(nextSource === 'technical');
+                    }}
                     options={[
                       ['all', 'Todas as fontes'],
                       ['internal', 'Interna'],
@@ -439,6 +454,15 @@ function auditTone(row: AuditRow) {
 const auditActionLabels: Record<string, string> = {
   'configuration.published': 'Configuração publicada',
   'customer.appointment.create': 'Agendamento criado pela web',
+  'customer_bootstrap_completed': 'Conta individual ativada',
+  'first_organization_administrator_created': 'Implantação municipal iniciada',
+  'onboarding_viewed': 'Onboarding de cliente iniciado',
+  'account_kind_selected': 'Tipo de conta selecionado',
+  'terms_accepted': 'Termos aceitos',
+  'bootstrap_submitted': 'Implantação enviada',
+  'onboarding_resumed': 'Onboarding de cliente retomado',
+  'customer_onboarding_item_updated': 'Etapa de implantação atualizada',
+  'customer_first_operation_completed': 'Primeira operação concluída',
   'session.review': 'Sessão revisada',
   'session.terminate': 'Sessão revogada remotamente',
   'session.revoke': 'Sessão revogada remotamente',
@@ -451,6 +475,8 @@ const auditEntityLabels: Record<string, string> = {
   active_session: 'Sessão ativa',
   appointment: 'Agendamento',
   configuration: 'Configuração',
+  customer_onboarding: 'Onboarding de cliente',
+  individual_customer: 'Conta individual',
   organization: 'Organização',
   support_ticket: 'Chamado de suporte',
   technical_event: 'Evento técnico',

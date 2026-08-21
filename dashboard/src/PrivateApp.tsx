@@ -11,6 +11,7 @@ import { BuildsPage } from '@/pages/BuildsPage';
 import { PlansPage } from '@/pages/PlansPage';
 import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
 import { SessionsPage } from '@/pages/SessionsPage';
+import { DevicesPage } from '@/pages/DevicesPage';
 import { SupportPage } from '@/pages/SupportPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
@@ -23,6 +24,12 @@ import { StaffPage } from '@/pages/StaffPage';
 import { StyleGuidePage } from '@/pages/StyleGuidePage';
 import { CommercialMetricsPage } from '@/pages/CommercialMetricsPage';
 import { ProtocolsPage } from '@/pages/ProtocolsPage';
+import { ProtocolInspectionPage } from '@/pages/ProtocolInspectionPage';
+import { ProtocolDocumentWorkspacePage } from '@/pages/ProtocolDocumentWorkspacePage';
+import { TokensConsolePage } from '@/pages/TokensConsolePage';
+import { TokenAnalyticsPage } from '@/pages/TokenAnalyticsPage';
+import { OperationalStatisticsPage } from '@/pages/OperationalStatisticsPage';
+import { NotificationCampaignsPage } from '@/pages/NotificationCampaignsPage';
 import { legacyCustomerDetailPath, legacyCustomerMemberPath } from '@/lib/customerRoutes';
 
 const queryClient = new QueryClient({
@@ -82,20 +89,31 @@ export default function PrivateApp() {
           <Route path="negocio/indicadores" element={<ProtectedRoute requirePermission="commercial.read"><CommercialMetricsPage /></ProtectedRoute>} />
           <Route path="assinaturas" element={<ProtectedRoute requirePermission="commercial.read"><SubscriptionsPage /></ProtectedRoute>} />
           <Route path="protocolos" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolsPage /></ProtectedRoute>} />
+          <Route path="protocolos/:inspectionId/laudo" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="laudo" /></ProtectedRoute>} />
+          <Route path="protocolos/:inspectionId/relatorio" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="relatorio" /></ProtectedRoute>} />
+          <Route path="protocolos/:inspectionId/termo" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="termo" /></ProtectedRoute>} />
+          <Route path="protocolos/:inspectionId/fotos" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="fotos" /></ProtectedRoute>} />
+          <Route path="protocolos/:inspectionId" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolInspectionPage /></ProtectedRoute>} />
+          <Route path="tokens" element={<ProtectedRoute requirePermission="token.manage"><TokensConsolePage /></ProtectedRoute>} />
+          <Route path="tokens/analise" element={<ProtectedRoute requirePermission="token.manage"><TokenAnalyticsPage /></ProtectedRoute>} />
+          <Route path="operacao/estatisticas" element={<ProtectedRoute requirePermission="technical.read"><OperationalStatisticsPage /></ProtectedRoute>} />
+          <Route path="avisos" element={<ProtectedRoute requirePermission="technical.write"><NotificationCampaignsPage /></ProtectedRoute>} />
           <Route path="sessoes" element={<ProtectedRoute requirePermission="session.read"><SessionsPage /></ProtectedRoute>} />
-          <Route path="suporte" element={<SupportPage />} />
+          <Route path="dispositivo" element={<ProtectedRoute requirePermission="session.read"><DevicesPage /></ProtectedRoute>} />
+          <Route path="suporte" element={<ProtectedRoute requirePermission="support.read"><SupportPage /></ProtectedRoute>} />
           <Route path="staff" element={<ProtectedRoute requirePermission="staff.read"><StaffPage /></ProtectedRoute>} />
           <Route path="auditoria" element={<ProtectedRoute requirePermission="audit.read"><AuditPage /></ProtectedRoute>} />
           <Route path="desenvolvimento/versoes" element={<ProtectedRoute requirePermission="technical.read"><VersionsPage /></ProtectedRoute>} />
           <Route path="desenvolvimento/builds" element={<ProtectedRoute requirePermission="build.request"><BuildsPage /></ProtectedRoute>} />
           <Route path="desenvolvimento/formularios" element={<ProtectedRoute requirePermission="technical.read"><FormsPage /></ProtectedRoute>} />
+          <Route path="desenvolvimento/formularios/:formId" element={<ProtectedRoute requirePermission="technical.read"><FormsPage /></ProtectedRoute>} />
           <Route path="desenvolvimento/regras-risco" element={<ProtectedRoute requirePermission="technical.read"><RiskRulesPage /></ProtectedRoute>} />
-          <Route path="desenvolvimento/sincronizacao" element={<TechnicalEventsPage category="sync" title="Sincronização" />} />
-          <Route path="desenvolvimento/armazenamento" element={<TechnicalEventsPage category="storage" title="Armazenamento" />} />
-          <Route path="desenvolvimento/logs" element={<TechnicalEventsPage title="Logs e erros" />} />
+          <Route path="desenvolvimento/sincronizacao" element={<ProtectedRoute requirePermission="technical.read"><TechnicalEventsPage category="sync" title="Sincronização" /></ProtectedRoute>} />
+          <Route path="desenvolvimento/armazenamento" element={<ProtectedRoute requirePermission="technical.read"><TechnicalEventsPage category="storage" title="Armazenamento" /></ProtectedRoute>} />
+          <Route path="desenvolvimento/logs" element={<ProtectedRoute requirePermission="technical.read"><TechnicalEventsPage title="Logs e erros" /></ProtectedRoute>} />
           <Route path="governanca/configuracoes" element={<Navigate to="/app/auditoria" replace />} />
           <Route path="governanca/arquivamento" element={<ProtectedRoute requirePermission="configuration.publish"><ArquivamentoPage /></ProtectedRoute>} />
-          <Route path="referencia-ui" element={<StyleGuidePage />} />
+          <Route path="referencia-ui" element={<ProtectedRoute requirePermission="console.read"><StyleGuidePage /></ProtectedRoute>} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

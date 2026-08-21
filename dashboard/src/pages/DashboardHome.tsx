@@ -4,14 +4,21 @@ import {
   ArrowRight,
   Boxes,
   Building2,
+  CalendarClock,
+  CheckCircle2,
   CircleAlert,
+  CircleDollarSign,
   CreditCard,
   FileClock,
   GitBranch,
   Headphones,
   History,
+  ListTodo,
   RefreshCw,
   ServerCog,
+  TimerReset,
+  TrendingUp,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -141,7 +148,7 @@ export function DashboardHome() {
   const firstName = profile.displayName.split(/\s+/).filter(Boolean)[0] || 'equipe';
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-8">
+    <div className="mx-auto max-w-[1240px] space-y-7 pb-8">
       <header className="flex flex-col gap-5 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-3xl">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
@@ -156,10 +163,18 @@ export function DashboardHome() {
               : `Olá, ${firstName}. Acompanhe carteira, assinaturas e filas operacionais sem substituir dados por estimativas.`}
           </p>
         </div>
-        <Badge variant="outline" className="w-fit shrink-0">
-          {technical ? 'Perfil developer' : 'Perfil owner'}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
+            <RefreshCw className={cn(query.isFetching && 'animate-spin motion-reduce:animate-none')} aria-hidden="true" />
+            {query.isFetching ? 'Atualizando…' : 'Atualizar dados'}
+          </Button>
+          <Badge variant="outline" className="w-fit shrink-0">
+            {technical ? 'Perfil developer' : 'Perfil owner'}
+          </Badge>
+        </div>
       </header>
+
+      {!technical && <ExecutiveBrief metrics={metrics} attention={attention} can={can} />}
 
       {metrics.length > 0 ? (
         <MetricGrid metrics={metrics} technical={technical} />
@@ -192,26 +207,126 @@ function MetricGrid({ metrics, technical }: { metrics: DashboardMetric[]; techni
           <p className="mt-1 text-sm text-muted-foreground">Valores fornecidos pelo painel interno.</p>
         </div>
       </div>
-      <div className="mt-5 grid gap-x-8 gap-y-7 rounded-2xl border border-border/80 bg-muted/45 px-6 py-6 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric, index) => {
+      <div className={cn(
+        'mt-5 grid gap-3',
+        technical ? 'sm:grid-cols-2 xl:grid-cols-5' : 'sm:grid-cols-2 xl:grid-cols-12',
+      )}>
+        {metrics.map((metric) => {
           const urgent = isUrgentMetric(metric);
+          const config = metricPresentation(metric);
           return (
-            <div key={metric.key} className={cn('min-w-0 xl:pl-7', index > 0 && 'xl:border-l xl:border-border/80', urgent && 'rounded-xl bg-warning-soft px-4 py-3 xl:border-l-0 xl:pl-4')}>
-              <p className="max-w-[22ch] text-[11px] font-semibold text-muted-foreground">{metric.label}</p>
-              <div className="mt-3 flex items-end justify-between gap-3">
-                <p className="text-3xl font-semibold tabular-nums tracking-[-0.04em]">{metric.value.toLocaleString('pt-BR')}</p>
-                {urgent && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-warning">
-                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Revisar
-                  </span>
-                )}
+            <article key={metric.key} className={cn(
+              'min-w-0 rounded-2xl border border-border/75 bg-card p-5 shadow-sm transition-colors hover:border-border',
+              technical ? 'xl:col-span-1' : metricSpan(metric.key),
+              urgent && 'border-warning/35 bg-warning-soft/35',
+            )}>
+              <div className="flex items-start justify-between gap-3">
+                <span className={cn('grid h-9 w-9 place-items-center rounded-xl', config.iconClassName)}>
+                  <config.icon className="h-4.5 w-4.5" aria-hidden="true" />
+                </span>
+                {urgent && <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-warning"><AlertTriangle className="h-3 w-3" aria-hidden="true" />Revisar</span>}
               </div>
-            </div>
+              <p className="mt-5 max-w-[24ch] text-xs font-semibold text-muted-foreground">{metric.label}</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums tracking-[-0.04em]">{metric.value.toLocaleString('pt-BR')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{metricHint(metric, technical)}</p>
+            </article>
           );
         })}
       </div>
     </section>
   );
+}
+
+function metricValue(metrics: DashboardMetric[], key: string) {
+  return metrics.find((metric) => metric.key === key)?.value ?? 0;
+}
+
+function metricPresentation(metric: DashboardMetric): { icon: LucideIcon; iconClassName: string } {
+  switch (metric.key) {
+    case 'customers': return { icon: UsersRound, iconClassName: 'bg-primary/10 text-primary' };
+    case 'subscriptions': return { icon: CircleDollarSign, iconClassName: 'bg-success-soft text-success' };
+    case 'renewals': return { icon: CalendarClock, iconClassName: 'bg-info-soft text-info' };
+    case 'past_due': return { icon: AlertTriangle, iconClassName: 'bg-warning-soft text-warning' };
+    case 'support': return { icon: Headphones, iconClassName: 'bg-muted text-muted-foreground' };
+    case 'sla': return { icon: TimerReset, iconClassName: 'bg-warning-soft text-warning' };
+    case 'onboarding': return { icon: TrendingUp, iconClassName: 'bg-primary/10 text-primary' };
+    default: return { icon: ListTodo, iconClassName: 'bg-muted text-muted-foreground' };
+  }
+}
+
+function metricSpan(key: string) {
+  if (key === 'customers' || key === 'subscriptions' || key === 'renewals') return 'xl:col-span-4';
+  return 'xl:col-span-3';
+}
+
+function metricHint(metric: DashboardMetric, technical: boolean) {
+  if (technical) return 'Atualização conforme o serviço interno';
+  switch (metric.key) {
+    case 'customers': return 'Base cadastrada no painel';
+    case 'subscriptions': return 'Ciclos ativos, trial ou carência';
+    case 'renewals': return 'Vencimento nos próximos 30 dias';
+    case 'past_due': return metric.value > 0 ? 'Necessita revisão comercial' : 'Nenhum registro retornado';
+    case 'support': return 'Fila ainda não resolvida';
+    case 'sla': return metric.value > 0 ? 'Necessita resposta imediata' : 'Sem violação retornada';
+    case 'onboarding': return 'Organizações em onboarding ou piloto';
+    default: return 'Dado fornecido pelo painel';
+  }
+}
+
+function ExecutiveBrief({ metrics, attention, can }: { metrics: DashboardMetric[]; attention: DashboardAttention[]; can: CanAccess }) {
+  const pastDue = metricValue(metrics, 'past_due');
+  const sla = metricValue(metrics, 'sla');
+  const renewals = metricValue(metrics, 'renewals');
+  const support = metricValue(metrics, 'support');
+  const onboarding = metricValue(metrics, 'onboarding');
+  const hasCritical = pastDue > 0 || sla > 0;
+  const primaryAction = pastDue > 0
+    ? { to: '/app/assinaturas', permission: 'commercial.read' as const, label: 'Abrir contas em risco' }
+    : sla > 0
+      ? { to: '/app/suporte', permission: 'support.read' as const, label: 'Tratar SLAs violados' }
+      : renewals > 0
+        ? { to: '/app/assinaturas', permission: 'commercial.read' as const, label: 'Planejar renovações' }
+        : null;
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]" aria-label="Resumo para decisão">
+      <Card className={cn('overflow-hidden shadow-none', hasCritical ? 'border-warning/40' : 'border-primary/25')}>
+        <CardContent className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-xl">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">Leitura do momento</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em]">
+                {hasCritical ? 'Há itens que exigem ação antes da próxima rotina.' : 'Atenção direcionada às próximas decisões operacionais.'}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {hasCritical
+                  ? `${pastDue} assinatura(s) em risco e ${sla} SLA(s) violado(s) foram retornados pelo serviço.`
+                  : `${renewals} renovação(ões), ${support} chamado(s) abertos e ${onboarding} implantação(ões) estão no radar.`}
+              </p>
+            </div>
+            <span className={cn('grid h-11 w-11 place-items-center rounded-2xl', hasCritical ? 'bg-warning-soft text-warning' : 'bg-primary/10 text-primary')}>
+              {hasCritical ? <AlertTriangle className="h-5 w-5" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+            </span>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {primaryAction && can(primaryAction.permission) ? <Button asChild size="sm"><Link to={primaryAction.to}>{primaryAction.label}<ArrowRight aria-hidden="true" /></Link></Button> : null}
+            <span className="text-xs text-muted-foreground">{attention.length} prioridade(s) disponíveis para revisão abaixo.</span>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="bg-muted/40 shadow-none">
+        <CardContent className="grid grid-cols-3 gap-2 p-4">
+          <BriefStat label="Renovações" value={renewals} icon={CalendarClock} />
+          <BriefStat label="Chamados" value={support} icon={Headphones} />
+          <BriefStat label="Implantação" value={onboarding} icon={TrendingUp} />
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function BriefStat({ label, value, icon: Icon }: { label: string; value: number; icon: LucideIcon }) {
+  return <div className="rounded-xl bg-card p-4"><Icon className="h-4 w-4 text-primary" aria-hidden="true" /><p className="mt-4 text-2xl font-semibold tabular-nums">{value.toLocaleString('pt-BR')}</p><p className="mt-1 text-[11px] font-medium text-muted-foreground">{label}</p></div>;
 }
 
 function ReleasePanel({ release }: { release: DashboardData['release'] }) {

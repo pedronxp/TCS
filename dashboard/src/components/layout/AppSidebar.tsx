@@ -18,14 +18,11 @@ type AppSidebarProps = {
 // Sidebar glass minimalista: fundo translúcido + blur, item ativo com
 // fundo success-soft e texto primary (verde). Funciona em light e dark.
 export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = false }: AppSidebarProps) {
-  const { profile, signOut, can } = useAuth();
+  const { profile, signOut } = useAuth();
   const groups = resolveNavigation(
     profile?.role === 'developer' ? 'developer' : 'owner',
     profile?.permissions ?? [],
-  ).map((group) => ({
-    ...group,
-    items: group.items.filter((item) => can(item.permission)),
-  }));
+  );
   const compact = collapsed && !mobile;
   const consoleLabel = profile?.role === 'developer' ? 'Saúde técnica' : 'Visão executiva';
   const initials = profile?.displayName

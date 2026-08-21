@@ -115,10 +115,11 @@ export interface CustomerOnboarding {
 }
 
 export interface CustomerAuditEvent {
-  id: number;
+  id: string;
   event_type: string;
   entity_type: string;
   entity_id: string | null;
+  summary: string | null;
   metadata: Json;
   created_at: string;
 }

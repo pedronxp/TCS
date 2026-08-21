@@ -61,7 +61,8 @@ describe('Sessions and devices', () => {
   it('renders the operational overview', () => {
     render(<MemoryRouter><SessionsPage /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { level: 1, name: /Conectadas/ })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1, name: 'Sessões' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Ver dispositivos' })).toHaveAttribute('href', '/app/dispositivo');
     expect(screen.getByText(/sess.*ativas/)).toBeVisible();
     expect(screen.getByText('Atividade Recente')).toBeVisible();
     expect(screen.getByText(/Diretrizes/)).toBeVisible();
@@ -79,8 +80,8 @@ describe('Sessions and devices', () => {
     expect(screen.getByText(/remota exige/)).toBeVisible();
   });
 
-  it('opens details only after the server records the audit', async () => {
-    let resolveReview: ((value: { data: null; error: null }) => void) | undefined;
+  it('opens details only after the server returns the protected session detail', async () => {
+    let resolveReview: ((value: { data: unknown; error: null }) => void) | undefined;
     rpcMock.mockImplementationOnce(() => new Promise((resolve) => { resolveReview = resolve; }));
     render(<MemoryRouter><SessionsPage /></MemoryRouter>);
 
@@ -88,9 +89,20 @@ describe('Sessions and devices', () => {
     expect(screen.getByRole('button', { name: /Carregando/ })).toBeDisabled();
     expect(screen.queryByRole('dialog', { name: /Detalhada/ })).not.toBeInTheDocument();
 
-    resolveReview?.({ data: null, error: null });
+    resolveReview?.({
+      data: {
+        session,
+        same_device_sessions: [{
+          id: session.id,
+          status: session.status,
+          started_at: session.started_at,
+          last_heartbeat_at: session.last_heartbeat_at,
+        }],
+      },
+      error: null,
+    });
     expect(await screen.findByRole('dialog', { name: /Detalhada/ })).toBeVisible();
-    expect(rpcMock).toHaveBeenCalledWith('record_internal_session_review', { p_session_id: session.id });
+    expect(rpcMock).toHaveBeenCalledWith('get_internal_session_detail', { p_session_id: session.id });
   });
 
   it('keeps details closed and reports a failed audit', async () => {

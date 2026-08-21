@@ -16,6 +16,13 @@ interface MunicipalBootstrapInput {
   responsibleName: string;
 }
 
+type CustomerOnboardingEvent =
+  | 'onboarding_viewed'
+  | 'account_kind_selected'
+  | 'terms_accepted'
+  | 'bootstrap_submitted'
+  | 'onboarding_resumed';
+
 interface PortalAuthValue {
   session: Session | null;
   user: User | null;
@@ -30,6 +37,7 @@ interface PortalAuthValue {
   bootstrapIndividual: () => Promise<string | null>;
   bootstrapMunicipal: (input: MunicipalBootstrapInput) => Promise<string | null>;
   beginAffiliation: (choice: 'individual' | 'municipal', token?: string) => Promise<string | null>;
+  recordOnboardingEvent: (event: CustomerOnboardingEvent) => Promise<void>;
   signOut: () => Promise<void>;
   refreshAccess: () => Promise<void>;
   can: (permission: PortalPermission) => boolean;
@@ -52,6 +60,21 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const [entryContext, setEntryContext] = useState<PortalCustomerEntryContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const recordOnboardingEvent = useCallback(async (event: CustomerOnboardingEvent) => {
+    if (!session) return;
+    // Audit is best effort: an observability failure must not stop a customer
+    // from creating the account or resuming its onboarding.
+    try {
+      await supabase.rpc('record_customer_onboarding_funnel', {
+        p_event: event,
+        p_request_id: crypto.randomUUID(),
+        p_source: 'web',
+      });
+    } catch {
+      // The user flow remains available when the audit endpoint is unavailable.
+    }
+  }, [session]);
 
   const hydrate = useCallback(async (nextSession: Session | null) => {
     setSession(nextSession);
@@ -270,6 +293,7 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
       bootstrapIndividual,
       bootstrapMunicipal,
       beginAffiliation,
+      recordOnboardingEvent,
       signOut,
       refreshAccess,
       can,

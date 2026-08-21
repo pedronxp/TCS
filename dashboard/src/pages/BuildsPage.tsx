@@ -66,20 +66,16 @@ export function BuildsPage() {
   const query = useQuery({
     queryKey: ['internal-builds', user?.id, profile?.role],
     queryFn: async () => {
-      const [requests, builds, events] = await Promise.all([
-        supabase.from('internal_build_requests').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('builds').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.rpc('list_internal_technical_events', {
-          p_category: 'build',
-          p_limit: 50,
-        }),
-      ]);
-      const firstError = requests.error || builds.error || events.error;
-      if (firstError) throw firstError;
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: import('@/types/supabase').Json | null; error: { message: string } | null }>)('get_internal_builds_dashboard', {
+        p_request_limit: 100,
+        p_event_limit: 50,
+      });
+      if (error) throw error;
+      const root = jsonObject(data);
       return {
-        requests: requests.data || [],
-        builds: builds.data || [],
-        events: parseBuildEvents(events.data),
+        requests: jsonArray(root?.requests) as unknown as BuildRequestRow[],
+        builds: jsonArray(root?.builds) as unknown as BuildRow[],
+        events: parseBuildEvents(root?.events ?? null),
       };
     },
     refetchInterval: 30000,

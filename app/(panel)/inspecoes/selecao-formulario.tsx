@@ -7,7 +7,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useTraining } from '../../../context/TrainingContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { supabase } from '../../../utils/supabase';
-import { upsertFormulariosCache, getFormulariosCache } from '../../../utils/database';
+import { getInactiveSystemFormCodes, getFormulariosCache, replaceSystemFormCatalog, upsertFormulariosCache } from '../../../utils/database';
 import {
   AppHeader,
   Button,
@@ -101,6 +101,7 @@ const FORMULARIOS_BUILTIN = [
 
 interface FormularioItem {
   id: string;
+  systemCode?: string | null;
   titulo: string;
   descricao?: string;
   versao?: number;
@@ -130,11 +131,18 @@ export default function SelecaoFormularioScreen() {
   const { hasFeature } = useSubscription();
   const params = useLocalSearchParams<any>();
   const [dynamicForms, setDynamicForms] = useState<FormularioItem[]>([]);
+  const [disabledSystemCodes, setDisabledSystemCodes] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fromCache, setFromCache] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const builtinForms = FORMULARIOS_BUILTIN.filter(f => !isTrainingActive || trainingSession?.allowedForms.includes(f.id));
+  // Online, a versão publicada no servidor substitui o mesmo formulário nativo.
+  // Offline, o JSON embarcado continua disponível como contingência.
+  const builtinForms = FORMULARIOS_BUILTIN.filter((form) => (
+    (!isTrainingActive || trainingSession?.allowedForms.includes(form.id))
+    && !dynamicForms.some((remote) => remote.systemCode === form.id)
+    && !disabledSystemCodes.includes(form.id)
+  ));
   const hasAvailableForms = builtinForms.length + dynamicForms.length > 0;
 
   const voltar = () => {
@@ -160,11 +168,26 @@ export default function SelecaoFormularioScreen() {
     }
     try {
       if (isOnlineReal) {
-        const { data } = await supabase
+        const [{ data, error }, { data: catalog, error: catalogError }] = await Promise.all([
+          supabase
           .from('formularios')
-          .select('id, titulo, descricao, versao, status, perguntas, classificacao, fases, tipoCalculo, municipio, atualizadoEm')
+          .select('id, codigoSistema, titulo, descricao, versao, status, perguntas, classificacao, fases, tipoCalculo, municipio, atualizadoEm')
           .eq('ativo', true)
-          .order('atualizadoEm', { ascending: false });
+          .eq('status', 'publicado')
+          .order('atualizadoEm', { ascending: false }),
+          supabase.rpc('list_mobile_form_catalog'),
+        ]);
+        if (error) throw error;
+        if (catalogError) throw catalogError;
+
+        const catalogItems = Array.isArray(catalog) ? catalog as Array<{ codigo_sistema?: string; ativo?: boolean; atualizado_em?: string }> : [];
+        const disabled = catalogItems
+          .filter((item) => item.codigo_sistema && item.ativo === false)
+          .map((item) => item.codigo_sistema as string);
+        replaceSystemFormCatalog(catalogItems
+          .filter((item) => item.codigo_sistema)
+          .map((item) => ({ codigoSistema: item.codigo_sistema as string, ativo: item.ativo !== false, atualizadoEm: item.atualizado_em || new Date().toISOString() })));
+        setDisabledSystemCodes(disabled);
 
         if (data && data.length > 0) {
           // Persiste no cache SQLite para uso offline futuro — inclui payload completo
@@ -186,8 +209,9 @@ export default function SelecaoFormularioScreen() {
 
         const customs: FormularioItem[] = (data || []).map(f => ({
           id: f.id,
+          systemCode: (f as any).codigoSistema ?? null,
           titulo: f.titulo,
-          descricao: 'Modelo criado pela sua equipe.',
+          descricao: f.descricao || 'Modelo publicado pela sua equipe.',
           versao: f.versao,
           status: f.status,
           isBuiltin: false,
@@ -208,6 +232,7 @@ export default function SelecaoFormularioScreen() {
             isBuiltin: false,
           }));
         setDynamicForms(customs);
+        setDisabledSystemCodes(getInactiveSystemFormCodes());
         setFromCache(customs.length > 0);
       }
     } catch (e) {
@@ -226,6 +251,7 @@ export default function SelecaoFormularioScreen() {
             isBuiltin: false,
           }));
         setDynamicForms(customs);
+        setDisabledSystemCodes(getInactiveSystemFormCodes());
         setFromCache(customs.length > 0);
       } catch {
         // silently ignore — built-in forms still available

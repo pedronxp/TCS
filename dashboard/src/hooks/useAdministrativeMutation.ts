@@ -18,7 +18,7 @@ export function useAdministrativeMutation<TVariables, TData>({
       } catch (error) {
         return {
           ok: false,
-          error: error instanceof Error ? error.message : 'Operação não concluída.',
+          error: errorMessage(error),
           operationId,
         };
       }
@@ -28,4 +28,10 @@ export function useAdministrativeMutation<TVariables, TData>({
       await Promise.all(invalidate.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
     },
   });
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
+  return 'Operação não concluída.';
 }

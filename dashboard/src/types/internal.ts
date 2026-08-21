@@ -26,7 +26,12 @@ export type InternalPermission =
   | 'configuration.prepare'
   | 'configuration.publish'
   | 'protocol.read'
-  | 'protocol.rotate';
+  | 'protocol.rotate'
+  | 'account.approve'
+  | 'account.lock'
+  | 'account.recover_invite'
+  | 'token.manage'
+  | 'notification.manage';
 
 export interface InternalStaffProfile {
   id: string;

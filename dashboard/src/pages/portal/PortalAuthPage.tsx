@@ -22,7 +22,7 @@ const portalAside = {
 export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const {
     access, entryContext, session, loading, signIn, signUp, signInWithGoogle,
-    beginAffiliation, signOut,
+    beginAffiliation, recordOnboardingEvent, signOut,
   } = usePortalAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +48,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     if (status === 'sem-acesso') setMessage('Sua conta está autenticada, mas ainda não possui um portal ativo.');
     if (status === 'vinculo-inativo') setMessage('Seu vínculo municipal não está ativo. Fale com a coordenação.');
   }, [status]);
+
+  useEffect(() => {
+    if (session && !access) void recordOnboardingEvent('onboarding_viewed');
+  }, [access, recordOnboardingEvent, session]);
 
   async function handleUseAnotherAccount() {
     setSwitchingAccount(true);
@@ -159,6 +163,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     }
     setSubmitting(true);
     setMessage(null);
+    void recordOnboardingEvent('bootstrap_submitted');
     const bootstrapError = await beginAffiliation(accountKind, municipalToken);
     setSubmitting(false);
     if (bootstrapError) setMessage(bootstrapError);
@@ -185,7 +190,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 disabled={entryContext?.individualBootstrapEnabled === false}
                 title="Profissional individual"
                 description="Acesso de avaliação para uso em nome próprio."
-                onChange={setAccountKind}
+                onChange={(nextKind) => {
+                  setAccountKind(nextKind);
+                  void recordOnboardingEvent('account_kind_selected');
+                }}
               />
               <AccountKindOption
                 value="municipal"
@@ -193,7 +201,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 disabled={false}
                 title="Tenho vínculo municipal"
                 description="Informe o token recebido da prefeitura."
-                onChange={setAccountKind}
+                onChange={(nextKind) => {
+                  setAccountKind(nextKind);
+                  void recordOnboardingEvent('account_kind_selected');
+                }}
               />
             </fieldset>
             {accountKind === 'municipal' && (
@@ -208,7 +219,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 type="checkbox"
                 className="mt-1 h-4 w-4"
                 checked={termsAccepted}
-                onChange={(event) => setTermsAccepted(event.target.checked)}
+                onChange={(event) => {
+                  setTermsAccepted(event.target.checked);
+                  if (event.target.checked) void recordOnboardingEvent('terms_accepted');
+                }}
               />
               Aceito os Termos de Uso e a Política de Privacidade vigentes.
             </label>

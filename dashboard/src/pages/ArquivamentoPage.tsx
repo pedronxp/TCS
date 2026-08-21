@@ -134,6 +134,7 @@ export function ArquivamentoPage() {
   const [selectedRestoreIds, setSelectedRestoreIds] = useState<Set<string>>(new Set());
   const [configurationOpen, setConfigurationOpen] = useState(false);
   const [configDraft, setConfigDraft] = useState<ArchiveConfig | null>(null);
+  const [pendingConfig, setPendingConfig] = useState<ArchiveConfig | null>(null);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [decisionTarget, setDecisionTarget] = useState<{ request: RestoreRequest; approve: boolean } | null>(null);
 
@@ -171,18 +172,22 @@ export function ArquivamentoPage() {
     },
   });
   const saveConfig = useMutation({
-    mutationFn: async (next: ArchiveConfig) => {
+    mutationFn: async ({ next, reason }: { next: ArchiveConfig; reason: string }) => {
       if (!Number.isInteger(next.daysThreshold) || next.daysThreshold < 1 || next.daysThreshold > 365) {
         throw new Error('A retenção deve ser um número inteiro entre 1 e 365 dias.');
       }
-      const { error } = await supabase.from('configuracoes').update({
-        valor: { mode: next.mode, enabled: next.enabled, days_threshold: next.daysThreshold },
-        atualizadoEm: new Date().toISOString(),
-      }).eq('id', 'arquivamento');
+      const { error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ error: { message: string } | null }>)('update_internal_archive_configuration', {
+        p_mode: next.mode,
+        p_enabled: next.enabled,
+        p_days_threshold: next.daysThreshold,
+        p_reason: reason,
+        p_operation_id: crypto.randomUUID(),
+      });
       if (error) throw error;
     },
     onSuccess: async () => {
       setConfigDraft(null);
+      setPendingConfig(null);
       setConfigurationOpen(false);
       await refresh();
       toast.success('Política de retenção atualizada.');
@@ -293,7 +298,7 @@ export function ArquivamentoPage() {
               <Input id="archive-days" className="mt-2" type="number" min={1} max={365} value={config.daysThreshold} onChange={(event) => setConfigDraft({ ...config, daysThreshold: Number(event.target.value) })} />
             </div>
             <div className="flex flex-wrap gap-2 md:col-span-3">
-              <Button onClick={() => void saveConfig.mutateAsync(config).catch(() => undefined)} disabled={saveConfig.isPending || !configDraft || !Number.isInteger(config.daysThreshold) || config.daysThreshold < 1 || config.daysThreshold > 365}>Salvar política</Button>
+              <Button onClick={() => setPendingConfig(config)} disabled={saveConfig.isPending || !configDraft || !Number.isInteger(config.daysThreshold) || config.daysThreshold < 1 || config.daysThreshold > 365}>Salvar política</Button>
               <Button variant="ghost" onClick={() => { setConfigDraft(null); setConfigurationOpen(false); }}>Cancelar</Button>
             </div>
           </CardContent>
@@ -374,6 +379,17 @@ export function ArquivamentoPage() {
         )}
       </AsyncBoundary>
 
+      <HighAssuranceDialog
+        open={Boolean(pendingConfig)}
+        onOpenChange={(open) => { if (!open) setPendingConfig(null); }}
+        title="Atualizar política de arquivamento"
+        impact="A alteração muda quando a retenção programada pode mover dados operacionais. Ela exigirá MFA, justificativa e ficará registrada na auditoria."
+        confirmLabel="Salvar política"
+        onConfirm={(reason) => {
+          if (!pendingConfig) return Promise.resolve();
+          return saveConfig.mutateAsync({ next: pendingConfig, reason }).then(() => undefined);
+        }}
+      />
       <HighAssuranceDialog
         open={restoreDialogOpen}
         onOpenChange={setRestoreDialogOpen}
