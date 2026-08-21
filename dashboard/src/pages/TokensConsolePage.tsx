@@ -116,7 +116,7 @@ export function TokensConsolePage() {
   const revealToken = async (token: TokenRow) => {
     setRevealError(null);
     const result = await reveal.mutateAsync({ token });
-    if (!result.ok) { setRevealError(result.error); return; }
+    if (!result.ok) { setRevealError(result.error || 'Não foi possível revelar este token agora.'); return; }
     const code = result.data?.token;
     const managementId = result.data?.management_id;
     const expiresAt = result.data?.expires_at;
