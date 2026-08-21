@@ -8,6 +8,17 @@
 
 **Tech Stack:** Expo/React Native (`app/`), dashboard React (`dashboard/`), Supabase Cloud, Supabase Storage, Edge Functions, DigitalOcean VPS, Backblaze B2 para cópia externa de arquivos, pgTAP (`supabase/tests/*.sql`) para testes de RLS, scripts operacionais Node em `scripts/*.mjs`.
 
+## Prioridade de execução (atualizada em 2026-08-21)
+
+Decisão do produto: **a nova função vem antes da infraestrutura de escala.**
+
+1. **Task 5 primeiro** — comunicados municipais funcionando de ponta a ponta (banco + painel no portal municipal do console web + tela Avisos no app), sem depender de upgrade de plano ou VPS.
+2. **Supabase Pro fica adiado** — o projeto Free atual comporta o desenvolvimento e a validação da função; o upgrade (Task 1) passa a ser pré-requisito apenas da liberação para prefeituras piloto (Task 4).
+3. **Hospedagem vigente** — painel web no Netlify (`netlify.toml` na raiz já configura build/publicação do `dashboard/`, bastando `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`), backend integralmente no projeto Supabase Cloud atual (Postgres, Auth, RLS, Storage, Edge Functions), app via Expo/EAS. Nada muda de lugar enquanto a função não estiver validada; a VPS (Task 3) é opcional e só entra quando houver serviço contínuo a hospedar.
+4. **Próximos passos após validação** — entrega a moradores (contas individuais por município), push por Edge Function no padrão `dispatch-*`, e só então Tasks 1–4.
+
+Escopo v1 dos comunicados (implementado): emissão por master/admin municipal com destino por bairro (catálogo da própria organização) ou todo o município; severidade informação/alerta/emergência; rascunho → publicado → arquivado; leitura registrada por membro; auditoria de autor e datas; tabela `canais_externos` reservada para WhatsApp futuro. Moradores e push ficam para a fase 2.
+
 ## Global Constraints
 
 - A produção piloto deve começar no Supabase Pro; o plano Free não é aceitável para operação institucional.
@@ -91,20 +102,24 @@
 
 ### Task 5: Preparar o modelo de comunicados por cidade e bairro
 
+> **Implementado em 2026-08-21** (branch `feat/producao-gradual-e-comunidades`). Adaptação de desenho: em vez de uma tabela global `municipio`, o comunicado pertence à **organização** (prefeitura) existente — `organizations` já carrega `municipality_name`/`state_code` e é a unidade de isolamento usada por `private.current_organization_id()`. `bairros` é catálogo por organização.
+
 **Files:**
-- Create: `supabase/migrations/<timestamp>_communications.sql`
-- Create: `supabase/tests/communications_test.sql` (pgTAP)
-- Create: módulo de comunicados no app em `app/(panel)/` e página no painel em `dashboard/src/pages/`
+- Create: `supabase/migrations/20260821180000_comunicados_municipais.sql` ✔
+- Create: `supabase/tests/comunicados_municipais_test.sql` (pgTAP) ✔
+- Create: `dashboard/src/lib/comunicados.ts`, `dashboard/src/pages/portal/PortalComunicadosPage.tsx` (+ teste vitest), rota `/portal/municipal/comunicados` ✔
+- Create: `app/(panel)/avisos/index.tsx` + registro em `_layout.tsx` e `modulos.tsx` ✔
 
 **Interfaces:**
-- Consumes: município, bairro, usuários autorizados (`auth.users` + roles existentes da série `backend_authoritative_*`) e canais habilitados.
-- Produces: comunicado auditável com destino por município/bairro e entrega em app/painel/push.
+- Consumes: organização (prefeitura), bairros, usuários autorizados (`organization_members` com papéis master/admin/supervisor/agent) e canais habilitados.
+- Produces: comunicado auditável com destino por município/bairro e entrega em app/painel (push na fase 2).
 
-- [ ] Migration `<timestamp>_communications.sql` criando `municipio`, `bairro`, `comunicado`, `comunicado_destino`, `comunicado_leitura` e `canal_externo` com UUIDs como PK/FK (nunca apenas nomes), `created_at`/`updated_at` e índices por município.
-- [ ] RLS por escopo municipal no mesmo padrão da série `backend_authoritative_*`: somente Master cria municípios/canais; admin municipal cria/comunica apenas no próprio município; morador tem somente leitura dos comunicados destinados ao seu município/bairro.
-- [ ] `supabase/tests/communications_test.sql` em pgTAP: verificar em `pg_policies` cada policy criada e o comportamento de isolamento (admin do município A não lê o município B).
-- [ ] Entregar os comunicados no app (`app/(panel)/`), no painel (`dashboard/src/pages/`) e por push (via `context/NotificationContext.tsx`) antes de adicionar qualquer canal externo.
-- [ ] Registrar autor, data, conteúdo, destino, status e motivo de falha em cada disparo (`comunicado_destino` com status e `erro`).
+- [x] Migration criando `bairros`, `comunicados`, `comunicado_destinos`, `comunicado_leituras` e `canais_externos` com UUIDs como PK/FK, `created_at`/`updated_at`, CHECKs e índices por organização.
+- [x] Fail-closed: `REVOKE ALL` de anon/authenticated nas tabelas; policies SELECT municipais de defesa; acesso exclusivo por RPCs `portal_*` SECURITY DEFINER (padrão `backend_authoritative_*`): `portal_list_comunicados`, `portal_upsert_comunicado`, `portal_set_comunicado_status`, `portal_delete_comunicado`, `portal_register_comunicado_leitura`, `portal_list_bairros`, `portal_upsert_bairro`, `portal_delete_bairro`.
+- [x] Papéis: master/admin municipal criam/editam/publicam (rascunho editável; publicado só arquiva/republica; exclusão só de rascunho); supervisor/agent leem e registram leitura; permissões `communication.read`/`communication.write` adicionadas a `get_portal_access_context`.
+- [x] `supabase/tests/comunicados_municipais_test.sql` em pgTAP: tabelas, RLS, fail-closed, privilégios das RPCs e permissões do contexto.
+- [x] Painel no console web: portal municipal (`/portal/municipal/comunicados`) com formulário de emissão, seleção de destino por bairro/todo o município, gestão de bairros, publicados/rascunhos/arquivados com leituras; tela Avisos no app com badge de não lido e registro de leitura.
+- [ ] Fase 2: entrega a moradores (contas individuais), push (Edge Function no padrão `dispatch-*`), disparo com status/erro por destino e `canais_externos` operacional.
 
 ### Task 6: Tratar WhatsApp como decisão externa de conformidade
 

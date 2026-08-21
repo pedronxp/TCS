@@ -117,6 +117,7 @@ function PanelContent() {
         <Stack.Screen name="master/logs" />
         <Stack.Screen name="master/contratacoes" />
         <Stack.Screen name="modulos" />
+        <Stack.Screen name="avisos/index" />
         <Stack.Screen name="assinatura" />
         <Stack.Screen name="planos" />
         <Stack.Screen name="coordenacao" />

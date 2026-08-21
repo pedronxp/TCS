@@ -20,6 +20,8 @@ export type PortalPermission =
   | 'appointment.read'
   | 'document.read'
   | 'report.read'
+  | 'communication.read'
+  | 'communication.write'
   | 'team.read'
   | 'team.manage'
   | 'invite.agent'

@@ -225,6 +225,15 @@ export const routeManifest = [
     automatedVisualBaselines: null,
   }),
   portalRoute({
+    id: 'portal-municipal-comunicados',
+    path: '/portal/municipal/comunicados',
+    audience: ['coordinator', 'supervisor', 'agent'],
+    permission: 'communication.read',
+    template: 'listing',
+    penpot: '29 · Municipal — Coordenador + 30 · Supervisor + 31 · Agente',
+    automatedVisualBaselines: null,
+  }),
+  portalRoute({
     id: 'portal-municipal-inspection-detail',
     path: '/portal/municipal/vistorias/:inspectionId',
     audience: ['coordinator', 'supervisor', 'agent'],

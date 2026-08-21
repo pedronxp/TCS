@@ -51,6 +51,7 @@ const trainingAccess: ModuleItem = {
 const baseOperation: ModuleItem[] = [
   { title: 'Vistorias', description: 'Histórico, evidências e laudos', icon: 'clipboard', route: '/(panel)/inspecoes' },
   { title: 'Mapa tático', description: 'Ocorrências georreferenciadas', icon: 'map-pin', route: '/(panel)/mapas' },
+  { title: 'Avisos', description: 'Comunicados da prefeitura', icon: 'bell', route: '/(panel)/avisos' },
 ];
 
 function sectionsForRole(role: string | undefined, developerMode: boolean): ModuleSection[] {

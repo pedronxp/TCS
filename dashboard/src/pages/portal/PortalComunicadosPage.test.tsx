@@ -1,0 +1,92 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { axe } from 'vitest-axe';
+import { PortalComunicadosPage } from './PortalComunicadosPage';
+import type { Comunicado } from '@/lib/comunicados';
+
+const mocks = vi.hoisted(() => ({
+  fetchComunicados: vi.fn(),
+  fetchBairros: vi.fn(),
+  can: vi.fn(),
+}));
+
+vi.mock('@/lib/comunicados', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/comunicados')>()),
+  fetchComunicados: mocks.fetchComunicados,
+  fetchBairros: mocks.fetchBairros,
+}));
+vi.mock('@/contexts/PortalAuthContext', () => ({
+  usePortalAuth: () => ({
+    access: { accountKind: 'organization' as const, userId: 'user-1', organizationId: 'org-1', role: 'admin' as const },
+    can: mocks.can,
+  }),
+}));
+
+const comunicadoPublicado: Comunicado = {
+  id: 'com-1',
+  titulo: 'Limpeza de canal programada',
+  conteudo: 'Equipe de zelo urbano atua no bairro Centro na quarta-feira.',
+  severidade: 'alerta',
+  status: 'publicado',
+  autorNome: 'Coordenação',
+  publicadoEm: '2026-08-21T12:00:00Z',
+  expiraEm: null,
+  criadoEm: '2026-08-20T10:00:00Z',
+  destinos: [{ bairroId: 'b-1', bairroNome: 'Centro', todoMunicipio: false }],
+  totalLeituras: 4,
+  lido: false,
+  podeEditar: true,
+};
+
+function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <PortalComunicadosPage />
+    </QueryClientProvider>,
+  );
+}
+
+describe('comunicados municipais do portal', () => {
+  beforeEach(() => {
+    mocks.fetchComunicados.mockReset().mockResolvedValue([comunicadoPublicado]);
+    mocks.fetchBairros.mockReset().mockResolvedValue([
+      { id: 'b-1', nome: 'Centro', ativo: true, emUso: true, podeGerenciar: true },
+    ]);
+    mocks.can.mockReset().mockReturnValue(false);
+  });
+  afterEach(cleanup);
+
+  it('lista comunicados publicados com destino e leituras', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Comunicados' })).toBeVisible();
+    expect(await screen.findByText('Limpeza de canal programada')).toBeVisible();
+    expect(screen.getByText('Publicados (1)')).toBeVisible();
+    expect(screen.getByText(/Centro/)).toBeVisible();
+    expect(screen.getByText(/4 leituras/)).toBeVisible();
+    expect(screen.getByText('Não lido')).toBeVisible();
+  });
+
+  it('expõe o formulário de emissão apenas para quem pode gerenciar', async () => {
+    mocks.can.mockReturnValue(true);
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Novo comunicado' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Bairros do município' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeEnabled();
+  });
+
+  it('mostra modo leitura para papéis sem permissão de escrita', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Modo leitura' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Salvar rascunho' })).not.toBeInTheDocument();
+  });
+
+  it('mantém a estrutura acessível', async () => {
+    const { container } = renderPage();
+    await screen.findByText('Limpeza de canal programada');
+    expect((await axe(container)).violations).toEqual([]);
+  });
+});
