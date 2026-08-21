@@ -62,6 +62,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
     event.preventDefault();
     setSubmitting(true);
     setMessage(null);
+    const normalizedEmail = email.trim().toLowerCase();
     const flags = await supabase.rpc('get_public_auth_capabilities');
     const publicFlags = flags.data as { password_recovery?: boolean } | null;
     if (flags.error || publicFlags?.password_recovery !== true) {
@@ -69,13 +70,15 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
       setMessage('A recuperação de senha está temporariamente indisponível.');
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${window.location.origin}/redefinir-senha${location.search}`,
-    });
-    if (error) {
-      console.error('[password-recovery] resetPasswordForEmail failed:', error.message, error);
+    const recovery = await supabase.functions.invoke('password-recovery-request', { body: { email: normalizedEmail } });
+    if (recovery.error) {
+      const status = (recovery.error as { context?: Response }).context?.status;
       setSubmitting(false);
-      setMessage('Não foi possível solicitar a recuperação agora. Tente novamente em instantes.');
+      if (status === 429) {
+        setMessage('Muitas tentativas de recuperação. Aguarde alguns minutos e tente novamente.');
+        return;
+      }
+      setMessage('Não foi possível enviar a solicitação agora. Tente novamente em instantes.');
       return;
     }
     setSubmitting(false);
@@ -159,7 +162,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
                     E-mail
                     <Input className="mt-2" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
                   </label>
-                  {message && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</p>}
+                  {message && <p className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="alert">{message}</p>}
                   <Button type="submit" className="w-full" disabled={submitting}>
                     {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                     {submitting ? 'Enviando…' : 'Enviar link seguro'}
@@ -173,7 +176,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
                 </div>
               ) : !validRecovery ? (
                 <div className="space-y-4">
-                  <p className="rounded-md border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive" role="alert">Este link é inválido, expirou ou já foi utilizado.</p>
+                  <p className="rounded-md border border-warning/30 bg-warning-soft p-4 text-sm text-foreground" role="alert">Este link é inválido, expirou ou já foi utilizado.</p>
                   <Button asChild className="w-full"><Link to={requestPath}>Solicitar outro link</Link></Button>
                   <Button asChild variant="ghost" className="w-full"><Link to={loginPath}>Voltar ao login</Link></Button>
                 </div>
@@ -194,7 +197,7 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
                     <input className="mt-1 h-4 w-4" type="checkbox" checked={revokeOthers} onChange={(event) => setRevokeOthers(event.target.checked)} />
                     <span><span className="block font-medium text-foreground">Encerrar outras sessões</span>Recomendado se você não reconhece o motivo da troca.</span>
                   </label>
-                  {message && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{message}</p>}
+                  {message && <p className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="alert">{message}</p>}
                   <Button type="submit" className="w-full" disabled={submitting}>
                     {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                     {submitting ? 'Alterando…' : 'Salvar nova senha'}

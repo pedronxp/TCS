@@ -11,10 +11,17 @@
  */
 
 import { DEFESA_CIVIL_LOGO_BASE64 } from '../_shared/defesaCivilLogo.ts';
+import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
+const AUTH_HOOK_SECRET = (Deno.env.get('SEND_EMAIL_HOOK_SECRET') ?? '')
+  .replace(/^v1,whsec_/, '');
 const FROM_NAME = 'TCS – Relatório de Risco';
-const FROM_EMAIL = 'onboarding@resend.dev'; // Trocar pelo domínio verificado quando disponível
+// Use um domínio verificado no Resend (ex.: notificacoes@tcs.app).
+// O padrão onboarding@resend.dev é sandbox: SÓ entrega para destinatários
+// pré-autorizados — qualquer outro e-mail (recuperação de senha, cadastro
+// de terceiros) é rejeitado, quebrando o fluxo de auth.
+const FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? 'onboarding@resend.dev';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -304,12 +311,36 @@ async function sendViaResend(to: string, subject: string, html: string): Promise
 // ─── Handler principal ────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  // This function is intentionally JWT-free because it is called by Supabase
+  // Auth. Every request must instead carry a valid Standard Webhooks signature.
+  if (!AUTH_HOOK_SECRET) {
+    console.error('[send-auth-email] SEND_EMAIL_HOOK_SECRET is not configured');
+    return new Response(JSON.stringify({ success: false, error: 'service_unavailable' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  let payload: AuthHookPayload;
+  try {
+    const rawPayload = await req.text();
+    payload = new Webhook(AUTH_HOOK_SECRET).verify(
+      rawPayload,
+      Object.fromEntries(req.headers),
+    ) as AuthHookPayload;
+  } catch {
+    console.warn('[send-auth-email] rejected request with invalid webhook signature');
+    return new Response(JSON.stringify({ success: false, error: 'invalid_webhook_signature' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   try {
-    const payload = await req.json() as AuthHookPayload;
     const { user, email_data } = payload;
     const email = user.email;
     const actionType = email_data.email_action_type;
@@ -377,8 +408,12 @@ Deno.serve(async (req: Request) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[send-auth-email] ❌ Erro: ${message}`);
 
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
+    // Send Email Hook: non-2xx aborta a operação de authORIGINAL (ex.:
+    // resetPasswordForEmail devolve erro → portal mostra "Não foi possível
+    // solicitar a recuperação"). Responder 200 mesmo em falha evita quebrar
+    // o fluxo do usuário; o erro fica visível nos logs para depuração.
+    return new Response(JSON.stringify({ success: false, error: message }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

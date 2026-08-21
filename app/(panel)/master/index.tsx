@@ -20,7 +20,7 @@ import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
-import { notificarVistoriaDeletada } from '../../../services/NotificationService';
+import { excluirVistoriaComNotificacao } from '../../../services/NotificationService';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 import { isTrainingClassEnded, listTrainingClasses } from '../../../services/TrainingService';
 import { MetricCard, SectionHeader, StateBanner } from '../../../components/ui';
@@ -159,18 +159,7 @@ export default function MasterDashboardScreen() {
     }
     setDeletando(true);
     try {
-      const { error } = await supabase.from('vistorias').delete().eq('id', deleteTarget.id);
-      if (error) throw error;
-
-      // Notificar agente + equipe do município
-      await notificarVistoriaDeletada(
-        (deleteTarget as any).agenteUid || '',
-        deleteTarget.agenteNome || '—',
-        deleteTarget.municipio || '',
-        deleteTarget.endereco || '',
-        deleteMotivo.trim(),
-        profile?.name || 'Master Admin',
-      );
+      await excluirVistoriaComNotificacao(deleteTarget.id, deleteMotivo.trim());
 
       // Auditoria
       registrarAuditoria({

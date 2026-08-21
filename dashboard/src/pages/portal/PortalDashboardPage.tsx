@@ -31,7 +31,8 @@ const metricIcons: Record<string, LucideIcon> = {
 };
 
 const roleLabels = {
-  coordinator: 'Coordenação',
+  master: 'Master',
+  admin: 'Administração',
   supervisor: 'Supervisão',
   agent: 'Agente',
 } as const;

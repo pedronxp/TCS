@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -2500,6 +2500,18 @@ export type Database = {
       }
     }
     Functions: {
+      begin_customer_affiliation: {
+        Args: { p_choice: string; p_token?: string }
+        Returns: Json
+      }
+      internal_link_customer_to_organization: {
+        Args: { p_organization_id: string; p_role?: string; p_user_id: string }
+        Returns: Json
+      }
+      check_password_recovery_rate_limit: {
+        Args: { p_email: string }
+        Returns: Json
+      }
       bootstrap_individual_customer: {
         Args: { p_idempotency_key: string; p_terms_version: string }
         Returns: Json
@@ -2549,6 +2561,10 @@ export type Database = {
       record_customer_onboarding_funnel: {
         Args: { p_event: string; p_request_id?: string; p_source?: string }
         Returns: boolean
+      }
+      record_password_recovery_request: {
+        Args: { p_email: string; p_ip?: string | null }
+        Returns: undefined
       }
       update_customer_onboarding_checklist: {
         Args: {
@@ -2883,6 +2899,16 @@ export type Database = {
       }
       list_internal_forms: { Args: never; Returns: Json }
       list_internal_risk_configs: { Args: never; Returns: Json }
+      list_internal_protocol_registry: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_organization_id?: string | null
+          p_search?: string | null
+        }
+        Returns: Json
+      }
+      list_internal_protocol_series: { Args: never; Returns: Json }
       list_internal_support_queue: {
         Args: {
           p_assignee_id?: string
@@ -2917,6 +2943,15 @@ export type Database = {
           p_role: string
           p_status: string
           p_user_id: string
+        }
+        Returns: Json
+      }
+      rotate_internal_protocol_series: {
+        Args: {
+          p_code: string
+          p_operation_id: string
+          p_organization_id: string
+          p_reason: string
         }
         Returns: Json
       }

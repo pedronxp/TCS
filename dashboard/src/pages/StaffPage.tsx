@@ -271,6 +271,8 @@ function StaffDraftDialog({
             >
               <option value="owner">Owner</option>
               <option value="developer">Developer</option>
+              <option value="support">Suporte</option>
+              <option value="auditor">Auditor</option>
             </select>
           </div>
           <div className="space-y-2">

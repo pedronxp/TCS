@@ -67,16 +67,9 @@ export default function FormEditorScreen() {
     }
     setSalvando(true);
     try {
-      const { error } = await supabase.from('formularios').insert({
-        titulo: novoTitulo.trim(),
-        descricao: novaDescricao.trim() || null,
-        perguntas: [],
-        versao: 1,
-        status: 'rascunho',
-        ativo: false,
-        municipio: profile?.municipio || null,
-        criadoPorNome: profile?.name || '',
-        criadoPorUid: profile?.uid || '',
+      const { error } = await supabase.rpc('create_operational_form', {
+        p_titulo: novoTitulo.trim(),
+        p_descricao: novaDescricao.trim() || null,
       });
       if (error) throw error;
       setNovoTitulo('');
@@ -111,10 +104,11 @@ export default function FormEditorScreen() {
         {
           text: novoAtivo ? 'Publicar' : 'Despublicar', onPress: async () => {
             try {
-              await supabase.from('formularios').update({
-                status: novoStatus, ativo: novoAtivo,
-                publicadoEm: novoAtivo ? new Date().toISOString() : null,
-              }).eq('id', form.id);
+              const { error } = await supabase.rpc('set_operational_form_publication', {
+                p_id: form.id,
+                p_publicado: novoAtivo,
+              });
+              if (error) throw error;
               registrarAuditoria({
                 acao: novoAtivo ? 'formulario_publicado' : 'formulario_despublicado',
                 adminUid: profile?.uid ?? '',
@@ -142,22 +136,7 @@ export default function FormEditorScreen() {
         {
           text: 'Duplicar', onPress: async () => {
             try {
-              const { data: original } = await supabase
-                .from('formularios')
-                .select('perguntas')
-                .eq('id', form.id)
-                .single();
-              const { error } = await supabase.from('formularios').insert({
-                titulo: `${form.titulo} (cópia)`,
-                descricao: form.descricao || null,
-                perguntas: original?.perguntas || [],
-                versao: 1,
-                status: 'rascunho',
-                ativo: false,
-                municipio: profile?.municipio || null,
-                criadoPorNome: profile?.name || '',
-                criadoPorUid: profile?.uid || '',
-              });
+              const { error } = await supabase.rpc('duplicate_operational_form', { p_id: form.id });
               if (error) throw error;
               carregar();
               Alert.alert('Duplicado!', 'Cópia criada como rascunho.');
@@ -176,7 +155,8 @@ export default function FormEditorScreen() {
       {
         text: 'Excluir', style: 'destructive', onPress: async () => {
           try {
-            await supabase.from('formularios').delete().eq('id', form.id);
+            const { error } = await supabase.rpc('delete_operational_form', { p_id: form.id });
+            if (error) throw error;
             registrarAuditoria({
               acao: 'formulario_excluido',
               adminUid: profile?.uid ?? '',

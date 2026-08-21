@@ -8,6 +8,7 @@ import {
   FileCode2,
   Gauge,
   GitBranch,
+  Hash,
   Headphones,
   History,
   Shield,
@@ -44,6 +45,7 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
       { to: '/app/negocio/indicadores', label: 'Indicadores', icon: TrendingUp, permission: 'commercial.read' },
       { to: '/app/planos', label: 'Planos', icon: CreditCard, permission: 'commercial.read' },
       { to: '/app/assinaturas', label: 'Assinaturas', icon: ClipboardList, permission: 'commercial.read' },
+      { to: '/app/protocolos', label: 'Protocolos', icon: Hash, permission: 'protocol.read' },
     ],
   },
   {
@@ -64,6 +66,7 @@ export const DEVELOPER_NAVIGATION: NavigationGroup[] = [
       { to: '/app', label: 'Saúde técnica', icon: Gauge, permission: 'dashboard.technical.read' },
       { to: '/app/clientes', label: 'Clientes', icon: Building2, permission: 'customer.read' },
       { to: '/app/suporte', label: 'Suporte', icon: Headphones, permission: 'support.read' },
+      { to: '/app/protocolos', label: 'Protocolos', icon: Hash, permission: 'protocol.read' },
     ],
   },
   {

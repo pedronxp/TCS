@@ -8,17 +8,11 @@ const LIMITS: Record<RateLimitAction, { max: number; windowSeconds: number; msg:
 };
 
 export async function checkRateLimit(
-  uid: string,
   action: RateLimitAction
 ): Promise<{ allowed: boolean; message?: string }> {
   try {
     const limit = LIMITS[action];
-    const { data, error } = await supabase.rpc('check_rate_limit', {
-      p_uid: uid,
-      p_action: action,
-      p_max_count: limit.max,
-      p_window_seconds: limit.windowSeconds,
-    });
+    const { data, error } = await supabase.rpc('enforce_my_operational_rate_limit', { p_action: action });
 
     if (error) return { allowed: true }; // fail-open: não bloquear se RPC falhar
     return data === true ? { allowed: true } : { allowed: false, message: limit.msg };

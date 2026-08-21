@@ -10,6 +10,9 @@ const db = new PGlite();
 const ownerA = '11111111-1111-4111-8111-111111111111';
 const ownerB = '22222222-2222-4222-8222-222222222222';
 const developer = '33333333-3333-4333-8333-333333333333';
+const inspection1 = '44444444-4444-4444-8444-444444444441';
+const inspection2 = '44444444-4444-4444-8444-444444444442';
+const inspection3 = '44444444-4444-4444-8444-444444444443';
 
 await db.exec(`
   CREATE ROLE anon NOLOGIN;
@@ -48,7 +51,7 @@ await db.exec(`
     "atualizadoEm" timestamptz
   );
   CREATE TABLE public.vistorias(
-    id text PRIMARY KEY,
+    id uuid PRIMARY KEY,
     protocolo text,
     municipio text,
     "nivelRisco" text,
@@ -89,11 +92,11 @@ await db.exec(`
     id,protocolo,municipio,"nivelRisco","dataVistoria",storage_location,
     drive_folder_url,drive_file_ids,archived_at
   ) VALUES
-    ('inspection-1','TCS-001','Campinas','R2',now()-interval '30 days','drive',
+    ('${inspection1}','TCS-001','Campinas','R2',now()-interval '30 days','drive',
       'https://drive.google.com/drive/folders/folder-1','{"laudo":"file-1"}',now()),
-    ('inspection-2','TCS-002','Santos','R3',now()-interval '40 days','drive',
+    ('${inspection2}','TCS-002','Santos','R3',now()-interval '40 days','drive',
       'https://drive.google.com/drive/folders/folder-2','{"laudo":"file-2"}',now()),
-    ('inspection-3','TCS-003','Santos','R1',now()-interval '50 days','drive',
+    ('${inspection3}','TCS-003','Santos','R1',now()-interval '50 days','drive',
       'https://drive.google.com/drive/folders/folder-3','{"laudo":"file-3"}',now());
 `);
 
@@ -104,7 +107,7 @@ try {
     JSON.stringify({ sub: ownerA, aal: 'aal1', role: 'authenticated' }),
   ]);
   await assert.rejects(() => db.query(
-    `SELECT public.request_internal_archive_restore(ARRAY['inspection-1'],'Motivo seguro de teste',$1)`,
+    `SELECT public.request_internal_archive_restore(ARRAY['${inspection1}']::uuid[],'Motivo seguro de teste',$1::uuid)`,
     [crypto.randomUUID()],
   ), /aal2_required/);
 
@@ -112,7 +115,7 @@ try {
     JSON.stringify({ sub: developer, aal: 'aal2', role: 'authenticated' }),
   ]);
   await assert.rejects(() => db.query(
-    `SELECT public.request_internal_archive_restore(ARRAY['inspection-1'],'Motivo seguro de teste',$1)`,
+    `SELECT public.request_internal_archive_restore(ARRAY['${inspection1}']::uuid[],'Motivo seguro de teste',$1::uuid)`,
     [crypto.randomUUID()],
   ), /archive_restore_not_allowed/);
 
@@ -120,14 +123,14 @@ try {
     JSON.stringify({ sub: ownerA, aal: 'aal2', role: 'authenticated' }),
   ]);
   const single = await db.query(
-    `SELECT public.request_internal_archive_restore(ARRAY['inspection-1'],'Atendimento administrativo',$1) result`,
+    `SELECT public.request_internal_archive_restore(ARRAY['${inspection1}']::uuid[],'Atendimento administrativo',$1::uuid) result`,
     [crypto.randomUUID()],
   );
   assert.equal(single.rows[0].result.status, 'approved');
   assert.equal(single.rows[0].result.requires_second_approval, false);
 
   const batch = await db.query(
-    `SELECT public.request_internal_archive_restore(ARRAY['inspection-2','inspection-3'],'Auditoria solicitou o lote',$1) result`,
+    `SELECT public.request_internal_archive_restore(ARRAY['${inspection2}','${inspection3}']::uuid[],'Auditoria solicitou o lote',$1::uuid) result`,
     [crypto.randomUUID()],
   );
   assert.equal(batch.rows[0].result.status, 'pending');

@@ -282,6 +282,15 @@ export function markAcknowledgementFailed(id: string, errorCode: string): void {
   );
 }
 
+export function markAcknowledgementSignatureUploaded(id: string, remoteSignaturePath: string): void {
+  ensureDocumentAcknowledgementSchema().runSync(
+    `UPDATE document_ack_events_local
+        SET remote_signature_path = ?, error_code = NULL
+      WHERE id = ?`,
+    [remoteSignaturePath, id]
+  );
+}
+
 export function markAcknowledgementConfirmed(
   id: string,
   protocol: string,

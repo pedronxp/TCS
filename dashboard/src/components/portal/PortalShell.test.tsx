@@ -65,7 +65,7 @@ describe('fundação do portal', () => {
     renderShell();
 
     expect(screen.getAllByText('Portal municipal').length).toBeGreaterThan(0);
-    expect(screen.getByText('Agente municipal')).toBeVisible();
+    expect(screen.getByText('Agente municipal', { exact: true })).toBeVisible();
     expect(screen.getByText('Operação')).toBeVisible();
     expect(screen.getByText('Conta e suporte')).toBeVisible();
     expect(screen.getByText('Assinatura ativa')).toHaveClass('text-foreground');
@@ -73,6 +73,47 @@ describe('fundação do portal', () => {
     expect(screen.getByRole('link', { name: 'Início' })).toHaveClass('text-foreground');
     expect(screen.queryByRole('link', { name: 'Equipe' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Conteúdo municipal' })).toBeVisible();
+  });
+
+  it('mostra a tag Papel · Município no cabeçalho e na sidebar', () => {
+    authState.access = municipalAccess({ role: 'master' });
+    renderShell();
+
+    const tags = screen.getAllByText('Master municipal · Município Piloto');
+    expect(tags.length).toBeGreaterThan(0);
+    expect(tags[0]).toBeVisible();
+  });
+
+  it('expõe o módulo Equipe apenas quando team.read está autorizado', () => {
+    authState.access = municipalAccess({ permissions: ['dashboard.read', 'team.read'] });
+    renderShell();
+    expect(screen.getAllByRole('link', { name: 'Equipe' }).length).toBeGreaterThan(0);
+  });
+
+  it('oculta o módulo Equipe quando team.read não está autorizado', () => {
+    authState.access = municipalAccess({ permissions: ['dashboard.read'] });
+    renderShell();
+    expect(screen.queryByRole('link', { name: 'Equipe' })).not.toBeInTheDocument();
+  });
+
+  it('expõe link para assinatura na faixa de bloqueio quando a criação está indisponível', () => {
+    authState.access = municipalAccess({
+      role: 'master',
+      creationAllowed: false,
+      restrictionCause: 'subscription_past_due',
+      permissions: ['dashboard.read', 'inspection.read', 'billing.read'],
+    });
+    renderShell();
+
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Ver assinatura em /portal/municipal/assinatura');
+  });
+
+  it('mantém a marca TCS como identidade não navegável', () => {
+    authState.access = municipalAccess();
+    renderShell();
+
+    expect(screen.queryByRole('link', { name: /TCS\s*Portal municipal/i })).not.toBeInTheDocument();
   });
 
   it('mantém o foco preso na navegação móvel e restaura o acionador', async () => {
@@ -85,7 +126,6 @@ describe('fundação do portal', () => {
     await user.click(trigger);
     const dialog = screen.getByRole('dialog', { name: 'Navegação do portal' });
     const close = screen.getByRole('button', { name: 'Fechar menu' });
-    const brand = screen.getByRole('link', { name: /TCS\s*Portal municipal/i });
     const signOut = screen.getAllByRole('button', { name: 'Sair' }).find((button) => dialog.contains(button));
 
     expect(dialog).toBeVisible();
@@ -94,11 +134,9 @@ describe('fundação do portal', () => {
     expect(trigger.closest('[aria-hidden="true"]')).not.toBeNull();
 
     await user.tab({ shift: true });
-    expect(brand).toHaveFocus();
-    await user.tab({ shift: true });
     expect(signOut).toHaveFocus();
     await user.tab();
-    expect(brand).toHaveFocus();
+    expect(close).toHaveFocus();
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Navegação do portal' })).not.toBeInTheDocument();

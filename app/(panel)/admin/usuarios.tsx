@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Alert, Modal, TextInput
@@ -45,34 +45,17 @@ export default function UsuariosScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [changingPass, setChangingPass] = useState(false);
 
-  const meRef = useRef<any>(null);
-
   const loadUsers = async (append = false) => {
     if (append) setLoadingMore(true); else setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      if (!meRef.current) {
-        const { data: me } = await supabase
-          .from('users').select('municipio, role').eq('uid', session.user.id).single();
-        if (!me) return;
-        meRef.current = me;
-      }
-      const me = meRef.current;
-
-      let query = supabase
-        .from('users')
-        .select('uid, name, email, role, "isApproved", "createdAt", municipio')
-        .neq('role', 'master_admin')
-        .order('name')
-        .range(append ? users.length : 0, (append ? users.length : 0) + PAGE_SIZE - 1);
-
-      if (me.role !== 'master_admin') {
-        query = query.eq('municipio', me.municipio);
-      }
-
-      const { data } = await query;
+      const { data, error } = await supabase.rpc('list_operational_users', {
+        p_role: null,
+        p_municipio: null,
+        p_include_unapproved: true,
+        p_offset: append ? users.length : 0,
+        p_limit: PAGE_SIZE,
+      });
+      if (error) throw error;
       const page = data || [];
       setUsers(prev => append ? [...prev, ...page] : page);
       setHasMore(page.length === PAGE_SIZE);
@@ -86,7 +69,7 @@ export default function UsuariosScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { meRef.current = null; loadUsers(); }, []));
+  useFocusEffect(useCallback(() => { loadUsers(); }, []));
 
   const toggleAprovacao = (user: any) => {
     // Defesa em profundidade: checar role antes de executar a ação,
@@ -104,10 +87,10 @@ export default function UsuariosScreen() {
     setAccessUser(null);
     setToggling(user.uid);
     try {
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ isApproved: !user.isApproved })
-        .eq('uid', user.uid);
+      const { error: updateError } = await supabase.rpc('set_user_approval', {
+        p_target_uid: user.uid,
+        p_is_approved: !user.isApproved,
+      });
       if (updateError) throw updateError;
       setUsers(prev => prev.map(u =>
         u.uid === user.uid ? { ...u, isApproved: !u.isApproved } : u
@@ -338,7 +321,7 @@ export default function UsuariosScreen() {
                       onPress={() => toggleAprovacao(u)}
                     />
 
-                    {meRef.current?.role === 'master_admin' && (
+                    {profile?.role === 'master_admin' && (
                       <TouchableOpacity 
                         style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
                         onPress={() => handleOpenPasswordModal(u)}

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -189,6 +189,21 @@ export function LoginPage() {
         <p className="mt-7 text-center text-[12px] leading-5 text-muted-foreground">
           Primeiro acesso com Google? A equipe TCS revisará a conta antes de liberar o Console. Permissões existentes não mudam.
         </p>
+
+        <div className="mt-8 rounded-md border border-border bg-secondary/40 p-4 text-center">
+          <p className="text-[12px] leading-5 text-muted-foreground">
+            Não faz parte da equipe interna TCS?
+          </p>
+          <Link
+            to="/entrar"
+            className="mt-1.5 inline-block text-[13px] font-semibold text-primary hover:underline"
+          >
+            Entrar no Portal TCS →
+          </Link>
+          <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+            O Console é reservado a administradores. Contas de clientes e municípios acessam pelo Portal.
+          </p>
+        </div>
       </div>
     </AuthFrame>
   );

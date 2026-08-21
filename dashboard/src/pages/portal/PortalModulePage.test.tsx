@@ -103,6 +103,17 @@ describe('estados dos módulos do portal', () => {
     expect(screen.getByRole('link', { name: 'Consultar assinatura' })).toHaveAttribute('href', '/portal/municipal/assinatura');
   });
 
+  it.each<[Record<string, boolean>]>([[{ reports_basic: true }], [{ reports_advanced: true }]])(
+    'libera relatórios para funcionalidades profissionais alternativas: %o',
+    (features) => {
+      mocks.access.features = features;
+      mocks.query.data = { items: [], summary: { inspections: 3 } };
+      renderModule('relatorios', '/portal/individual/relatorios');
+      expect(screen.getByText('Relatório pronto para exportação')).toBeVisible();
+      expect(screen.queryByText('Relatórios não incluídos neste plano')).not.toBeInTheDocument();
+    },
+  );
+
   it('mantém o estado base sem violações automatizadas de acessibilidade', async () => {
     mocks.query.data = { items: [{ id: '1', title: 'TCS-001', status: 'concluida' }], summary: { inspections: 1 } };
     const { container } = renderModule();

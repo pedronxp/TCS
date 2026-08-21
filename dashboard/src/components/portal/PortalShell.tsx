@@ -12,13 +12,14 @@ import {
   type PortalNavigationGroup,
   type PortalNavigationItem,
 } from '@/config/portalNavigation';
-import { portalRestrictionMessage, portalSubscriptionPresentation } from '@/lib/portal';
+import { portalHome, portalRestrictionMessage, portalSubscriptionPresentation } from '@/lib/portal';
 import type { PortalAccessContext } from '@/types/portal';
 import { cn } from '@/lib/utils';
 
 const mobilePriorities = ['Visão geral', 'Vistorias', 'Agenda', 'Documentos', 'Mapa'];
 const roleLabels = {
-  coordinator: 'Coordenação municipal',
+  master: 'Master municipal',
+  admin: 'Administração municipal',
   supervisor: 'Supervisão municipal',
   agent: 'Agente municipal',
 } as const;
@@ -42,6 +43,7 @@ export function PortalShell() {
   const home = access.accountKind === 'organization' ? '/portal/municipal' : '/portal/individual';
   const audienceLabel = access.accountKind === 'organization' ? 'Portal municipal' : 'Portal individual';
   const identityDetail = getIdentityDetail(access);
+  const roleMunicipalityTag = getRoleMunicipalityTag(access);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -56,12 +58,13 @@ export function PortalShell() {
 
   return (
     <DialogPrimitive.Root open={mobileOpen} onOpenChange={setMobileOpen}>
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="portal-shell min-h-screen overflow-x-hidden bg-background text-foreground">
       <a href="#portal-content" className="sr-only z-[100] rounded-md bg-card px-4 py-2 shadow-sm focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
         Pular para o conteúdo
       </a>
       <aside className="glass fixed inset-y-0 left-0 z-50 hidden w-[272px] flex-col border-r border-border text-foreground lg:flex">
         <PortalBrand audienceLabel={audienceLabel} />
+        {roleMunicipalityTag && <RoleMunicipalityTag tag={roleMunicipalityTag} />}
         <PortalNavigation items={navigation} home={home} />
         <PortalIdentity name={access.displayName} detail={identityDetail} onSignOut={handleSignOut} signingOut={signingOut} error={signOutError} />
       </aside>
@@ -86,6 +89,7 @@ export function PortalShell() {
                 </Button>
               </DialogPrimitive.Close>
             </div>
+            {roleMunicipalityTag && <RoleMunicipalityTag tag={roleMunicipalityTag} />}
             <PortalNavigation items={navigation} home={home} onNavigate={() => setMobileOpen(false)} />
             <PortalIdentity name={access.displayName} detail={identityDetail} onSignOut={handleSignOut} signingOut={signingOut} error={signOutError} />
           </DialogPrimitive.Content>
@@ -99,18 +103,27 @@ export function PortalShell() {
                 <Menu aria-hidden="true" />
               </Button>
             </DialogPrimitive.Trigger>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{audienceLabel}</p>
+            <div className="min-w-0 overflow-hidden">
+              <p className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{audienceLabel}</p>
               <p className="mt-1 truncate text-sm font-semibold">{access.organizationName ?? access.displayName}</p>
             </div>
           </div>
-          <Badge variant={subscription.tone} className="shrink-0 text-foreground">{subscription.label}</Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            {roleMunicipalityTag && <Badge variant="outline" className="hidden text-foreground sm:inline-flex">{roleMunicipalityTag}</Badge>}
+            <Badge variant={subscription.tone} className="text-foreground">{subscription.label}</Badge>
+          </div>
         </header>
 
         {!access.creationAllowed && (
           <div className="border-b border-warning/30 bg-warning-soft px-4 py-3 text-sm text-foreground sm:px-6 lg:px-8" role="status">
             <span className="font-semibold">Ações de criação indisponíveis. </span>
-            {portalRestrictionMessage(access.restrictionCause)}
+            {portalRestrictionMessage(access.restrictionCause)}{' '}
+            <Link
+              to={blockageDestination(access)}
+              className="font-semibold underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {blockageActionLabel(access)}
+            </Link>
           </div>
         )}
 
@@ -146,13 +159,13 @@ export function PortalShell() {
 
 function PortalBrand({ audienceLabel }: { audienceLabel: string }) {
   return (
-    <Link to="/" className="flex h-[78px] items-center gap-3 px-6 text-foreground">
+    <div className="flex h-[78px] items-center gap-3 px-6 text-foreground" aria-label={`TCS ${audienceLabel}`}>
       <TcsMark decorative />
       <span className="min-w-0">
         <span className="block text-sm font-bold">TCS</span>
         <span className="mt-1 block truncate text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{audienceLabel}</span>
       </span>
-    </Link>
+    </div>
   );
 }
 
@@ -222,4 +235,36 @@ function PortalIdentity({
 function getIdentityDetail(access: PortalAccessContext) {
   if (access.accountKind === 'organization' && access.role) return roleLabels[access.role];
   return access.planName ?? 'Conta individual';
+}
+
+function getRoleMunicipalityTag(access: PortalAccessContext) {
+  if (access.accountKind !== 'organization' || !access.role) return null;
+  const role = roleLabels[access.role];
+  return access.organizationName ? `${role} · ${access.organizationName}` : role;
+}
+
+function RoleMunicipalityTag({ tag }: { tag: string }) {
+  return (
+    <p className="px-6 pb-2 text-xs font-semibold text-muted-foreground" aria-label="Papel e município">
+      {tag}
+    </p>
+  );
+}
+
+function blockageDestination(access: PortalAccessContext) {
+  const root = portalHome(access.accountKind);
+  const causes = ['subscription_past_due', 'subscription_inactive', 'plan_feature'];
+  if (access.permissions.includes('billing.read') && (causes.includes(access.restrictionCause ?? '') || access.subscriptionStatus === 'none')) {
+    return `${root}/assinatura`;
+  }
+  return root;
+}
+
+function blockageActionLabel(access: PortalAccessContext) {
+  const root = portalHome(access.accountKind);
+  const causes = ['subscription_past_due', 'subscription_inactive', 'plan_feature'];
+  if (access.permissions.includes('billing.read') && (causes.includes(access.restrictionCause ?? '') || access.subscriptionStatus === 'none')) {
+    return `Ver assinatura em ${root}/assinatura`;
+  }
+  return 'Voltar para o início';
 }

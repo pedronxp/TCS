@@ -119,8 +119,7 @@ export default function ResultadoRiscoScreen() {
       const jaExiste = id ? getVistoriaById(id) : null;
 
       if (!jaExiste) {
-        const { data: user } = await supabase
-          .from('users').select('name, municipio').eq('uid', session.user.id).single();
+        const { data: user } = await supabase.rpc('get_my_user_profile');
 
         const now = new Date().toISOString();
         insertVistoria({

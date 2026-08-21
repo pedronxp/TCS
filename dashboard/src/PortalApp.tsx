@@ -13,6 +13,8 @@ import { CheckoutReturnPage } from '@/pages/portal/CheckoutReturnPage';
 import { PortalBillingPage } from '@/pages/portal/PortalBillingPage';
 import { PortalInvitesPage } from '@/pages/portal/PortalInvitesPage';
 import { PortalInspectionPage } from '@/pages/portal/PortalInspectionPage';
+import { PortalAcknowledgementsPage } from '@/pages/portal/PortalAcknowledgementsPage';
+import { PortalReportsPage } from '@/pages/portal/PortalReportsPage';
 import { PortalSupportPage } from '@/pages/portal/PortalSupportPage';
 import { PortalProfilePage } from '@/pages/portal/PortalProfilePage';
 import { PortalAgendaPage } from '@/pages/portal/PortalAgendaPage';
@@ -64,7 +66,8 @@ export default function PortalApp() {
           <Route path="/portal/individual/mapa" element={mapPage('individual')} />
           <Route path="/portal/individual/agenda" element={<PortalRoute kind="individual" permission="appointment.read"><PortalAgendaPage /></PortalRoute>} />
           <Route path="/portal/individual/documentos" element={<PortalRoute kind="individual" permission="document.read"><PortalModulePage section="documentos" /></PortalRoute>} />
-          <Route path="/portal/individual/relatorios" element={<PortalRoute kind="individual" permission="report.read"><PortalModulePage section="relatorios" /></PortalRoute>} />
+          <Route path="/portal/individual/ciencias" element={<PortalRoute kind="individual" permission="document.read"><PortalAcknowledgementsPage /></PortalRoute>} />
+          <Route path="/portal/individual/relatorios" element={<PortalRoute kind="individual" permission="report.read"><PortalReportsPage /></PortalRoute>} />
           <Route path="/portal/individual/consumo" element={<PortalRoute kind="individual" permission="usage.read"><PortalModulePage section="consumo" /></PortalRoute>} />
           <Route path="/portal/individual/assinatura" element={<PortalRoute kind="individual" permission="billing.read"><PortalBillingPage /></PortalRoute>} />
           <Route path="/portal/individual/suporte" element={<PortalRoute kind="individual" permission="support.read"><PortalSupportPage /></PortalRoute>} />
@@ -78,7 +81,8 @@ export default function PortalApp() {
           <Route path="/portal/municipal/mapa" element={mapPage('organization')} />
           <Route path="/portal/municipal/agenda" element={<PortalRoute kind="organization" permission="appointment.read"><PortalAgendaPage /></PortalRoute>} />
           <Route path="/portal/municipal/documentos" element={<PortalRoute kind="organization" permission="document.read"><PortalModulePage section="documentos" /></PortalRoute>} />
-          <Route path="/portal/municipal/relatorios" element={<PortalRoute kind="organization" permission="report.read"><PortalModulePage section="relatorios" /></PortalRoute>} />
+          <Route path="/portal/municipal/ciencias" element={<PortalRoute kind="organization" permission="document.read"><PortalAcknowledgementsPage /></PortalRoute>} />
+          <Route path="/portal/municipal/relatorios" element={<PortalRoute kind="organization" permission="report.read"><PortalReportsPage /></PortalRoute>} />
           <Route path="/portal/municipal/equipe" element={<PortalRoute kind="organization" permission="team.read"><PortalTeamPage /></PortalRoute>} />
           <Route path="/portal/municipal/convites" element={<PortalRoute kind="organization" permission="invite.agent"><PortalInvitesPage /></PortalRoute>} />
           <Route path="/portal/municipal/consumo" element={<PortalRoute kind="organization" permission="usage.read"><PortalModulePage section="consumo" /></PortalRoute>} />

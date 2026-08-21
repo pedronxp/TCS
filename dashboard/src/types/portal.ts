@@ -1,7 +1,7 @@
 export type PortalAccountKind = 'individual' | 'organization';
 export type CustomerLifecycleState = 'creating' | 'under_review' | 'trial' | 'contracting_pending' | 'active' | 'blocked';
 export type CustomerOnboardingItem = 'identity' | 'organization' | 'plan' | 'team' | 'configuration' | 'first_operation';
-export type MunicipalRole = 'coordinator' | 'supervisor' | 'agent';
+export type MunicipalRole = 'master' | 'admin' | 'supervisor' | 'agent';
 export type PortalMembershipStatus = 'invited' | 'active' | 'suspended' | 'removed';
 export type PortalSubscriptionStatus =
   | 'trial'
@@ -34,6 +34,24 @@ export type PortalPermission =
   | 'profile.read'
   | 'profile.manage';
 
+// ENTREGA A1: permissões efetivas de convite derivadas do servidor.
+// Espelham private.portal_invite_role_allowed: master > admin > supervisor > agent.
+// can_invite é false para contas individuais e memberships não ativas.
+export type PortalInviteTargetRole = 'admin' | 'supervisor' | 'agent';
+
+export interface PortalInvitePermissions {
+  canInvite: boolean;
+  targetRoles: PortalInviteTargetRole[];
+}
+
+export type PortalRestrictionCause =
+  | 'subscription_inactive'
+  | 'subscription_past_due'
+  | 'membership_inactive'
+  | 'plan_feature'
+  | 'permission'
+  | 'rollout_disabled';
+
 export interface PortalAccessContext {
   accountKind: PortalAccountKind;
   userId: string;
@@ -50,9 +68,15 @@ export interface PortalAccessContext {
   features: Record<string, boolean>;
   limits: Record<string, number | null>;
   usage: Record<string, number>;
+  periodStart?: string | null;
+  periodEnd?: string | null;
   permissions: PortalPermission[];
+  // ENTREGA A1: permissões efetivas de convite (derivadas do servidor).
+  // Marcado opcional para manter compatibilidade com consumidores legados; o
+  // parser sempre o preenche a partir de get_portal_access_context.
+  invitePermissions?: PortalInvitePermissions;
   creationAllowed: boolean;
-  restrictionCause: string | null;
+  restrictionCause: PortalRestrictionCause | null;
 }
 
 export interface PortalCustomerEntryContext {

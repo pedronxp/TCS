@@ -1,11 +1,12 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(9);
+SELECT extensions.plan(11);
 
 INSERT INTO auth.users(id, email, raw_user_meta_data)
 VALUES
   ('10000000-0000-4000-8000-000000000001', 'coord-a@example.test', '{}'::jsonb),
-  ('10000000-0000-4000-8000-000000000002', 'agent-b@example.test', '{}'::jsonb)
+  ('10000000-0000-4000-8000-000000000002', 'agent-b@example.test', '{}'::jsonb),
+  ('10000000-0000-4000-8000-000000000003', 'individual-invalid-period@example.test', '{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.organizations(id, slug, display_name, municipality_name, status)
@@ -15,7 +16,7 @@ VALUES
 
 INSERT INTO public.organization_members(organization_id, user_id, role, status, joined_at)
 VALUES
-  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'coordinator', 'active', now()),
+  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'supervisor', 'active', now()),
   ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', 'agent', 'active', now());
 
 SELECT extensions.is(
@@ -34,8 +35,8 @@ SELECT set_config('request.jwt.claims', '{"sub":"10000000-0000-4000-8000-0000000
 SELECT extensions.is((SELECT count(*) FROM public.organizations), 1::bigint, 'RLS exposes one organization only');
 SELECT extensions.is((SELECT display_name FROM public.organizations), 'Cataguases Teste', 'RLS does not expose Uba');
 
-CREATE TEMP TABLE invite_result AS SELECT public.create_organization_invite('agent', NULL, 72) AS payload;
-SELECT extensions.ok((SELECT (payload->>'allowed')::boolean FROM invite_result), 'coordinator creates organization-scoped invite');
+CREATE TEMP TABLE invite_result AS SELECT public.create_organization_invite('agent', 'agent-b@example.test', 72) AS payload;
+SELECT extensions.ok((SELECT (payload->>'allowed')::boolean FROM invite_result), 'supervisor creates organization-scoped invite');
 
 RESET ROLE;
 SET LOCAL ROLE authenticated;
@@ -61,6 +62,26 @@ SELECT set_config('request.jwt.claims', '{"sub":"10000000-0000-4000-8000-0000000
 SELECT extensions.ok(public.has_subscription_feature('inspection_standard'), 'enabled feature is available');
 SELECT extensions.ok((public.consume_subscription_usage('inspections', 1)->>'allowed')::boolean, 'last quota unit succeeds');
 SELECT extensions.is((public.consume_subscription_usage('inspections', 1)->>'reason'), 'limit_reached', 'next quota unit is blocked');
+
+RESET ROLE;
+INSERT INTO public.subscriptions(plan_id, user_id, status, current_period_start, current_period_end)
+SELECT id, '10000000-0000-4000-8000-000000000003', 'active', now(), now()
+FROM public.plans WHERE code = 'compatibility';
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"10000000-0000-4000-8000-000000000003","role":"authenticated","session_id":"30000000-0000-4000-8000-000000000003"}', true);
+SELECT extensions.ok(
+  (public.consume_subscription_usage('inspections', 1)->>'allowed')::boolean,
+  'usage consumption repairs an invalid active subscription period instead of rejecting the inspection'
+);
+SELECT extensions.ok(
+  (
+    SELECT current_period_end > current_period_start
+    FROM public.subscriptions
+    WHERE user_id = '10000000-0000-4000-8000-000000000003'
+  ),
+  'repaired subscription persists a valid renewal period'
+);
 
 SELECT * FROM extensions.finish();
 ROLLBACK;

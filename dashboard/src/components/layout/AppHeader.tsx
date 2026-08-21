@@ -43,6 +43,7 @@ const STATIC_PAGE_CONTEXTS: ReadonlyArray<{ prefix: string; context: PageContext
   { prefix: '/app/planos', context: { eyebrow: 'Negócio', title: 'Planos e limites' } },
   { prefix: '/app/negocio/indicadores', context: { eyebrow: 'Negócio', title: 'Indicadores comerciais' } },
   { prefix: '/app/assinaturas', context: { eyebrow: 'Negócio', title: 'Assinaturas e ciclos' } },
+  { prefix: '/app/protocolos', context: { eyebrow: 'Rastreabilidade', title: 'Registro de protocolos' } },
   { prefix: '/app/sessoes', context: { eyebrow: 'Segurança', title: 'Sessões e dispositivos' } },
   { prefix: '/app/suporte', context: { eyebrow: 'Suporte', title: 'Central de atendimento' } },
   { prefix: '/app/staff', context: { eyebrow: 'Governança', title: 'Equipe e permissões' } },

@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, TCSTheme } from '../constants/Colors';
 import { logger } from '../utils/logger';
 
-export type ThemeMode = 'system' | 'light' | 'dark';
+export type ThemeMode = 'system' | 'light' | 'dark' | 'orca' | 'dracula' | 'nord' | 'gruvbox';
 
 interface ThemeContextType {
   theme: TCSTheme;
@@ -25,7 +25,7 @@ const ThemeContext = createContext<ThemeContextType>({
 export const useTheme = () => useContext(ThemeContext);
 
 function isThemeMode(value: string | null): value is ThemeMode {
-  return value === 'system' || value === 'light' || value === 'dark';
+  return value === 'system' || value === 'light' || value === 'dark' || value === 'orca' || value === 'dracula' || value === 'nord' || value === 'gruvbox';
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -37,7 +37,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       .then((storedMode) => {
         const mode = isThemeMode(storedMode) ? storedMode : 'system';
         setThemeModeState(mode);
-        Appearance.setColorScheme(mode === 'system' ? null : mode);
+        Appearance.setColorScheme(mode === 'light' || mode === 'dark' ? mode : null);
       })
       .catch((error) => {
         logger.warn('system', 'Failed to restore theme preference', {
@@ -48,7 +48,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);
-    Appearance.setColorScheme(mode === 'system' ? null : mode);
+    Appearance.setColorScheme(mode === 'light' || mode === 'dark' ? mode : null);
     AsyncStorage.setItem(THEME_PREFERENCE_KEY, mode).catch((error) => {
       logger.warn('system', 'Failed to save theme preference', {
         erro: String(error),
@@ -57,7 +57,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
-  const theme = isDark ? Colors.dark : Colors.light;
+
+  let theme: TCSTheme;
+  if (themeMode === 'system') {
+    theme = systemColorScheme === 'dark' ? Colors.dark : Colors.light;
+  } else {
+    theme = Colors[themeMode];
+  }
   const value = useMemo(() => ({ theme, isDark, themeMode, setThemeMode }), [theme, isDark, themeMode, setThemeMode]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

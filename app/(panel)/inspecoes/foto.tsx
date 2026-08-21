@@ -254,8 +254,7 @@ export default function FotoScreen() {
           const pendentes = fotosAtualizadas.filter(f => !f.url && !f.erro);
           for (const foto of pendentes) {
             try {
-              const fileName = `vistorias/${id || 'sem-id'}/${Date.now()}.jpg`;
-              const storedPath = await uploadImageFromLocalUri(foto.uri, fileName);
+              const storedPath = await uploadImageFromLocalUri(foto.uri, id);
               fotosAtualizadas = fotosAtualizadas.map(f =>
                 f.localId === foto.localId ? { ...f, url: storedPath } : f
               );
@@ -281,13 +280,11 @@ export default function FotoScreen() {
       const remotePrincipal = fotosAtualizadas[0]?.url ?? null;
       const remoteUrls = fotosAtualizadas.slice(1).filter(f => f.url).map(f => f.url!);
       if (id && isOnlineReal && !trainingMode) {
-        const { error } = await supabase
-          .from('vistorias')
-          .update({
-            fotoUrl: remotePrincipal,
-            fotosUrls: remoteUrls.length > 0 ? remoteUrls : null,
-          })
-          .eq('id', id);
+        const { error } = await supabase.rpc('update_inspection_media', {
+          p_inspection_id: id,
+          p_primary_photo: remotePrincipal,
+          p_extra_photos: remoteUrls,
+        });
         if (!error) {
           void syncPendentes().catch(() => null);
         }

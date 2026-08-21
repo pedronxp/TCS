@@ -33,7 +33,7 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:5173"
+site_url = "https://tcsvisto.netlify.app"
 additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5173/**", "https://tcsvisto.netlify.app/**", "tcs://auth/callback", "tcs://auth/reset-password"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
@@ -51,6 +51,23 @@ policy = "oneshot"
 verify_jwt = false
 
 [functions.public-preview-access]
+verify_jwt = false
+
+[functions.trigger-build]
+verify_jwt = true
+
+[functions.send-auth-email]
+# Supabase Auth Hooks authenticate with Standard Webhooks signatures, not JWT.
+verify_jwt = false
+
+[functions.inspection-upload-authorize]
+verify_jwt = true
+
+[functions.dispatch-operational-notification]
+verify_jwt = true
+
+[functions.password-recovery-request]
+# Public entrypoint with origin, input and server-side quota controls in the function.
 verify_jwt = false
 
 [analytics]

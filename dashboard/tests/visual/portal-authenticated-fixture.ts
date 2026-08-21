@@ -67,7 +67,7 @@ function accessContext(kind: PortalFixtureKind) {
     display_name: organization ? 'Marina Coordenadora' : 'Ana Cliente',
     organization_id: organization ? organizationId : null,
     organization_name: organization ? 'Prefeitura de Aurora' : null,
-    role: organization ? 'coordinator' : null,
+    role: organization ? 'admin' : null,
     membership_status: organization ? 'active' : null,
     subscription_status: 'active',
     cancel_at_period_end: false,
@@ -169,7 +169,7 @@ function workspace(section: string) {
     },
     equipe: {
       items: [
-        { id: 'member-1', user_id: userId, title: 'Marina Coordenadora', subtitle: 'coordinator', status: 'active' },
+        { id: 'member-1', user_id: userId, title: 'Marina Coordenadora', subtitle: 'admin', status: 'active' },
         { id: 'member-2', user_id: '61000000-0000-4000-8000-000000000002', title: 'Carlos Supervisor', subtitle: 'supervisor', status: 'active' },
         { id: 'member-3', user_id: '61000000-0000-4000-8000-000000000003', title: 'Joana Agente', subtitle: 'agent', status: 'active' },
       ],
@@ -219,6 +219,63 @@ function dashboard() {
   };
 }
 
+function reporting(kind: PortalFixtureKind) {
+  const organization = kind === 'organization';
+  const primaryMember = organization ? 'Marina Coordenadora' : 'Ana Cliente';
+  return {
+    volume: organization ? 428 : 37,
+    risk: {
+      breakdown: [
+        { risk: 'Baixo', count: organization ? 146 : 12 },
+        { risk: 'Médio', count: organization ? 174 : 15 },
+        { risk: 'Alto', count: organization ? 82 : 8 },
+        { risk: 'Crítico', count: organization ? 26 : 2 },
+      ],
+    },
+    schedule: {
+      distribution: [
+        { status: 'Agendado', count: organization ? 18 : 3 },
+        { status: 'Concluído', count: organization ? 64 : 9 },
+      ],
+    },
+    documents: {
+      documents: [
+        { status: 'Disponível', count: organization ? 351 : 29 },
+        { status: 'Pendente', count: organization ? 77 : 8 },
+      ],
+      acknowledgements: [
+        { outcome: 'Ciente', count: organization ? 213 : 18 },
+        { outcome: 'Recusado', count: organization ? 31 : 3 },
+      ],
+    },
+    productivity: organization
+      ? [
+          { memberId: userId, memberName: primaryMember, inspections: 173 },
+          { memberId: '61000000-0000-4000-8000-000000000002', memberName: 'Carlos Supervisor', inspections: 141 },
+          { memberId: '61000000-0000-4000-8000-000000000003', memberName: 'Joana Agente', inspections: 114 },
+        ]
+      : [{ memberId: userId, memberName: primaryMember, inspections: 37 }],
+    consumption: {
+      resources: [
+        { resourceCode: 'Vistorias', consumed: organization ? 428 : 37 },
+        { resourceCode: 'Documentos', consumed: organization ? 351 : 29 },
+      ],
+    },
+    export: {
+      rows: inspections.map((inspection, index) => ({
+        id: inspection.id,
+        protocolo: inspection.protocol,
+        formId: index === 0 ? 'Inspeção predial' : 'Acompanhamento',
+        risco: index === 0 ? 'Alto' : 'Médio',
+        location: index === 0 ? 'Centro' : 'Jardim Aurora',
+        integrante: primaryMember,
+        status: inspection.status,
+        ocorrido_em: index === 0 ? fixedNow : '2026-07-25T13:00:00.000Z',
+      })),
+    },
+  };
+}
+
 function rpcResponse(
   name: string,
   body: Record<string, unknown>,
@@ -234,6 +291,8 @@ function rpcResponse(
       return options.emptyDashboard
         ? { metrics: [], upcoming: [], recent_inspections: [] }
         : dashboard();
+    case 'portal_get_reporting':
+      return reporting(kind);
     case 'portal_get_workspace':
       return options.emptyWorkspaceSections?.includes(String(body.p_section ?? ''))
         ? { section: String(body.p_section ?? ''), items: [], summary: {} }

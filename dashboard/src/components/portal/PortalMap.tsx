@@ -9,6 +9,7 @@ export interface PortalMapPoint {
   protocol: string;
   status: string;
   address: string;
+  formularioId: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -141,13 +142,33 @@ function createMarker(point: LocatedPortalMapPoint) {
   title.textContent = point.protocol;
   detail.textContent = `${point.status} · ${point.address}`;
   popup.append(title, detail);
-  return new maplibregl.Marker({ color: '#2F708E', scale: 0.85 })
+  const symbol = getPortalFormMarkerSymbol(point.formularioId);
+  const element = symbol ? createFormMarkerElement(symbol) : undefined;
+  return new maplibregl.Marker(element ? { element } : { color: '#2F708E', scale: 0.85 })
     .setLngLat([point.longitude, point.latitude])
     .setPopup(new maplibregl.Popup({ offset: 18 }).setDOMContent(popup));
 }
 
 function markerSignature(point: LocatedPortalMapPoint) {
-  return [point.latitude, point.longitude, point.protocol, point.status, point.address].join('|');
+  return [point.latitude, point.longitude, point.protocol, point.status, point.address, point.formularioId].join('|');
+}
+
+export function getPortalFormMarkerSymbol(formularioId: string | null | undefined) {
+  switch (formularioId) {
+    case 'inspecao_bueiro_drenagem_v1': return '▦';
+    case 'risco_incendio_vegetacao_v1': return '🔥';
+    case 'risco_inundacao_v1': return '💧';
+    case 'avaliacao_arvore_cbmmg_v1': return '♣';
+    default: return null;
+  }
+}
+
+function createFormMarkerElement(symbol: string) {
+  const element = document.createElement('span');
+  element.className = 'grid h-9 w-9 place-items-center rounded-full border-2 border-primary bg-card text-lg shadow-md';
+  element.textContent = symbol;
+  element.setAttribute('aria-hidden', 'true');
+  return element;
 }
 
 function fitMapToPoints(instance: maplibregl.Map, points: LocatedPortalMapPoint[]) {

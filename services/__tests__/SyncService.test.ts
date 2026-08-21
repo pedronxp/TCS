@@ -45,8 +45,6 @@ jest.mock('../../utils/supabase', () => ({
 let mockSupabase: any;
 let mockUpsertFn: jest.Mock;
 let mockRpcFn: jest.Mock;
-let mockDeleteFn: jest.Mock;
-let mockEqFn: jest.Mock;
 let mockFromFn: jest.Mock;
 
 jest.mock('../../services/NotificationService', () => ({
@@ -104,6 +102,7 @@ let mockGetAgendamentosNaoSincronizados: jest.Mock;
 let mockMarkAgendamentoSincronizado: jest.Mock;
 let mockDeleteAgendamento: jest.Mock;
 let mockIsCurrentSessionLocalTest: jest.Mock;
+let mockSyncPendingDocumentAcknowledgements: jest.Mock;
 
 // ─── Import do módulo em teste (uma única vez) ────────────────────────────────
 
@@ -167,12 +166,14 @@ const makeAgendamento = (overrides: Partial<any> = {}) => ({
 beforeEach(() => {
   // Obter referências ao mock do supabase a cada teste
   mockSupabase = jest.requireMock('../../utils/supabase').supabase;
-  mockEqFn = jest.fn().mockResolvedValue({ error: null });
-  mockDeleteFn = jest.fn(() => ({ eq: mockEqFn }));
   mockUpsertFn = jest.fn().mockResolvedValue({ error: null });
-  mockFromFn = jest.fn(() => ({ upsert: mockUpsertFn, delete: mockDeleteFn }));
+  mockFromFn = jest.fn(() => ({ upsert: mockUpsertFn }));
   mockSupabase.from = mockFromFn;
-  mockRpcFn = jest.fn((_name, { p_inspection }) => mockUpsertFn(p_inspection));
+  mockRpcFn = jest.fn((name, params = {}) => {
+    if (name === 'sync_finalized_inspection') return mockUpsertFn(params.p_inspection);
+    if (name === 'upsert_operational_appointment') return mockUpsertFn(params.p_payload);
+    return Promise.resolve({ error: null });
+  });
   mockSupabase.rpc = mockRpcFn;
 
   // Obter referências aos mocks de database via requireMock (evita TDZ com const)
@@ -189,6 +190,9 @@ beforeEach(() => {
   // Obter referência ao mock de checkRealInternet
   mockCheckRealInternet = jest.requireMock('../../context/ConnectivityContext').checkRealInternet as jest.Mock;
   mockIsCurrentSessionLocalTest = jest.requireMock('../../utils/localTestMode').isCurrentSessionLocalTest as jest.Mock;
+  mockSyncPendingDocumentAcknowledgements = jest.requireMock('../../services/DocumentAcknowledgementService').syncPendingDocumentAcknowledgements as jest.Mock;
+  mockSyncPendingDocumentAcknowledgements.mockReset();
+  mockSyncPendingDocumentAcknowledgements.mockResolvedValue({ success: 0, failed: 0 });
   const storageMock = jest.requireMock('../../services/StorageService');
   storageMock.uploadImageFromLocalUri.mockReset();
   storageMock.uploadImageFromLocalUri.mockResolvedValue('https://storage.example.com/foto.jpg');
@@ -351,6 +355,24 @@ describe('syncPendentes', () => {
     expect(mockFromFn).not.toHaveBeenCalled();
   });
 
+  it('sincroniza a ciência somente depois de enviar a vistoria ao servidor', async () => {
+    const order: string[] = [];
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
+    mockRpcFn = jest.fn(async () => {
+      order.push('vistoria');
+      return { data: { protocol: 'TCS-VIS-20260813-0001' }, error: null };
+    });
+    mockSupabase.rpc = mockRpcFn;
+    mockSyncPendingDocumentAcknowledgements.mockImplementation(async () => {
+      order.push('ciencia');
+      return { success: 0, failed: 0 };
+    });
+
+    await syncPendentes();
+
+    expect(order).toEqual(['vistoria', 'ciencia']);
+  });
+
   it('sincroniza agendamento pendente (status != deletado)', async () => {
     mockGetVistoriasNaoSincronizadas.mockReturnValue([]);
     mockGetAgendamentosNaoSincronizados.mockReturnValue([makeAgendamento()]);
@@ -368,8 +390,7 @@ describe('syncPendentes', () => {
 
     await syncPendentes();
 
-    // Deve ter chamado delete().eq() no Supabase
-    expect(mockDeleteFn).toHaveBeenCalled();
+    expect(mockRpcFn).toHaveBeenCalledWith('delete_operational_appointment', { p_id: 'ag-1' });
     // Deve ter removido o registro local
     expect(mockDeleteAgendamento).toHaveBeenCalledWith('ag-1');
   });

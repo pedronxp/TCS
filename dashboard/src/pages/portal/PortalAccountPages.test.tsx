@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { axe } from 'vitest-axe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortalBillingPage } from './PortalBillingPage';
@@ -11,6 +12,7 @@ import { PortalProfilePage } from './PortalProfilePage';
 import { PortalSettingsPage } from './PortalSettingsPage';
 import { PortalSupportPage } from './PortalSupportPage';
 import { PortalTeamPage } from './PortalTeamPage';
+import type { PortalAccessContext, PortalPermission } from '@/types/portal';
 
 const state = vi.hoisted(() => ({
   access: {
@@ -19,13 +21,13 @@ const state = vi.hoisted(() => ({
     displayName: 'Coordenação TCS',
     organizationId: 'org-1',
     organizationName: 'Município Piloto',
-    role: 'coordinator',
+    role: 'master',
     membershipStatus: 'active',
     subscriptionStatus: 'active',
     cancelAtPeriodEnd: false,
     planId: 'plan-1',
     planVersionId: 'version-1',
-    planName: 'Municipal Profissional',
+    planName: 'Municipal Básico',
     features: {},
     limits: {},
     usage: { inspections: 12 },
@@ -35,7 +37,7 @@ const state = vi.hoisted(() => ({
     ],
     creationAllowed: true,
     restrictionCause: null,
-  },
+  } as PortalAccessContext,
   queryOptions: [] as Array<{ queryKey: readonly unknown[]; enabled?: boolean }>,
   workspaceItems: [] as Array<Record<string, unknown>>,
   sessions: [] as Array<Record<string, unknown>>,
@@ -46,6 +48,8 @@ const state = vi.hoisted(() => ({
   invoke: vi.fn(),
   signOut: vi.fn().mockResolvedValue(undefined),
   linkGoogleIdentity: vi.fn().mockResolvedValue(null),
+  user: { email: 'coordenacao@exemplo.com', identities: [] as Array<{ provider: string }> },
+  resetPasswordForEmail: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -65,18 +69,35 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('@/contexts/PortalAuthContext', () => ({
   usePortalAuth: () => ({
     access: state.access,
-    user: { email: 'coordenacao@exemplo.com', identities: [] },
-    can: (permission: string) => state.access.permissions.includes(permission),
+    user: state.user,
+    can: (permission: string) => state.access.permissions.includes(permission as PortalPermission),
     signOut: state.signOut,
     linkGoogleIdentity: state.linkGoogleIdentity,
   }),
 }));
 
-vi.mock('@/lib/portal', () => ({ fetchPortalWorkspace: vi.fn() }));
+vi.mock('@/lib/portal', () => ({
+  fetchPortalWorkspace: vi.fn(),
+  portalHome: (kind: string) => (kind === 'organization' ? '/portal/municipal' : '/portal/individual'),
+  portalRestrictionMessage: (cause: string | null) => cause ?? '',
+  portalSubscriptionPresentation: (status: string, cancelAtPeriodEnd = false) => ({
+    label: status === 'active' ? 'Assinatura ativa'
+      : status === 'past_due' ? 'Pagamento pendente'
+      : status === 'canceled' ? 'Cancelada'
+      : status === 'expired' ? 'Expirada'
+      : status === 'trial' ? 'Período de teste'
+      : status === 'grace' ? 'Em carência'
+      : 'Sem assinatura',
+    tone: status === 'active' ? 'success' : status === 'canceled' || status === 'expired' || status === 'none' ? 'destructive' : 'warning',
+    preservesRead: status !== 'none',
+    allowsCreate: ['trial', 'active', 'grace'].includes(status) && !(cancelAtPeriodEnd && status === 'past_due'),
+  }),
+}));
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     rpc: state.rpc,
     functions: { invoke: state.invoke },
+    auth: { resetPasswordForEmail: state.resetPasswordForEmail },
   },
 }));
 
@@ -84,7 +105,7 @@ beforeEach(() => {
   state.access.accountKind = 'organization';
   state.access.userId = 'user-1';
   state.access.organizationId = 'org-1';
-  state.access.role = 'coordinator';
+  state.access.role = 'master';
   state.access.subscriptionStatus = 'active';
   state.access.permissions = [
     'billing.read', 'billing.manage', 'support.read', 'support.create', 'profile.read',
@@ -100,6 +121,8 @@ beforeEach(() => {
   state.invoke.mockReset().mockResolvedValue({ data: null, error: { message: 'unavailable' } });
   state.signOut.mockReset().mockResolvedValue(undefined);
   state.linkGoogleIdentity.mockReset().mockResolvedValue(null);
+  state.user = { email: 'coordenacao@exemplo.com', identities: [] };
+  state.resetPasswordForEmail.mockReset().mockResolvedValue({ error: null });
   vi.stubGlobal('crypto', { randomUUID: () => '00000000-0000-4000-8000-000000000000' });
 });
 
@@ -114,7 +137,7 @@ describe('conta e administração do portal', () => {
     document.documentElement.dataset.theme = theme;
 
     const { container } = render(<PortalBillingPage />);
-    const badge = screen.getByText('past_due');
+    const badge = screen.getByText('Pagamento pendente');
 
     expect(badge).toHaveClass('bg-warning-soft', 'text-foreground');
     expect(badge).not.toHaveClass('text-warning');
@@ -124,7 +147,7 @@ describe('conta e administração do portal', () => {
   it('isola chamados e convites por usuário, público e organização', () => {
     const support = render(<PortalSupportPage />);
     expect(state.queryOptions.at(-1)?.queryKey).toEqual([
-      'portal', 'workspace', 'suporte', 'user-1', 'organization', 'org-1', 'coordinator',
+      'portal', 'workspace', 'suporte', 'user-1', 'organization', 'org-1', 'master',
     ]);
     support.unmount();
 
@@ -132,7 +155,7 @@ describe('conta e administração do portal', () => {
     state.access.organizationId = 'org-2';
     const invites = render(<PortalInvitesPage />);
     expect(state.queryOptions.at(-1)?.queryKey).toEqual([
-      'portal', 'workspace', 'convites', 'user-2', 'organization', 'org-2', 'coordinator',
+      'portal', 'workspace', 'convites', 'user-2', 'organization', 'org-2', 'master',
     ]);
     invites.unmount();
 
@@ -164,7 +187,7 @@ describe('conta e administração do portal', () => {
     const supportSupervisorKey = state.queryOptions.at(-1)?.queryKey;
     supportSupervisor.unmount();
 
-    state.access.role = 'coordinator';
+    state.access.role = 'master';
     const invitesCoordinator = render(<PortalInvitesPage />);
     const invitesCoordinatorKey = state.queryOptions.at(-1)?.queryKey;
     invitesCoordinator.unmount();
@@ -174,10 +197,10 @@ describe('conta e administração do portal', () => {
     const invitesSupervisorKey = state.queryOptions.at(-1)?.queryKey;
     invitesSupervisor.unmount();
 
-    expect(supportCoordinatorKey?.at(-1)).toBe('coordinator');
+    expect(supportCoordinatorKey?.at(-1)).toBe('master');
     expect(supportSupervisorKey?.at(-1)).toBe('supervisor');
     expect(supportSupervisorKey).not.toEqual(supportCoordinatorKey);
-    expect(invitesCoordinatorKey?.at(-1)).toBe('coordinator');
+    expect(invitesCoordinatorKey?.at(-1)).toBe('master');
     expect(invitesSupervisorKey?.at(-1)).toBe('supervisor');
     expect(invitesSupervisorKey).not.toEqual(invitesCoordinatorKey);
   });
@@ -299,19 +322,45 @@ describe('conta e administração do portal', () => {
     expect(screen.getByLabelText('Justificativa')).toHaveValue('Atualização cadastral necessária');
   });
 
-  it('nunca apresenta retorno false como sessão encerrada', async () => {
-    const user = userEvent.setup();
+  it('não expõe ação para encerrar registros de dispositivos', async () => {
     state.sessions = [{
       id: 'session-1', device_name: 'Notebook', platform: 'web', status: 'active',
       started_at: '2026-08-09T10:00:00Z', last_heartbeat_at: '2026-08-09T11:00:00Z',
     }];
-    state.rpc.mockResolvedValueOnce({ data: false, error: null });
     render(<PortalProfilePage />);
 
-    await user.click(screen.getByRole('button', { name: 'Encerrar registro' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('Nenhuma sessão de autenticação foi alterada');
-    expect(screen.queryByText('Sessão encerrada.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Encerrar registro' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Último IP:/)).toBeVisible();
     expect(state.refetch).not.toHaveBeenCalled();
+  });
+
+  it('abre detalhes completos do chamado sem expor chamados de outro escopo', async () => {
+    const user = userEvent.setup();
+    state.workspaceItems = [{
+      id: 'ticket-1', title: 'Teste web Técnico', subtitle: 'TCS-3844777428', status: 'open',
+      priority: 'high', category: 'tecnico', created_at: '2026-08-13T10:00:00Z',
+      description: 'O mapa não conclui o carregamento na área de vistorias.',
+    }];
+    render(<PortalSupportPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Ver detalhes de Teste web Técnico' }));
+
+    expect(screen.getByRole('dialog', { name: 'Teste web Técnico' })).toHaveTextContent('O mapa não conclui o carregamento');
+    expect(screen.getByRole('dialog', { name: 'Teste web Técnico' })).toHaveTextContent('Prioridade');
+    expect(screen.getByRole('dialog', { name: 'Teste web Técnico' })).toHaveTextContent('Alta');
+  });
+
+  it('explica o limite temporário de envio da senha TCS sem usar aviso destrutivo', async () => {
+    const user = userEvent.setup();
+    state.user = { email: 'coordenacao@exemplo.com', identities: [{ provider: 'google' }] };
+    state.resetPasswordForEmail.mockResolvedValue({ error: { message: 'over_email_send_rate_limit' } });
+    render(<PortalProfilePage />);
+
+    await user.click(screen.getByRole('button', { name: 'Criar senha TCS' }));
+
+    const notice = await screen.findByRole('status');
+    expect(notice).toHaveTextContent('O envio de e-mail atingiu o limite temporário');
+    expect(notice).not.toHaveClass('bg-destructive-soft', 'text-destructive');
   });
 
   it('mantém a sessão local e anuncia a falha quando o logout global é rejeitado', async () => {
@@ -340,8 +389,8 @@ describe('conta e administração do portal', () => {
     await user.click(annual);
     expect(annual).toBeChecked();
     expect(screen.getAllByText('por ano').length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: /Escolher Municipal Básico por ano/ }));
-    expect(await screen.findByText(/Nenhuma navegação foi realizada/)).toHaveAttribute('role', 'alert');
+    await user.click(screen.getByRole('button', { name: /Fazer upgrade para Municipal Profissional/ }));
+    expect(await screen.findByText(/Não foi possível iniciar o checkout/)).toHaveAttribute('role', 'alert');
   });
 
   it.each([
@@ -359,7 +408,7 @@ describe('conta e administração do portal', () => {
         checkout: {
           checkout_id: '11111111-1111-4111-8111-111111111111',
           status: 'pending',
-          amount_cents: 1490000,
+          amount_cents: 3990000,
           currency: 'BRL',
           plan_version_id: '22222222-2222-4222-8222-222222222222',
           provider_configuration_required: false,
@@ -372,9 +421,9 @@ describe('conta e administração do portal', () => {
     render(<PortalBillingPage />);
 
     await user.click(screen.getByRole('radio', { name: 'Anual' }));
-    await user.click(screen.getByRole('button', { name: /Escolher Municipal Básico por ano/ }));
+    await user.click(screen.getByRole('button', { name: /Fazer upgrade para Municipal Profissional/ }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('resposta fora do contrato seguro');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível iniciar o checkout');
   });
 
   it('bloqueia uma resposta completa quando a URL não é HTTPS e da própria origem', async () => {
@@ -385,7 +434,7 @@ describe('conta e administração do portal', () => {
         checkout: {
           checkout_id: '11111111-1111-4111-8111-111111111111',
           status: 'pending',
-          amount_cents: 1490000,
+          amount_cents: 3990000,
           currency: 'BRL',
           plan_version_id: '22222222-2222-4222-8222-222222222222',
           provider_configuration_required: false,
@@ -397,9 +446,9 @@ describe('conta e administração do portal', () => {
     render(<PortalBillingPage />);
 
     await user.click(screen.getByRole('radio', { name: 'Anual' }));
-    await user.click(screen.getByRole('button', { name: /Escolher Municipal Básico por ano/ }));
+    await user.click(screen.getByRole('button', { name: /Fazer upgrade para Municipal Profissional/ }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('resposta fora do contrato seguro');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível iniciar o checkout');
   });
 
   it('atualiza o baseline confirmado sem manter o alerta de alterações não salvas', async () => {
@@ -445,11 +494,32 @@ describe('conta e administração do portal', () => {
 
   it('anuncia a criação do convite em uma região de status', async () => {
     const user = userEvent.setup();
-    state.rpc.mockResolvedValueOnce({ data: { allowed: true, delivery_token: 'token-seguro' }, error: null });
+    state.rpc.mockResolvedValueOnce({ data: { allowed: true, token: 'token-seguro' }, error: null });
     render(<PortalInvitesPage />);
 
     await user.type(screen.getByLabelText('E-mail'), 'agente@exemplo.com');
     await user.click(screen.getByRole('button', { name: 'Criar convite' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Convite criado');
+  });
+
+  it('desabilita o convite e explica quando a assinatura bloqueia a criação', () => {
+    state.access.subscriptionStatus = 'canceled';
+    state.access.creationAllowed = false;
+    state.access.restrictionCause = 'subscription_inactive';
+    render(<PortalInvitesPage />, { wrapper: MemoryRouter });
+
+    const button = screen.getByRole('button', { name: 'Criar convite' });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/desabilitado porque a assinatura/i)).toBeVisible();
+  });
+
+  it('preserva consulta ao histórico mesmo com assinatura bloqueada', () => {
+    state.access.subscriptionStatus = 'canceled';
+    state.access.creationAllowed = false;
+    state.access.restrictionCause = 'subscription_inactive';
+    render(<PortalInvitesPage />, { wrapper: MemoryRouter });
+
+    expect(screen.getByRole('heading', { name: 'Convites' })).toBeVisible();
+    expect(screen.getByText('Histórico')).toBeVisible();
   });
 });

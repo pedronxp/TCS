@@ -38,18 +38,6 @@ function formatarExpiracao(horas: number): string {
   });
 }
 
-function gerarCodigo(): string {
-  // 12 chars criptograficamente seguros em formato XXXX-XXXX-XXXX
-  // Entropia: 32^12 ≈ 1.2 × 10^18 combinações (vs 32^8 antes)
-  // Sem ambiguidades: sem 0/O, 1/I/L
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const buffer = typeof crypto !== 'undefined' && crypto.getRandomValues
-    ? crypto.getRandomValues(new Uint8Array(12))
-    : new Uint8Array(12).map(() => Math.floor(Math.random() * 256));
-  const raw = Array.from(buffer, b => chars[b % chars.length]).join('');
-  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
-}
-
 export default function GerarTokenScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -92,15 +80,14 @@ export default function GerarTokenScreen() {
     const inicioMes = new Date();
     inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
     Promise.all([
-      supabase.from('users').select('token_limit').eq('uid', profile.uid).single(),
       supabase.from('invite_tokens').select('*', { count: 'exact', head: true })
         .eq('criadoPor', profile.uid)
         .gte('criadoEm', inicioMes.toISOString()),
-    ]).then(([limiteRes, countRes]) => {
-      if (limiteRes.data?.token_limit) setLimiteTotal(limiteRes.data.token_limit);
+    ]).then(([countRes]) => {
+      if (typeof profile.tokenLimit === 'number') setLimiteTotal(profile.tokenLimit);
       if (typeof countRes.count === 'number') setUsadoMes(countRes.count);
     }).catch(() => {});
-  }, [profile?.uid, isMasterAdmin]);
+  }, [profile?.uid, profile?.tokenLimit, isMasterAdmin]);
 
   const roles = ROLES_LIST;
 
@@ -145,32 +132,14 @@ export default function GerarTokenScreen() {
     }
     setGerando(true);
     try {
-      // Rate-limit: máx 10 tokens por hora por admin
-      const umaHoraAtras = new Date(Date.now() - 3600000).toISOString();
-      const { count } = await supabase
-        .from('invite_tokens')
-        .select('*', { count: 'exact', head: true })
-        .eq('criadoPor', profile?.uid)
-        .gte('criadoEm', umaHoraAtras);
-      if ((count ?? 0) >= 10) {
-        Alert.alert('Limite atingido', 'Você pode gerar no máximo 10 tokens por hora. Tente novamente mais tarde.');
-        return;
-      }
-
-      const codigo = gerarCodigo();
-      const expira = new Date(Date.now() + horasSelecionadas * 3600000).toISOString();
-
-      const { error } = await supabase.from('invite_tokens').insert({
-        codigo: codigo,
-        role,
-        municipio: municipio || profile?.municipio,
-        usado: false,
-        expiraEm: expira,
-        criadoPor: profile?.uid,
-        criadoPorNome: profile?.name ?? null,
+      const { data, error } = await supabase.rpc('create_legacy_invite_token', {
+        p_role: role,
+        p_municipio: municipio || profile?.municipio || '',
+        p_expires_in_hours: Math.round(horasSelecionadas),
       });
-
       if (error) throw error;
+      const codigo = (data as { codigo?: string } | null)?.codigo;
+      if (!codigo) throw new Error('Resposta inválida ao gerar token.');
 
       registrarAuditoria({
         acao: 'token_gerado',
@@ -186,11 +155,7 @@ export default function GerarTokenScreen() {
       setUsadoMes(prev => prev + 1);
       // Notificar master_admins sobre o token gerado (fire-and-forget)
       if (!isMasterAdmin) {
-        notificarMasterTokenGerado(
-          profile?.name ?? 'Usuário',
-          municipio || profile?.municipio || '',
-          role,
-        ).catch(() => null);
+        notificarMasterTokenGerado(codigo).catch(() => null);
       }
     } catch (e) {
       Alert.alert('Erro', 'Não foi possível gerar o token. Tente novamente.');
@@ -218,12 +183,7 @@ export default function GerarTokenScreen() {
     if (solicitando || solicitacaoEnviada) return;
     setSolicitando(true);
     try {
-      await notificarMasterSolicitaTokens(
-        profile?.name ?? 'Administrador',
-        municipio || profile?.municipio || '',
-        usadoMes,
-        limiteTotal,
-      );
+      await notificarMasterSolicitaTokens();
       setSolicitacaoEnviada(true);
       Alert.alert('Solicitação enviada', 'O Master Admin foi notificado sobre sua solicitação de aumento de limite.');
     } catch {

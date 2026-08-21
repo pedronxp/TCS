@@ -173,16 +173,9 @@ export default function AgendamentosScreen() {
   const carregarAgentes = async () => {
     setAgentesLoading(true);
     try {
-      let query = supabase
-        .from('users')
-        .select('uid, name, municipio')
-        .eq('role', 'agent')
-        .eq('isApproved', true);
-      // master_admin vê agentes de todos os municípios
-      if (profile?.role !== 'master_admin' && profile?.municipio) {
-        query = query.eq('municipio', profile.municipio);
-      }
-      const { data } = await query;
+      const { data } = await supabase.rpc('list_operational_users', {
+        p_role: 'agent', p_municipio: null, p_include_unapproved: false, p_offset: 0, p_limit: 500,
+      });
       if (data) setAgentes(data as AgentUser[]);
     } catch {
       // sem agentes
@@ -207,7 +200,7 @@ export default function AgendamentosScreen() {
               // o SyncService a repete quando a conexão voltar.
               deleteAgendamentoWithTombstone(a.id);
               if (isConnected) {
-                const { error } = await supabase.from('agendamentos').delete().eq('id', a.id);
+                const { error } = await supabase.rpc('delete_operational_appointment', { p_id: a.id });
                 if (!error) deleteAgendamento(a.id);
               }
               setAgendamentos(prev => prev.filter(x => x.id !== a.id));
@@ -317,21 +310,18 @@ export default function AgendamentosScreen() {
 
       // 2. Tenta Supabase se online
       if (isConnected) {
-        const { error } = await supabase.from('agendamentos').upsert({
-          id: agendamento.id,
-          titulo: agendamento.titulo,
-          endereco: agendamento.endereco ?? null,
-          municipio: agendamento.municipio,
-          data_agendada: agendamento.data_agendada,
-          criado_por_uid: agendamento.criado_por_uid,
-          criado_por_nome: agendamento.criado_por_nome ?? null,
-          agente_uid: agendamento.agente_uid ?? null,
-          agente_nome: agendamento.agente_nome ?? null,
-          lat: agendamento.lat ?? null,
-          lng: agendamento.lng ?? null,
-          observacoes: agendamento.observacoes ?? null,
-          status: agendamento.status,
-          origem: agendamento.origem,
+        const { error } = await supabase.rpc('upsert_operational_appointment', {
+          p_payload: {
+            id: agendamento.id,
+            titulo: agendamento.titulo,
+            endereco: agendamento.endereco ?? null,
+            municipio: agendamento.municipio,
+            data_agendada: agendamento.data_agendada,
+            agente_uid: agendamento.agente_uid ?? null,
+            lat: agendamento.lat ?? null,
+            lng: agendamento.lng ?? null,
+            observacoes: agendamento.observacoes ?? null,
+          },
         });
         if (!error) markAgendamentoSincronizado(agendamento.id);
       }

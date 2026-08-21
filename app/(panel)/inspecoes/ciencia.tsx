@@ -51,10 +51,10 @@ import {
   createRemoteAcknowledgementLink,
   fetchRemoteAcknowledgementHistory,
   RemoteAcknowledgementHistoryEvent,
-  syncPendingDocumentAcknowledgements,
   verifyDocumentIntegrity,
   remoteAcknowledgementUrl,
 } from '../../../services/DocumentAcknowledgementService';
+import { syncPendentes } from '../../../services/SyncService';
 import {
   buildAcknowledgementReceiptHtml,
   buildCombinedDocumentHtml,
@@ -78,6 +78,14 @@ const DOCUMENT_LABELS: Record<LocalGeneratedDocument['documentType'], string> = 
   report: 'Relatório de risco',
   technical_report: 'Laudo técnico',
   interdiction_term: 'Termo de interdição',
+};
+
+const SYNC_ERROR_MESSAGES: Record<string, string> = {
+  inspection_not_synced: 'A vistoria ainda não foi sincronizada. Conecte-se e sincronize a vistoria antes de registrar a ciência.',
+  authorization_denied: 'Sua sessão não tem permissão para concluir esta ciência. Entre novamente ou procure o suporte.',
+  document_not_found: 'Não foi possível localizar esta versão do documento. Atualize a tela e tente novamente.',
+  invalid_evidence: 'Os dados da ciência precisam ser revisados antes de sincronizar.',
+  network_error: 'Não foi possível conectar ao servidor. Tente novamente quando houver conexão.',
 };
 
 export default function ElectronicAcknowledgementScreen() {
@@ -140,7 +148,7 @@ export default function ElectronicAcknowledgementScreen() {
         trainingMode: document.trainingMode,
       });
       if (isOnlineReal && !document.trainingMode) {
-        await syncPendingDocumentAcknowledgements();
+        await syncPendentes();
       }
       setEvent(getAcknowledgementEvent(created.id));
       Alert.alert(
@@ -161,7 +169,7 @@ export default function ElectronicAcknowledgementScreen() {
     if (!event || !isOnlineReal) return;
     retryAcknowledgementEvent(event.id);
     setSubmitting(true);
-    await syncPendingDocumentAcknowledgements();
+    await syncPendentes();
     setSubmitting(false);
     reload();
   };
@@ -209,6 +217,7 @@ export default function ElectronicAcknowledgementScreen() {
     }
     setSharingRemoteLink(true);
     try {
+      await syncPendentes();
       const link = await createRemoteAcknowledgementLink(document);
       const url = remoteAcknowledgementUrl(link.token);
       await Share.share({
@@ -312,7 +321,11 @@ export default function ElectronicAcknowledgementScreen() {
             <Text style={[styles.detail, { color: theme.textSecondary }]}>Destinatário: {event.recipientName}</Text>
             <Text style={[styles.detail, { color: theme.textSecondary }]}>Coleta: {formatarDataHora(event.occurredAtDevice)}</Text>
             <Text style={[styles.detail, { color: theme.textSecondary }]}>Protocolo: {event.protocol || 'aguardando servidor'}</Text>
-            {event.errorCode && <Text style={[styles.detail, { color: theme.error }]}>Erro: {event.errorCode}</Text>}
+            {event.errorCode && (
+              <Text style={[styles.detail, { color: theme.error }]}>
+                {SYNC_ERROR_MESSAGES[event.errorCode] || 'Não foi possível concluir a sincronização. Tente novamente.'}
+              </Text>
+            )}
             {pending && event.syncStatus === 'failed' && (
               <Button
                 label="Tentar sincronizar novamente"

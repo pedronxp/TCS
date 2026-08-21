@@ -4,18 +4,23 @@ const routes = [
   {
     id: 'commercial',
     path: '/',
-    heading: 'Da vistoria em campo à decisão de gestão.',
+    heading: 'Registre a vistoria uma vez. Use a evidência até a decisão.',
   },
   {
     id: 'login',
     path: '/login',
-    heading: 'Decisões melhores começam com dados confiáveis.',
+    heading: 'Entre no Console',
   },
 ] as const;
 
 for (const route of routes) {
   test(`${route.id} mantém a composição aprovada`, async ({ page }) => {
     const consoleErrors: string[] = [];
+    await page.route('https://visual-regression.invalid/**', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    }));
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(message.text());
     });

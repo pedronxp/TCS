@@ -13,6 +13,7 @@ export type UserRecord = {
 };
 
 export type FiltroUsuario = 'todos' | 'ativos' | 'pendentes';
+export type UserAccessAction = 'release' | 'block';
 
 export function useUsuarios(filtro: FiltroUsuario, busca: string) {
   const { profile } = useAuth();
@@ -58,11 +59,25 @@ export function useUsuarios(filtro: FiltroUsuario, busca: string) {
 export function useToggleAprovacao() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ uid, isApproved }: { uid: string; isApproved: boolean }) => {
-      const { error } = await supabase
-        .from('users')
-        .update({ isApproved })
-        .eq('uid', uid);
+    mutationFn: async ({ uid, action, reason }: { uid: string; action: UserAccessAction; reason: string }) => {
+      const operationId = crypto.randomUUID();
+      const rpc = supabase.rpc as (name: string, args: Record<string, unknown>) => PromiseLike<{
+        data: unknown;
+        error: { message: string } | null;
+      }>;
+      const { error } = action === 'release'
+        ? await rpc('set_user_approval', {
+          p_target_uid: uid,
+          p_is_approved: true,
+          p_reason: reason,
+          p_operation_id: operationId,
+        })
+        : await rpc('set_account_lock_state', {
+          p_target_uid: uid,
+          p_locked: true,
+          p_reason: reason,
+          p_operation_id: operationId,
+        });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),

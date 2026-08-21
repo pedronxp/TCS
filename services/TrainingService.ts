@@ -203,28 +203,19 @@ export async function createTrainingClass(input: {
   limiteParticipantes: number;
   inicioEm: string;
   fimEm: string;
-  criadoPor?: string | null;
-  criadoPorNome?: string | null;
 }): Promise<void> {
-  const { error } = await supabase.from('training_classes').insert({
-    nome: input.nome.trim(),
-    token: input.token.trim().toUpperCase(),
-    limite_participantes: input.limiteParticipantes,
-    inicio_em: input.inicioEm,
-    fim_em: input.fimEm,
-    ativo: true,
-    formularios_permitidos: [...TRAINING_ALLOWED_FORMS],
-    criado_por: input.criadoPor ?? null,
-    criado_por_nome: input.criadoPorNome ?? null,
+  const { error } = await supabase.rpc('create_training_class', {
+    p_nome: input.nome.trim(),
+    p_token: input.token.trim().toUpperCase(),
+    p_limite_participantes: input.limiteParticipantes,
+    p_inicio_em: input.inicioEm,
+    p_fim_em: input.fimEm,
   });
   if (error) throw error;
 }
 
 export async function closeTrainingClass(classId: string): Promise<void> {
-  const { error } = await supabase
-    .from('training_classes')
-    .update({ ativo: false, encerrado_em: new Date().toISOString() })
-    .eq('id', classId);
+  const { error } = await supabase.rpc('close_training_class', { p_class_id: classId });
   if (error) throw error;
   await expireElapsedTrainingClasses().catch(() => null);
 }

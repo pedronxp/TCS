@@ -71,7 +71,7 @@ export function PortalAgendaPage() {
         p_inspection_id: inspectionId || null,
         p_title: title.trim(),
         p_scheduled_at: parsedDate.toISOString(),
-        p_notes: notes.trim() || null,
+        p_notes: notes.trim() || undefined,
       });
       if (error) throw new Error(error.message);
       setFormOpen(false);
@@ -81,8 +81,16 @@ export function PortalAgendaPage() {
       setNotes('');
       setMessage({ kind: 'success', text: 'Agendamento criado e incluído na agenda.' });
       void agenda.refetch();
-    } catch {
-      setMessage({ kind: 'error', text: 'Não foi possível criar o agendamento. Nenhuma alteração foi salva.' });
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : '';
+      setMessage({
+        kind: 'error',
+        text: detail.includes('invalid_appointment')
+          ? 'Escolha uma data e hora futura e um título entre 3 e 150 caracteres.'
+          : detail.includes('appointment_create_not_allowed')
+            ? 'Seu vínculo ou assinatura não permite criar agendamentos neste momento.'
+            : 'Não foi possível criar o agendamento. Nenhuma alteração foi salva.',
+      });
     } finally {
       setSubmitting(false);
     }

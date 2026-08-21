@@ -65,7 +65,7 @@ export function AuthFrame({
         </p>
       </aside>
 
-      <main id="auth-content" tabIndex={-1} className="flex min-h-screen flex-col p-4 sm:p-8">
+      <main id="auth-content" tabIndex={-1} className="flex min-h-screen min-w-0 flex-col p-4 sm:p-8">
         <div>
           <Button asChild variant="ghost">
             <Link to="/">

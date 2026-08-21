@@ -29,8 +29,8 @@ describe('mapa operacional do portal', () => {
   beforeEach(() => {
     mocks.query.data = {
       items: [
-        { id: '1', protocol: 'TCS-001', status: 'concluida', address: 'Rua A', latitude: -8.1, longitude: -34.9 },
-        { id: '2', protocol: 'TCS-002', status: 'pendente', address: 'Rua B', latitude: null, longitude: null },
+        { id: '1', protocol: 'TCS-001', status: 'concluida', address: 'Rua A', latitude: -8.1, longitude: -34.9, formulario_id: 'inspecao_bueiro_drenagem_v1' },
+        { id: '2', protocol: 'TCS-002', status: 'pendente', address: 'Rua B', latitude: null, longitude: null, formulario_id: 'risco_inundacao_v1' },
       ],
     };
     mocks.query.isLoading = false;
@@ -54,6 +54,14 @@ describe('mapa operacional do portal', () => {
     expect(screen.getByLabelText('Mapa de vistorias')).toHaveTextContent('TCS-002');
     expect(screen.queryByText('TCS-001')).not.toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('busca=Rua+B&status=pendente');
+  });
+
+  it('filtra mapa e lista pelo formulário selecionado', () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Filtrar mapa por formulário'), { target: { value: 'inspecao_bueiro_drenagem_v1' } });
+    expect(screen.getByLabelText('Mapa de vistorias')).toHaveTextContent('TCS-001');
+    expect(screen.queryByText('TCS-002')).not.toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('formulario=inspecao_bueiro_drenagem_v1');
   });
 
   it('diferencia vazio real de filtro sem resultado', () => {

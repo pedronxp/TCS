@@ -28,7 +28,7 @@ LogBox.ignoreLogs(['Unable to activate keep awake']);
 // Ping leve ao Supabase no boot — mantém o projeto ativo no plano gratuito
 async function pingSupabase() {
   try {
-    await supabase.from('users').select('count').limit(1).maybeSingle();
+    await supabase.auth.getSession();
   } catch { /* fire-and-forget */ }
 }
 

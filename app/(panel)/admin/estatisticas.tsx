@@ -47,11 +47,7 @@ export default function EstatisticasScreen() {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data: user } = await supabase
-        .from('users').select('municipio, role').eq('uid', session.user.id).single();
+      const { data: user } = await supabase.rpc('get_my_user_profile');
       if (!user) return;
       setMunicipio(user.municipio || '');
 

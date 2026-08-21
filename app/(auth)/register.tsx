@@ -184,33 +184,9 @@ export default function RegisterScreen() {
       setEmailJaCadastrado(null);
       return;
     }
-    setCheckingEmail(true);
-    try {
-      // 1) Verifica na tabela pública do app
-      const { data: publicUser } = await supabase
-        .from('users')
-        .select('uid')
-        .eq('email', email.trim().toLowerCase())
-        .maybeSingle();
-
-      if (publicUser !== null) {
-        setEmailJaCadastrado(true);
-        return;
-      }
-
-      // 2) Verifica via RPC se o e-mail existe no Supabase Auth (auth.users)
-      // Isso captura casos onde um cadastro anterior falhou pela metade.
-      const { data: authExists } = await supabase
-        .rpc('check_email_registered', { p_email: email.trim().toLowerCase() })
-        .single();
-
-      setEmailJaCadastrado(authExists === true);
-    } catch {
-      // Se a RPC não existir ou falhar, cai no fallback apenas da tabela pública
-      setEmailJaCadastrado(null);
-    } finally {
-      setCheckingEmail(false);
-    }
+    // Do not expose account existence prior to a real signup attempt.
+    setCheckingEmail(false);
+    setEmailJaCadastrado(null);
   };
 
   // ── Etapa 1: validar formulário e convite opcional ────────────────────────
@@ -268,16 +244,6 @@ export default function RegisterScreen() {
         codigoNormRef.current = codigoNorm;
       }
 
-      if (tokenData?.municipio) {
-        const { data: dominioOk } = await supabase.rpc('check_email_domain', {
-          p_municipio: tokenData.municipio,
-          p_email: email.trim().toLowerCase(),
-        });
-        if (dominioOk === false) {
-          throw new Error('Este e-mail não é autorizado para o município informado.');
-        }
-      }
-
       setEtapa('termos');
     } catch (e: any) {
       setError(traduzirErroAuth(e.message) || 'Erro ao validar token.');
@@ -320,17 +286,6 @@ export default function RegisterScreen() {
     try {
       const tokenData = tokenDataRef.current;
       const codigoNorm = codigoNormRef.current;
-
-      // Pré-verificação final: garante que o e-mail não foi registrado
-      // entre a Etapa 1 e agora (ex: cadastro anterior parcialmente concluído).
-      const { data: publicUserFinal } = await supabase
-        .from('users')
-        .select('uid')
-        .eq('email', email.trim().toLowerCase())
-        .maybeSingle();
-      if (publicUserFinal !== null) {
-        throw new Error('Este e-mail já está cadastrado. Utilize a opção de login.');
-      }
 
       let claim: SignupInviteClaimResult | null = null;
       if (codigoNorm) {
@@ -385,16 +340,6 @@ export default function RegisterScreen() {
       // O trigger valida e consome o claim, cria o perfil e, quando aplicável,
       // cria o membership na mesma transação do auth.users. Uma falha reverte
       // todo o signup, sem identidade órfã e sem compensação no cliente.
-
-      try {
-        if (tokenData?.criadoPor) {
-          const { data: adminData } = await supabase.rpc('get_push_token_by_uid', { p_uid: tokenData.criadoPor });
-          if (adminData) {
-            const { notificarNovoUsuarioCadastrado } = await import('../../services/NotificationService');
-            await notificarNovoUsuarioCadastrado(adminData, nome, tokenData.municipio || '');
-          }
-        }
-      } catch { /* silencioso */ }
 
       await supabase.auth.signOut();
       setEtapa('sucesso');

@@ -21,6 +21,7 @@ import {
   listPendingAcknowledgementEvents,
   markAcknowledgementConfirmed,
   markAcknowledgementFailed,
+  markAcknowledgementSignatureUploaded,
   markAcknowledgementSyncing,
   saveAcknowledgementEvent,
   saveGeneratedDocument,
@@ -215,6 +216,7 @@ function classifySyncError(error: unknown): string {
   const code = candidate?.code || '';
   const message = candidate?.message || '';
   if (code === '42501' || /denied|authorization|permission/i.test(message)) return 'authorization_denied';
+  if (code === 'P0002' && /inspection_not_found|vistoria/i.test(message)) return 'inspection_not_synced';
   if (code === 'P0002' || /not_found|not found/i.test(message)) return 'document_not_found';
   if (code === '22023' || /invalid|required/i.test(message)) return 'invalid_evidence';
   if (/network|fetch|timeout/i.test(message)) return 'network_error';
@@ -301,14 +303,17 @@ export async function syncPendingDocumentAcknowledgements(): Promise<{ success: 
     markAcknowledgementSyncing(event.id);
     try {
       const storagePath = await ensureDocumentUploaded(document);
-      const signatureStoragePath = event.signatureStrokes
+      const signatureStoragePath = event.remoteSignaturePath ?? (event.signatureStrokes
         ? await uploadDocumentSignatureEvidence(
             canonicalize(event.signatureStrokes),
             event.createdBy,
             document.vistoriaId,
             document.id
           )
-        : null;
+        : null);
+      if (!event.remoteSignaturePath && signatureStoragePath) {
+        markAcknowledgementSignatureUploaded(event.id, signatureStoragePath);
+      }
       const snapshot = JSON.parse(document.contentSnapshot) as DocumentContentSnapshot;
       const { data, error } = await supabase.rpc('finalize_document_acknowledgement', {
         p_payload: {

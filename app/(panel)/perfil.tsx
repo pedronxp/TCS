@@ -41,6 +41,10 @@ const THEME_OPTIONS: {
   { value: 'system', label: 'Sistema', icon: 'smartphone' },
   { value: 'light', label: 'Claro', icon: 'sun' },
   { value: 'dark', label: 'Escuro', icon: 'moon' },
+  { value: 'orca', label: 'Orca', icon: 'activity' },
+  { value: 'dracula', label: 'Dracula', icon: 'zap' },
+  { value: 'nord', label: 'Nord', icon: 'wind' },
+  { value: 'gruvbox', label: 'Gruvbox', icon: 'coffee' },
 ];
 
 function formatarTelefone(phone: string): string {
@@ -104,10 +108,9 @@ export default function PerfilScreen() {
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ name: newName.trim() })
-        .eq('uid', authProfile.uid);
+      const { error } = await supabase.rpc('update_my_display_name', {
+        p_name: newName.trim(),
+      });
       if (error) throw error;
       await refreshProfile();
       setEditingName(false);
@@ -133,10 +136,9 @@ export default function PerfilScreen() {
     }
     setSavingPhone(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ phone: normalized })
-        .eq('uid', authProfile.uid);
+      const { error } = await supabase.rpc('update_my_phone', {
+        p_phone: normalized,
+      });
       if (error) throw error;
       await refreshProfile();
       setEditingPhone(false);
@@ -639,9 +641,9 @@ const styles = StyleSheet.create({
 
   themeBlock: { paddingHorizontal: 15, paddingTop: 13, paddingBottom: 15 },
   themeHeading: { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
-  themeOptions: { flexDirection: 'row', borderRadius: 13, padding: 4, gap: 4 },
+  themeOptions: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 13, padding: 4, gap: 4 },
   themeOption: {
-    flex: 1,
+    width: '48.5%',
     minHeight: 39,
     borderRadius: 10,
     borderWidth: 1,

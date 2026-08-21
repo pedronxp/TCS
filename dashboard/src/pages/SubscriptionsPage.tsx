@@ -17,7 +17,6 @@ import {
 import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { Textarea } from '@/components/ui/Textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useSubscriptionMutation } from '@/hooks/useSubscriptionMutation';
@@ -29,6 +28,42 @@ import type { CustomerRecord } from '@/types/domain';
 import type { Json } from '@/types/supabase';
 
 const statuses = ['trial', 'active', 'grace', 'past_due', 'suspended', 'canceled', 'expired'];
+
+/**
+ * Legenda de transição da assinatura em PT: descreve o próximo passo para cada
+ * mudança de status/plano em vez de apenas trocar a situação silenciosamente.
+ * Apresentação apenas — não autoriza nada que o backend não valide.
+ */
+function transitionCaption(status: string, planChanged: boolean): { tone: 'info' | 'warning' | 'danger'; text: string } | null {
+  if (planChanged) {
+    return {
+      tone: 'info',
+      text: 'Mudança de plano: trocar o plano aplica a nova configuração a partir do próximo ciclo e registra o plano anterior na auditoria.',
+    };
+  }
+  switch (status) {
+    case 'trial':
+      return { tone: 'info', text: 'Período de teste: o cliente avalia o plano até a data final. A ativação definitiva acontece ao confirmar o status ativo.' };
+    case 'grace':
+      return { tone: 'warning', text: 'Carência ativa: o acesso continua, mas a renovação precisa ser regularizada até a data limite.' };
+    case 'past_due':
+      return { tone: 'warning', text: 'Pagamento pendente: o acesso de consulta permanece, mas novas operações ficam pausadas até a regularização.' };
+    case 'suspended':
+      return { tone: 'danger', text: 'Acesso suspenso: nenhuma operação é permitida. Reative a assinatura para restaurar o acesso completo.' };
+    case 'canceled':
+      return { tone: 'danger', text: 'Cancelamento registrado: a data é preservada na auditoria. Para retomar, abra uma nova assinatura ou reative dentro do ciclo.' };
+    case 'expired':
+      return { tone: 'danger', text: 'Assinatura expirada: inicie uma nova contratação para restaurar o acesso.' };
+    default:
+      return null;
+  }
+}
+
+const captionToneClass: Record<'info' | 'warning' | 'danger', string> = {
+  info: 'border-info/30 bg-info-soft text-foreground',
+  warning: 'border-warning/30 bg-warning-soft text-foreground',
+  danger: 'border-destructive/30 bg-destructive-soft text-foreground',
+};
 
 interface SubscriptionRow {
   id: string;
@@ -265,7 +300,8 @@ function SubscriptionDialog({
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
   const [graceEndsAt, setGraceEndsAt] = useState('');
-  const [overrides, setOverrides] = useState('{}');
+  const [inspectionLimit, setInspectionLimit] = useState('');
+  const [storageLimitGb, setStorageLimitGb] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mutation = useSubscriptionMutation();
@@ -282,13 +318,17 @@ function SubscriptionDialog({
     setPeriodStart(dateInput(subscription?.current_period_start) || dateInput(new Date().toISOString()));
     setPeriodEnd(dateInput(subscription?.current_period_end));
     setGraceEndsAt(dateInput(subscription?.grace_ends_at));
-    setOverrides(JSON.stringify(subscription?.overrides ?? {}, null, 2));
+    const existingOverrides = jsonObject(subscription?.overrides);
+    setInspectionLimit(numberFieldValue(jsonNumber(existingOverrides?.inspections_limit)));
+    setStorageLimitGb(numberFieldValue(jsonNumber(existingOverrides?.storage_limit_gb)));
     setError(null);
   }, [customers, open, subscription]);
 
   const customer = customers.find((item) => item.customer_id === customerId);
   const compatiblePlans = plans.filter((plan) => plan.audience === (customer?.kind === 'organization' ? 'organization' : 'individual'));
   const selectedPlan = plans.find((plan) => plan.id === planId);
+  const planChanged = Boolean(subscription) && subscription?.plan_id !== planId && Boolean(planId);
+  const transition = transitionCaption(status, planChanged);
   const calculatedMrr = useMemo(() => {
     if (!subscription) return null;
     return monthlyPriceCents(subscription);
@@ -324,11 +364,8 @@ function SubscriptionDialog({
       setError('Status trial exige data de término do trial.');
       return;
     }
-    try {
-      const parsed = JSON.parse(overrides);
-      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
-    } catch {
-      setError('Overrides devem ser um objeto JSON válido.');
+    if (!buildResourceOverrides(inspectionLimit, storageLimitGb)) {
+      setError('Informe limites inteiros não negativos ou deixe os campos vazios para seguir o plano.');
       return;
     }
     setError(null);
@@ -388,6 +425,11 @@ function SubscriptionDialog({
                 <DateField label="Início da assinatura" value={startsAt} onChange={setStartsAt} required />
                 {status === 'trial' && <DateField label="Fim do trial" value={trialEndsAt} onChange={setTrialEndsAt} required />}
               </div>
+              {transition && (
+                <p className={cn('mt-3 rounded-lg border px-3 py-2 text-xs leading-5', captionToneClass[transition.tone])} role="status">
+                  {transition.text}
+                </p>
+              )}
             </section>
 
             {/* Período de Cobrança */}
@@ -421,9 +463,19 @@ function SubscriptionDialog({
               <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Carência e Cancelamento</h3>
               <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
                 <DateField label="Carência até" value={graceEndsAt} onChange={setGraceEndsAt} />
-                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">Ao confirmar o status cancelado, o servidor registra automaticamente a data e preserva o estado anterior na auditoria.</p>
+                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">Ao confirmar o status cancelado, o servidor registra automaticamente a data e preserva o estado anterior na auditoria. {subscription?.canceled_at && <>Cancelado em {new Date(subscription.canceled_at).toLocaleDateString('pt-BR')}; reative dentro do ciclo para restaurar o acesso.</>}</p>
               </div>
             </section>
+
+            {/* Consume / limites do plano */}
+            {selectedPlan && (
+              <section>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Consumo e limites do plano</h3>
+                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                  Os limites de vistorias, armazenamento e sessões seguem o plano <strong className="text-foreground">{selectedPlan.name}</strong>. Acompanhe o consumo real no painel do cliente (aba Consumo) e use os overrides abaixo somente para ajustes pontuais.
+                </p>
+              </section>
+            )}
 
             {/* MRR e Indicadores */}
             {subscription && (
@@ -448,23 +500,18 @@ function SubscriptionDialog({
 
             {/* Overrides */}
             <section>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Overrides de Recursos e Limites
-              </h3>
-              <div className="space-y-2">
-                <Label htmlFor="subscription-overrides">JSON de configuração personalizada</Label>
-                <Textarea
-                  id="subscription-overrides"
-                  value={overrides}
-                  onChange={(event) => setOverrides(event.target.value)}
-                  rows={8}
-                  placeholder='{\n  "storage_limit_gb": 100,\n  "inspections_limit": 5000\n}'
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use para sobrescrever limites do plano. Deixe <code>{'{}'}</code> para usar configurações padrão.
-                </p>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Limites personalizados</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="subscription-inspections-limit">Limite adicional de vistorias</Label>
+                  <Input id="subscription-inspections-limit" type="number" min="0" step="1" inputMode="numeric" value={inspectionLimit} onChange={(event) => setInspectionLimit(event.target.value)} placeholder="Seguir o plano" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subscription-storage-limit">Armazenamento adicional (GB)</Label>
+                  <Input id="subscription-storage-limit" type="number" min="0" step="1" inputMode="numeric" value={storageLimitGb} onChange={(event) => setStorageLimitGb(event.target.value)} placeholder="Seguir o plano" />
+                </div>
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">Preencha somente o que precisar ajustar. Campos vazios mantêm os limites definidos pelo plano.</p>
             </section>
           </div>
 
@@ -504,7 +551,7 @@ function SubscriptionDialog({
               current_period_start: isoOrEmpty(periodStart),
               current_period_end: isoOrEmpty(periodEnd),
               grace_ends_at: isoOrEmpty(graceEndsAt),
-              overrides: JSON.parse(overrides),
+              overrides: buildResourceOverrides(inspectionLimit, storageLimitGb) ?? {},
             },
             reason,
           });
@@ -515,6 +562,28 @@ function SubscriptionDialog({
       />
     </>
   );
+}
+
+function numberFieldValue(value: number | null): string {
+  return value === null ? '' : String(value);
+}
+
+function buildResourceOverrides(inspections: string, storage: string): Record<string, number> | null {
+  const values = [
+    ['inspections_limit', inspections],
+    ['storage_limit_gb', storage],
+  ] as const;
+  const overrides: Record<string, number> = {};
+
+  for (const [key, rawValue] of values) {
+    const value = rawValue.trim();
+    if (!value) continue;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) return null;
+    overrides[key] = parsed;
+  }
+
+  return overrides;
 }
 
 function DateField({

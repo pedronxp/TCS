@@ -495,6 +495,12 @@ function PlanCard({ plan, features, featured, onEdit }: { plan: PlanRow; feature
               {OVERAGE_LABEL[commercial.overage_policy]}
             </p>
           )}
+
+          {plan.status === 'retired' && (
+            <p className={cn('rounded-lg border px-3 py-2 text-xs leading-5', featured ? 'border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground/80' : 'border-border bg-muted/30 text-muted-foreground')} role="status">
+              Plano arquivado: assinaturas ativas continuam válidas, mas novas ativações não são permitidas. Reative ou publique uma nova versão para retomar a venda.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

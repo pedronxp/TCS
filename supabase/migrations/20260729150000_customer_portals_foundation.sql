@@ -473,6 +473,11 @@ BEGIN
 END;
 $$;
 
+-- This compatibility implementation is replaced by the guarded context in
+-- 20260801143939.  Some legacy schemas lack fields that its historical body
+-- references, so defer body validation until the replacement migration.
+SET check_function_bodies = false;
+
 CREATE OR REPLACE FUNCTION public.get_portal_access_context()
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -664,6 +669,8 @@ BEGIN
   );
 END;
 $$;
+
+SET check_function_bodies = true;
 
 CREATE OR REPLACE FUNCTION public.portal_get_dashboard()
 RETURNS jsonb

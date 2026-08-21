@@ -60,6 +60,11 @@ CREATE TRIGGER on_auth_user_created
 --    - Verifica que o token existe E ainda não foi usado (usado = false)
 --    - Retorna TRUE se atualizou exatamente 1 linha, FALSE caso contrário
 
+-- PostgreSQL nÃ£o permite trocar o tipo de retorno com CREATE OR REPLACE.
+-- A versÃ£o anterior devolvia void, portanto removemos somente a assinatura
+-- legada antes de registrar o contrato booleano idempotente.
+DROP FUNCTION IF EXISTS public.mark_token_used(text, uuid, text, text);
+
 CREATE OR REPLACE FUNCTION public.mark_token_used(
   p_codigo text,
   p_uid    uuid    DEFAULT NULL,

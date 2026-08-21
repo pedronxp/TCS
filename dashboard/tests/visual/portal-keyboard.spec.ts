@@ -22,7 +22,7 @@ test('login mantém ordem de foco lógica no mobile', async ({ page }, testInfo)
   mobileOnly(testInfo.project.name);
   await installPortalFixture(page, 'individual', false);
   await page.goto('/entrar', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Entrar no portal' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Acesse seu portal' })).toBeVisible();
 
   const focusOrder = [
     page.getByRole('link', { name: 'Pular para o conteúdo' }),
@@ -30,7 +30,8 @@ test('login mantém ordem de foco lógica no mobile', async ({ page }, testInfo)
     page.getByRole('textbox', { name: 'E-mail' }),
     page.getByLabel('Senha', { exact: true }),
     page.getByRole('button', { name: 'Mostrar senha' }),
-    page.getByRole('button', { name: 'Entrar', exact: true }),
+    page.getByRole('button', { name: 'Entrar no portal', exact: true }),
+    page.getByRole('link', { name: 'Esqueci minha senha' }),
     page.getByRole('button', { name: 'Continuar com Google' }),
     page.getByRole('link', { name: 'Criar conta' }),
   ];
@@ -45,7 +46,7 @@ test('skip link da autenticação move o foco para o conteúdo principal', async
   mobileOnly(testInfo.project.name);
   await installPortalFixture(page, 'individual', false);
   await page.goto('/entrar', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Entrar no portal', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Acesse seu portal', level: 1 })).toBeVisible();
 
   await page.keyboard.press('Tab');
   const skipLink = page.getByRole('link', { name: 'Pular para o conteúdo' });

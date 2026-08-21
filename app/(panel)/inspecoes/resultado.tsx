@@ -363,10 +363,12 @@ export default function ResultadoScreen() {
     const laudoUrl = await uploadLaudoPdf(uri, vistoria.id, municipio);
     if (laudoUrl) {
       updateLaudoUrl(vistoria.id, laudoUrl, agora);
-      const { error } = await supabase
-        .from('vistorias')
-        .update({ laudo_url: laudoUrl, laudo_gerado_em: agora })
-        .eq('id', vistoria.id);
+      const storedPath = laudoUrl.startsWith('laudos:') ? laudoUrl.slice('laudos:'.length) : laudoUrl;
+      const { error } = await supabase.rpc('finalize_inspection_laudo_generation', {
+        p_inspection_id: vistoria.id,
+        p_storage_path: storedPath,
+        p_generated_at: agora,
+      });
       if (!error) void syncPendentes().catch(() => null);
       setVistoria((prev: any) => prev ? { ...prev, laudo_url: laudoUrl, laudo_gerado_em: agora } : prev);
     } else {
@@ -462,7 +464,7 @@ export default function ResultadoScreen() {
       if (!(await ensureTrainingActionsAllowed())) return;
 
       if (profile?.uid && !isolatedMode) {
-        const { allowed, message } = await checkRateLimit(profile.uid, 'gerar_pdf');
+        const { allowed, message } = await checkRateLimit('gerar_pdf');
         if (!allowed) {
           Alert.alert('Limite atingido', message || 'Muitas gerações de PDF. Aguarde alguns minutos.');
           return;
@@ -619,6 +621,27 @@ export default function ResultadoScreen() {
     setShowAgentSignatureModal(true);
   };
 
+  const sincronizarVistoriaAntesDaCiencia = async () => {
+    if (!isConnected) {
+      Alert.alert('Conexão necessária', 'Conecte-se à internet para sincronizar a vistoria antes de coletar a ciência.');
+      return;
+    }
+    setGerando(true);
+    try {
+      const resultado = await syncPendentes();
+      await loadDados();
+      if (resultado.falha > 0) {
+        Alert.alert('Sincronização pendente', 'A vistoria ainda não foi enviada ao servidor. Revise a conexão e tente novamente.');
+        return;
+      }
+      Alert.alert('Vistoria sincronizada', 'A vistoria foi enviada ao servidor. Toque novamente para gerar o documento e coletar a ciência.');
+    } catch {
+      Alert.alert('Não foi possível sincronizar', 'Tente novamente quando houver conexão estável.');
+    } finally {
+      setGerando(false);
+    }
+  };
+
   const escolherAssinaturaDaGaleria = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -680,6 +703,7 @@ export default function ResultadoScreen() {
   const activeReportAcknowledgement = currentAcknowledgements.find(item => item.document.documentType === 'report') ?? null;
   const activeReportNeedsAttention = activeReportAcknowledgement
     && ['not_collected', 'pending_sync', 'sync_failed'].includes(activeReportAcknowledgement.historyStatus);
+  const acknowledgementRequiresInspectionSync = !isolatedMode && !vistoria?.protocolo;
   const displayedEvidence = Array.from(new Set([
     vistoria?.foto_url,
     ...(vistoria?.fotosUrls ?? []),
@@ -884,9 +908,11 @@ export default function ResultadoScreen() {
 
         <TouchableOpacity
           style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.primary }]}
-          onPress={activeReportNeedsAttention
-            ? () => router.push(`/(panel)/inspecoes/ciencia?documentId=${activeReportAcknowledgement.document.id}`)
-            : () => solicitarAssinaturaAgente('generate')}
+          onPress={acknowledgementRequiresInspectionSync
+            ? sincronizarVistoriaAntesDaCiencia
+            : activeReportNeedsAttention
+              ? () => router.push(`/(panel)/inspecoes/ciencia?documentId=${activeReportAcknowledgement.document.id}`)
+              : () => solicitarAssinaturaAgente('generate')}
           disabled={gerando}
         >
           <View style={[styles.exportIcon, { backgroundColor: theme.primary }]}>
@@ -899,6 +925,8 @@ export default function ResultadoScreen() {
             <Text style={[styles.exportTitle, { color: theme.text }]}>
               {gerando
                 ? 'Gerando documento...'
+                : acknowledgementRequiresInspectionSync
+                  ? 'Sincronizar vistoria para coletar ciência'
                 : activeReportAcknowledgement?.historyStatus === 'not_collected'
                   ? `Coletar ciência da versão ${activeReportAcknowledgement.document.documentVersion}`
                   : activeReportNeedsAttention
@@ -908,7 +936,9 @@ export default function ResultadoScreen() {
                   : 'Gerar PDF e coletar ciência'}
             </Text>
             <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
-              {activeReportNeedsAttention
+              {acknowledgementRequiresInspectionSync
+                ? 'A ciência exige que a vistoria exista no servidor e receba protocolo oficial'
+                : activeReportNeedsAttention
                 ? 'Já existe uma versão aberta; outra não será criada'
                 : activeReportAcknowledgement
                   ? 'Conteúdo igual reutiliza a versão atual; alterações criam nova versão'

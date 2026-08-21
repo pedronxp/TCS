@@ -160,8 +160,6 @@ export default function MasterTreinamentosScreen() {
         limiteParticipantes: limite,
         inicioEm: inicio.toISOString(),
         fimEm: fim.toISOString(),
-        criadoPor: profile?.uid || null,
-        criadoPorNome: profile?.name || null,
       });
       setShowCreate(false);
       await carregar(true);

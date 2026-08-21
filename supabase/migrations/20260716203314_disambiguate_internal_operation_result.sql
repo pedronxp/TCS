@@ -13,15 +13,20 @@ BEGIN
     'public.mutate_internal_release(text,text,text,text,uuid)'::regprocedure
   ] LOOP
     SELECT pg_get_functiondef(function_name) INTO definition;
-    definition := replace(definition, E'\n  result jsonb;', E'\n  v_result jsonb;');
-    definition := replace(definition, '; result jsonb;', '; v_result jsonb;');
-    definition := replace(definition, 'SELECT io.result INTO result', 'SELECT io.result INTO v_result');
-    definition := replace(definition, 'IF result IS NOT NULL THEN RETURN result;', 'IF v_result IS NOT NULL THEN RETURN v_result;');
-    definition := replace(definition, 'result:=jsonb_build_object', 'v_result:=jsonb_build_object');
-    definition := replace(definition, 'result := jsonb_build_object', 'v_result := jsonb_build_object');
-    definition := replace(definition, 'result=result', 'result=v_result');
-    definition := replace(definition, 'RETURN result;', 'RETURN v_result;');
-    EXECUTE definition;
+    -- Clean installations already contain v_result in the original function
+    -- definitions. Re-executing a generated definition there is unnecessary
+    -- and may fail on PostgreSQL parser differences; only repair legacy code.
+    IF definition NOT LIKE '%v_result jsonb%' THEN
+      definition := replace(definition, E'\n  result jsonb;', E'\n  v_result jsonb;');
+      definition := replace(definition, '; result jsonb;', '; v_result jsonb;');
+      definition := replace(definition, 'SELECT io.result INTO result', 'SELECT io.result INTO v_result');
+      definition := replace(definition, 'IF result IS NOT NULL THEN RETURN result;', 'IF v_result IS NOT NULL THEN RETURN v_result;');
+      definition := replace(definition, 'result:=jsonb_build_object', 'v_result:=jsonb_build_object');
+      definition := replace(definition, 'result := jsonb_build_object', 'v_result := jsonb_build_object');
+      definition := replace(definition, 'result=result', 'result=v_result');
+      definition := replace(definition, 'RETURN result;', 'RETURN v_result;');
+      EXECUTE definition;
+    END IF;
   END LOOP;
 END;
 $$;

@@ -76,11 +76,7 @@ export default function LoginScreen() {
         throw authError;
       }
 
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('isApproved, role, municipio, organization_id')
-        .eq('uid', data.user.id)
-        .maybeSingle();
+      const { data: userData, error: userError } = await supabase.rpc('get_my_user_profile');
 
       if (userError) {
         await supabase.auth.signOut();

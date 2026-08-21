@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SubscriptionsPage } from './SubscriptionsPage';
@@ -81,5 +82,16 @@ describe('Assinaturas', () => {
     render(<SubscriptionsPage />);
     expect(screen.getByText(/registrada com motivo e horário/)).toBeVisible();
     expect(screen.getByText(/sem estimativas inferidas/)).toBeVisible();
+  });
+
+  it('edita limites adicionais em campos simples, sem expor JSON técnico', async () => {
+    const user = userEvent.setup();
+    render(<SubscriptionsPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Editar assinatura de Prefeitura de Aurora' }));
+
+    expect(screen.getByLabelText('Limite adicional de vistorias')).toBeVisible();
+    expect(screen.getByLabelText('Armazenamento adicional (GB)')).toBeVisible();
+    expect(screen.queryByLabelText('JSON de configuração personalizada')).not.toBeInTheDocument();
   });
 });

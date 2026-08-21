@@ -33,7 +33,7 @@ const internalPermissions = new Set<string>([
   'commercial.read', 'commercial.write', 'support.read', 'support.write',
   'session.read', 'session.terminate', 'staff.read', 'staff.manage', 'audit.read',
   'technical.read', 'technical.write', 'build.request', 'build.approve',
-  'configuration.prepare', 'configuration.publish',
+  'configuration.prepare', 'configuration.publish', 'protocol.read', 'protocol.rotate',
 ]);
 
 function isInternalRole(value: string | null): value is InternalRole {

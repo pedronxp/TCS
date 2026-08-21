@@ -63,7 +63,15 @@
       "mcp__supabase__list_projects",
       "mcp__supabase__execute_sql",
       "WebSearch",
-      "Skill(gsd:execute-phase)"
+      "Skill(gsd:execute-phase)",
+      "mcp__resend__list-domains",
+      "mcp__resend__get-domain",
+      "mcp__supabase__search_docs",
+      "WebFetch(domain:supabase.com)",
+      "mcp__supabase__query_logs",
+      "mcp__supabase__apply_migration",
+      "Bash(npx vitest *)",
+      "Bash(findstr /R /C:\"✓\" /C:\"✗\" /C:\"×\" /C:\"passed\" /C:\"failed\" /C:\"PASS\" /C:\"FAIL\" /C:\"Test Files\" /C:\"Tests\")"
     ]
   }
 }

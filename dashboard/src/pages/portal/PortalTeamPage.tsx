@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
-import { fetchPortalWorkspace } from '@/lib/portal';
+import { fetchPortalWorkspace, portalRestrictionMessage } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
 
 type TeamItem = Record<string, unknown>;
@@ -25,7 +25,9 @@ export function PortalTeamPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const mayManage = can('team.manage');
+  const hasManagePermission = can('team.manage');
+  const subscriptionBlocks = access ? !access.creationAllowed : false;
+  const mayManage = hasManagePermission && !subscriptionBlocks;
   const manageTriggerRef = useRef<HTMLButtonElement | null>(null);
   const manageTitleRef = useRef<HTMLHeadingElement>(null);
   const pageTitleRef = useRef<HTMLHeadingElement>(null);
@@ -59,7 +61,7 @@ export function PortalTeamPage() {
     event.preventDefault();
     if (!selected) return;
     if (!mayManage) {
-      setErrorMessage('Sua permissão para gerenciar a equipe não está mais disponível.');
+      setErrorMessage('Sua permissão para gerenciar a equipe não está disponível neste momento.');
       return;
     }
     setSubmitting(true);
@@ -84,6 +86,11 @@ export function PortalTeamPage() {
 
   return (
     <div className="page-stack">
+      {hasManagePermission && subscriptionBlocks && (
+        <p className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="status">
+          A gestão de equipe está em consulta: {portalRestrictionMessage(access?.restrictionCause ?? null)} Você pode consultar a equipe, mas alterações de papel e status voltam após a regularização.
+        </p>
+      )}
       <p className="rounded-md border border-border bg-secondary p-3 text-sm text-muted-foreground" role="status">{mayManage ? 'Selecione uma pessoa para revisar papel e status; nenhuma alteração ocorre sem confirmação.' : 'Você está em modo de consulta; papéis e status só podem ser alterados por um coordenador.'}</p>
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Administração municipal</p>
@@ -129,7 +136,7 @@ export function PortalTeamPage() {
                   <select className="mt-2 h-11 w-full rounded-md border bg-card px-3" value={role} onChange={(event) => setRole(event.target.value)}>
                     <option value="agent">Agente</option>
                     <option value="supervisor">Supervisor</option>
-                    <option value="coordinator">Coordenador</option>
+                    {access?.role === 'master' && <option value="admin">Administrador</option>}
                   </select>
                 </label>
                 <label className="text-sm font-medium">Status
@@ -159,7 +166,7 @@ export function PortalTeamPage() {
 }
 
 function roleLabel(value: string) {
-  return ({ coordinator: 'Coordenador', supervisor: 'Supervisor', agent: 'Agente', owner: 'Coordenador' } as Record<string, string>)[value] ?? value;
+  return ({ master: 'Master', admin: 'Administrador', supervisor: 'Supervisor', agent: 'Agente' } as Record<string, string>)[value] ?? value;
 }
 
 function statusLabel(value: string) {

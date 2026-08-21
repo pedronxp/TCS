@@ -34,7 +34,7 @@ export default function AgenteVistoriasScreen() {
     setLoading(true);
     try {
       const [agenteRes, vistoriasRes] = await Promise.all([
-        supabase.from('users').select('name, email, municipio').eq('uid', uid).single(),
+        supabase.rpc('get_operational_user', { p_uid: uid }),
         supabase
           .from('vistorias')
           .select('id, nivelRisco, endereco, dataVistoria, pontuacaoTotal, formularioId, calculoRisco')
@@ -52,12 +52,12 @@ export default function AgenteVistoriasScreen() {
         .filter(Boolean);
 
       if (supervisorUids.length > 0) {
-        const { data: supervisoresData } = await supabase
-          .from('users')
-          .select('uid, name')
-          .in('uid', supervisorUids);
+        const { data: supervisoresData } = await supabase.rpc('list_operational_users', {
+          p_role: 'supervisor', p_municipio: null, p_include_unapproved: false, p_offset: 0, p_limit: 500,
+        });
 
         supervisores = (supervisoresData || [])
+          .filter((s: any) => supervisorUids.includes(s.uid))
           .map((s: any) => s.name)
           .filter(Boolean)
           .join(', ');

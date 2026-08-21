@@ -22,6 +22,7 @@ import { RiskRulesPage } from '@/pages/RiskRulesPage';
 import { StaffPage } from '@/pages/StaffPage';
 import { StyleGuidePage } from '@/pages/StyleGuidePage';
 import { CommercialMetricsPage } from '@/pages/CommercialMetricsPage';
+import { ProtocolsPage } from '@/pages/ProtocolsPage';
 import { legacyCustomerDetailPath, legacyCustomerMemberPath } from '@/lib/customerRoutes';
 
 const queryClient = new QueryClient({
@@ -80,6 +81,7 @@ export default function PrivateApp() {
           <Route path="planos" element={<ProtectedRoute requirePermission="commercial.read"><PlansPage /></ProtectedRoute>} />
           <Route path="negocio/indicadores" element={<ProtectedRoute requirePermission="commercial.read"><CommercialMetricsPage /></ProtectedRoute>} />
           <Route path="assinaturas" element={<ProtectedRoute requirePermission="commercial.read"><SubscriptionsPage /></ProtectedRoute>} />
+          <Route path="protocolos" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolsPage /></ProtectedRoute>} />
           <Route path="sessoes" element={<ProtectedRoute requirePermission="session.read"><SessionsPage /></ProtectedRoute>} />
           <Route path="suporte" element={<SupportPage />} />
           <Route path="staff" element={<ProtectedRoute requirePermission="staff.read"><StaffPage /></ProtectedRoute>} />

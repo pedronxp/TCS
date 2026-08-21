@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { PortalAgendaPage } from './PortalAgendaPage';
+import type { PortalRestrictionCause } from '@/types/portal';
 
 const mocks = vi.hoisted(() => ({
   agenda: { data: { items: [] as Array<Record<string, unknown>> }, isLoading: false, isError: false, refetch: vi.fn() },
@@ -12,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   access: {
     accountKind: 'individual' as const, userId: 'user-1', organizationId: null, role: null,
-    creationAllowed: true, restrictionCause: null as string | null,
+    creationAllowed: true, restrictionCause: null as PortalRestrictionCause | null,
   },
 }));
 
