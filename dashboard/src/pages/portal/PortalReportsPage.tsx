@@ -342,7 +342,7 @@ export function PortalReportsPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" role="region" aria-label="Tabela de resultados do recorte" tabIndex={0}>
               <table className="w-full text-sm">
                 <thead className="border-b bg-secondary/50 text-left">
                   <tr>{Object.keys(query.data.rows[0] ?? {}).map((column) => (

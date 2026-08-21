@@ -283,7 +283,7 @@ const asyncRoutes: AsyncRouteState[] = [
     path: '/portal/municipal/convites',
     rpc: 'portal_get_workspace',
     kind: 'organization',
-    loadingText: 'Carregando',
+    loadingSelector: 'main p:text-is("Carregando…")',
     errorText: 'Não foi possível carregar os convites.',
     emptyText: 'Nenhum convite emitido.',
     emptyOptions: { emptyWorkspaceSections: ['convites'] },

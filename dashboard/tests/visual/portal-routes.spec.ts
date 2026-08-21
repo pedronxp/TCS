@@ -13,6 +13,7 @@ type PortalRoute = {
   heading: string;
   kind: PortalFixtureKind;
   authenticated?: boolean;
+  readySelector?: string;
 };
 
 const routes: PortalRoute[] = [
@@ -28,7 +29,7 @@ const routes: PortalRoute[] = [
   { id: 'portal-individual-mapa', path: '/portal/individual/mapa', heading: 'Mapa de vistorias', kind: 'individual' },
   { id: 'portal-individual-agenda', path: '/portal/individual/agenda', heading: 'Agenda', kind: 'individual' },
   { id: 'portal-individual-documentos', path: '/portal/individual/documentos', heading: 'Documentos', kind: 'individual' },
-  { id: 'portal-individual-relatorios', path: '/portal/individual/relatorios', heading: 'Relatórios e estatísticas', kind: 'individual' },
+  { id: 'portal-individual-relatorios', path: '/portal/individual/relatorios', heading: 'Relatórios e estatísticas', kind: 'individual', readySelector: '[aria-label="Indicadores do recorte"]' },
   { id: 'portal-individual-consumo', path: '/portal/individual/consumo', heading: 'Consumo', kind: 'individual' },
   { id: 'portal-individual-assinatura', path: '/portal/individual/assinatura', heading: 'Assinatura', kind: 'individual' },
   { id: 'portal-individual-suporte', path: '/portal/individual/suporte', heading: 'Suporte', kind: 'individual' },
@@ -40,7 +41,7 @@ const routes: PortalRoute[] = [
   { id: 'portal-municipal-mapa', path: '/portal/municipal/mapa', heading: 'Mapa de vistorias', kind: 'organization' },
   { id: 'portal-municipal-agenda', path: '/portal/municipal/agenda', heading: 'Agenda', kind: 'organization' },
   { id: 'portal-municipal-documentos', path: '/portal/municipal/documentos', heading: 'Documentos', kind: 'organization' },
-  { id: 'portal-municipal-relatorios', path: '/portal/municipal/relatorios', heading: 'Relatórios e estatísticas', kind: 'organization' },
+  { id: 'portal-municipal-relatorios', path: '/portal/municipal/relatorios', heading: 'Relatórios e estatísticas', kind: 'organization', readySelector: '[aria-label="Indicadores do recorte"]' },
   { id: 'portal-municipal-equipe', path: '/portal/municipal/equipe', heading: 'Equipe', kind: 'organization' },
   { id: 'portal-municipal-convites', path: '/portal/municipal/convites', heading: 'Convites', kind: 'organization' },
   { id: 'portal-municipal-consumo', path: '/portal/municipal/consumo', heading: 'Consumo', kind: 'organization' },
@@ -62,6 +63,9 @@ for (const route of routes) {
     await installPortalFixture(page, route.kind, route.authenticated !== false);
     await page.goto(route.path, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: route.heading, exact: true })).toBeVisible();
+    if (route.readySelector) {
+      await expect(page.locator(route.readySelector)).toBeVisible();
+    }
     await page.evaluate(() => document.fonts.ready);
 
     const geometry = await page.evaluate(() => ({
