@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   fetchComunicados: vi.fn(),
   fetchBairros: vi.fn(),
   fetchCanais: vi.fn(),
+  fetchBotChats: vi.fn(),
   can: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock('@/lib/comunicados', async (importOriginal) => ({
   fetchComunicados: mocks.fetchComunicados,
   fetchBairros: mocks.fetchBairros,
   fetchCanais: mocks.fetchCanais,
+  fetchBotChats: mocks.fetchBotChats,
 }));
 vi.mock('@/contexts/PortalAuthContext', () => ({
   usePortalAuth: () => ({
@@ -42,7 +44,7 @@ const comunicadoPublicado: Comunicado = {
   totalLeituras: 4,
   lido: false,
   podeEditar: true,
-  envios: [],
+  envios: [{ canalId: 'k-1', canalNome: 'Comunidade Aurora', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-21T12:05:00Z', registradoPorNome: null }],
 };
 
 const comunicadoAgendado: Comunicado = {
@@ -71,7 +73,10 @@ describe('comunicados municipais do portal', () => {
       { id: 'b-1', nome: 'Centro', ativo: true, emUso: true, podeGerenciar: true },
     ]);
     mocks.fetchCanais.mockReset().mockResolvedValue([
-      { id: 'k-1', nome: 'Comunidade Aurora', tipo: 'whatsapp_comunidade', linkConvite: null, telefoneAdmin: null, ativo: true, totalEnvios: 2, podeGerenciar: true },
+      { id: 'k-1', nome: 'Comunidade Aurora', tipo: 'whatsapp_comunidade', chatId: '1203@g.us', linkConvite: null, telefoneAdmin: null, ativo: true, totalEnvios: 2, podeGerenciar: true },
+    ]);
+    mocks.fetchBotChats.mockReset().mockResolvedValue([
+      { chatId: '1203@g.us', nome: 'Anúncios · Aurora', tipo: 'grupo', vistoEm: '2026-08-21T10:00:00Z' },
     ]);
     mocks.can.mockReset().mockReturnValue(false);
   });

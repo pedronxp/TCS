@@ -18,9 +18,14 @@ export interface ComunicadoDestino {
   todoMunicipio: boolean;
 }
 
+export type ComunicadoEnvioStatus = 'pendente' | 'enviado' | 'falhou';
+
 export interface ComunicadoEnvio {
   canalId: string;
   canalNome: string | null;
+  status: ComunicadoEnvioStatus;
+  origem: 'manual' | 'bot' | null;
+  erro: string | null;
   enviadoEm: string | null;
   registradoPorNome: string | null;
 }
@@ -47,11 +52,19 @@ export interface CanalComunitario {
   id: string;
   nome: string;
   tipo: string;
+  chatId: string | null;
   linkConvite: string | null;
   telefoneAdmin: string | null;
   ativo: boolean;
   totalEnvios: number;
   podeGerenciar: boolean;
+}
+
+export interface BotChat {
+  chatId: string;
+  nome: string;
+  tipo: string;
+  vistoEm: string | null;
 }
 
 export interface Bairro {
@@ -112,9 +125,16 @@ function parseComunicado(value: unknown): Comunicado | null {
         .map((item): ComunicadoEnvio | null => {
           const envio = record(item);
           if (!envio) return null;
+          const status = string(envio.status);
+          const origem = string(envio.origem);
           return {
             canalId: string(envio.canal_id) ?? '',
             canalNome: string(envio.canal_nome),
+            status: (status === 'pendente' || status === 'falhou' || status === 'enviado'
+              ? status
+              : 'enviado') as ComunicadoEnvioStatus,
+            origem: origem === 'bot' ? 'bot' : origem === 'manual' ? 'manual' : null,
+            erro: string(envio.erro),
             enviadoEm: string(envio.enviado_em),
             registradoPorNome: string(envio.registrado_por_nome),
           };
@@ -131,11 +151,23 @@ function parseCanal(value: unknown): CanalComunitario | null {
     id: source.id as string,
     nome: source.nome as string,
     tipo: string(source.tipo) ?? 'whatsapp_comunidade',
+    chatId: string(source.chat_id),
     linkConvite: string(source.link_convite),
     telefoneAdmin: string(source.telefone_admin),
     ativo: source.ativo === true,
     totalEnvios: typeof source.total_envios === 'number' ? source.total_envios : 0,
     podeGerenciar: source.pode_gerenciar === true,
+  };
+}
+
+function parseBotChat(value: unknown): BotChat | null {
+  const source = record(value);
+  if (!source || !string(source.chat_id) || !string(source.nome)) return null;
+  return {
+    chatId: source.chat_id as string,
+    nome: source.nome as string,
+    tipo: string(source.tipo) ?? 'grupo',
+    vistoEm: string(source.visto_em),
   };
 }
 
@@ -172,6 +204,30 @@ export async function fetchCanais(): Promise<CanalComunitario[]> {
   const { data, error } = await rpc('portal_list_canais_externos');
   if (error) throw new Error(error.message);
   return parseArray(data, parseCanal);
+}
+
+export async function fetchBotChats(): Promise<BotChat[]> {
+  const { data, error } = await rpc('portal_list_bot_chats');
+  if (error) throw new Error(error.message);
+  return parseArray(data, parseBotChat);
+}
+
+export async function vincularCanalChat(canalId: string, chatId: string | null): Promise<void> {
+  const { error } = await rpc('portal_vincular_canal_chat', {
+    p_canal_id: canalId,
+    p_chat_id: chatId ?? '',
+  });
+  if (error) throw new Error(error.message);
+}
+
+// Enfileira disparo pelo bot externo; retorna quantas comunidades entraram na fila.
+export async function dispararBot(comunicadoId: string, canalId?: string): Promise<number> {
+  const { data, error } = await rpc('portal_disparar_envio_bot', {
+    p_comunicado_id: comunicadoId,
+    p_canal_id: canalId ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return typeof data === 'number' ? data : 0;
 }
 
 export interface ComunicadoDraft {

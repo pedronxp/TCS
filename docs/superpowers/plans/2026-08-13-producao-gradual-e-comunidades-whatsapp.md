@@ -135,6 +135,7 @@ Escopo v1 dos comunicados (implementado): emissão por master/admin municipal co
 - [ ] Se não houver capacidade oficial, manter o TCS como fonte oficial de avisos e a Comunidade WhatsApp como canal manual complementar.
 - [ ] Não incluir no escopo de produção bot open source que imite cliente WhatsApp ou WhatsApp Web; não há SLA, suporte nem garantia de continuidade para esse mecanismo.
 - [ ] Definir procedimento de contingência: push/app/painel continuam ativos caso o WhatsApp esteja indisponível.
+- [x] **Decisão 2026-08-21** (`docs/decisions/bot-whatsapp-externo.md`): o dono do produto assumiu o risco de banimento e aprovou um **bot externo opcional** (`bot-whatsapp/`, hospedagem separada, QR Code) que consome a fila `canal_envios` via service_role restrita ao ambiente do bot. O core do TCS não depende dele e o disparo assistido permanece como contingência; as demais restrições deste plano continuam valendo.
 
 ### Task 7: Planejar API de integrações externas após estabilizar o piloto (fase futura)
 

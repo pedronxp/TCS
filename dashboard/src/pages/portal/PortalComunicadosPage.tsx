@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, CalendarClock, Check, Copy, ExternalLink, Megaphone, Pencil, Send, Trash2, Users } from 'lucide-react';
+import { Archive, Bot, CalendarClock, Check, Copy, ExternalLink, Megaphone, Pencil, Send, Trash2, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -25,7 +25,9 @@ import {
   deleteBairro,
   deleteCanal,
   deleteComunicado,
+  dispararBot,
   fetchBairros,
+  fetchBotChats,
   fetchCanais,
   fetchComunicados,
   mensagemWhatsApp,
@@ -36,6 +38,7 @@ import {
   saveComunicado,
   setCanalAtivo,
   setComunicadoStatus,
+  vincularCanalChat,
   whatsappShareUrl,
   type Comunicado,
   type ComunicadoSeveridade,
@@ -105,6 +108,12 @@ export function PortalComunicadosPage() {
     queryFn: fetchCanais,
     enabled: Boolean(access),
   });
+  const botChatsQuery = useQuery({
+    queryKey: ['portal', 'bot-chats', organizationId],
+    queryFn: fetchBotChats,
+    enabled: Boolean(access) && mayManage,
+    retry: false,
+  });
 
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
   const [editing, setEditing] = useState(false);
@@ -122,6 +131,7 @@ export function PortalComunicadosPage() {
   const rascunhos = useMemo(() => comunicados.filter((item) => item.status === 'rascunho'), [comunicados]);
   const arquivados = useMemo(() => comunicados.filter((item) => item.status === 'arquivado'), [comunicados]);
   const canaisAtivos = useMemo(() => canais.filter((canal) => canal.ativo), [canais]);
+  const botChats = botChatsQuery.data ?? [];
 
   const invalidateComunicados = () => queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
 
@@ -196,6 +206,24 @@ export function PortalComunicadosPage() {
     mutationFn: ({ id, ativo }: { id: string; ativo: boolean }) => setCanalAtivo(id, ativo),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['portal', 'canais'] });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+  const vincularChatMutation = useMutation({
+    mutationFn: ({ canalId, chatId }: { canalId: string; chatId: string | null }) => vincularCanalChat(canalId, chatId),
+    onSuccess: async () => {
+      setStatusMessage('Chat vinculado à comunidade.');
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'canais'] });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+  const botMutation = useMutation({
+    mutationFn: ({ comunicadoId, canalId }: { comunicadoId: string; canalId?: string }) => dispararBot(comunicadoId, canalId),
+    onSuccess: async (total) => {
+      setStatusMessage(total > 0
+        ? `${total} disparo${total === 1 ? '' : 's'} na fila do bot — o envio ocorre em segundos.`
+        : 'Nenhuma comunidade ativa com chat vinculado. Vincule o chat na seção Comunidades.');
+      await invalidateComunicados();
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
@@ -469,15 +497,37 @@ export function PortalComunicadosPage() {
                   )}
                   {canais.map((canal) => (
                     <li key={canal.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-2.5">
-                      <span className="min-w-0">
+                      <span className="min-w-0 flex-1">
                         <span className="block break-words text-sm font-semibold">
                           {canal.nome}
                           {!canal.ativo && <span className="ml-2 text-xs text-muted-foreground">(inativa)</span>}
                         </span>
                         <span className="mt-1 block text-xs text-muted-foreground">
                           {canal.totalEnvios} envio{canal.totalEnvios === 1 ? '' : 's'} registrado{canal.totalEnvios === 1 ? '' : 's'}
-                          {canal.linkConvite ? ' · convite salvo' : ''}
+                          {canal.chatId ? ' · chat vinculado' : ' · sem chat vinculado'}
                         </span>
+                        {mayManage && (
+                          <label className="mt-1 block text-xs text-muted-foreground">
+                            Chat do bot
+                            <select
+                              className="mt-1 h-9 w-full rounded-md border bg-card px-2 text-xs"
+                              value={canal.chatId ?? ''}
+                              aria-label={`Chat vinculado à comunidade ${canal.nome}`}
+                              onChange={(event) => vincularChatMutation.mutate({ canalId: canal.id, chatId: event.target.value || null })}
+                            >
+                              <option value="">
+                                {botChatsQuery.isError
+                                  ? 'Bot offline ou sem permissão'
+                                  : botChats.length === 0
+                                    ? 'Nenhum chat sincronizado pelo bot'
+                                    : 'Selecionar chat…'}
+                              </option>
+                              {botChats.map((chat) => (
+                                <option key={chat.chatId} value={chat.chatId}>{chat.nome}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </span>
                       <span className="flex flex-wrap gap-2">
                         <Button
@@ -630,6 +680,14 @@ export function PortalComunicadosPage() {
                           ) : (
                             <>
                               <div className="mt-2 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  disabled={botMutation.isPending}
+                                  onClick={() => botMutation.mutate({ comunicadoId: comunicado.id })}
+                                >
+                                  <Bot />
+                                  Disparar pelo bot
+                                </Button>
                                 <Button variant="outline" size="sm" onClick={() => void copiarMensagem(comunicado)}>
                                   <Copy />
                                   Copiar mensagem
@@ -648,14 +706,33 @@ export function PortalComunicadosPage() {
                                   const envio = enviosPorCanal.get(canal.id);
                                   return (
                                     <li key={canal.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2">
-                                      <span className="min-w-0 break-words text-sm">{canal.nome}</span>
+                                      <span className="min-w-0 break-words text-sm">
+                                        {canal.nome}
+                                        {!canal.chatId && (
+                                          <span className="ml-2 text-xs text-muted-foreground">(sem chat vinculado)</span>
+                                        )}
+                                      </span>
                                       <span className="flex flex-wrap items-center gap-2">
-                                        {envio ? (
+                                        {envio?.status === 'pendente' && <Badge variant="info">Na fila do bot</Badge>}
+                                        {envio?.status === 'falhou' && (
+                                          <span className="text-xs text-destructive" role="alert">Falhou: {envio.erro ?? 'erro desconhecido'}</span>
+                                        )}
+                                        {envio?.status === 'enviado' && (
                                           <span className="text-xs text-muted-foreground">
-                                            Enviado {formatDate(envio.enviadoEm) ?? ''} {envio.registradoPorNome ? `por ${envio.registradoPorNome}` : ''}
+                                            Enviado {envio.origem === 'bot' ? 'pelo bot' : 'manualmente'} {formatDate(envio.enviadoEm) ?? ''}
+                                            {envio.origem === 'manual' && envio.registradoPorNome ? ` por ${envio.registradoPorNome}` : ''}
                                           </span>
-                                        ) : (
-                                          <Badge variant="warning">Pendente</Badge>
+                                        )}
+                                        {!envio && <Badge variant="warning">Pendente</Badge>}
+                                        {canal.chatId && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={botMutation.isPending}
+                                            onClick={() => botMutation.mutate({ comunicadoId: comunicado.id, canalId: canal.id })}
+                                          >
+                                            Enviar
+                                          </Button>
                                         )}
                                         <Button
                                           variant="ghost"
@@ -663,13 +740,17 @@ export function PortalComunicadosPage() {
                                           disabled={envioMutation.isPending}
                                           onClick={() => envioMutation.mutate({ canalId: canal.id, comunicadoId: comunicado.id })}
                                         >
-                                          {envio ? 'Registrar de novo' : 'Marcar enviado'}
+                                          Marcar enviado
                                         </Button>
                                       </span>
                                     </li>
                                   );
                                 })}
                               </ul>
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                O bot envia sozinho nas comunidades com chat vinculado; o envio manual (copiar/abrir/colar)
+                                continua disponível como contingência.
+                              </p>
                             </>
                           )}
                         </div>
