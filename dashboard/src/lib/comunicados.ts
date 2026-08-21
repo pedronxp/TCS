@@ -10,12 +10,19 @@ type PortalRpc = (name: string, args?: Record<string, unknown>) => PromiseLike<R
 const rpc = supabase.rpc.bind(supabase) as unknown as PortalRpc;
 
 export type ComunicadoSeveridade = 'informacao' | 'alerta' | 'emergencia';
-export type ComunicadoStatus = 'rascunho' | 'publicado' | 'arquivado';
+export type ComunicadoStatus = 'rascunho' | 'agendado' | 'publicado' | 'arquivado';
 
 export interface ComunicadoDestino {
   bairroId: string | null;
   bairroNome: string | null;
   todoMunicipio: boolean;
+}
+
+export interface ComunicadoEnvio {
+  canalId: string;
+  canalNome: string | null;
+  enviadoEm: string | null;
+  registradoPorNome: string | null;
 }
 
 export interface Comunicado {
@@ -26,12 +33,25 @@ export interface Comunicado {
   status: ComunicadoStatus;
   autorNome: string | null;
   publicadoEm: string | null;
+  publicarEm: string | null;
   expiraEm: string | null;
   criadoEm: string | null;
   destinos: ComunicadoDestino[];
   totalLeituras: number;
   lido: boolean;
   podeEditar: boolean;
+  envios: ComunicadoEnvio[];
+}
+
+export interface CanalComunitario {
+  id: string;
+  nome: string;
+  tipo: string;
+  linkConvite: string | null;
+  telefoneAdmin: string | null;
+  ativo: boolean;
+  totalEnvios: number;
+  podeGerenciar: boolean;
 }
 
 export interface Bairro {
@@ -53,7 +73,7 @@ function string(value: unknown): string | null {
 }
 
 const severidades = new Set<ComunicadoSeveridade>(['informacao', 'alerta', 'emergencia']);
-const statuses = new Set<ComunicadoStatus>(['rascunho', 'publicado', 'arquivado']);
+const statuses = new Set<ComunicadoStatus>(['rascunho', 'agendado', 'publicado', 'arquivado']);
 
 function parseComunicado(value: unknown): Comunicado | null {
   const source = record(value);
@@ -68,6 +88,7 @@ function parseComunicado(value: unknown): Comunicado | null {
     status: statuses.has(status as ComunicadoStatus) ? status as ComunicadoStatus : 'rascunho',
     autorNome: string(source.autor_nome),
     publicadoEm: string(source.publicado_em),
+    publicarEm: string(source.publicar_em),
     expiraEm: string(source.expira_em),
     criadoEm: string(source.criado_em),
     destinos: Array.isArray(source.destinos)
@@ -86,6 +107,35 @@ function parseComunicado(value: unknown): Comunicado | null {
     totalLeituras: typeof source.total_leituras === 'number' ? source.total_leituras : 0,
     lido: source.lido === true,
     podeEditar: source.pode_editar === true,
+    envios: Array.isArray(source.envios)
+      ? source.envios
+        .map((item): ComunicadoEnvio | null => {
+          const envio = record(item);
+          if (!envio) return null;
+          return {
+            canalId: string(envio.canal_id) ?? '',
+            canalNome: string(envio.canal_nome),
+            enviadoEm: string(envio.enviado_em),
+            registradoPorNome: string(envio.registrado_por_nome),
+          };
+        })
+        .filter((item): item is ComunicadoEnvio => item !== null && item.canalId !== '')
+      : [],
+  };
+}
+
+function parseCanal(value: unknown): CanalComunitario | null {
+  const source = record(value);
+  if (!source || !string(source.id) || !string(source.nome)) return null;
+  return {
+    id: source.id as string,
+    nome: source.nome as string,
+    tipo: string(source.tipo) ?? 'whatsapp_comunidade',
+    linkConvite: string(source.link_convite),
+    telefoneAdmin: string(source.telefone_admin),
+    ativo: source.ativo === true,
+    totalEnvios: typeof source.total_envios === 'number' ? source.total_envios : 0,
+    podeGerenciar: source.pode_gerenciar === true,
   };
 }
 
@@ -118,12 +168,19 @@ export async function fetchBairros(): Promise<Bairro[]> {
   return parseArray(data, parseBairro);
 }
 
+export async function fetchCanais(): Promise<CanalComunitario[]> {
+  const { data, error } = await rpc('portal_list_canais_externos');
+  if (error) throw new Error(error.message);
+  return parseArray(data, parseCanal);
+}
+
 export interface ComunicadoDraft {
   id?: string;
   titulo: string;
   conteudo: string;
   severidade: ComunicadoSeveridade;
   expiraEm?: string | null;
+  publicarEm?: string | null;
   destinos: Array<{ bairroId?: string; todoMunicipio?: boolean }>;
 }
 
@@ -135,6 +192,7 @@ export async function saveComunicado(draft: ComunicadoDraft): Promise<string> {
       conteudo: draft.conteudo,
       severidade: draft.severidade,
       expira_em: draft.expiraEm ?? null,
+      publicar_em: draft.publicarEm ?? null,
       destinos: draft.destinos,
     },
   });
@@ -144,8 +202,54 @@ export async function saveComunicado(draft: ComunicadoDraft): Promise<string> {
   return id;
 }
 
-export async function setComunicadoStatus(id: string, status: 'publicado' | 'arquivado'): Promise<void> {
-  const { error } = await rpc('portal_set_comunicado_status', { p_comunicado_id: id, p_status: status });
+export async function setComunicadoStatus(
+  id: string,
+  status: 'agendado' | 'publicado' | 'arquivado' | 'rascunho',
+  publicarEm?: string | null,
+): Promise<void> {
+  const { error } = await rpc('portal_set_comunicado_status', {
+    p_comunicado_id: id,
+    p_status: status,
+    p_publicar_em: publicarEm ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function registrarEnvioCanal(canalId: string, comunicadoId: string): Promise<void> {
+  const { error } = await rpc('portal_registrar_envio_canal', {
+    p_canal_id: canalId,
+    p_comunicado_id: comunicadoId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export interface CanalDraft {
+  id?: string;
+  nome: string;
+  linkConvite?: string | null;
+  telefoneAdmin?: string | null;
+}
+
+export async function saveCanal(draft: CanalDraft): Promise<void> {
+  const { error } = await rpc('portal_upsert_canal_externo', {
+    p_payload: {
+      id: draft.id ?? null,
+      nome: draft.nome,
+      tipo: 'whatsapp_comunidade',
+      link_convite: draft.linkConvite ?? null,
+      telefone_admin: draft.telefoneAdmin ?? null,
+    },
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function setCanalAtivo(id: string, ativo: boolean): Promise<void> {
+  const { error } = await rpc('portal_set_canal_ativo', { p_canal_id: id, p_ativo: ativo });
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteCanal(id: string): Promise<void> {
+  const { error } = await rpc('portal_delete_canal_externo', { p_canal_id: id });
   if (error) throw new Error(error.message);
 }
 
@@ -177,9 +281,30 @@ export const comunicadoSeverityLabels: Record<ComunicadoSeveridade, string> = {
 
 export const comunicadoStatusLabels: Record<ComunicadoStatus, string> = {
   rascunho: 'Rascunho',
+  agendado: 'Agendado',
   publicado: 'Publicado',
   arquivado: 'Arquivado',
 };
+
+// Mensagem pronta para replicação manual na Comunidade WhatsApp:
+// o TCS publica nos canais oficiais; a comunidade recebe o mesmo texto.
+export function mensagemWhatsApp(comunicado: Comunicado, organizacao: string | null): string {
+  const linhas = [
+    `*${comunicado.titulo}*`,
+    `_${comunicadoSeverityLabels[comunicado.severidade]} — ${comunicadoDestinosLabel(comunicado.destinos)}_`,
+    '',
+    comunicado.conteudo,
+  ];
+  if (comunicado.expiraEm) {
+    linhas.push('', `Válido até ${new Date(comunicado.expiraEm).toLocaleDateString('pt-BR')}.`);
+  }
+  linhas.push('', organizacao ? `— ${organizacao} · via TCS` : '— via TCS');
+  return linhas.join('\n');
+}
+
+export function whatsappShareUrl(mensagem: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+}
 
 export function comunicadoDestinosLabel(destinos: ComunicadoDestino[]): string {
   if (destinos.some((destino) => destino.todoMunicipio)) return 'Todo o município';

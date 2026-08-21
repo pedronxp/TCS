@@ -1,6 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Check, Megaphone, Pencil, Send, Trash2 } from 'lucide-react';
+import { Archive, CalendarClock, Check, Copy, ExternalLink, Megaphone, Pencil, Send, Trash2, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -23,13 +23,20 @@ import {
   comunicadoSeverityLabels,
   comunicadoStatusLabels,
   deleteBairro,
+  deleteCanal,
   deleteComunicado,
   fetchBairros,
+  fetchCanais,
   fetchComunicados,
+  mensagemWhatsApp,
   registerComunicadoLeitura,
+  registrarEnvioCanal,
   saveBairro,
+  saveCanal,
   saveComunicado,
+  setCanalAtivo,
   setComunicadoStatus,
+  whatsappShareUrl,
   type Comunicado,
   type ComunicadoSeveridade,
 } from '@/lib/comunicados';
@@ -40,6 +47,7 @@ interface DraftState {
   conteudo: string;
   severidade: ComunicadoSeveridade;
   expiraEm: string;
+  publicarEm: string;
   bairrosSelecionados: string[];
   todoMunicipio: boolean;
 }
@@ -49,6 +57,7 @@ const emptyDraft: DraftState = {
   conteudo: '',
   severidade: 'informacao',
   expiraEm: '',
+  publicarEm: '',
   bairrosSelecionados: [],
   todoMunicipio: true,
 };
@@ -61,6 +70,7 @@ function severityBadgeVariant(severidade: ComunicadoSeveridade) {
 
 function statusBadgeVariant(status: Comunicado['status']) {
   if (status === 'publicado') return 'success' as const;
+  if (status === 'agendado') return 'info' as const;
   if (status === 'rascunho') return 'outline' as const;
   return 'secondary' as const;
 }
@@ -71,6 +81,8 @@ function formatDate(value: string | null) {
   if (Number.isNaN(parsed.getTime())) return null;
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(parsed);
 }
+
+type SubmitMode = 'rascunho' | 'publicar' | 'agendar';
 
 export function PortalComunicadosPage() {
   const { access, can } = usePortalAuth();
@@ -88,6 +100,11 @@ export function PortalComunicadosPage() {
     queryFn: fetchBairros,
     enabled: Boolean(access),
   });
+  const canaisQuery = useQuery({
+    queryKey: ['portal', 'canais', organizationId],
+    queryFn: fetchCanais,
+    enabled: Boolean(access),
+  });
 
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
   const [editing, setEditing] = useState(false);
@@ -95,12 +112,18 @@ export function PortalComunicadosPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [novoBairro, setNovoBairro] = useState('');
+  const [novaComunidade, setNovaComunidade] = useState({ nome: '', linkConvite: '' });
 
   const comunicados = comunicadosQuery.data ?? [];
   const bairros = bairrosQuery.data ?? [];
+  const canais = canaisQuery.data ?? [];
   const publicados = useMemo(() => comunicados.filter((item) => item.status === 'publicado'), [comunicados]);
+  const agendados = useMemo(() => comunicados.filter((item) => item.status === 'agendado'), [comunicados]);
   const rascunhos = useMemo(() => comunicados.filter((item) => item.status === 'rascunho'), [comunicados]);
   const arquivados = useMemo(() => comunicados.filter((item) => item.status === 'arquivado'), [comunicados]);
+  const canaisAtivos = useMemo(() => canais.filter((canal) => canal.ativo), [canais]);
+
+  const invalidateComunicados = () => queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
 
   const saveMutation = useMutation({
     mutationFn: saveComunicado,
@@ -108,15 +131,16 @@ export function PortalComunicadosPage() {
       setDraft(emptyDraft);
       setEditing(false);
       setStatusMessage(variables.id ? 'Comunicado atualizado.' : 'Rascunho salvo.');
-      await queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
+      await invalidateComunicados();
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'publicado' | 'arquivado' }) => setComunicadoStatus(id, status),
+    mutationFn: ({ id, status, publicarEm }: { id: string; status: 'agendado' | 'publicado' | 'arquivado' | 'rascunho'; publicarEm?: string | null }) =>
+      setComunicadoStatus(id, status, publicarEm),
     onSuccess: async () => {
       setStatusMessage('Status atualizado.');
-      await queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
+      await invalidateComunicados();
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
@@ -124,15 +148,23 @@ export function PortalComunicadosPage() {
     mutationFn: deleteComunicado,
     onSuccess: async () => {
       setStatusMessage('Rascunho excluído.');
-      await queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
+      await invalidateComunicados();
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
   const leituraMutation = useMutation({
     mutationFn: registerComunicadoLeitura,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
+      await invalidateComunicados();
     },
+  });
+  const envioMutation = useMutation({
+    mutationFn: ({ canalId, comunicadoId }: { canalId: string; comunicadoId: string }) => registrarEnvioCanal(canalId, comunicadoId),
+    onSuccess: async () => {
+      setStatusMessage('Envio à comunidade registrado.');
+      await invalidateComunicados();
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
   });
   const bairroSaveMutation = useMutation({
     mutationFn: (nome: string) => saveBairro(nome),
@@ -151,6 +183,30 @@ export function PortalComunicadosPage() {
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
+  const canalSaveMutation = useMutation({
+    mutationFn: saveCanal,
+    onSuccess: async () => {
+      setNovaComunidade({ nome: '', linkConvite: '' });
+      setStatusMessage('Comunidade salva.');
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'canais'] });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+  const canalAtivoMutation = useMutation({
+    mutationFn: ({ id, ativo }: { id: string; ativo: boolean }) => setCanalAtivo(id, ativo),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'canais'] });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+  const canalDeleteMutation = useMutation({
+    mutationFn: deleteCanal,
+    onSuccess: async () => {
+      setStatusMessage('Comunidade removida.');
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'canais'] });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
 
   function beginEdit(comunicado: Comunicado) {
     setDraft({
@@ -159,6 +215,7 @@ export function PortalComunicadosPage() {
       conteudo: comunicado.conteudo,
       severidade: comunicado.severidade,
       expiraEm: comunicado.expiraEm ? comunicado.expiraEm.slice(0, 10) : '',
+      publicarEm: comunicado.publicarEm ? comunicado.publicarEm.slice(0, 16) : '',
       bairrosSelecionados: comunicado.destinos
         .map((destino) => destino.bairroId)
         .filter((bairroId): bairroId is string => bairroId !== null),
@@ -178,31 +235,39 @@ export function PortalComunicadosPage() {
     });
   }
 
-  function submit(event: FormEvent, publish: boolean) {
-    event.preventDefault();
+  async function submit(mode: SubmitMode) {
     setErrorMessage(null);
     setStatusMessage(null);
-    const id = saveMutation.mutateAsync({
-      id: draft.id,
-      titulo: draft.titulo.trim(),
-      conteudo: draft.conteudo,
-      severidade: draft.severidade,
-      expiraEm: draft.expiraEm ? new Date(`${draft.expiraEm}T23:59:59`).toISOString() : null,
-      destinos: draft.todoMunicipio || draft.bairrosSelecionados.length === 0
-        ? [{ todoMunicipio: true }]
-        : draft.bairrosSelecionados.map((bairroId) => ({ bairroId })),
-    });
-    void id.then(async (comunicadoId) => {
-      if (publish) {
-        try {
-          await setComunicadoStatus(comunicadoId, 'publicado');
-          setStatusMessage('Comunicado publicado para a equipe municipal.');
-          await queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
-        } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : 'Não foi possível publicar.');
-        }
+    const publicarIso = mode === 'agendar' && draft.publicarEm
+      ? new Date(draft.publicarEm).toISOString()
+      : null;
+    if (mode === 'agendar' && (!draft.publicarEm || new Date(draft.publicarEm).getTime() <= Date.now())) {
+      setErrorMessage('Escolha uma data e hora futura para agendar.');
+      return;
+    }
+    try {
+      const comunicadoId = await saveMutation.mutateAsync({
+        id: draft.id,
+        titulo: draft.titulo.trim(),
+        conteudo: draft.conteudo,
+        severidade: draft.severidade,
+        expiraEm: draft.expiraEm ? new Date(`${draft.expiraEm}T23:59:59`).toISOString() : null,
+        publicarEm: publicarIso,
+        destinos: draft.todoMunicipio || draft.bairrosSelecionados.length === 0
+          ? [{ todoMunicipio: true }]
+          : draft.bairrosSelecionados.map((bairroId) => ({ bairroId })),
+      });
+      if (mode === 'publicar') {
+        await setComunicadoStatus(comunicadoId, 'publicado');
+        setStatusMessage('Comunicado publicado para a equipe municipal.');
+      } else if (mode === 'agendar') {
+        await setComunicadoStatus(comunicadoId, 'agendado', publicarIso);
+        setStatusMessage(`Comunicado agendado para ${formatDate(publicarIso) ?? 'a data informada'}.`);
       }
-    });
+      await invalidateComunicados();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Não foi possível salvar.');
+    }
   }
 
   function expand(comunicado: Comunicado) {
@@ -210,6 +275,11 @@ export function PortalComunicadosPage() {
     if (expandedId !== comunicado.id && !comunicado.lido) {
       leituraMutation.mutate(comunicado.id);
     }
+  }
+
+  async function copiarMensagem(comunicado: Comunicado) {
+    await navigator.clipboard.writeText(mensagemWhatsApp(comunicado, access?.organizationName ?? null));
+    setStatusMessage('Mensagem copiada. Cole na Comunidade WhatsApp e confirme o envio abaixo.');
   }
 
   return (
@@ -232,11 +302,11 @@ export function PortalComunicadosPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Megaphone />
-                  {editing ? 'Editar rascunho' : 'Novo comunicado'}
+                  {editing ? 'Editar comunicado' : 'Novo comunicado'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <form className="space-y-4" onSubmit={(event) => submit(event, false)}>
+                <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void submit('rascunho'); }}>
                   <label className="block text-sm font-medium">
                     Título
                     <Input
@@ -322,9 +392,22 @@ export function PortalComunicadosPage() {
                     <Button type="submit" disabled={saveMutation.isPending}>
                       {saveMutation.isPending ? 'Salvando…' : 'Salvar rascunho'}
                     </Button>
-                    <Button type="button" variant="outline" disabled={saveMutation.isPending} onClick={(event) => submit(event, true)}>
+                    <Button type="button" variant="outline" disabled={saveMutation.isPending} onClick={() => void submit('publicar')}>
                       <Send />
-                      Salvar e publicar
+                      Publicar agora
+                    </Button>
+                    <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <CalendarClock className="h-4 w-4" aria-hidden />
+                      <Input
+                        type="datetime-local"
+                        className="h-11"
+                        value={draft.publicarEm}
+                        onChange={(event) => setDraft((current) => ({ ...current, publicarEm: event.target.value }))}
+                        aria-label="Agendar para"
+                      />
+                    </label>
+                    <Button type="button" variant="outline" disabled={saveMutation.isPending} onClick={() => void submit('agendar')}>
+                      Agendar
                     </Button>
                     {editing && (
                       <Button
@@ -340,6 +423,88 @@ export function PortalComunicadosPage() {
                     )}
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users />
+                  Comunidades WhatsApp
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-4 text-xs text-muted-foreground">
+                  A Comunidade é criada no aplicativo WhatsApp e registrada aqui. O envio é assistido: o painel gera a
+                  mensagem pronta e você replica na comunidade — cada envio fica registrado para auditoria.
+                </p>
+                <form
+                  className="grid gap-2 sm:grid-cols-[1.2fr_1.4fr_auto]"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (novaComunidade.nome.trim().length >= 3) {
+                      canalSaveMutation.mutate({ nome: novaComunidade.nome.trim(), linkConvite: novaComunidade.linkConvite.trim() || null });
+                    }
+                  }}
+                >
+                  <Input
+                    value={novaComunidade.nome}
+                    onChange={(event) => setNovaComunidade((current) => ({ ...current, nome: event.target.value }))}
+                    placeholder="Nome da comunidade"
+                    minLength={3}
+                    maxLength={80}
+                    aria-label="Nome da comunidade"
+                  />
+                  <Input
+                    value={novaComunidade.linkConvite}
+                    onChange={(event) => setNovaComunidade((current) => ({ ...current, linkConvite: event.target.value }))}
+                    placeholder="Link de convite (opcional)"
+                    aria-label="Link de convite da comunidade"
+                  />
+                  <Button type="submit" variant="outline" disabled={canalSaveMutation.isPending}>Adicionar</Button>
+                </form>
+                <ul className="mt-4 divide-y">
+                  {canais.length === 0 && (
+                    <li className="py-3 text-sm text-muted-foreground">Nenhuma comunidade registrada.</li>
+                  )}
+                  {canais.map((canal) => (
+                    <li key={canal.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-semibold">
+                          {canal.nome}
+                          {!canal.ativo && <span className="ml-2 text-xs text-muted-foreground">(inativa)</span>}
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {canal.totalEnvios} envio{canal.totalEnvios === 1 ? '' : 's'} registrado{canal.totalEnvios === 1 ? '' : 's'}
+                          {canal.linkConvite ? ' · convite salvo' : ''}
+                        </span>
+                      </span>
+                      <span className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={canalAtivoMutation.isPending}
+                          onClick={() => canalAtivoMutation.mutate({ id: canal.id, ativo: !canal.ativo })}
+                        >
+                          {canal.ativo ? 'Desativar' : 'Ativar'}
+                        </Button>
+                        {canal.totalEnvios === 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Remover comunidade ${canal.nome}`}
+                            disabled={canalDeleteMutation.isPending}
+                            onClick={() => canalDeleteMutation.mutate(canal.id)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
 
@@ -418,46 +583,139 @@ export function PortalComunicadosPage() {
                 </p>
               )}
               <ul className="divide-y">
-                {publicados.map((comunicado) => (
-                  <li key={comunicado.id} className="py-4">
-                    <button
-                      type="button"
-                      className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      aria-expanded={expandedId === comunicado.id}
-                      onClick={() => expand(comunicado)}
-                    >
-                      <span className="flex flex-wrap items-center gap-2">
-                        {!comunicado.lido && <Badge variant="info">Não lido</Badge>}
-                        <Badge variant={severityBadgeVariant(comunicado.severidade)}>{comunicadoSeverityLabels[comunicado.severidade]}</Badge>
-                        <span className="min-w-0 flex-1 break-words text-sm font-semibold">{comunicado.titulo}</span>
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {comunicadoDestinosLabel(comunicado.destinos)} · {formatDate(comunicado.publicadoEm) ?? formatDate(comunicado.criadoEm) ?? ''}
-                        {comunicado.expiraEm ? ` · expira ${formatDate(comunicado.expiraEm)}` : ''}
-                        {` · ${comunicado.totalLeituras} leitura${comunicado.totalLeituras === 1 ? '' : 's'}`}
-                      </span>
-                      {expandedId === comunicado.id && (
-                        <span className="mt-3 block whitespace-pre-wrap break-words rounded-md bg-secondary/60 p-3 text-sm">
-                          {comunicado.conteudo}
+                {publicados.map((comunicado) => {
+                  const enviosPorCanal = new Map(comunicado.envios.map((envio) => [envio.canalId, envio]));
+                  return (
+                    <li key={comunicado.id} className="py-4">
+                      <button
+                        type="button"
+                        className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-expanded={expandedId === comunicado.id}
+                        onClick={() => expand(comunicado)}
+                      >
+                        <span className="flex flex-wrap items-center gap-2">
+                          {!comunicado.lido && <Badge variant="info">Não lido</Badge>}
+                          <Badge variant={severityBadgeVariant(comunicado.severidade)}>{comunicadoSeverityLabels[comunicado.severidade]}</Badge>
+                          <span className="min-w-0 flex-1 break-words text-sm font-semibold">{comunicado.titulo}</span>
                         </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {comunicadoDestinosLabel(comunicado.destinos)} · {formatDate(comunicado.publicadoEm) ?? formatDate(comunicado.criadoEm) ?? ''}
+                          {comunicado.expiraEm ? ` · expira ${formatDate(comunicado.expiraEm)}` : ''}
+                          {` · ${comunicado.totalLeituras} leitura${comunicado.totalLeituras === 1 ? '' : 's'}`}
+                        </span>
+                        {expandedId === comunicado.id && (
+                          <span className="mt-3 block whitespace-pre-wrap break-words rounded-md bg-secondary/60 p-3 text-sm">
+                            {comunicado.conteudo}
+                          </span>
+                        )}
+                        {expandedId === comunicado.id && comunicado.lido && (
+                          <span className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><Check className="h-3 w-3" />Lido</span>
+                        )}
+                      </button>
+                      {mayManage && comunicado.podeEditar && expandedId === comunicado.id && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ id: comunicado.id, status: 'arquivado' })}>
+                            <Archive />
+                            Arquivar
+                          </Button>
+                        </div>
                       )}
-                      {expandedId === comunicado.id && comunicado.lido && (
-                        <span className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><Check className="h-3 w-3" />Lido</span>
+                      {mayManage && expandedId === comunicado.id && (
+                        <div className="mt-4 rounded-md border bg-card p-3">
+                          <p className="text-sm font-semibold">Replicar nas Comunidades WhatsApp</p>
+                          {canaisAtivos.length === 0 ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Nenhuma comunidade ativa registrada. Cadastre na coluna ao lado após criar a comunidade no WhatsApp.
+                            </p>
+                          ) : (
+                            <>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <Button variant="outline" size="sm" onClick={() => void copiarMensagem(comunicado)}>
+                                  <Copy />
+                                  Copiar mensagem
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(whatsappShareUrl(mensagemWhatsApp(comunicado, access?.organizationName ?? null)), '_blank', 'noopener')}
+                                >
+                                  <ExternalLink />
+                                  Abrir WhatsApp
+                                </Button>
+                              </div>
+                              <ul className="mt-3 divide-y">
+                                {canaisAtivos.map((canal) => {
+                                  const envio = enviosPorCanal.get(canal.id);
+                                  return (
+                                    <li key={canal.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2">
+                                      <span className="min-w-0 break-words text-sm">{canal.nome}</span>
+                                      <span className="flex flex-wrap items-center gap-2">
+                                        {envio ? (
+                                          <span className="text-xs text-muted-foreground">
+                                            Enviado {formatDate(envio.enviadoEm) ?? ''} {envio.registradoPorNome ? `por ${envio.registradoPorNome}` : ''}
+                                          </span>
+                                        ) : (
+                                          <Badge variant="warning">Pendente</Badge>
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          disabled={envioMutation.isPending}
+                                          onClick={() => envioMutation.mutate({ canalId: canal.id, comunicadoId: comunicado.id })}
+                                        >
+                                          {envio ? 'Registrar de novo' : 'Marcar enviado'}
+                                        </Button>
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </>
+                          )}
+                        </div>
                       )}
-                    </button>
-                    {mayManage && comunicado.podeEditar && expandedId === comunicado.id && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ id: comunicado.id, status: 'arquivado' })}>
-                          <Archive />
-                          Arquivar
-                        </Button>
-                      </div>
-                    )}
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </CardContent>
           </Card>
+
+          {mayManage && agendados.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Agendados ({agendados.length})</CardTitle></CardHeader>
+              <CardContent>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Publicam automaticamente na data marcada (app e portal).
+                </p>
+                <ul className="divide-y">
+                  {agendados.map((comunicado) => (
+                    <li key={comunicado.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-3">
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Badge variant={statusBadgeVariant(comunicado.status)}>{comunicadoStatusLabels[comunicado.status]}</Badge>
+                          <span className="min-w-0 flex-1 break-words text-sm font-semibold">{comunicado.titulo}</span>
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {formatDate(comunicado.publicarEm) ?? ''} · {comunicadoDestinosLabel(comunicado.destinos)}
+                        </span>
+                      </span>
+                      <span className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => beginEdit(comunicado)}><Pencil />Editar</Button>
+                        <Button size="sm" onClick={() => statusMutation.mutate({ id: comunicado.id, status: 'publicado' })}>
+                          <Send />
+                          Publicar agora
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: comunicado.id, status: 'rascunho' })}>
+                          Cancelar
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           {mayManage && rascunhos.length > 0 && (
             <Card>

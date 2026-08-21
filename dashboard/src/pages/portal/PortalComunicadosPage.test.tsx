@@ -10,6 +10,7 @@ import type { Comunicado } from '@/lib/comunicados';
 const mocks = vi.hoisted(() => ({
   fetchComunicados: vi.fn(),
   fetchBairros: vi.fn(),
+  fetchCanais: vi.fn(),
   can: vi.fn(),
 }));
 
@@ -17,10 +18,11 @@ vi.mock('@/lib/comunicados', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/comunicados')>()),
   fetchComunicados: mocks.fetchComunicados,
   fetchBairros: mocks.fetchBairros,
+  fetchCanais: mocks.fetchCanais,
 }));
 vi.mock('@/contexts/PortalAuthContext', () => ({
   usePortalAuth: () => ({
-    access: { accountKind: 'organization' as const, userId: 'user-1', organizationId: 'org-1', role: 'admin' as const },
+    access: { accountKind: 'organization' as const, userId: 'user-1', organizationId: 'org-1', organizationName: 'Prefeitura de Aurora', role: 'admin' as const },
     can: mocks.can,
   }),
 }));
@@ -33,12 +35,24 @@ const comunicadoPublicado: Comunicado = {
   status: 'publicado',
   autorNome: 'Coordenação',
   publicadoEm: '2026-08-21T12:00:00Z',
+  publicarEm: null,
   expiraEm: null,
   criadoEm: '2026-08-20T10:00:00Z',
   destinos: [{ bairroId: 'b-1', bairroNome: 'Centro', todoMunicipio: false }],
   totalLeituras: 4,
   lido: false,
   podeEditar: true,
+  envios: [],
+};
+
+const comunicadoAgendado: Comunicado = {
+  ...comunicadoPublicado,
+  id: 'com-2',
+  titulo: 'Mutirão de limpeza',
+  status: 'agendado',
+  publicadoEm: null,
+  publicarEm: '2026-08-25T10:00:00Z',
+  destinos: [{ bairroId: null, bairroNome: null, todoMunicipio: true }],
 };
 
 function renderPage() {
@@ -52,9 +66,12 @@ function renderPage() {
 
 describe('comunicados municipais do portal', () => {
   beforeEach(() => {
-    mocks.fetchComunicados.mockReset().mockResolvedValue([comunicadoPublicado]);
+    mocks.fetchComunicados.mockReset().mockResolvedValue([comunicadoPublicado, comunicadoAgendado]);
     mocks.fetchBairros.mockReset().mockResolvedValue([
       { id: 'b-1', nome: 'Centro', ativo: true, emUso: true, podeGerenciar: true },
+    ]);
+    mocks.fetchCanais.mockReset().mockResolvedValue([
+      { id: 'k-1', nome: 'Comunidade Aurora', tipo: 'whatsapp_comunidade', linkConvite: null, telefoneAdmin: null, ativo: true, totalEnvios: 2, podeGerenciar: true },
     ]);
     mocks.can.mockReset().mockReturnValue(false);
   });
@@ -70,12 +87,17 @@ describe('comunicados municipais do portal', () => {
     expect(screen.getByText('Não lido')).toBeVisible();
   });
 
-  it('expõe o formulário de emissão apenas para quem pode gerenciar', async () => {
+  it('expõe formulário, comunidades e agendados para quem pode gerenciar', async () => {
     mocks.can.mockReturnValue(true);
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Novo comunicado' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Bairros do município' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Comunidades WhatsApp' })).toBeVisible();
+    expect(await screen.findByText('Comunidade Aurora')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Agendar' })).toBeEnabled();
+    expect(screen.getByText('Agendados (1)')).toBeVisible();
+    expect(screen.getByText('Mutirão de limpeza')).toBeVisible();
   });
 
   it('mostra modo leitura para papéis sem permissão de escrita', async () => {

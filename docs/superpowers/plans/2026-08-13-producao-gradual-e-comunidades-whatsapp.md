@@ -119,7 +119,8 @@ Escopo v1 dos comunicados (implementado): emissão por master/admin municipal co
 - [x] Papéis: master/admin municipal criam/editam/publicam (rascunho editável; publicado só arquiva/republica; exclusão só de rascunho); supervisor/agent leem e registram leitura; permissões `communication.read`/`communication.write` adicionadas a `get_portal_access_context`.
 - [x] `supabase/tests/comunicados_municipais_test.sql` em pgTAP: tabelas, RLS, fail-closed, privilégios das RPCs e permissões do contexto.
 - [x] Painel no console web: portal municipal (`/portal/municipal/comunicados`) com formulário de emissão, seleção de destino por bairro/todo o município, gestão de bairros, publicados/rascunhos/arquivados com leituras; tela Avisos no app com badge de não lido e registro de leitura.
-- [ ] Fase 2: entrega a moradores (contas individuais), push (Edge Function no padrão `dispatch-*`), disparo com status/erro por destino e `canais_externos` operacional.
+- [x] Fase 2 parcial (2026-08-21, `20260821200000_canais_agendamento.sql`): **registro de Comunidades WhatsApp** no painel (`canais_externos` com nome/link/telefone, ativar/desativar), **agendamento de comunicados** (`publicar_em`, status `agendado`, publicação vencida promovida na leitura da lista — sem cron), e **disparo assistido**: mensagem pronta (copiar + abrir WhatsApp via `wa.me`) com registro auditado por comunidade em `canal_envios`. Envio automático para dentro da Comunidade permanece excluído (sem API oficial; bots que imitam o cliente violam os termos da Meta).
+- [ ] Fase 2 restante: entrega a moradores (contas individuais), push (Edge Function no padrão `dispatch-*`).
 
 ### Task 6: Tratar WhatsApp como decisão externa de conformidade
 
