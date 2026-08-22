@@ -564,6 +564,48 @@ export async function dispararBotConsole(comunicadoId: string, canalId?: string)
   return typeof data === 'number' ? data : 0;
 }
 
+export interface ComunicadoDraftConsole {
+  organizationId: string;
+  id?: string;
+  titulo: string;
+  conteudo: string;
+  severidade: ComunicadoSeveridade;
+  expiraEm?: string | null;
+  publicarEm?: string | null;
+}
+
+export async function salvarComunicadoConsole(draft: ComunicadoDraftConsole): Promise<string> {
+  const { data, error } = await rpc('internal_upsert_comunicado', {
+    p_payload: {
+      organization_id: draft.organizationId,
+      id: draft.id ?? null,
+      titulo: draft.titulo,
+      conteudo: draft.conteudo,
+      severidade: draft.severidade,
+      expira_em: draft.expiraEm ?? null,
+      publicar_em: draft.publicarEm ?? null,
+      destinos: [{ todo_municipio: true }],
+    },
+  });
+  if (error) throw new Error(error.message);
+  const id = string(data);
+  if (!id) throw new Error('Resposta inválida do servidor.');
+  return id;
+}
+
+export async function definirStatusComunicadoConsole(
+  comunicadoId: string,
+  status: 'agendado' | 'publicado' | 'arquivado' | 'rascunho',
+  publicarEm?: string | null,
+): Promise<void> {
+  const { error } = await rpc('internal_set_comunicado_status', {
+    p_comunicado_id: comunicadoId,
+    p_status: status,
+    p_publicar_em: publicarEm ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function vincularCanalChat(canalId: string, chatId: string | null): Promise<void> {
   const { error } = await rpc('portal_vincular_canal_chat', {
     p_canal_id: canalId,

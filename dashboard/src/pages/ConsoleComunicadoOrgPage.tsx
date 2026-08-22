@@ -6,10 +6,12 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
 import {
   botQrUrl,
   criarGrupoPeloBot,
   criarSessaoBotConsole,
+  definirStatusComunicadoConsole,
   definirStatusSessaoBotConsole,
   dispararBotConsole,
   fetchBotOnline,
@@ -17,10 +19,12 @@ import {
   fetchBotVerificacao,
   fetchComunicadosOrgConsole,
   salvarCanalConsole,
+  salvarComunicadoConsole,
   sincronizarChatsBot,
   vincularCanalChatConsole,
   comunicadoSeverityLabels,
   type ComunicadoEnvio,
+  type ComunicadoSeveridade,
   type SessaoBotStatus,
 } from '@/lib/comunicados';
 
@@ -67,6 +71,12 @@ export function ConsoleComunicadoOrgPage() {
   const [wizard, setWizard] = useState<{ etapa: 'qr' | 'verificando' | 'comunidade' | 'pronto'; sessaoId: string } | null>(null);
   const [nomeComunidadeManual, setNomeComunidadeManual] = useState('');
   const [chatManual, setChatManual] = useState('');
+  const [rascunho, setRascunho] = useState<{ titulo: string; conteudo: string; severidade: ComunicadoSeveridade; publicarEm: string }>({
+    titulo: '',
+    conteudo: '',
+    severidade: 'informacao',
+    publicarEm: '',
+  });
 
   const orgQuery = useQuery({
     queryKey: ['console', 'comunicados', 'org', orgId],
@@ -208,6 +218,41 @@ export function ConsoleComunicadoOrgPage() {
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
+
+  async function enviarMensagem(modo: 'rascunho' | 'publicar' | 'agendar') {
+    if (!orgId) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
+    const publicarIso = modo === 'agendar' && rascunho.publicarEm
+      ? new Date(rascunho.publicarEm).toISOString()
+      : null;
+    if (modo === 'agendar' && (!rascunho.publicarEm || new Date(rascunho.publicarEm).getTime() <= Date.now())) {
+      setErrorMessage('Escolha uma data e hora futura para agendar.');
+      return;
+    }
+    try {
+      const comunicadoId = await salvarComunicadoConsole({
+        organizationId: orgId,
+        titulo: rascunho.titulo.trim(),
+        conteudo: rascunho.conteudo,
+        severidade: rascunho.severidade,
+        publicarEm: publicarIso,
+      });
+      if (modo === 'publicar') {
+        await definirStatusComunicadoConsole(comunicadoId, 'publicado');
+        setStatusMessage('Mensagem publicada — use "Disparar pelo bot" abaixo para enviar às comunidades.');
+      } else if (modo === 'agendar') {
+        await definirStatusComunicadoConsole(comunicadoId, 'agendado', publicarIso);
+        setStatusMessage(`Mensagem agendada para ${formatDate(publicarIso) ?? 'a data informada'}.`);
+      } else {
+        setStatusMessage('Rascunho salvo.');
+      }
+      setRascunho({ titulo: '', conteudo: '', severidade: 'informacao', publicarEm: '' });
+      await invalidate();
+    } catch (erro) {
+      setErrorMessage(erro instanceof Error ? erro.message : 'Não foi possível salvar a mensagem.');
+    }
+  }
   const sessaoStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: 'banido' | 'desconectado' }) => definirStatusSessaoBotConsole(id, status),
     onSuccess: async () => {
@@ -270,8 +315,8 @@ export function ConsoleComunicadoOrgPage() {
       )}
 
       {org && (
-        <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-          <div className="space-y-4">
+        <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Smartphone /> Números do bot</CardTitle>
@@ -520,7 +565,67 @@ export function ConsoleComunicadoOrgPage() {
             </Card>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Megaphone /> Nova mensagem</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void enviarMensagem('rascunho'); }}>
+                  <label className="block text-sm font-medium">
+                    Título
+                    <Input
+                      className="mt-1.5"
+                      value={rascunho.titulo}
+                      onChange={(event) => setRascunho((atual) => ({ ...atual, titulo: event.target.value }))}
+                      minLength={3}
+                      maxLength={120}
+                      required
+                    />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    Mensagem
+                    <Textarea
+                      className="mt-1.5 min-h-28"
+                      value={rascunho.conteudo}
+                      onChange={(event) => setRascunho((atual) => ({ ...atual, conteudo: event.target.value }))}
+                      maxLength={5000}
+                      required
+                    />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    Tipo de mensagem
+                    <select
+                      className="mt-1.5 h-11 w-full rounded-md border bg-card px-3 text-sm"
+                      value={rascunho.severidade}
+                      onChange={(event) => setRascunho((atual) => ({ ...atual, severidade: event.target.value as ComunicadoSeveridade }))}
+                    >
+                      <option value="informacao">Informação — avisos gerais</option>
+                      <option value="alerta">Alerta — atenção preventiva</option>
+                      <option value="emergencia">Emergência — risco imediato</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium">
+                    Agendar para (opcional)
+                    <Input
+                      className="mt-1.5"
+                      type="datetime-local"
+                      value={rascunho.publicarEm}
+                      onChange={(event) => setRascunho((atual) => ({ ...atual, publicarEm: event.target.value }))}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" variant="outline">Salvar rascunho</Button>
+                    <Button type="button" onClick={() => void enviarMensagem('publicar')}>Publicar agora</Button>
+                    <Button type="button" variant="outline" onClick={() => void enviarMensagem('agendar')}>Agendar</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Publicada, a mensagem vai ao app e portal na hora; nas comunidades WhatsApp use "Disparar pelo bot" na lista abaixo.
+                  </p>
+                </form>
+              </CardContent>
+            </Card>
+
             {programados.length > 0 && (
               <Card>
                 <CardHeader>
