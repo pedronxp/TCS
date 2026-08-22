@@ -2,9 +2,11 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { ConsoleComunicadosPage } from './ConsoleComunicadosPage';
+import { ConsoleComunicadoOrgPage } from './ConsoleComunicadoOrgPage';
 
 const mocks = vi.hoisted(() => ({
   fetchOrgsComunicadosConsole: vi.fn(),
@@ -17,79 +19,90 @@ vi.mock('@/lib/comunicados', async (importOriginal) => ({
   fetchComunicadosOrgConsole: mocks.fetchComunicadosOrgConsole,
 }));
 
-function renderPage() {
+const orgResumo = {
+  organizationId: 'org-1',
+  organizationName: 'Prefeitura de Cataguases',
+  municipality: 'Cataguases',
+  comunicadosPublicados: 1,
+  comunidadesAtivas: 1,
+  numerosVinculados: 1,
+  enviosPendentes: 0,
+  enviosFalhas: 1,
+};
+
+const orgDetalhe = {
+  organization: { id: 'org-1', name: 'Prefeitura de Cataguases', municipality: 'Cataguases' },
+  sessoes: [
+    { id: 's-1', telefone: '32999990001', status: 'vinculado', vinculadoPorNome: 'Owner', vinculadoEm: '2026-08-22T10:00:00Z', totalChats: 4 },
+  ],
+  chats: [
+    { chatId: '1203@g.us', nome: 'Anúncios · Cataguases', tipo: 'grupo', sessaoTelefone: '32999990001', totalAdmins: 2, totalParticipantes: 157, vistoEm: '2026-08-22T10:05:00Z' },
+  ],
+  canais: [
+    { id: 'k-1', nome: 'Comunidade Cataguases', chatId: '1203@g.us', ativo: true, totalEnvios: 2 },
+  ],
+  comunicados: [
+    {
+      id: 'com-1',
+      titulo: 'Aviso de enchente',
+      severidade: 'emergencia',
+      status: 'publicado',
+      publicadoEm: '2026-08-22T09:00:00Z',
+      publicarEm: null,
+      expiraEm: null,
+      criadoEm: '2026-08-22T08:00:00Z',
+      envios: [
+        { canalId: 'k-1', canalNome: 'Comunidade Cataguases', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-22T09:01:00Z', registradoPorNome: null, sessaoTelefone: '32999990001', tentativas: [{ telefone: '32999990002', erro: 'sessão não está conectada agora' }] },
+      ],
+    },
+  ],
+};
+
+function renderPage(entry: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ConsoleComunicadosPage />
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes>
+          <Route path="/app/comunicacoes" element={<ConsoleComunicadosPage />} />
+          <Route path="/app/comunicacoes/:orgId" element={<ConsoleComunicadoOrgPage />} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
 describe('comunicados no console interno', () => {
   beforeEach(() => {
-    mocks.fetchOrgsComunicadosConsole.mockReset().mockResolvedValue([
-      {
-        organizationId: 'org-1',
-        organizationName: 'Prefeitura de Cataguases',
-        municipality: 'Cataguases',
-        comunicadosPublicados: 2,
-        comunidadesAtivas: 1,
-        numerosVinculados: 1,
-        enviosPendentes: 0,
-        enviosFalhas: 1,
-      },
-    ]);
-    mocks.fetchComunicadosOrgConsole.mockReset().mockResolvedValue({
-      organization: { id: 'org-1', name: 'Prefeitura de Cataguases', municipality: 'Cataguases' },
-      sessoes: [
-        { id: 's-1', telefone: '32999990001', status: 'vinculado', vinculadoPorNome: 'Owner', vinculadoEm: '2026-08-22T10:00:00Z', totalChats: 4 },
-      ],
-      chats: [
-        { chatId: '1203@g.us', nome: 'Anúncios · Cataguases', tipo: 'grupo', sessaoTelefone: '32999990001', vistoEm: '2026-08-22T10:05:00Z' },
-      ],
-      canais: [
-        { id: 'k-1', nome: 'Comunidade Cataguases', chatId: '1203@g.us', ativo: true, totalEnvios: 2 },
-      ],
-      comunicados: [
-        {
-          id: 'com-1',
-          titulo: 'Aviso de enchente',
-          severidade: 'emergencia',
-          status: 'publicado',
-          publicadoEm: '2026-08-22T09:00:00Z',
-          publicarEm: null,
-          expiraEm: null,
-          criadoEm: '2026-08-22T08:00:00Z',
-          envios: [
-            { canalId: 'k-1', canalNome: 'Comunidade Cataguases', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-22T09:01:00Z', registradoPorNome: null, sessaoTelefone: '32999990001', tentativas: [{ telefone: '32999990002', erro: 'sessão não está conectada agora' }] },
-          ],
-        },
-      ],
-    });
+    mocks.fetchOrgsComunicadosConsole.mockReset().mockResolvedValue([orgResumo]);
+    mocks.fetchComunicadosOrgConsole.mockReset().mockResolvedValue(orgDetalhe);
   });
   afterEach(cleanup);
 
-  it('lista prefeituras com resumo e o detalhe da selecionada', async () => {
-    renderPage();
+  it('lista prefeituras e o clique abre o espaço da prefeitura', async () => {
+    renderPage('/app/comunicacoes');
     expect(await screen.findByRole('heading', { name: 'Comunicados e comunidades' })).toBeVisible();
-    expect(await screen.findByText('Prefeitura de Cataguases')).toBeInTheDocument();
-    expect((await screen.findAllByText('Aviso de enchente')).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /disparar pelo bot/i })).toBeEnabled();
-    expect(screen.getByText('32999990001')).toBeInTheDocument();
+    const botao = await screen.findByRole('button', { name: 'Abrir operação de Prefeitura de Cataguases' });
+    expect(botao).toBeVisible();
+    botao.click();
+    // A navegação leva ao espaço da prefeitura com o título dela em destaque.
+    expect(await screen.findByRole('heading', { name: 'Prefeitura de Cataguases', level: 1 })).toBeVisible();
   });
 
-  it('mostra entregas com status, número que enviou e trilha de fallback', async () => {
-    renderPage();
-    expect(await screen.findByText('Entregas · Prefeitura de Cataguases')).toBeVisible();
+  it('espaço da prefeitura mostra entregas, número que enviou e fallback', async () => {
+    renderPage('/app/comunicacoes/org-1');
+    expect(await screen.findByRole('heading', { name: 'Entregas' })).toBeVisible();
     expect(await screen.findByText('Entregue')).toBeVisible();
     expect(screen.getByText(/pelo número 32999990001/)).toBeInTheDocument();
     expect(screen.getByText(/32999990002 \(sessão não está conectada agora\)/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /disparar pelo bot/i })).toBeEnabled();
+    expect(screen.getByText('2 admins · 157 membros')).toBeInTheDocument();
   });
 
   it('mantém a estrutura acessível', async () => {
-    const { container } = renderPage();
+    const { container } = renderPage('/app/comunicacoes/org-1');
     await screen.findAllByText('Aviso de enchente');
-    expect((await axe(container)).violations).toEqual([]);
+    const resultado = await axe(container);
+    expect(resultado.violations.map((violacao) => violacao.id)).toEqual([]);
   });
 });
