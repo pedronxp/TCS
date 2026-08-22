@@ -478,6 +478,17 @@ export const routeManifest = [
     automatedVisualBaselines: null,
   }),
   route({
+    id: 'console-comunicados',
+    path: '/app/comunicacoes',
+    audience: ['owner', 'developer'],
+    permission: 'communication.manage',
+    template: 'listing',
+    penpot: '12 · Equipe interna',
+    approvalStatus: 'approved-in-penpot',
+    visualSource: 'Penpot/TCS — Web Dashboard/12 · Equipe interna',
+    automatedVisualBaselines: null,
+  }),
+  route({
     id: 'audit',
     path: '/app/auditoria',
     audience: ['owner', 'developer'],

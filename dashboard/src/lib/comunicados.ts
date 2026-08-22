@@ -263,6 +263,170 @@ export async function definirStatusSessaoBot(id: string, status: 'banido' | 'des
   if (error) throw new Error(error.message);
 }
 
+// ---------------------------------------------------------------------------
+// Console interno (/app): equipe TCS opera qualquer prefeitura (communication.manage).
+// ---------------------------------------------------------------------------
+
+export interface OrgComunicadosResumo {
+  organizationId: string;
+  organizationName: string;
+  municipality: string | null;
+  comunicadosPublicados: number;
+  comunidadesAtivas: number;
+  numerosVinculados: number;
+  enviosPendentes: number;
+  enviosFalhas: number;
+}
+
+export interface ConsoleComunicadosOrg {
+  organization: { id: string; name: string; municipality: string | null };
+  sessoes: Array<{ id: string; telefone: string | null; status: SessaoBotStatus; vinculadoPorNome: string | null; vinculadoEm: string | null; totalChats: number }>;
+  chats: BotChat[];
+  canais: Array<{ id: string; nome: string; chatId: string | null; ativo: boolean; totalEnvios: number }>;
+  comunicados: Array<{
+    id: string;
+    titulo: string;
+    severidade: ComunicadoSeveridade;
+    status: ComunicadoStatus;
+    publicadoEm: string | null;
+    publicarEm: string | null;
+    expiraEm: string | null;
+    criadoEm: string | null;
+    envios: ComunicadoEnvio[];
+  }>;
+}
+
+export async function fetchOrgsComunicadosConsole(): Promise<OrgComunicadosResumo[]> {
+  const { data, error } = await rpc('internal_list_orgs_comunicados');
+  if (error) throw new Error(error.message);
+  return parseArray(data, (value) => {
+    const source = record(value);
+    if (!source || !string(source.organization_id) || !string(source.organization_name)) return null;
+    return {
+      organizationId: source.organization_id as string,
+      organizationName: source.organization_name as string,
+      municipality: string(source.municipality),
+      comunicadosPublicados: typeof source.comunicados_publicados === 'number' ? source.comunicados_publicados : 0,
+      comunidadesAtivas: typeof source.comunidades_ativas === 'number' ? source.comunidades_ativas : 0,
+      numerosVinculados: typeof source.numeros_vinculados === 'number' ? source.numeros_vinculados : 0,
+      enviosPendentes: typeof source.envios_pendentes === 'number' ? source.envios_pendentes : 0,
+      enviosFalhas: typeof source.envios_falhas === 'number' ? source.envios_falhas : 0,
+    };
+  });
+}
+
+export async function fetchComunicadosOrgConsole(organizationId: string): Promise<ConsoleComunicadosOrg | null> {
+  const { data, error } = await rpc('internal_comunicados_org', { p_organization_id: organizationId });
+  if (error) throw new Error(error.message);
+  const source = record(data);
+  if (!source) return null;
+  const org = record(source.organization);
+  const severidade = (value: unknown) => (severidades.has(value as ComunicadoSeveridade) ? value as ComunicadoSeveridade : 'informacao');
+  const status = (value: unknown) => (statuses.has(value as ComunicadoStatus) ? value as ComunicadoStatus : 'rascunho');
+  return {
+    organization: {
+      id: string(org?.id) ?? organizationId,
+      name: string(org?.name) ?? 'Prefeitura',
+      municipality: string(org?.municipality),
+    },
+    sessoes: parseArray(source.sessoes, (value) => {
+      const sessao = record(value);
+      if (!sessao || !string(sessao.id)) return null;
+      const sessaoStatus = string(sessao.status);
+      return {
+        id: sessao.id as string,
+        telefone: string(sessao.telefone),
+        status: (['aguardando_qr', 'vinculado', 'desconectado', 'banido'].includes(sessaoStatus ?? '')
+          ? sessaoStatus
+          : 'desconectado') as SessaoBotStatus,
+        vinculadoPorNome: string(sessao.vinculado_por_nome),
+        vinculadoEm: string(sessao.vinculado_em),
+        totalChats: typeof sessao.total_chats === 'number' ? sessao.total_chats : 0,
+      };
+    }),
+    chats: parseArray(source.chats, parseBotChat),
+    canais: parseArray(source.canais, (value) => {
+      const canal = record(value);
+      if (!canal || !string(canal.id) || !string(canal.nome)) return null;
+      return {
+        id: canal.id as string,
+        nome: canal.nome as string,
+        chatId: string(canal.chat_id),
+        ativo: canal.ativo === true,
+        totalEnvios: typeof canal.total_envios === 'number' ? canal.total_envios : 0,
+      };
+    }),
+    comunicados: parseArray(source.comunicados, (value) => {
+      const item = record(value);
+      if (!item || !string(item.id) || !string(item.titulo)) return null;
+      return {
+        id: item.id as string,
+        titulo: item.titulo as string,
+        severidade: severidade(string(item.severidade)),
+        status: status(string(item.status)),
+        publicadoEm: string(item.publicado_em),
+        publicarEm: string(item.publicar_em),
+        expiraEm: string(item.expira_em),
+        criadoEm: string(item.criado_em),
+        envios: Array.isArray(item.envios)
+          ? item.envios.map((envio): ComunicadoEnvio | null => {
+            const e = record(envio);
+            if (!e) return null;
+            const eStatus = string(e.status);
+            const eOrigem = string(e.origem);
+            return {
+              canalId: string(e.canal_id) ?? '',
+              canalNome: string(e.canal_nome),
+              status: (['pendente', 'falhou', 'enviado'].includes(eStatus ?? '') ? eStatus : 'enviado') as ComunicadoEnvioStatus,
+              origem: eOrigem === 'bot' ? 'bot' : eOrigem === 'manual' ? 'manual' : null,
+              erro: string(e.erro),
+              enviadoEm: string(e.enviado_em),
+              registradoPorNome: null,
+            };
+          }).filter((envio): envio is ComunicadoEnvio => envio !== null && envio.canalId !== '')
+          : [],
+      };
+    }),
+  };
+}
+
+export async function criarSessaoBotConsole(organizationId: string): Promise<string> {
+  const { data, error } = await rpc('internal_criar_sessao_bot', { p_organization_id: organizationId });
+  if (error) throw new Error(error.message);
+  const id = string(data);
+  if (!id) throw new Error('Resposta inválida do servidor.');
+  return id;
+}
+
+export async function definirStatusSessaoBotConsole(id: string, status: 'banido' | 'desconectado'): Promise<void> {
+  const { error } = await rpc('internal_definir_status_sessao_bot', { p_sessao_id: id, p_status: status });
+  if (error) throw new Error(error.message);
+}
+
+export async function salvarCanalConsole(organizationId: string, nome: string, id?: string): Promise<void> {
+  const { error } = await rpc('internal_upsert_canal_externo', {
+    p_payload: { organization_id: organizationId, id: id ?? null, nome },
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function vincularCanalChatConsole(canalId: string, chatId: string | null): Promise<void> {
+  const { error } = await rpc('internal_vincular_canal_chat', {
+    p_canal_id: canalId,
+    p_chat_id: chatId ?? '',
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function dispararBotConsole(comunicadoId: string, canalId?: string): Promise<number> {
+  const { data, error } = await rpc('internal_disparar_envio_bot', {
+    p_comunicado_id: comunicadoId,
+    p_canal_id: canalId ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return typeof data === 'number' ? data : 0;
+}
+
 export async function vincularCanalChat(canalId: string, chatId: string | null): Promise<void> {
   const { error } = await rpc('portal_vincular_canal_chat', {
     p_canal_id: canalId,
