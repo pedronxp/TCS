@@ -52,6 +52,59 @@ export async function fetchBotSessaoStatus(sessaoId: string): Promise<BotSessaoS
   }
 }
 
+export interface BotVerificacao {
+  conectado: boolean;
+  estado: string | null;
+  telefone: string | null;
+  totalChats: number;
+  motivo: string | null;
+}
+
+// Verificação sem falso positivo: o bot pergunta ao próprio WhatsApp (getState).
+export async function fetchBotVerificacao(sessaoId: string): Promise<BotVerificacao | null> {
+  try {
+    const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/sessao/${sessaoId}/verify`);
+    const dados = record(await resposta.json());
+    if (!dados) return null;
+    return {
+      conectado: dados.conectado === true,
+      estado: string(dados.estado),
+      telefone: string(dados.telefone),
+      totalChats: typeof dados.totalChats === 'number' ? dados.totalChats : 0,
+      motivo: string(dados.motivo),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Cria um grupo de avisos pela web (o número vinculado passa a ser admin dele).
+export async function criarGrupoPeloBot(sessaoId: string, nome: string): Promise<string | null> {
+  try {
+    const resposta = await fetchComTimeout(
+      `${BOT_WHATSAPP_URL}/sessao/${sessaoId}/criar-grupo?nome=${encodeURIComponent(nome)}`,
+      30_000,
+    );
+    const dados = record(await resposta.json());
+    if (!resposta.ok || !dados || dados.ok !== true) {
+      throw new Error(string(dados?.motivo) ?? 'O bot não conseguiu criar o grupo.');
+    }
+    return string(dados.chat_id);
+  } catch (erro) {
+    throw erro instanceof Error ? erro : new Error('Falha ao criar o grupo pelo bot.');
+  }
+}
+
+export async function sincronizarChatsBot(sessaoId: string): Promise<boolean> {
+  try {
+    const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/sessao/${sessaoId}/sincronizar`, 30_000);
+    const dados = record(await resposta.json());
+    return resposta.ok && dados?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
 // Comunicados municipais: acesso exclusivo por RPCs SECURITY DEFINER.
 // O servidor decide escopo (organização do usuário) e papel; o cliente
 // apenas tipa o contrato devolvido por portal_list_comunicados/bairros.
@@ -484,11 +537,14 @@ export async function definirStatusSessaoBotConsole(id: string, status: 'banido'
   if (error) throw new Error(error.message);
 }
 
-export async function salvarCanalConsole(organizationId: string, nome: string, id?: string): Promise<void> {
-  const { error } = await rpc('internal_upsert_canal_externo', {
+export async function salvarCanalConsole(organizationId: string, nome: string, id?: string): Promise<string> {
+  const { data, error } = await rpc('internal_upsert_canal_externo', {
     p_payload: { organization_id: organizationId, id: id ?? null, nome },
   });
   if (error) throw new Error(error.message);
+  const canalId = string(data);
+  if (!canalId) throw new Error('Resposta inválida do servidor.');
+  return canalId;
 }
 
 export async function vincularCanalChatConsole(canalId: string, chatId: string | null): Promise<void> {

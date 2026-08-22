@@ -8,13 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import {
   botQrUrl,
+  criarGrupoPeloBot,
   criarSessaoBotConsole,
   definirStatusSessaoBotConsole,
   dispararBotConsole,
   fetchBotOnline,
   fetchBotSessaoStatus,
+  fetchBotVerificacao,
   fetchComunicadosOrgConsole,
   salvarCanalConsole,
+  sincronizarChatsBot,
   vincularCanalChatConsole,
   comunicadoSeverityLabels,
   type ComunicadoEnvio,
@@ -59,8 +62,11 @@ export function ConsoleComunicadoOrgPage() {
   const [novaComunidade, setNovaComunidade] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [pareamentoId, setPareamentoId] = useState<string | null>(null);
   const [qrTick, setQrTick] = useState(0);
+  // Assistente de vinculação: qr -> verificando (sem falso positivo) -> comunidade -> pronto.
+  const [wizard, setWizard] = useState<{ etapa: 'qr' | 'verificando' | 'comunidade' | 'pronto'; sessaoId: string } | null>(null);
+  const [nomeComunidadeManual, setNomeComunidadeManual] = useState('');
+  const [chatManual, setChatManual] = useState('');
 
   const orgQuery = useQuery({
     queryKey: ['console', 'comunicados', 'org', orgId],
@@ -92,42 +98,113 @@ export function ConsoleComunicadoOrgPage() {
     void queryClient.invalidateQueries({ queryKey: ['console', 'comunicados'] });
   };
 
-  // Pareamento: painel consulta o bot diretamente (QR embutido + status ao vivo).
+  // Verificação PRÉVIA: o bot é checado antes de liberar a vinculação.
   const botOnlineQuery = useQuery({
     queryKey: ['console', 'bot', 'online'],
     queryFn: fetchBotOnline,
-    enabled: pareamentoId !== null,
     refetchInterval: 15_000,
   });
+  const botOnline = botOnlineQuery.data !== false;
+
+  const wizardAberto = wizard !== null;
   const botStatusQuery = useQuery({
-    queryKey: ['console', 'bot', 'sessao', pareamentoId],
-    queryFn: () => fetchBotSessaoStatus(pareamentoId as string),
-    enabled: pareamentoId !== null,
+    queryKey: ['console', 'bot', 'sessao', wizard?.sessaoId],
+    queryFn: () => fetchBotSessaoStatus(wizard?.sessaoId as string),
+    enabled: wizardAberto && wizard?.etapa === 'qr',
     refetchInterval: 5_000,
   });
   const botStatus = botStatusQuery.data ?? null;
-  const pareamentoConcluido = botStatus?.fase === 'vinculado';
+
+  // Etapa de verificação sem falso positivo: pergunta ao WhatsApp via /verify.
+  const verificacaoQuery = useQuery({
+    queryKey: ['console', 'bot', 'verificacao', wizard?.sessaoId],
+    queryFn: () => fetchBotVerificacao(wizard?.sessaoId as string),
+    enabled: wizardAberto && wizard?.etapa === 'verificando',
+    refetchInterval: 3_000,
+  });
+  const verificacao = verificacaoQuery.data ?? null;
+
+  const comunidadeAtiva = useMemo(
+    () => (org ? org.canais.find((canal) => canal.ativo && canal.chatId) ?? null : null),
+    [org],
+  );
 
   useEffect(() => {
-    if (!pareamentoId || pareamentoConcluido) return undefined;
+    if (!wizard) return;
+    if (wizard.etapa === 'qr' && botStatus?.fase === 'vinculado') {
+      setWizard({ ...wizard, etapa: 'verificando' });
+    }
+  }, [wizard, botStatus?.fase]);
+
+  useEffect(() => {
+    if (!wizard) return;
+    if (wizard.etapa === 'verificando' && verificacao?.conectado && verificacao.telefone) {
+      setStatusMessage(`Conexão confirmada com o WhatsApp: número ${verificacao.telefone} enxerga ${verificacao.totalChats} conversas.`);
+      void queryClient.invalidateQueries({ queryKey: ['console', 'comunicados'] });
+      setWizard({ ...wizard, etapa: 'comunidade' });
+    }
+  }, [wizard, verificacao?.conectado, verificacao?.telefone, verificacao?.totalChats, queryClient]);
+
+  useEffect(() => {
+    if (!wizard) return;
+    if (wizard.etapa === 'comunidade' && comunidadeAtiva) {
+      setWizard({ ...wizard, etapa: 'pronto' });
+    }
+  }, [wizard, comunidadeAtiva]);
+
+  useEffect(() => {
+    if (!wizard || wizard.etapa !== 'qr') return undefined;
     const timer = setInterval(() => setQrTick((atual) => atual + 1), 5_000);
     return () => clearInterval(timer);
-  }, [pareamentoId, pareamentoConcluido]);
-
-  useEffect(() => {
-    if (pareamentoConcluido && botStatus?.telefone) {
-      setStatusMessage(`Número ${botStatus.telefone} vinculado — grupos sincronizados em instantes.`);
-      void queryClient.invalidateQueries({ queryKey: ['console', 'comunicados'] });
-    }
-  }, [pareamentoConcluido, botStatus?.telefone, queryClient]);
+  }, [wizard]);
 
   const sessaoCriarMutation = useMutation({
     mutationFn: criarSessaoBotConsole,
     onSuccess: async (sessaoId) => {
       setStatusMessage(null);
       setErrorMessage(null);
-      setPareamentoId(sessaoId);
+      setWizard({ etapa: 'qr', sessaoId });
       invalidate();
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+
+  // Criação via web: grupo de avisos criado pelo bot e já registrado como comunidade.
+  const criarGrupoMutation = useMutation({
+    mutationFn: async () => {
+      const nome = `Comunicados ${org?.organization.name ?? ''}`.trim().slice(0, 80);
+      const chatId = await criarGrupoPeloBot(wizard?.sessaoId as string, nome);
+      const canalId = await salvarCanalConsole(orgId as string, nome);
+      if (chatId) await vincularCanalChatConsole(canalId, chatId);
+    },
+    onSuccess: async () => {
+      setStatusMessage('Grupo de avisos criado pelo bot e vinculado como comunidade.');
+      await invalidate();
+      if (wizard) setWizard({ ...wizard, etapa: 'pronto' });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+
+  const sincronizarMutation = useMutation({
+    mutationFn: () => sincronizarChatsBot(wizard?.sessaoId as string),
+    onSuccess: async (ok) => {
+      setStatusMessage(ok ? 'Grupos sincronizados — escolha o chat da sua comunidade abaixo.' : 'Não consegui sincronizar agora; o bot sincroniza sozinho a cada 10 minutos.');
+      await invalidate();
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+
+  const vincularManualMutation = useMutation({
+    mutationFn: async () => {
+      const canalId = await salvarCanalConsole(orgId as string, nomeComunidadeManual.trim());
+      await vincularCanalChatConsole(canalId, chatManual || null);
+    },
+    onSuccess: async () => {
+      setStatusMessage('Comunidade cadastrada e chat vinculado.');
+      setNomeComunidadeManual('');
+      setChatManual('');
+      await invalidate();
+      if (wizard) setWizard({ ...wizard, etapa: 'pronto' });
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
@@ -204,56 +281,46 @@ export function ConsoleComunicadoOrgPage() {
                   O disparo tenta todos os vinculados que enxergam o chat (um cai, o outro envia).
                 </p>
 
-                {pareamentoId === null ? (
-                  <Button size="sm" disabled={sessaoCriarMutation.isPending} onClick={() => orgId && sessaoCriarMutation.mutate(orgId)}>
-                    <Smartphone />
-                    Vincular número
-                  </Button>
-                ) : (
-                  <div className="rounded-md border bg-card p-3" aria-label="Painel de vinculação de número">
-                    <p className="text-sm font-semibold">Vincular número desta prefeitura</p>
-
-                    <ul className="mt-2 space-y-1.5 text-xs">
-                      <li className="flex items-start gap-2">
-                        {botOnlineQuery.data === false
-                          ? <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
-                          : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}
-                        <span>
-                          <b>Bot WhatsApp ligado</b> —{' '}
-                          {botOnlineQuery.isLoading
-                            ? 'verificando…'
-                            : botOnlineQuery.data === false
-                              ? <>OFFLINE. Ligue o bot na máquina dele (<code>cd bot-whatsapp && npm start</code>) e esta verificação fica verde em segundos. Sem o bot, o QR não é gerado.</>
-                              : 'online e pronto para gerar o QR.'}
+                {wizard === null ? (
+                  <div>
+                    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                      {botOnlineQuery.isLoading ? (
+                        <Badge variant="info">Verificando o bot…</Badge>
+                      ) : botOnline ? (
+                        <Badge variant="success">Bot online</Badge>
+                      ) : (
+                        <Badge variant="destructive">Bot offline</Badge>
+                      )}
+                      {!botOnline && (
+                        <span className="text-muted-foreground">
+                          Ligue o bot na máquina dele (<code>cd bot-whatsapp && npm start</code>) — a verificação refaz sozinha.
                         </span>
-                      </li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /><span><b>WhatsApp atualizado</b> no celular (loja de aplicativos) — versão velha recusa aparelho novo.</span></li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /><span><b>Celular do número da prefeitura em mãos</b> — quem escaneia assume o disparo desta prefeitura.</span></li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /><span><b>Menos de 4 aparelhos conectados</b> — em "Aparelhos conectados", remova os antigos (limite da Meta).</span></li>
-                    </ul>
+                      )}
+                    </div>
+                    <Button size="sm" disabled={sessaoCriarMutation.isPending || !botOnline} onClick={() => orgId && sessaoCriarMutation.mutate(orgId)}>
+                      <Smartphone />
+                      Vincular número
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-md border bg-card p-3" aria-label="Assistente de vinculação de número">
+                    <p className="text-sm font-semibold">
+                      Assistente de vinculação — etapa {wizard.etapa === 'qr' ? '1 de 3: ler o QR' : wizard.etapa === 'verificando' ? '2 de 3: confirmar conexão' : wizard.etapa === 'comunidade' ? '3 de 3: comunidade' : 'concluído'}
+                    </p>
 
-                    {botOnlineQuery.data === false ? (
-                      <p className="mt-3 rounded-md border border-warning/30 bg-warning-soft p-2 text-xs">
-                        O bot está offline. Gere o QR somente depois de ligá-lo — do contrário a leitura não chega a lugar nenhum.
-                      </p>
-                    ) : pareamentoConcluido ? (
-                      <div className="mt-3 rounded-md border border-success/25 bg-success-soft p-2 text-xs" role="status">
-                        <p className="font-semibold">Número {botStatus?.telefone ?? ''} vinculado ✓</p>
-                        <p className="mt-1">Os grupos que ele enxerga aparecem no campo "Chat do bot" das comunidades em instantes.</p>
-                        <Button size="sm" variant="outline" className="mt-2" onClick={() => setPareamentoId(null)}>Concluir</Button>
-                      </div>
-                    ) : (
+                    {wizard.etapa === 'qr' && (
                       <div className="mt-3 space-y-2">
                         <div className="flex items-center justify-center rounded-md bg-white p-2">
                           <img
-                            src={`${botQrUrl(pareamentoId)}?t=${qrTick}`}
+                            src={`${botQrUrl(wizard.sessaoId)}?t=${qrTick}`}
                             alt="QR Code de vinculação do WhatsApp — escaneie em até 20 segundos"
                             className="h-56 w-56"
                           />
                         </div>
                         <p className="text-center text-xs text-muted-foreground">
                           WhatsApp → Aparelhos conectados → Conectar aparelho → escaneie <b>em até 20 segundos</b>.
-                          O QR acima se renova sozinho a cada 5 segundos — espere trocar em vez de escanear um velho.
+                          O QR se renova a cada 5 segundos — espere trocar em vez de escanear um velho.
+                          Antes: WhatsApp atualizado, celular da prefeitura em mãos e menos de 4 aparelhos conectados.
                         </p>
                         {botStatus?.ultimoErro && (
                           <p className="rounded-md border border-destructive/30 bg-destructive-soft p-2 text-xs text-destructive" role="alert">
@@ -262,8 +329,98 @@ export function ConsoleComunicadoOrgPage() {
                         )}
                         <p className="text-center text-xs text-muted-foreground">Aguardando a leitura do QR…</p>
                         <div className="flex justify-center">
-                          <Button size="sm" variant="ghost" onClick={() => setPareamentoId(null)}>Cancelar vinculação</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setWizard(null)}>Cancelar</Button>
                         </div>
+                      </div>
+                    )}
+
+                    {wizard.etapa === 'verificando' && (
+                      <div className="mt-3 space-y-2 text-xs">
+                        <p className="text-muted-foreground">
+                          {verificacao
+                            ? verificacao.conectado
+                              ? 'Conexão confirmada…'
+                              : `Confirmando com o WhatsApp (estado atual: ${verificacao.estado ?? '—'})… só avançamos com confirmação real, sem falso positivo.`
+                            : 'Confirmando a conexão direto com o WhatsApp…'}
+                        </p>
+                        {verificacao?.motivo && (
+                          <p className="rounded-md border border-destructive/30 bg-destructive-soft p-2 text-destructive" role="alert">
+                            {verificacao.motivo}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {wizard.etapa === 'comunidade' && !comunidadeAtiva && (
+                      <div className="mt-3 space-y-3 text-xs">
+                        <p className="text-muted-foreground">
+                          Nenhuma comunidade ativa com chat vinculado. Escolha como criar a que recebe os avisos:
+                        </p>
+                        <div className="rounded-md border p-2">
+                          <p className="font-semibold">Opção A — criar pela web agora (grupo de avisos)</p>
+                          <p className="mt-1 text-muted-foreground">
+                            O bot cria o grupo <b>“Comunicados {org?.organization.name}</b>”, o número vinculado fica admin dele e já cadastramos como comunidade pronta para disparar. Ideal para começar hoje.
+                          </p>
+                          <Button size="sm" className="mt-2" disabled={criarGrupoMutation.isPending} onClick={() => criarGrupoMutation.mutate()}>
+                            <Smartphone />
+                            Criar grupo de avisos pelo bot
+                          </Button>
+                        </div>
+                        <div className="rounded-md border p-2">
+                          <p className="font-semibold">Opção B — criar a Comunidade no seu celular</p>
+                          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-muted-foreground">
+                            <li>No WhatsApp, abra a aba <b>Comunidades</b> → <b>Nova comunidade</b>.</li>
+                            <li>Dê o nome da prefeitura e adicione o grupo de anúncios.</li>
+                            <li>Adicione o número vinculado como <b>admin</b> da comunidade (ele é quem dispara).</li>
+                          </ol>
+                          <Button size="sm" variant="outline" className="mt-2" disabled={sincronizarMutation.isPending} onClick={() => sincronizarMutation.mutate()}>
+                            Já criei — sincronizar agora
+                          </Button>
+                          {org && org.chats.length > 0 && (
+                            <form
+                              className="mt-2 space-y-2"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                if (nomeComunidadeManual.trim().length >= 3 && chatManual) {
+                                  vincularManualMutation.mutate();
+                                }
+                              }}
+                            >
+                              <Input
+                                value={nomeComunidadeManual}
+                                onChange={(event) => setNomeComunidadeManual(event.target.value)}
+                                placeholder="Nome da comunidade no painel"
+                                minLength={3}
+                                maxLength={80}
+                                aria-label="Nome da comunidade no painel"
+                              />
+                              <select
+                                className="h-9 w-full rounded-md border bg-card px-2 text-xs"
+                                value={chatManual}
+                                onChange={(event) => setChatManual(event.target.value)}
+                                aria-label="Chat da comunidade criada no celular"
+                              >
+                                <option value="">Selecionar o grupo de anúncios da comunidade…</option>
+                                {org.chats.map((chat) => (
+                                  <option key={chat.chatId} value={chat.chatId}>
+                                    {chat.nome} (nº {chat.sessaoTelefone ?? '—'})
+                                  </option>
+                                ))}
+                              </select>
+                              <Button type="submit" size="sm" disabled={vincularManualMutation.isPending || !chatManual || nomeComunidadeManual.trim().length < 3}>
+                                Cadastrar e vincular
+                              </Button>
+                            </form>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {wizard.etapa === 'pronto' && (
+                      <div className="mt-3 space-y-2 rounded-md border border-success/25 bg-success-soft p-2 text-xs" role="status">
+                        <p className="font-semibold">Tudo pronto ✓</p>
+                        <p>Número {verificacao?.telefone ?? org?.sessoes.find((s) => s.id === wizard.sessaoId)?.telefone ?? ''} conectado e comunidade {comunidadeAtiva?.nome ?? 'ativa'} vinculada — o disparo pelo bot já pode ser usado nos comunicados publicados.</p>
+                        <Button size="sm" variant="outline" onClick={() => setWizard(null)}>Concluir</Button>
                       </div>
                     )}
                   </div>

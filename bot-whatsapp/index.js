@@ -401,6 +401,75 @@ app.get('/sessao/:id/status', (req, res) => {
   });
 });
 
+// Verificação de conexão SEM falso positivo: pergunta ao próprio WhatsApp
+// (getState) quantos chats a sessão enxerga de verdade.
+app.get('/sessao/:id/verify', async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao) {
+    res.status(404).json({ conectado: false, motivo: 'Sessão não encontrada no bot.' });
+    return;
+  }
+  try {
+    const estado = await sessao.client.getState();
+    const chats = await sessao.client.getChats();
+    const conectado = estado === 'CONNECTED' && sessao.fase === 'vinculado';
+    res.json({
+      conectado,
+      estado,
+      telefone: sessao.telefone,
+      totalChats: chats.length,
+    });
+  } catch (erro) {
+    res.json({ conectado: false, estado: 'INDISPONIVEL', telefone: sessao.telefone, totalChats: 0, motivo: String((erro && erro.message) || erro).slice(0, 200) });
+  }
+});
+
+// Criação de grupo de avisos pela web (a biblioteca não cria Comunidades —
+// para Comunidade o assistente orienta a criação manual no celular).
+app.get('/sessao/:id/criar-grupo', async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  const nome = String(req.query.nome || '').trim();
+  if (!sessao || sessao.fase !== 'vinculado') {
+    res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
+    return;
+  }
+  if (nome.length < 3 || nome.length > 80) {
+    res.status(400).json({ ok: false, motivo: 'Nome do grupo deve ter entre 3 e 80 caracteres.' });
+    return;
+  }
+  try {
+    const resultado = await sessao.client.createGroup(nome);
+    const chatId = resultado && resultado.gid
+      ? (resultado.gid._serialized || String(resultado.gid))
+      : (resultado && resultado.id ? resultado.id._serialized : null);
+    if (!chatId) {
+      res.status(500).json({ ok: false, motivo: 'WhatsApp não devolveu o identificador do grupo.' });
+      return;
+    }
+    await supabase
+      .from('bot_chats')
+      .upsert(
+        { sessao_id: sessao.id, chat_id: chatId, nome, tipo: 'grupo', total_admins: 1, total_participantes: 1, visto_em: agoraIso() },
+        { onConflict: 'sessao_id,chat_id' },
+      );
+    log('grupo', `Grupo "${nome}" criado por ${sessao.telefone} (${chatId})`);
+    res.json({ ok: true, chat_id: chatId, nome });
+  } catch (erro) {
+    res.status(500).json({ ok: false, motivo: String((erro && erro.message) || erro).slice(0, 200) });
+  }
+});
+
+// Força a sincronização de chats da sessão (usado após criar Comunidade no celular).
+app.get('/sessao/:id/sincronizar', async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao || sessao.fase !== 'vinculado') {
+    res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
+    return;
+  }
+  await sincronizarChats(sessao);
+  res.json({ ok: true });
+});
+
 app.get('/qr/:id', async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || !sessao.qr) {
