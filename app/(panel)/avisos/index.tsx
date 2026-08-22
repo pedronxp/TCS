@@ -14,11 +14,12 @@ import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { logger } from '../../../utils/logger';
 import { supabase } from '../../../utils/supabase';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
-import { AppHeader, Badge, EmptyState, LoadingState } from '../../../components/ui';
+import { AppHeader, Badge, Button, EmptyState, LoadingState } from '../../../components/ui';
 import { FontSize, FontWeight } from '../../../constants/Typography';
 import { Spacing } from '../../../constants/Spacing';
 
@@ -65,7 +66,13 @@ function destinoLabel(destinos: ComunicadoApp['destinos']): string {
 
 export default function AvisosScreen() {
   const { theme } = useTheme();
+  const { profile } = useAuth();
   const { isOnlineReal } = useConnectivity();
+  // Cadastro de comunicado é exclusivo do painel web; no app apenas
+  // admin/master podem disparar um aviso já publicado nas comunidades.
+  const podeDisparar = profile?.role === 'admin' || profile?.role === 'master_admin' || profile?.role === 'owner';
+  const [disparando, setDisparando] = useState<string | null>(null);
+  const [resultadoDisparo, setResultadoDisparo] = useState<string | null>(null);
   const bottomPadding = useBottomTabPadding();
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
@@ -120,6 +127,26 @@ export default function AvisosScreen() {
     alerta: '#C77A00',
     emergencia: '#B91C1C',
   };
+
+  async function disparar(comunicado: ComunicadoApp) {
+    setDisparando(comunicado.id);
+    setResultadoDisparo(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc('portal_disparar_envio_bot', {
+        p_comunicado_id: comunicado.id,
+      });
+      if (rpcError) throw rpcError;
+      const total = typeof data === 'number' ? data : 0;
+      setResultadoDisparo(total > 0
+        ? `${total} disparo${total === 1 ? '' : 's'} na fila do bot.`
+        : 'Nenhuma comunidade ativa com chat vinculado no painel web.');
+    } catch (excecao) {
+      logger.warn('notifications', 'Falha ao disparar pelo bot', excecao);
+      setResultadoDisparo('Não foi possível disparar agora. O cadastro de comunidades é feito no painel web.');
+    } finally {
+      setDisparando(null);
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
@@ -220,6 +247,22 @@ export default function AvisosScreen() {
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.modalConteudo}>
                   <Text style={[styles.modalTexto, { color: theme.text }]}>{selecionado.conteudo}</Text>
                 </ScrollView>
+                {podeDisparar && (
+                  <>
+                    <Button
+                      label={disparando === selecionado.id ? 'Disparando…' : 'Disparar nas comunidades'}
+                      onPress={() => void disparar(selecionado)}
+                      loading={disparando === selecionado.id}
+                      disabled={disparando === selecionado.id}
+                    />
+                    {resultadoDisparo && (
+                      <Text style={[styles.modalMeta, { color: theme.textSecondary }]}>{resultadoDisparo}</Text>
+                    )}
+                    <Text style={[styles.modalMeta, { color: theme.textSecondary }]}>
+                      Criação e agendamento de avisos são feitos no painel web da prefeitura.
+                    </Text>
+                  </>
+                )}
               </>
             )}
           </View>

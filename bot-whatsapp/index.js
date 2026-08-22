@@ -554,6 +554,17 @@ setInterval(() => {
   processarFila().catch((erro) => log('fila', 'Erro no ciclo da fila', erro));
 }, POLL_MS);
 
+// Publica comunicados agendados vencidos mesmo sem ninguém com tela aberta.
+setInterval(() => {
+  supabase.rpc('portal_publish_due_comunicados')
+    .then(({ data, error }) => {
+      if (!error && typeof data === 'number' && data > 0) {
+        log('agenda', `${data} comunicado(s) agendado(s) publicado(s) agora`);
+      }
+    })
+    .catch(() => null);
+}, 30_000);
+
 setInterval(() => {
   for (const sessao of sessoes.values()) {
     if (sessao.fase === 'vinculado') {
