@@ -1,5 +1,57 @@
 import { supabase } from '@/lib/supabase';
 
+// Endereço do bot WhatsApp externo: mesmo host em desenvolvimento, VPS em produção.
+const BOT_WHATSAPP_URL = (import.meta.env.VITE_BOT_WHATSAPP_URL as string | undefined) ?? 'http://localhost:8787';
+
+export function botQrUrl(sessaoId: string): string {
+  return `${BOT_WHATSAPP_URL}/qr/${sessaoId}`;
+}
+
+export interface BotSessaoStatus {
+  fase: string;
+  telefone: string | null;
+  qrPresente: boolean;
+  qrGeradoEm: string | null;
+  ultimoErro: string | null;
+}
+
+async function fetchComTimeout(url: string, ms = 6000): Promise<Response> {
+  const controle = new AbortController();
+  const timer = setTimeout(() => controle.abort(), ms);
+  try {
+    return await fetch(url, { signal: controle.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function fetchBotOnline(): Promise<boolean> {
+  try {
+    const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/healthz`);
+    return resposta.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchBotSessaoStatus(sessaoId: string): Promise<BotSessaoStatus | null> {
+  try {
+    const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/sessao/${sessaoId}/status`);
+    if (!resposta.ok) return null;
+    const dados = record(await resposta.json());
+    if (!dados) return null;
+    return {
+      fase: typeof dados.fase === 'string' ? dados.fase : 'desconhecida',
+      telefone: string(dados.telefone),
+      qrPresente: dados.qrPresente === true,
+      qrGeradoEm: string(dados.qrGeradoEm),
+      ultimoErro: string(dados.ultimoErro),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Comunicados municipais: acesso exclusivo por RPCs SECURITY DEFINER.
 // O servidor decide escopo (organização do usuário) e papel; o cliente
 // apenas tipa o contrato devolvido por portal_list_comunicados/bairros.

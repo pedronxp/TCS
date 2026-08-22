@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bot, CheckCircle2, Clock, Megaphone, Smartphone, XCircle } from 'lucide-react';
@@ -7,9 +7,12 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import {
+  botQrUrl,
   criarSessaoBotConsole,
   definirStatusSessaoBotConsole,
   dispararBotConsole,
+  fetchBotOnline,
+  fetchBotSessaoStatus,
   fetchComunicadosOrgConsole,
   salvarCanalConsole,
   vincularCanalChatConsole,
@@ -32,6 +35,22 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(parsed);
 }
 
+// Erros do pareamento traduzidos em orientação: o que aconteceu e o que fazer.
+function explicarErroPareamento(erro: string | null): string {
+  if (!erro) return '';
+  const texto = erro.toLowerCase();
+  if (texto.includes('não foi possível') || texto.includes('nao foi possivel') || texto.includes('auth_failure')) {
+    return 'O celular recusou a conexão. Na ordem: atualize o aplicativo do WhatsApp; remova aparelhos antigos em "Aparelhos conectados" (limite de 4); troque Wi-Fi por 4G (ou o contrário); escaneie o próximo QR em até 20 segundos. Se o web.whatsapp.com em um navegador também recusar o mesmo celular, o problema está na conta/aparelho — não no bot.';
+  }
+  if (texto.includes('nao_encontrada') || texto.includes('não encontrada')) {
+    return 'Esta sessão de pareamento expirou no bot. Clique em "Gerar QR" novamente para criar outra.';
+  }
+  if (texto.includes('sessão caiu') || texto.includes('sessao caiu')) {
+    return 'A sessão caiu — se o número foi banido, marque-o como banido abaixo e vincule outro número.';
+  }
+  return `O bot reportou: ${erro}. Escaneie o próximo QR quando ele aparecer; se persistir, acione o time TCS com esta mensagem.`;
+}
+
 // Espaço de operação de UMA prefeitura: entregas com motivo e fallback,
 // programados, números vinculados e comunidades com admins/membros.
 export function ConsoleComunicadoOrgPage() {
@@ -40,6 +59,8 @@ export function ConsoleComunicadoOrgPage() {
   const [novaComunidade, setNovaComunidade] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pareamentoId, setPareamentoId] = useState<string | null>(null);
+  const [qrTick, setQrTick] = useState(0);
 
   const orgQuery = useQuery({
     queryKey: ['console', 'comunicados', 'org', orgId],
@@ -71,10 +92,41 @@ export function ConsoleComunicadoOrgPage() {
     void queryClient.invalidateQueries({ queryKey: ['console', 'comunicados'] });
   };
 
+  // Pareamento: painel consulta o bot diretamente (QR embutido + status ao vivo).
+  const botOnlineQuery = useQuery({
+    queryKey: ['console', 'bot', 'online'],
+    queryFn: fetchBotOnline,
+    enabled: pareamentoId !== null,
+    refetchInterval: 15_000,
+  });
+  const botStatusQuery = useQuery({
+    queryKey: ['console', 'bot', 'sessao', pareamentoId],
+    queryFn: () => fetchBotSessaoStatus(pareamentoId as string),
+    enabled: pareamentoId !== null,
+    refetchInterval: 5_000,
+  });
+  const botStatus = botStatusQuery.data ?? null;
+  const pareamentoConcluido = botStatus?.fase === 'vinculado';
+
+  useEffect(() => {
+    if (!pareamentoId || pareamentoConcluido) return undefined;
+    const timer = setInterval(() => setQrTick((atual) => atual + 1), 5_000);
+    return () => clearInterval(timer);
+  }, [pareamentoId, pareamentoConcluido]);
+
+  useEffect(() => {
+    if (pareamentoConcluido && botStatus?.telefone) {
+      setStatusMessage(`Número ${botStatus.telefone} vinculado — grupos sincronizados em instantes.`);
+      void queryClient.invalidateQueries({ queryKey: ['console', 'comunicados'] });
+    }
+  }, [pareamentoConcluido, botStatus?.telefone, queryClient]);
+
   const sessaoCriarMutation = useMutation({
     mutationFn: criarSessaoBotConsole,
     onSuccess: async (sessaoId) => {
-      setStatusMessage(`QR aberto no bot: http://localhost:8787/sessao/${sessaoId} — escaneie com o celular da prefeitura.`);
+      setStatusMessage(null);
+      setErrorMessage(null);
+      setPareamentoId(sessaoId);
       invalidate();
     },
     onError: (error: Error) => setErrorMessage(error.message),
@@ -151,10 +203,72 @@ export function ConsoleComunicadoOrgPage() {
                 <p className="mb-3 text-xs text-muted-foreground">
                   O disparo tenta todos os vinculados que enxergam o chat (um cai, o outro envia).
                 </p>
-                <Button size="sm" disabled={sessaoCriarMutation.isPending} onClick={() => orgId && sessaoCriarMutation.mutate(orgId)}>
-                  <Smartphone />
-                  Vincular número
-                </Button>
+
+                {pareamentoId === null ? (
+                  <Button size="sm" disabled={sessaoCriarMutation.isPending} onClick={() => orgId && sessaoCriarMutation.mutate(orgId)}>
+                    <Smartphone />
+                    Vincular número
+                  </Button>
+                ) : (
+                  <div className="rounded-md border bg-card p-3" aria-label="Painel de vinculação de número">
+                    <p className="text-sm font-semibold">Vincular número desta prefeitura</p>
+
+                    <ul className="mt-2 space-y-1.5 text-xs">
+                      <li className="flex items-start gap-2">
+                        {botOnlineQuery.data === false
+                          ? <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
+                          : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}
+                        <span>
+                          <b>Bot WhatsApp ligado</b> —{' '}
+                          {botOnlineQuery.isLoading
+                            ? 'verificando…'
+                            : botOnlineQuery.data === false
+                              ? <>OFFLINE. Ligue o bot na máquina dele (<code>cd bot-whatsapp && npm start</code>) e esta verificação fica verde em segundos. Sem o bot, o QR não é gerado.</>
+                              : 'online e pronto para gerar o QR.'}
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /><span><b>WhatsApp atualizado</b> no celular (loja de aplicativos) — versão velha recusa aparelho novo.</span></li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /><span><b>Celular do número da prefeitura em mãos</b> — quem escaneia assume o disparo desta prefeitura.</span></li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /><span><b>Menos de 4 aparelhos conectados</b> — em "Aparelhos conectados", remova os antigos (limite da Meta).</span></li>
+                    </ul>
+
+                    {botOnlineQuery.data === false ? (
+                      <p className="mt-3 rounded-md border border-warning/30 bg-warning-soft p-2 text-xs">
+                        O bot está offline. Gere o QR somente depois de ligá-lo — do contrário a leitura não chega a lugar nenhum.
+                      </p>
+                    ) : pareamentoConcluido ? (
+                      <div className="mt-3 rounded-md border border-success/25 bg-success-soft p-2 text-xs" role="status">
+                        <p className="font-semibold">Número {botStatus?.telefone ?? ''} vinculado ✓</p>
+                        <p className="mt-1">Os grupos que ele enxerga aparecem no campo "Chat do bot" das comunidades em instantes.</p>
+                        <Button size="sm" variant="outline" className="mt-2" onClick={() => setPareamentoId(null)}>Concluir</Button>
+                      </div>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center justify-center rounded-md bg-white p-2">
+                          <img
+                            src={`${botQrUrl(pareamentoId)}?t=${qrTick}`}
+                            alt="QR Code de vinculação do WhatsApp — escaneie em até 20 segundos"
+                            className="h-56 w-56"
+                          />
+                        </div>
+                        <p className="text-center text-xs text-muted-foreground">
+                          WhatsApp → Aparelhos conectados → Conectar aparelho → escaneie <b>em até 20 segundos</b>.
+                          O QR acima se renova sozinho a cada 5 segundos — espere trocar em vez de escanear um velho.
+                        </p>
+                        {botStatus?.ultimoErro && (
+                          <p className="rounded-md border border-destructive/30 bg-destructive-soft p-2 text-xs text-destructive" role="alert">
+                            {explicarErroPareamento(botStatus.ultimoErro)}
+                          </p>
+                        )}
+                        <p className="text-center text-xs text-muted-foreground">Aguardando a leitura do QR…</p>
+                        <div className="flex justify-center">
+                          <Button size="sm" variant="ghost" onClick={() => setPareamentoId(null)}>Cancelar vinculação</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <ul className="mt-4 divide-y">
                   {org.sessoes.length === 0 && <li className="py-3 text-sm text-muted-foreground">Nenhum número vinculado.</li>}
                   {org.sessoes.map((sessao) => (

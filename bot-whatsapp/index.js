@@ -366,6 +366,13 @@ ${sessao.qr ? `<img src="/qr/${sessao.id}" alt="QR Code do WhatsApp"><p>QR gerad
 </div></body></html>`;
 }
 
+// O painel do console embute o QR e consulta o status direto daqui; CORS
+// liberado apenas para leitura dos endpoints de status/QR.
+app.use('/healthz', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.use('/status', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.use('/sessao', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.use('/qr', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+
 app.get('/healthz', (_req, res) => {
   res.json({ ok: true, sessoes: sessoes.size });
 });
@@ -375,6 +382,22 @@ app.get('/status', (_req, res) => {
     sessoes: [...sessoes.values()].map((s) => ({
       id: s.id, orgNome: s.orgNome, fase: s.fase, telefone: s.telefone, ultimoErro: s.ultimoErro,
     })),
+  });
+});
+
+// Status de UMA sessão — o painel consulta durante o pareamento do QR.
+app.get('/sessao/:id/status', (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao) {
+    res.status(404).json({ fase: 'nao_encontrada', telefone: null, ultimoErro: 'Sessão não encontrada no bot — gere o QR novamente no painel.' });
+    return;
+  }
+  res.json({
+    fase: sessao.fase,
+    telefone: sessao.telefone,
+    qrPresente: Boolean(sessao.qr),
+    qrGeradoEm: sessao.qrGeradoEm ? sessao.qrGeradoEm.toISOString() : null,
+    ultimoErro: sessao.ultimoErro,
   });
 });
 
