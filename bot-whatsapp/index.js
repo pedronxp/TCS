@@ -17,9 +17,25 @@
 // no ambiente onde o bot roda. Nunca commitadas, nunca no app/painel.
 
 const express = require('express');
+const fs = require('node:fs');
+const path = require('node:path');
 const QRCode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const { createClient } = require('@supabase/supabase-js');
+
+// Carrega ./.env (KEY=VALUE por linha) se existir — credenciais ficam fora do código.
+(function carregarEnvLocal() {
+  const arquivo = path.join(__dirname, '.env');
+  if (!fs.existsSync(arquivo)) return;
+  for (const linha of fs.readFileSync(arquivo, 'utf8').split(/\r?\n/)) {
+    const limpa = linha.trim();
+    if (!limpa || limpa.startsWith('#')) continue;
+    const separador = limpa.indexOf('=');
+    if (separador <= 0) continue;
+    const chave = limpa.slice(0, separador).trim();
+    if (!(chave in process.env)) process.env[chave] = limpa.slice(separador + 1).trim();
+  }
+})();
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -51,7 +67,10 @@ const estado = {
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './sessao' }),
-  puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+  puppeteer: {
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
+  },
 });
 
 function log(escopo, mensagem, erro) {
