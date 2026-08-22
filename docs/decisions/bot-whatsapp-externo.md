@@ -27,6 +27,19 @@ disparo direto pelo sistema, com tela de QR Code para vincular a conta que envia
    Comunidade** (é assim que o WhatsApp Web expõe a Comunidade). O vínculo é por
    `chat_id`, listado pelo próprio bot e vinculado à comunidade no painel.
 
+## Atualização (2026-08-22): multi-sessão por prefeitura com fallback
+
+Correção de desenho do dono do produto: **cada número vinculado pertence a uma organização**.
+
+- A sessão só nasce no portal municipal (master/admin da prefeitura, RPC `portal_criar_sessao_bot`) —
+  conta individual sem vínculo (ex.: Pedro) não registra número nem enxerga comunidades de outro
+  município (ex.: Cataguases, cujos disparos saem pelo número do Paulo, admin da prefeitura).
+- A Comunidade é criada no WhatsApp por um número da prefeitura e um **segundo número da mesma
+  prefeitura também é admin** — o dispatcher tenta todos os números vinculados que enxergam o chat,
+  em sequência: um caiu/baniu, o outro envia (auditoria por tentativa em `canal_envios.tentativas`).
+- Números banidos são marcados no painel (`portal_definir_status_sessao_bot`) e substituídos por
+  outros — operação já prevista na decisão original.
+
 ## Consequências e riscos registrados
 
 - Banimento do número é esperado e aceito; a mitigação é trocar o número (re-escanear QR).

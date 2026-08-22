@@ -64,7 +64,20 @@ export interface BotChat {
   chatId: string;
   nome: string;
   tipo: string;
+  sessaoTelefone: string | null;
   vistoEm: string | null;
+}
+
+export type SessaoBotStatus = 'aguardando_qr' | 'vinculado' | 'desconectado' | 'banido';
+
+export interface SessaoBot {
+  id: string;
+  telefone: string | null;
+  status: SessaoBotStatus;
+  vinculadoPorNome: string | null;
+  criadoEm: string | null;
+  vinculadoEm: string | null;
+  totalChats: number;
 }
 
 export interface Bairro {
@@ -167,7 +180,25 @@ function parseBotChat(value: unknown): BotChat | null {
     chatId: source.chat_id as string,
     nome: source.nome as string,
     tipo: string(source.tipo) ?? 'grupo',
+    sessaoTelefone: string(source.sessao_telefone),
     vistoEm: string(source.visto_em),
+  };
+}
+
+function parseSessaoBot(value: unknown): SessaoBot | null {
+  const source = record(value);
+  if (!source || !string(source.id)) return null;
+  const status = string(source.status);
+  return {
+    id: source.id as string,
+    telefone: string(source.telefone),
+    status: (['aguardando_qr', 'vinculado', 'desconectado', 'banido'].includes(status ?? '')
+      ? status
+      : 'desconectado') as SessaoBotStatus,
+    vinculadoPorNome: string(source.vinculado_por_nome),
+    criadoEm: string(source.criado_em),
+    vinculadoEm: string(source.vinculado_em),
+    totalChats: typeof source.total_chats === 'number' ? source.total_chats : 0,
   };
 }
 
@@ -210,6 +241,26 @@ export async function fetchBotChats(): Promise<BotChat[]> {
   const { data, error } = await rpc('portal_list_bot_chats');
   if (error) throw new Error(error.message);
   return parseArray(data, parseBotChat);
+}
+
+export async function fetchSessoesBot(): Promise<SessaoBot[]> {
+  const { data, error } = await rpc('portal_listar_sessoes_bot');
+  if (error) throw new Error(error.message);
+  return parseArray(data, parseSessaoBot);
+}
+
+// Cria a sessão no banco; o QR aparece no painel do bot (/sessao/<id>).
+export async function criarSessaoBot(): Promise<string> {
+  const { data, error } = await rpc('portal_criar_sessao_bot');
+  if (error) throw new Error(error.message);
+  const id = string(data);
+  if (!id) throw new Error('Resposta inválida do servidor.');
+  return id;
+}
+
+export async function definirStatusSessaoBot(id: string, status: 'banido' | 'desconectado'): Promise<void> {
+  const { error } = await rpc('portal_definir_status_sessao_bot', { p_sessao_id: id, p_status: status });
+  if (error) throw new Error(error.message);
 }
 
 export async function vincularCanalChat(canalId: string, chatId: string | null): Promise<void> {

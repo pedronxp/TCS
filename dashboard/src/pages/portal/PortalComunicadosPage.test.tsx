@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   fetchBairros: vi.fn(),
   fetchCanais: vi.fn(),
   fetchBotChats: vi.fn(),
+  fetchSessoesBot: vi.fn(),
   can: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ vi.mock('@/lib/comunicados', async (importOriginal) => ({
   fetchBairros: mocks.fetchBairros,
   fetchCanais: mocks.fetchCanais,
   fetchBotChats: mocks.fetchBotChats,
+  fetchSessoesBot: mocks.fetchSessoesBot,
 }));
 vi.mock('@/contexts/PortalAuthContext', () => ({
   usePortalAuth: () => ({
@@ -76,7 +78,10 @@ describe('comunicados municipais do portal', () => {
       { id: 'k-1', nome: 'Comunidade Aurora', tipo: 'whatsapp_comunidade', chatId: '1203@g.us', linkConvite: null, telefoneAdmin: null, ativo: true, totalEnvios: 2, podeGerenciar: true },
     ]);
     mocks.fetchBotChats.mockReset().mockResolvedValue([
-      { chatId: '1203@g.us', nome: 'Anúncios · Aurora', tipo: 'grupo', vistoEm: '2026-08-21T10:00:00Z' },
+      { chatId: '1203@g.us', nome: 'Anúncios · Aurora', tipo: 'grupo', sessaoTelefone: '32999990001', vistoEm: '2026-08-21T10:00:00Z' },
+    ]);
+    mocks.fetchSessoesBot.mockReset().mockResolvedValue([
+      { id: 's-1', telefone: '32999990001', status: 'vinculado', vinculadoPorNome: 'Paulo', criadoEm: '2026-08-21T09:00:00Z', vinculadoEm: '2026-08-21T09:05:00Z', totalChats: 3 },
     ]);
     mocks.can.mockReset().mockReturnValue(false);
   });
@@ -92,13 +97,16 @@ describe('comunicados municipais do portal', () => {
     expect(screen.getByText('Não lido')).toBeVisible();
   });
 
-  it('expõe formulário, comunidades e agendados para quem pode gerenciar', async () => {
+  it('expõe formulário, comunidades, números do bot e agendados para quem pode gerenciar', async () => {
     mocks.can.mockReturnValue(true);
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Novo comunicado' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Bairros do município' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Comunidades WhatsApp' })).toBeVisible();
     expect(await screen.findByText('Comunidade Aurora')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Números do bot' })).toBeVisible();
+    expect(await screen.findByText('32999990001')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Vincular número' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Agendar' })).toBeEnabled();
     expect(screen.getByText('Agendados (1)')).toBeVisible();

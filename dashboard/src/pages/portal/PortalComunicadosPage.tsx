@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Bot, CalendarClock, Check, Copy, ExternalLink, Megaphone, Pencil, Send, Trash2, Users } from 'lucide-react';
+import { Archive, Bot, CalendarClock, Check, Copy, ExternalLink, Megaphone, Pencil, Send, Smartphone, Trash2, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -30,6 +30,9 @@ import {
   fetchBotChats,
   fetchCanais,
   fetchComunicados,
+  fetchSessoesBot,
+  criarSessaoBot,
+  definirStatusSessaoBot,
   mensagemWhatsApp,
   registerComunicadoLeitura,
   registrarEnvioCanal,
@@ -42,6 +45,7 @@ import {
   whatsappShareUrl,
   type Comunicado,
   type ComunicadoSeveridade,
+  type SessaoBotStatus,
 } from '@/lib/comunicados';
 
 interface DraftState {
@@ -85,6 +89,13 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(parsed);
 }
 
+const sessaoBotLabels: Record<SessaoBotStatus, string> = {
+  aguardando_qr: 'Emparelhando (QR aberto)',
+  vinculado: 'Vinculado',
+  desconectado: 'Desconectado',
+  banido: 'Banido',
+};
+
 type SubmitMode = 'rascunho' | 'publicar' | 'agendar';
 
 export function PortalComunicadosPage() {
@@ -113,6 +124,12 @@ export function PortalComunicadosPage() {
     queryFn: fetchBotChats,
     enabled: Boolean(access) && mayManage,
     retry: false,
+  });
+  const sessoesQuery = useQuery({
+    queryKey: ['portal', 'bot-sessoes', organizationId],
+    queryFn: fetchSessoesBot,
+    enabled: Boolean(access) && mayManage,
+    refetchInterval: 10_000,
   });
 
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
@@ -232,6 +249,22 @@ export function PortalComunicadosPage() {
     onSuccess: async () => {
       setStatusMessage('Comunidade removida.');
       await queryClient.invalidateQueries({ queryKey: ['portal', 'canais'] });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+  const criarSessaoMutation = useMutation({
+    mutationFn: criarSessaoBot,
+    onSuccess: async (sessaoId) => {
+      setStatusMessage(`Número emparelhando: abra a página do bot em /sessao/${sessaoId} (ex.: http://localhost:8787/sessao/${sessaoId}) e escaneie o QR com o celular da prefeitura.`);
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'bot-sessoes'] });
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+  const sessaoStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'banido' | 'desconectado' }) => definirStatusSessaoBot(id, status),
+    onSuccess: async () => {
+      setStatusMessage('Status do número atualizado.');
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'bot-sessoes'] });
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
@@ -552,6 +585,58 @@ export function PortalComunicadosPage() {
                           </Button>
                         )}
                       </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone />
+                  Números do bot
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-4 text-xs text-muted-foreground">
+                  Cada número pertence a esta prefeitura. Vincule o número que criou a Comunidade e um segundo número
+                  também admin — o disparo tenta todos os vinculados (um cai, o outro envia). Número banido: marque e
+                  vincule outro.
+                </p>
+                <Button size="sm" disabled={criarSessaoMutation.isPending} onClick={() => criarSessaoMutation.mutate()}>
+                  <Smartphone />
+                  Vincular número
+                </Button>
+                <ul className="mt-4 divide-y">
+                  {(sessoesQuery.data ?? []).length === 0 && (
+                    <li className="py-3 text-sm text-muted-foreground">Nenhum número vinculado ainda.</li>
+                  )}
+                  {(sessoesQuery.data ?? []).map((sessao) => (
+                    <li key={sessao.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-semibold">
+                          {sessao.telefone ?? 'número desconhecido'}
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {sessaoBotLabels[sessao.status]}
+                          {sessao.totalChats > 0 ? ` · ${sessao.totalChats} grupos` : ''}
+                          {sessao.vinculadoPorNome ? ` · vinculado por ${sessao.vinculadoPorNome}` : ''}
+                          {sessao.status === 'aguardando_qr' ? ` · QR em /sessao/${sessao.id}` : ''}
+                        </span>
+                      </span>
+                      {sessao.status !== 'banido' && (
+                        <span className="flex flex-wrap gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={sessaoStatusMutation.isPending}
+                            onClick={() => sessaoStatusMutation.mutate({ id: sessao.id, status: 'banido' })}
+                          >
+                            Marcar banido
+                          </Button>
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
