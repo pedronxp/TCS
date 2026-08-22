@@ -91,6 +91,13 @@ async function sincronizarChats(sessao) {
     const chats = await sessao.client.getChats();
     const grupos = chats.filter((chat) => chat.isGroup);
     for (const grupo of grupos) {
+      let totalAdmins = 0;
+      let totalParticipantes = 0;
+      try {
+        const participantes = grupo.participants || [];
+        totalParticipantes = participantes.length;
+        totalAdmins = participantes.filter((p) => p.isAdmin || p.isSuperAdmin).length;
+      } catch (_erroParticipantes) { /* versões antigas não expõem participantes */ }
       await supabase
         .from('bot_chats')
         .upsert(
@@ -99,6 +106,8 @@ async function sincronizarChats(sessao) {
             chat_id: grupo.id._serialized,
             nome: grupo.name || grupo.id._serialized,
             tipo: 'grupo',
+            total_admins: totalAdmins,
+            total_participantes: totalParticipantes,
             visto_em: agoraIso(),
           },
           { onConflict: 'sessao_id,chat_id' },

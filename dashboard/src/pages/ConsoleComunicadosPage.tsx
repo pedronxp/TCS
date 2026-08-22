@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Building2, Megaphone, Smartphone } from 'lucide-react';
+import { Bot, Building2, CheckCircle2, Clock, Megaphone, Smartphone, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -14,6 +14,7 @@ import {
   salvarCanalConsole,
   vincularCanalChatConsole,
   comunicadoSeverityLabels,
+  type ComunicadoEnvio,
   type SessaoBotStatus,
 } from '@/lib/comunicados';
 
@@ -52,6 +53,24 @@ export function ConsoleComunicadosPage() {
     refetchInterval: 10_000,
   });
   const org = orgQuery.data ?? null;
+
+  const entregas = useMemo(() => {
+    if (!org) return [] as Array<ComunicadoEnvio & { comunicadoTitulo: string }>;
+    return org.comunicados
+      .flatMap((comunicado) =>
+        comunicado.envios.map((envio) => ({ ...envio, comunicadoTitulo: comunicado.titulo })),
+      )
+      .sort((a, b) => {
+        const peso = (envio: ComunicadoEnvio) => (envio.status === 'pendente' ? 0 : 1);
+        if (peso(a) !== peso(b)) return peso(a) - peso(b);
+        return (b.enviadoEm ?? '').localeCompare(a.enviadoEm ?? '');
+      });
+  }, [org]);
+
+  const programados = useMemo(
+    () => (org ? org.comunicados.filter((comunicado) => comunicado.status === 'agendado') : []),
+    [org],
+  );
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['console', 'comunicados'] });
@@ -244,7 +263,7 @@ export function ConsoleComunicadosPage() {
                           </option>
                           {org.chats.map((chat) => (
                             <option key={chat.chatId} value={chat.chatId}>
-                              {chat.nome}{chat.sessaoTelefone ? ` (nº ${chat.sessaoTelefone})` : ''}
+                              {chat.nome} (nº {chat.sessaoTelefone ?? '—'} · {chat.totalAdmins} admin{chat.totalAdmins === 1 ? '' : 's'} · {chat.totalParticipantes} membros)
                             </option>
                           ))}
                         </select>
@@ -256,8 +275,76 @@ export function ConsoleComunicadosPage() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader><CardTitle>Comunicados · {org.organization.name}</CardTitle></CardHeader>
+          <div className="space-y-4">
+            {programados.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Clock /> Programados ({programados.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="divide-y">
+                    {programados.map((comunicado) => (
+                      <li key={comunicado.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2.5">
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-semibold">{comunicado.titulo}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            Publica automaticamente em {formatDate(comunicado.publicarEm) ?? '—'} (app e portal)
+                          </span>
+                        </span>
+                        <Badge variant="info">Agendado</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {entregas.some((entrega) => entrega.status === 'falhou') ? <XCircle /> : <CheckCircle2 />}
+                  Entregas · {org.organization.name}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {entregas.length === 0 && (
+                  <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                    Nenhum disparo ainda. Use "Disparar pelo bot" em um comunicado publicado.
+                  </p>
+                )}
+                <ul className="divide-y">
+                  {entregas.map((entrega) => (
+                    <li key={`${entrega.canalId}-${entrega.comunicadoTitulo}`} className="py-3">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        {entrega.status === 'enviado' && <Badge variant="success">Entregue</Badge>}
+                        {entrega.status === 'pendente' && <Badge variant="info">Na fila do bot</Badge>}
+                        {entrega.status === 'falhou' && <Badge variant="destructive">Falhou</Badge>}
+                        <span className="min-w-0 flex-1 break-words text-sm font-semibold">{entrega.comunicadoTitulo}</span>
+                        <span className="text-xs text-muted-foreground">→ {entrega.canalNome ?? 'comunidade'}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {entrega.status === 'enviado'
+                          ? `Enviado ${entrega.origem === 'bot' ? 'pelo bot' : 'manualmente'}${entrega.sessaoTelefone ? ` pelo número ${entrega.sessaoTelefone}` : ''} · ${formatDate(entrega.enviadoEm) ?? ''}`
+                          : entrega.status === 'pendente'
+                            ? 'Aguardando o bot consumir a fila (segundos).'
+                            : `Motivo: ${entrega.erro ?? 'erro desconhecido'}`}
+                      </p>
+                      {(entrega.tentativas?.length ?? 0) > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground" aria-label="Trilha de fallback">
+                          Fallback: {entrega.tentativas.map((tentativa) => `${tentativa.telefone} (${tentativa.erro})`).join(' → ')}
+                          {entrega.status === 'enviado' && entrega.sessaoTelefone
+                            ? ` → ${entrega.sessaoTelefone} enviou ✓`
+                            : ''}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle>Comunicados · {org.organization.name}</CardTitle></CardHeader>
             <CardContent>
               {orgQuery.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
               {org.comunicados.length === 0 && !orgQuery.isLoading && (
@@ -308,7 +395,8 @@ export function ConsoleComunicadosPage() {
                 })}
               </ul>
             </CardContent>
-          </Card>
+            </Card>
+          </div>
         </section>
       )}
     </div>

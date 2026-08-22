@@ -62,7 +62,7 @@ describe('comunicados no console interno', () => {
           expiraEm: null,
           criadoEm: '2026-08-22T08:00:00Z',
           envios: [
-            { canalId: 'k-1', canalNome: 'Comunidade Cataguases', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-22T09:01:00Z', registradoPorNome: null },
+            { canalId: 'k-1', canalNome: 'Comunidade Cataguases', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-22T09:01:00Z', registradoPorNome: null, sessaoTelefone: '32999990001', tentativas: [{ telefone: '32999990002', erro: 'sessão não está conectada agora' }] },
           ],
         },
       ],
@@ -74,14 +74,22 @@ describe('comunicados no console interno', () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Comunicados e comunidades' })).toBeVisible();
     expect(await screen.findByText('Prefeitura de Cataguases')).toBeInTheDocument();
-    expect(await screen.findByText('Aviso de enchente')).toBeVisible();
+    expect((await screen.findAllByText('Aviso de enchente')).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /disparar pelo bot/i })).toBeEnabled();
     expect(screen.getByText('32999990001')).toBeInTheDocument();
   });
 
+  it('mostra entregas com status, número que enviou e trilha de fallback', async () => {
+    renderPage();
+    expect(await screen.findByText('Entregas · Prefeitura de Cataguases')).toBeVisible();
+    expect(await screen.findByText('Entregue')).toBeVisible();
+    expect(screen.getByText(/pelo número 32999990001/)).toBeInTheDocument();
+    expect(screen.getByText(/32999990002 \(sessão não está conectada agora\)/)).toBeInTheDocument();
+  });
+
   it('mantém a estrutura acessível', async () => {
     const { container } = renderPage();
-    await screen.findByText('Aviso de enchente');
+    await screen.findAllByText('Aviso de enchente');
     expect((await axe(container)).violations).toEqual([]);
   });
 });

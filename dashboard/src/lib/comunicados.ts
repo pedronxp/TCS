@@ -20,6 +20,11 @@ export interface ComunicadoDestino {
 
 export type ComunicadoEnvioStatus = 'pendente' | 'enviado' | 'falhou';
 
+export interface EnvioTentativa {
+  telefone: string;
+  erro: string;
+}
+
 export interface ComunicadoEnvio {
   canalId: string;
   canalNome: string | null;
@@ -28,6 +33,8 @@ export interface ComunicadoEnvio {
   erro: string | null;
   enviadoEm: string | null;
   registradoPorNome: string | null;
+  sessaoTelefone: string | null;
+  tentativas: EnvioTentativa[];
 }
 
 export interface Comunicado {
@@ -65,6 +72,8 @@ export interface BotChat {
   nome: string;
   tipo: string;
   sessaoTelefone: string | null;
+  totalAdmins: number;
+  totalParticipantes: number;
   vistoEm: string | null;
 }
 
@@ -150,6 +159,8 @@ function parseComunicado(value: unknown): Comunicado | null {
             erro: string(envio.erro),
             enviadoEm: string(envio.enviado_em),
             registradoPorNome: string(envio.registrado_por_nome),
+            sessaoTelefone: string(envio.sessao_telefone),
+            tentativas: parseTentativas(envio.tentativas),
           };
         })
         .filter((item): item is ComunicadoEnvio => item !== null && item.canalId !== '')
@@ -173,6 +184,20 @@ function parseCanal(value: unknown): CanalComunitario | null {
   };
 }
 
+function parseTentativas(value: unknown): EnvioTentativa[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): EnvioTentativa | null => {
+      const tentativa = record(item);
+      if (!tentativa) return null;
+      return {
+        telefone: string(tentativa.telefone) ?? '—',
+        erro: string(tentativa.erro) ?? 'erro desconhecido',
+      };
+    })
+    .filter((item): item is EnvioTentativa => item !== null);
+}
+
 function parseBotChat(value: unknown): BotChat | null {
   const source = record(value);
   if (!source || !string(source.chat_id) || !string(source.nome)) return null;
@@ -181,6 +206,8 @@ function parseBotChat(value: unknown): BotChat | null {
     nome: source.nome as string,
     tipo: string(source.tipo) ?? 'grupo',
     sessaoTelefone: string(source.sessao_telefone),
+    totalAdmins: typeof source.total_admins === 'number' ? source.total_admins : 0,
+    totalParticipantes: typeof source.total_participantes === 'number' ? source.total_participantes : 0,
     vistoEm: string(source.visto_em),
   };
 }
@@ -382,6 +409,8 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
               erro: string(e.erro),
               enviadoEm: string(e.enviado_em),
               registradoPorNome: null,
+              sessaoTelefone: string(e.sessao_telefone),
+              tentativas: parseTentativas(e.tentativas),
             };
           }).filter((envio): envio is ComunicadoEnvio => envio !== null && envio.canalId !== '')
           : [],

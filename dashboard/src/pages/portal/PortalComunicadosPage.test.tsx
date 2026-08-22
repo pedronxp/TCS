@@ -46,7 +46,7 @@ const comunicadoPublicado: Comunicado = {
   totalLeituras: 4,
   lido: false,
   podeEditar: true,
-  envios: [{ canalId: 'k-1', canalNome: 'Comunidade Aurora', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-21T12:05:00Z', registradoPorNome: null }],
+  envios: [{ canalId: 'k-1', canalNome: 'Comunidade Aurora', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-21T12:05:00Z', registradoPorNome: null, sessaoTelefone: '32999990001', tentativas: [] }],
 };
 
 const comunicadoAgendado: Comunicado = {
