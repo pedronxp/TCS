@@ -18,6 +18,7 @@ import {
   fetchBotSessaoStatus,
   fetchBotVerificacao,
   fetchComunicadosOrgConsole,
+  mascararTelefone,
   salvarCanalConsole,
   salvarComunicadoConsole,
   sincronizarChatsBot,
@@ -149,7 +150,7 @@ export function ConsoleComunicadoOrgPage() {
   useEffect(() => {
     if (!wizard) return;
     if (wizard.etapa === 'verificando' && verificacao?.conectado && verificacao.telefone) {
-      setStatusMessage(`Conexão confirmada com o WhatsApp: número ${verificacao.telefone} enxerga ${verificacao.totalChats} conversas.`);
+      setStatusMessage(`Conexão confirmada com o WhatsApp: número ${mascararTelefone(verificacao.telefone)} enxerga ${verificacao.totalChats} conversas.`);
       void queryClient.invalidateQueries({ queryKey: ['console', 'comunicados'] });
       setWizard({ ...wizard, etapa: 'comunidade' });
     }
@@ -464,7 +465,7 @@ export function ConsoleComunicadoOrgPage() {
                     {wizard.etapa === 'pronto' && (
                       <div className="mt-3 space-y-2 rounded-md border border-success/25 bg-success-soft p-2 text-xs" role="status">
                         <p className="font-semibold">Tudo pronto ✓</p>
-                        <p>Número {verificacao?.telefone ?? org?.sessoes.find((s) => s.id === wizard.sessaoId)?.telefone ?? ''} conectado e comunidade {comunidadeAtiva?.nome ?? 'ativa'} vinculada — o disparo pelo bot já pode ser usado nos comunicados publicados.</p>
+                        <p>Número {mascararTelefone(verificacao?.telefone ?? org?.sessoes.find((s) => s.id === wizard.sessaoId)?.telefone)} conectado e comunidade {comunidadeAtiva?.nome ?? 'ativa'} vinculada — o disparo pelo bot já pode ser usado nos comunicados publicados.</p>
                         <Button size="sm" variant="outline" onClick={() => setWizard(null)}>Concluir</Button>
                       </div>
                     )}
@@ -480,8 +481,6 @@ export function ConsoleComunicadoOrgPage() {
                         <span className="mt-1 block text-xs text-muted-foreground">
                           {sessaoLabels[sessao.status]}
                           {sessao.totalChats > 0 ? ` · ${sessao.totalChats} grupos` : ''}
-                          {sessao.status === 'aguardando_qr' ? ` · QR em /sessao/${sessao.id}` : ''}
-                          {sessao.vinculadoEm ? ` · desde ${formatDate(sessao.vinculadoEm)}` : ''}
                         </span>
                       </span>
                       {sessao.status !== 'banido' && (
@@ -703,7 +702,6 @@ export function ConsoleComunicadoOrgPage() {
                 )}
                 <ul className="divide-y">
                   {org.comunicados.map((comunicado) => {
-                    const enviosPorCanal = new Map(comunicado.envios.map((envio) => [envio.canalId, envio]));
                     const publicavel = comunicado.status === 'publicado' || comunicado.status === 'arquivado';
                     return (
                       <li key={comunicado.id} className="py-4">
@@ -728,22 +726,9 @@ export function ConsoleComunicadoOrgPage() {
                             ? `Agendado para ${formatDate(comunicado.publicarEm) ?? '—'}`
                             : `${comunicado.status} · ${formatDate(comunicado.publicadoEm) ?? formatDate(comunicado.criadoEm) ?? ''}`}
                         </p>
-                        {comunicado.envios.length > 0 && (
-                          <ul className="mt-2 space-y-1">
-                            {[...enviosPorCanal.values()].map((envio) => (
-                              <li key={`${comunicado.id}-${envio.canalId}`} className="text-xs text-muted-foreground">
-                                {envio.canalNome ?? 'Comunidade'}: {envio.status === 'enviado'
-                                  ? `enviado ${envio.origem === 'bot' ? 'pelo bot' : 'manualmente'} ${formatDate(envio.enviadoEm) ?? ''}`
-                                  : envio.status === 'pendente'
-                                    ? 'na fila do bot'
-                                    : `falhou — ${envio.erro ?? 'erro desconhecido'}`}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
                       </li>
-                    );
-                  })}
+                  );
+                })}
                 </ul>
               </CardContent>
             </Card>

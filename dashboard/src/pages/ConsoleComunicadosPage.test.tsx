@@ -33,10 +33,10 @@ const orgResumo = {
 const orgDetalhe = {
   organization: { id: 'org-1', name: 'Prefeitura de Cataguases', municipality: 'Cataguases' },
   sessoes: [
-    { id: 's-1', telefone: '32999990001', status: 'vinculado', vinculadoPorNome: 'Owner', vinculadoEm: '2026-08-22T10:00:00Z', totalChats: 4 },
+    { id: 's-1', telefone: '55****9001', status: 'vinculado', vinculadoPorNome: 'Owner', vinculadoEm: '2026-08-22T10:00:00Z', totalChats: 4 },
   ],
   chats: [
-    { chatId: '1203@g.us', nome: 'Anúncios · Cataguases', tipo: 'grupo', sessaoTelefone: '32999990001', totalAdmins: 2, totalParticipantes: 157, vistoEm: '2026-08-22T10:05:00Z' },
+    { chatId: '1203@g.us', nome: 'Anúncios · Cataguases', tipo: 'grupo', sessaoTelefone: '55****9001', totalAdmins: 2, totalParticipantes: 157, vistoEm: '2026-08-22T10:05:00Z' },
   ],
   canais: [
     { id: 'k-1', nome: 'Comunidade Cataguases', chatId: '1203@g.us', ativo: true, totalEnvios: 2 },
@@ -52,7 +52,7 @@ const orgDetalhe = {
       expiraEm: null,
       criadoEm: '2026-08-22T08:00:00Z',
       envios: [
-        { canalId: 'k-1', canalNome: 'Comunidade Cataguases', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-22T09:01:00Z', registradoPorNome: null, sessaoTelefone: '32999990001', tentativas: [{ telefone: '32999990002', erro: 'sessão não está conectada agora' }] },
+        { canalId: 'k-1', canalNome: 'Comunidade Cataguases', status: 'enviado', origem: 'bot', erro: null, enviadoEm: '2026-08-22T09:01:00Z', registradoPorNome: null, sessaoTelefone: '55****9001', tentativas: [{ telefone: '55****9002', erro: 'sessão não está conectada agora' }] },
       ],
     },
   ],
@@ -89,14 +89,15 @@ describe('comunicados no console interno', () => {
     expect(await screen.findByRole('heading', { name: 'Prefeitura de Cataguases', level: 1 })).toBeVisible();
   });
 
-  it('espaço da prefeitura mostra entregas, número que enviou e fallback', async () => {
+  it('espaço da prefeitura mostra entregas, número mascarado que enviou e fallback', async () => {
     renderPage('/app/comunicacoes/org-1');
     expect(await screen.findByRole('heading', { name: 'Entregas' })).toBeVisible();
     expect(await screen.findByText('Entregue')).toBeVisible();
-    expect(screen.getByText(/pelo número 32999990001/)).toBeInTheDocument();
-    expect(screen.getByText(/32999990002 \(sessão não está conectada agora\)/)).toBeInTheDocument();
+    expect(screen.getByText(/pelo número 55\*\*\*\*9001/)).toBeInTheDocument();
+    expect(screen.getByText(/55\*\*\*\*9002 \(sessão não está conectada agora\)/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /disparar pelo bot/i })).toBeEnabled();
     expect(screen.getByText('2 admins · 157 membros')).toBeInTheDocument();
+    expect(screen.getByText('55****9001')).toBeInTheDocument();
   });
 
   it('mantém a estrutura acessível', async () => {

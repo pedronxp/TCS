@@ -7,6 +7,13 @@ export function botQrUrl(sessaoId: string): string {
   return `${BOT_WHATSAPP_URL}/qr/${sessaoId}`;
 }
 
+// O servidor já devolve telefones mascarados; valores ao vivo (bot) passam por aqui.
+export function mascararTelefone(telefone: string | null | undefined): string {
+  const digitos = (telefone ?? '').replace(/\D/g, '');
+  if (digitos.length >= 8) return `${digitos.slice(0, 2)}****${digitos.slice(-4)}`;
+  return '****';
+}
+
 export interface BotSessaoStatus {
   fase: string;
   telefone: string | null;
