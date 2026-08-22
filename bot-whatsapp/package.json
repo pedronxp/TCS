@@ -12,8 +12,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "@whiskeysockets/baileys": "^6.7.24",
     "express": "^4.19.2",
     "qrcode": "^1.5.4",
-    "whatsapp-web.js": "^1.26.0"
+    "qrcode-terminal": "^0.12.0"
   }
 }

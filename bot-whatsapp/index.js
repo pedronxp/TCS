@@ -1,25 +1,25 @@
-// TCS — Bot WhatsApp externo (multi-sessão, componente opcional e isolado).
+// TCS — Bot WhatsApp externo (multi-sessão, Baileys, sem navegador).
 //
 // Decisão e riscos: docs/decisions/bot-whatsapp-externo.md. Cada número
-// vinculado pertence a UMA organização (criado pelo portal municipal) — o
-// número da conta individual de alguém nunca enxerga comunidades de outro
-// município. O disparo tenta, em sequência, todos os números vinculados da
-// prefeitura que enxergam o chat da comunidade (fallback: um caiu, o outro envia).
+// pertence a UMA organização; o disparo tenta todos os números da prefeitura
+// que enxergam o chat (fallback). Migramos do whatsapp-web.js (que depende da
+// página web e quebrou com a atualização do WhatsApp Web) para o Baileys,
+// que fala o protocolo direto — sem Chrome, sem injeção na página.
 //
-// O que ele faz:
-//   1. Detecta sessões criadas no painel (bot_sessoes 'aguardando_qr') e serve
-//      um QR por número em http://localhost:PORT/sessao/<id>.
-//   2. Vinculado, sincroniza os grupos que o número enxerga para bot_chats.
-//   3. Consome a fila canal_envios 'pendente' com fallback entre sessões.
-//
-// Segredos: SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY e CHROME_PATH existem SOMENTE
-// no .env deste ambiente (fora do git).
+// Contratos HTTP mantidos: /healthz, /status, /sessao/:id/status, /verify,
+// /criar-grupo, /sincronizar, /qr/:id e a página de QR por sessão.
 
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const QRCode = require('qrcode');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcodeTerminal = require('qrcode-terminal');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  DisconnectReason,
+} = require('@whiskeysockets/baileys');
 const { createClient } = require('@supabase/supabase-js');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
@@ -59,7 +59,7 @@ const SEVERIDADE_LABEL = {
 
 function log(escopo, mensagem, erro) {
   const linha = `[bot][${escopo}] ${mensagem}`;
-  if (erro) console.error(linha, erro instanceof Error ? erro.message : erro);
+  if (erro) console.error(linha, erro instanceof Error ? `${erro.message} | ${erro.stack || ''}`.slice(0, 400) : JSON.stringify(erro).slice(0, 400));
   else console.log(linha);
 }
 
@@ -67,7 +67,7 @@ function agoraIso() {
   return new Date().toISOString();
 }
 
-// id -> { id, orgId, orgNome, client, fase, qr, qrGeradoEm, telefone, ultimoErro }
+// id -> { id, orgId, orgNome, socket, fase, qr, qrGeradoEm, telefone, ultimoErro, parar }
 const sessoes = new Map();
 
 function textoComunicado(comunicado, organizacao) {
@@ -86,47 +86,52 @@ async function atualizarSessaoDb(id, campos) {
   if (error) log('db', `Falha ao atualizar sessao ${id}`, error);
 }
 
-async function sincronizarChats(sessao) {
+async function sincronizarChats(sessao, tentativa = 1) {
   try {
-    const chats = await sessao.client.getChats();
-    const grupos = chats.filter((chat) => chat.isGroup);
-    for (const grupo of grupos) {
-      let totalAdmins = 0;
-      let totalParticipantes = 0;
-      try {
-        const participantes = grupo.participants || [];
-        totalParticipantes = participantes.length;
-        totalAdmins = participantes.filter((p) => p.isAdmin || p.isSuperAdmin).length;
-      } catch (_erroParticipantes) { /* versões antigas não expõem participantes */ }
+    const grupos = await sessao.socket.groupFetchAllParticipating();
+    const lista = Object.values(grupos || {});
+    for (const grupo of lista) {
+      const participantes = Array.isArray(grupo.participants) ? grupo.participants : [];
+      const totalAdmins = participantes.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').length;
       await supabase
         .from('bot_chats')
         .upsert(
           {
             sessao_id: sessao.id,
-            chat_id: grupo.id._serialized,
-            nome: grupo.name || grupo.id._serialized,
+            chat_id: grupo.id,
+            nome: grupo.subject || grupo.id,
             tipo: 'grupo',
             total_admins: totalAdmins,
-            total_participantes: totalParticipantes,
+            total_participantes: participantes.length,
             visto_em: agoraIso(),
           },
           { onConflict: 'sessao_id,chat_id' },
         );
     }
-    log('chats', `${sessao.orgNome} · ${sessao.telefone || sessao.id.slice(0, 8)}: ${grupos.length} grupos sincronizados`);
+    log('chats', `${sessao.orgNome} · ${sessao.telefone || sessao.id.slice(0, 8)}: ${lista.length} grupos sincronizados`);
   } catch (erro) {
-    log('chats', `Falha ao sincronizar chats da sessao ${sessao.id}`, erro);
+    log('chats', `Falha ao sincronizar chats da sessao ${sessao.id} (tentativa ${tentativa})`, erro);
+    if (tentativa < 3) {
+      setTimeout(() => {
+        sincronizarChats(sessao, tentativa + 1).catch(() => null);
+      }, 8_000 * tentativa);
+    }
   }
 }
 
-function iniciarSessao(linha) {
-  if (sessoes.has(linha.id)) return;
+async function iniciarSessao(linha, tentativaReconexao = 0) {
+  const anterior = sessoes.get(linha.id);
+  if (anterior && !tentativaReconexao) return;
+
+  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'sessao-wa', linha.id));
+  const { version } = await fetchLatestBaileysVersion();
+
   const sessao = {
     id: linha.id,
     orgId: linha.organization_id,
     orgNome: linha.org_nome || 'Prefeitura',
-    client: null,
-    fase: 'iniciando',
+    socket: null,
+    fase: state.creds.registered ? 'conectando' : 'aguardando_qr',
     qr: null,
     qrGeradoEm: null,
     telefone: linha.telefone || null,
@@ -134,67 +139,77 @@ function iniciarSessao(linha) {
   };
   sessoes.set(linha.id, sessao);
 
-  const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: './sessao', clientId: linha.id }),
-    puppeteer: {
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
-    },
+  const socket = makeWASocket({
+    version,
+    auth: state,
+    markOnlineOnConnect: false,
+    browser: ['TCS Comunicados', 'Chrome', '1.0.0'],
+    connectTimeoutMs: 20_000,
   });
-  sessao.client = client;
+  sessao.socket = socket;
 
-  client.on('qr', (qr) => {
-    sessao.fase = 'aguardando_qr';
-    sessao.qr = qr;
-    sessao.qrGeradoEm = new Date();
-    log('sessao', `${sessao.orgNome}: QR gerado às ${sessao.qrGeradoEm.toLocaleTimeString('pt-BR')} — /sessao/${sessao.id}`);
+  socket.ev.on('creds.update', saveCreds);
+
+  socket.ev.on('connection.update', async (atualizacao) => {
+    const { connection, qr, lastDisconnect } = atualizacao;
+    if (qr) {
+      sessao.fase = 'aguardando_qr';
+      sessao.qr = qr;
+      sessao.qrGeradoEm = new Date();
+      qrcodeTerminal.generate(qr, { small: true }, (codigo) => console.log(codigo));
+      log('sessao', `${sessao.orgNome}: QR gerado às ${sessao.qrGeradoEm.toLocaleTimeString('pt-BR')} — painel em /sessao/${sessao.id}`);
+    }
+    if (connection === 'connecting') {
+      sessao.fase = state.creds.registered ? 'conectando' : sessao.fase;
+    }
+    if (connection === 'open') {
+      sessao.fase = 'vinculado';
+      sessao.qr = null;
+      sessao.ultimoErro = null;
+      try {
+        sessao.telefone = socket.user && socket.user.id ? socket.user.id.split(':')[0].split('@')[0] : sessao.telefone;
+      } catch (_erro) { /* mantém telefone anterior */ }
+      log('sessao', `${sessao.orgNome}: conta vinculada${sessao.telefone ? ` (${sessao.telefone})` : ''}`);
+      await atualizarSessaoDb(sessao.id, {
+        status: 'vinculado',
+        telefone: sessao.telefone,
+        vinculado_em: agoraIso(),
+        atualizado_em: agoraIso(),
+      });
+      await sincronizarChats(sessao);
+    }
+    if (connection === 'close') {
+      const codigo = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
+        ? lastDisconnect.error.output.statusCode
+        : null;
+      const deslogado = codigo === DisconnectReason.loggedOut;
+      sessao.fase = deslogado ? 'banido' : 'reconectando';
+      sessao.ultimoErro = deslogado
+        ? 'Sessão encerrada pelo WhatsApp (número des conectado/banido) — vincule o número novamente.'
+        : `desconectado (código ${codigo})`;
+      log('sessao', `${sessao.orgNome}: conexão fechada — ${deslogado ? 'deslogado, requer novo QR' : 'vai reconectar'}`);
+      if (deslogado) {
+        await atualizarSessaoDb(sessao.id, { status: 'desconectado', atualizado_em: agoraIso() });
+        sessoes.delete(sessao.id);
+      } else if (tentativaReconexao < 5) {
+        setTimeout(() => {
+          iniciarSessao(linha, tentativaReconexao + 1).catch((erro) => log('sessao', `Reconexão falhou ${linha.id}`, erro));
+        }, 3_000 * (tentativaReconexao + 1));
+      }
+    }
   });
 
-  client.on('authenticated', () => {
-    sessao.ultimoErro = null;
-    log('sessao', `${sessao.orgNome}: QR aceito — autenticando…`);
-  });
-
-  client.on('auth_failure', (motivo) => {
-    sessao.ultimoErro = String(motivo || 'falha de autenticação');
-    log('sessao', `${sessao.orgNome}: falha de autenticação — escaneie o novo QR`, motivo);
-  });
-
-  client.on('ready', async () => {
-    sessao.fase = 'vinculado';
-    sessao.qr = null;
-    try {
-      sessao.telefone = client.info && client.info.wid ? client.info.wid.user : sessao.telefone;
-    } catch (_erro) { /* número fica para a próxima sincronização */ }
-    log('sessao', `${sessao.orgNome}: conta vinculada${sessao.telefone ? ` (${sessao.telefone})` : ''}`);
-    await atualizarSessaoDb(sessao.id, {
-      status: 'vinculado',
-      telefone: sessao.telefone,
-      vinculado_em: agoraIso(),
-      atualizado_em: agoraIso(),
-    });
-    await sincronizarChats(sessao);
-  });
-
-  client.on('disconnected', async (motivo) => {
-    sessao.fase = 'reconectando';
-    sessao.ultimoErro = String(motivo || 'desconectado');
-    log('sessao', `${sessao.orgNome}: sessão caiu${sessao.telefone ? ` (${sessao.telefone})` : ''}`, motivo);
-    await atualizarSessaoDb(sessao.id, { status: 'desconectado', atualizado_em: agoraIso() });
-  });
-
-  client.initialize().catch((erro) => {
-    sessao.ultimoErro = String((erro && erro.message) || erro);
-    log('startup', `Falha ao inicializar sessao ${sessao.id}`, erro);
-  });
+  return sessao;
 }
 
 async function pararSessao(id) {
   const sessao = sessoes.get(id);
   if (!sessao) return;
   try {
-    await sessao.client.destroy();
-  } catch (_erro) { /* cliente já morto */ }
+    if (sessao.socket && typeof sessao.socket.end === 'function') {
+      sessao.socket.end(new Error('encerrada pelo painel'));
+    }
+  } catch (_erro) { /* socket já fechado */ }
   sessoes.delete(id);
   log('sessao', `Sessao ${id} encerrada (banida/desativada no painel).`);
 }
@@ -217,11 +232,10 @@ async function gerenciarSessoes() {
     if (existente) {
       if (orgNome) existente.orgNome = orgNome;
       if (linha.telefone) existente.telefone = linha.telefone;
-      if (linha.status === 'desconectado' && existente.fase === 'vinculado') {
-        existente.fase = 'reconectando'; // aguarda reconexão automática do client
-      }
     } else {
-      iniciarSessao({ ...linha, org_nome: orgNome });
+      iniciarSessao({ ...linha, org_nome: orgNome }).catch((erro) => {
+        log('startup', `Falha ao iniciar sessao ${linha.id}`, erro);
+      });
     }
   }
   for (const id of [...sessoes.keys()]) {
@@ -298,7 +312,7 @@ async function processarFila() {
         continue;
       }
       try {
-        await sessao.client.sendMessage(canal.chat_id, texto);
+        await sessao.socket.sendMessage(canal.chat_id, { text: texto });
         sucesso = candidato;
         break;
       } catch (erro) {
@@ -333,10 +347,122 @@ async function finalizarEnvio(envioId, sessaoId, status, erro, tentativas) {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP: lista de números + QR por sessão.
+// HTTP: lista de números + QR por sessão (contrato igual ao anterior).
 // ---------------------------------------------------------------------------
 
 const app = express();
+
+app.use('/healthz', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.use('/status', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.use('/sessao', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.use('/qr', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+
+app.get('/healthz', (_req, res) => {
+  res.json({ ok: true, sessoes: sessoes.size });
+});
+
+app.get('/status', (_req, res) => {
+  res.json({
+    sessoes: [...sessoes.values()].map((s) => ({
+      id: s.id, orgNome: s.orgNome, fase: s.fase, telefone: s.telefone, ultimoErro: s.ultimoErro,
+    })),
+  });
+});
+
+app.get('/sessao/:id/status', (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao) {
+    res.status(404).json({ fase: 'nao_encontrada', telefone: null, ultimoErro: 'Sessão não encontrada no bot — gere o QR novamente no painel.' });
+    return;
+  }
+  res.json({
+    fase: sessao.fase,
+    telefone: sessao.telefone,
+    qrPresente: Boolean(sessao.qr),
+    qrGeradoEm: sessao.qrGeradoEm ? sessao.qrGeradoEm.toISOString() : null,
+    ultimoErro: sessao.ultimoErro,
+  });
+});
+
+// Verificação SEM falso positivo: conexão aberta + usuário autenticado + leitura
+// real dos grupos via protocolo (groupFetchAllParticipating).
+app.get('/sessao/:id/verify', async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao) {
+    res.status(404).json({ conectado: false, motivo: 'Sessão não encontrada no bot.' });
+    return;
+  }
+  try {
+    const usuario = sessao.socket.user;
+    const conectado = sessao.fase === 'vinculado' && Boolean(usuario && usuario.id);
+    let totalChats = 0;
+    if (conectado) {
+      const grupos = await sessao.socket.groupFetchAllParticipating();
+      totalChats = Object.keys(grupos || {}).length;
+    }
+    res.json({
+      conectado: conectado && totalChats >= 0 && usuario != null,
+      estado: conectado ? 'CONNECTED' : sessao.fase,
+      telefone: sessao.telefone,
+      totalChats,
+    });
+  } catch (erro) {
+    res.json({ conectado: false, estado: 'INDISPONIVEL', telefone: sessao.telefone, totalChats: 0, motivo: String((erro && erro.message) || erro).slice(0, 200) });
+  }
+});
+
+// Criação de grupo de avisos pela web (Comunidade oficial só no celular).
+app.get('/sessao/:id/criar-grupo', async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  const nome = String(req.query.nome || '').trim();
+  if (!sessao || sessao.fase !== 'vinculado') {
+    res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
+    return;
+  }
+  if (nome.length < 3 || nome.length > 80) {
+    res.status(400).json({ ok: false, motivo: 'Nome do grupo deve ter entre 3 e 80 caracteres.' });
+    return;
+  }
+  try {
+    const grupo = await sessao.socket.groupCreate(nome);
+    if (!grupo || !grupo.id) {
+      res.status(500).json({ ok: false, motivo: 'O WhatsApp não devolveu o identificador do grupo.' });
+      return;
+    }
+    await supabase
+      .from('bot_chats')
+      .upsert(
+        { sessao_id: sessao.id, chat_id: grupo.id, nome, tipo: 'grupo', total_admins: 1, total_participantes: 1, visto_em: agoraIso() },
+        { onConflict: 'sessao_id,chat_id' },
+      );
+    log('grupo', `Grupo "${nome}" criado por ${sessao.telefone} (${grupo.id})`);
+    res.json({ ok: true, chat_id: grupo.id, nome });
+  } catch (erro) {
+    res.status(500).json({ ok: false, motivo: String((erro && erro.message) || erro).slice(0, 200) });
+  }
+});
+
+// Força a sincronização de chats da sessão.
+app.get('/sessao/:id/sincronizar', async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao || sessao.fase !== 'vinculado') {
+    res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
+    return;
+  }
+  await sincronizarChats(sessao);
+  res.json({ ok: true });
+});
+
+// Compatibilidade (era do whatsapp-web.js): apenas sincroniza.
+app.get('/sessao/:id/recuperar', async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao || sessao.fase !== 'vinculado') {
+    res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
+    return;
+  }
+  await sincronizarChats(sessao);
+  res.json({ ok: true, clicado: 'n/a (Baileys)', sincronizou: true });
+});
 
 function paginaQr(sessao) {
   const pronto = sessao.fase === 'vinculado';
@@ -366,110 +492,6 @@ ${sessao.qr ? `<img src="/qr/${sessao.id}" alt="QR Code do WhatsApp"><p>QR gerad
 </div></body></html>`;
 }
 
-// O painel do console embute o QR e consulta o status direto daqui; CORS
-// liberado apenas para leitura dos endpoints de status/QR.
-app.use('/healthz', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/status', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/sessao', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/qr', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-
-app.get('/healthz', (_req, res) => {
-  res.json({ ok: true, sessoes: sessoes.size });
-});
-
-app.get('/status', (_req, res) => {
-  res.json({
-    sessoes: [...sessoes.values()].map((s) => ({
-      id: s.id, orgNome: s.orgNome, fase: s.fase, telefone: s.telefone, ultimoErro: s.ultimoErro,
-    })),
-  });
-});
-
-// Status de UMA sessão — o painel consulta durante o pareamento do QR.
-app.get('/sessao/:id/status', (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  if (!sessao) {
-    res.status(404).json({ fase: 'nao_encontrada', telefone: null, ultimoErro: 'Sessão não encontrada no bot — gere o QR novamente no painel.' });
-    return;
-  }
-  res.json({
-    fase: sessao.fase,
-    telefone: sessao.telefone,
-    qrPresente: Boolean(sessao.qr),
-    qrGeradoEm: sessao.qrGeradoEm ? sessao.qrGeradoEm.toISOString() : null,
-    ultimoErro: sessao.ultimoErro,
-  });
-});
-
-// Verificação de conexão SEM falso positivo: pergunta ao próprio WhatsApp
-// (getState) quantos chats a sessão enxerga de verdade.
-app.get('/sessao/:id/verify', async (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  if (!sessao) {
-    res.status(404).json({ conectado: false, motivo: 'Sessão não encontrada no bot.' });
-    return;
-  }
-  try {
-    const estado = await sessao.client.getState();
-    const chats = await sessao.client.getChats();
-    const conectado = estado === 'CONNECTED' && sessao.fase === 'vinculado';
-    res.json({
-      conectado,
-      estado,
-      telefone: sessao.telefone,
-      totalChats: chats.length,
-    });
-  } catch (erro) {
-    res.json({ conectado: false, estado: 'INDISPONIVEL', telefone: sessao.telefone, totalChats: 0, motivo: String((erro && erro.message) || erro).slice(0, 200) });
-  }
-});
-
-// Criação de grupo de avisos pela web (a biblioteca não cria Comunidades —
-// para Comunidade o assistente orienta a criação manual no celular).
-app.get('/sessao/:id/criar-grupo', async (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  const nome = String(req.query.nome || '').trim();
-  if (!sessao || sessao.fase !== 'vinculado') {
-    res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
-    return;
-  }
-  if (nome.length < 3 || nome.length > 80) {
-    res.status(400).json({ ok: false, motivo: 'Nome do grupo deve ter entre 3 e 80 caracteres.' });
-    return;
-  }
-  try {
-    const resultado = await sessao.client.createGroup(nome);
-    const chatId = resultado && resultado.gid
-      ? (resultado.gid._serialized || String(resultado.gid))
-      : (resultado && resultado.id ? resultado.id._serialized : null);
-    if (!chatId) {
-      res.status(500).json({ ok: false, motivo: 'WhatsApp não devolveu o identificador do grupo.' });
-      return;
-    }
-    await supabase
-      .from('bot_chats')
-      .upsert(
-        { sessao_id: sessao.id, chat_id: chatId, nome, tipo: 'grupo', total_admins: 1, total_participantes: 1, visto_em: agoraIso() },
-        { onConflict: 'sessao_id,chat_id' },
-      );
-    log('grupo', `Grupo "${nome}" criado por ${sessao.telefone} (${chatId})`);
-    res.json({ ok: true, chat_id: chatId, nome });
-  } catch (erro) {
-    res.status(500).json({ ok: false, motivo: String((erro && erro.message) || erro).slice(0, 200) });
-  }
-});
-
-// Força a sincronização de chats da sessão (usado após criar Comunidade no celular).
-app.get('/sessao/:id/sincronizar', async (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  if (!sessao || sessao.fase !== 'vinculado') {
-    res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
-    return;
-  }
-  await sincronizarChats(sessao);
-  res.json({ ok: true });
-});
-
 app.get('/qr/:id', async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || !sessao.qr) {
@@ -478,10 +500,10 @@ app.get('/qr/:id', async (req, res) => {
   }
   try {
     const dataUrl = await QRCode.toDataURL(sessao.qr, { margin: 1, width: 320 });
-    res.type('img/png');
     const base64 = dataUrl.split(',')[1];
+    res.type('img/png');
     res.end(Buffer.from(base64, 'base64'));
-  } catch (erro) {
+  } catch (_erro) {
     res.status(500).type('text').send('falha ao gerar QR');
   }
 });
@@ -500,7 +522,7 @@ app.get('/', (_req, res) => {
     <tr>
       <td>${s.orgNome}</td>
       <td>${s.telefone || '—'}</td>
-      <td>${s.fase}${s.ultimoErro ? ` <span class="erro">(${s.ultimoErro.slice(0, 60)})</span>` : ''}</td>
+      <td>${s.fase}${s.ultimoErro ? ` <span class="erro">(${String(s.ultimoErro).slice(0, 60)})</span>` : ''}</td>
       <td>${s.fase === 'vinculado' ? '✅' : `<a href="/sessao/${s.id}">abrir QR</a>`}</td>
     </tr>`).join('');
   const corpo = `<!doctype html>
@@ -518,13 +540,12 @@ app.get('/', (_req, res) => {
   p{font-size:13px;color:#94a3b8}
 </style></head><body>
 <h1>TCS — Números vinculados ao bot</h1>
-<p>Números são vinculados no painel do portal municipal (Comunicados → Números do bot). Número banido: marque como banido no painel e vincule outro.</p>
+<p>Números são vinculados no painel (Comunicados → Números do bot). Número banido: marque como banido no painel e vincule outro.</p>
 <table><tr><th>Prefeitura</th><th>Número</th><th>Estado</th><th>QR</th></tr>${linhas || '<tr><td colspan="4">Nenhum número emparelhando — comece pelo painel.</td></tr>'}</table>
 </body></html>`;
   res.type('html').send(corpo);
 });
 
-// Ciclos: descobrir/encerrar sessões, consumir fila, sincronizar chats.
 setInterval(() => {
   gerenciarSessoes().catch((erro) => log('sessoes', 'Erro no ciclo de sessões', erro));
 }, POLL_MS);

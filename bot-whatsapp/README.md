@@ -1,10 +1,12 @@
 # TCS — Bot WhatsApp (externo, opcional)
 
 Componente isolado que dispara comunicados do TCS em grupos e em grupos de
-anúncios de Comunidades do WhatsApp, com tela de **QR Code** para vincular a
-conta que envia. **Decisão e riscos registrados em
-`docs/decisions/bot-whatsapp-externo.md`** (banimento do número é aceito pelo
-dono do produto: número caiu → apague `./sessao` → re-escaneie com outro).
+anúncios de Comunidades do WhatsApp, com **QR Code** para vincular cada número
+por prefeitura. Núcleo em **Baileys** (protocolo direto do WhatsApp, sem
+navegador) — migramos do whatsapp-web.js, que quebrou com a atualização do
+WhatsApp Web (falha de injeção `Store`). **Decisão e riscos registrados em
+`docs/decisions/bot-whatsapp-externo.md`** (banimento aceito pelo dono:
+número caiu → marque banido no painel → vincule outro).
 
 O TCS **não depende** deste bot: o comunicado oficial continua publicado no
 app/portal, e o disparo assistido (copiar/abrir/colar) segue disponível no
@@ -12,13 +14,14 @@ painel como contingência.
 
 ## Como funciona
 
-1. O painel (portal municipal → Comunicados) enfileira disparos em
-   `canal_envios` com status `pendente` (botão "Disparar pelo bot").
+1. O painel (console `/app/comunicacoes` ou portal municipal) enfileira
+   disparos em `canal_envios` com status `pendente` (botão "Disparar pelo bot").
 2. Este bot consome a fila e envia a mensagem formatada no chat vinculado a
    cada comunidade, gravando `enviado` ou `falhou` (com erro) — mesma tabela de
-   auditoria do envio manual.
-3. O bot também sincroniza os grupos que a conta enxerga para `bot_chats`;
-   no painel, cada comunidade registrada é vinculada ao chat correspondente.
+   auditoria do envio manual, com trilha de fallback entre números.
+3. O bot sincroniza os grupos que cada número enxerga (com contagem de
+   admins/membros) para `bot_chats`; no painel, cada comunidade é vinculada ao
+   chat correspondente. Sessões ficam em `./sessao-wa/<id>` (não versione).
 
 ## Requisitos
 
