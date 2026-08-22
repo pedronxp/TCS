@@ -424,7 +424,7 @@ app.get('/sessao/:id/criar-grupo', async (req, res) => {
     return;
   }
   try {
-    const grupo = await sessao.socket.groupCreate(nome);
+    const grupo = await sessao.socket.groupCreate(nome, []);
     if (!grupo || !grupo.id) {
       res.status(500).json({ ok: false, motivo: 'O WhatsApp não devolveu o identificador do grupo.' });
       return;
