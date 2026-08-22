@@ -78,6 +78,7 @@ export function ConsoleComunicadoOrgPage() {
     severidade: 'informacao',
     publicarEm: '',
   });
+  const [comunidadeDestino, setComunidadeDestino] = useState('');
 
   const orgQuery = useQuery({
     queryKey: ['console', 'comunicados', 'org', orgId],
@@ -140,6 +141,31 @@ export function ConsoleComunicadoOrgPage() {
     [org],
   );
 
+  // Comunidades reais detectadas pelo bot (grupos com pai no protocolo).
+  const comunidades = useMemo(() => {
+    if (!org) return [] as Array<{ id: string; nome: string }>;
+    const mapa = new Map<string, string>();
+    for (const chat of org.chats) {
+      if (chat.comunidadeId && chat.comunidadeNome) mapa.set(chat.comunidadeId, chat.comunidadeNome);
+    }
+    return [...mapa.entries()].map(([id, nome]) => ({ id, nome }));
+  }, [org]);
+
+  const chatsPorComunidade = useMemo(() => {
+    const dentro = new Map<string, NonNullable<typeof org>['chats']>();
+    const avulsos: Array<NonNullable<typeof org>['chats'][number]> = [];
+    for (const chat of org?.chats ?? []) {
+      if (chat.comunidadeId) {
+        const atual = dentro.get(chat.comunidadeId) ?? [];
+        atual.push(chat);
+        dentro.set(chat.comunidadeId, atual);
+      } else {
+        avulsos.push(chat);
+      }
+    }
+    return { dentro, avulsos };
+  }, [org]);
+
   useEffect(() => {
     if (!wizard) return;
     if (wizard.etapa === 'qr' && botStatus?.fase === 'vinculado') {
@@ -180,16 +206,17 @@ export function ConsoleComunicadoOrgPage() {
     onError: (error: Error) => setErrorMessage(error.message),
   });
 
-  // Criação via web: grupo de avisos criado pelo bot e já registrado como comunidade.
+  // Criação via web: grupo criado pelo bot — dentro da Comunidade quando o
+  // protocolo suporta; senão o bot devolve orientação para criar no celular.
   const criarGrupoMutation = useMutation({
     mutationFn: async () => {
       const nome = `Comunicados ${org?.organization.name ?? ''}`.trim().slice(0, 80);
-      const chatId = await criarGrupoPeloBot(wizard?.sessaoId as string, nome);
+      const chatId = await criarGrupoPeloBot(wizard?.sessaoId as string, nome, comunidadeDestino || null);
       const canalId = await salvarCanalConsole(orgId as string, nome);
       if (chatId) await vincularCanalChatConsole(canalId, chatId);
     },
     onSuccess: async () => {
-      setStatusMessage('Grupo de avisos criado pelo bot e vinculado como comunidade.');
+      setStatusMessage('Grupo criado pelo bot e vinculado como comunidade.');
       await invalidate();
       if (wizard) setWizard({ ...wizard, etapa: 'pronto' });
     },
@@ -405,8 +432,25 @@ export function ConsoleComunicadoOrgPage() {
                         <div className="rounded-md border p-2">
                           <p className="font-semibold">Opção A — criar pela web agora (grupo de avisos)</p>
                           <p className="mt-1 text-muted-foreground">
-                            O bot cria o grupo <b>“Comunicados {org?.organization.name}</b>”, o número vinculado fica admin dele e já cadastramos como comunidade pronta para disparar. Ideal para começar hoje.
+                            O bot cria o grupo <b>“Comunicados {org?.organization.name}”</b>, o número vinculado fica admin dele e já cadastramos como comunidade pronta para disparar.
+                            {comunidades.length > 0 && ' Quando a Comunidade suportar, o grupo nasce dentro dela.'}
                           </p>
+                          {comunidades.length > 0 && (
+                            <label className="mt-2 block text-xs text-muted-foreground">
+                              Criar dentro da comunidade
+                              <select
+                                className="mt-1 h-9 w-full rounded-md border bg-card px-2 text-xs"
+                                value={comunidadeDestino}
+                                onChange={(event) => setComunidadeDestino(event.target.value)}
+                                aria-label="Comunidade de destino do novo grupo"
+                              >
+                                <option value="">Grupo avulso (fora de comunidade)</option>
+                                {comunidades.map((comunidade) => (
+                                  <option key={comunidade.id} value={comunidade.id}>{comunidade.nome}</option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
                           <Button size="sm" className="mt-2" disabled={criarGrupoMutation.isPending} onClick={() => criarGrupoMutation.mutate()}>
                             <Smartphone />
                             Criar grupo de avisos pelo bot
@@ -447,11 +491,20 @@ export function ConsoleComunicadoOrgPage() {
                                 aria-label="Chat da comunidade criada no celular"
                               >
                                 <option value="">Selecionar o grupo de anúncios da comunidade…</option>
-                                {org.chats.map((chat) => (
-                                  <option key={chat.chatId} value={chat.chatId}>
-                                    {chat.nome} (nº {chat.sessaoTelefone ?? '—'})
-                                  </option>
+                                {comunidades.map((comunidade) => (
+                                  <optgroup key={comunidade.id} label={`Comunidade: ${comunidade.nome}`}>
+                                    {(chatsPorComunidade.dentro.get(comunidade.id) ?? []).map((item) => (
+                                      <option key={item.chatId} value={item.chatId}>{item.nome}</option>
+                                    ))}
+                                  </optgroup>
                                 ))}
+                                {chatsPorComunidade.avulsos.length > 0 && (
+                                  <optgroup label="Grupos avulsos">
+                                    {chatsPorComunidade.avulsos.map((item) => (
+                                      <option key={item.chatId} value={item.chatId}>{item.nome}</option>
+                                    ))}
+                                  </optgroup>
+                                )}
                               </select>
                               <Button type="submit" size="sm" disabled={vincularManualMutation.isPending || !chatManual || nomeComunidadeManual.trim().length < 3}>
                                 Cadastrar e vincular
@@ -538,24 +591,37 @@ export function ConsoleComunicadoOrgPage() {
                             ? <Badge variant="success">{chat.totalAdmins} admin{chat.totalAdmins === 1 ? '' : 's'} · {chat.totalParticipantes} membros</Badge>
                             : <Badge variant="warning">Sem chat</Badge>}
                         </div>
-                        <label className="mt-1 block text-xs text-muted-foreground">
-                          Chat do bot
-                          <select
-                            className="mt-1 h-9 w-full rounded-md border bg-card px-2 text-xs"
-                            value={canal.chatId ?? ''}
-                            aria-label={`Chat vinculado à comunidade ${canal.nome}`}
-                            onChange={(event) => chatVincularMutation.mutate({ canalId: canal.id, chatId: event.target.value || null })}
-                          >
-                            <option value="">
-                              {org.chats.length === 0 ? 'Nenhum chat sincronizado' : 'Selecionar chat…'}
-                            </option>
-                            {org.chats.map((item) => (
-                              <option key={item.chatId} value={item.chatId}>
-                                {item.nome} (nº {item.sessaoTelefone ?? '—'} · {item.totalAdmins} admin{item.totalAdmins === 1 ? '' : 's'} · {item.totalParticipantes} membros)
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                      <label className="mt-1 block text-xs text-muted-foreground">
+                        Chat do bot
+                        <select
+                          className="mt-1 h-9 w-full rounded-md border bg-card px-2 text-xs"
+                          value={canal.chatId ?? ''}
+                          aria-label={`Chat vinculado à comunidade ${canal.nome}`}
+                          onChange={(event) => chatVincularMutation.mutate({ canalId: canal.id, chatId: event.target.value || null })}
+                        >
+                          <option value="">
+                            {org.chats.length === 0 ? 'Nenhum chat sincronizado' : 'Selecionar chat…'}
+                          </option>
+                          {comunidades.map((comunidade) => (
+                            <optgroup key={comunidade.id} label={`Comunidade: ${comunidade.nome}`}>
+                              {(chatsPorComunidade.dentro.get(comunidade.id) ?? []).map((item) => (
+                                <option key={item.chatId} value={item.chatId}>
+                                  {item.nome} ({item.totalAdmins} admin{item.totalAdmins === 1 ? '' : 's'} · {item.totalParticipantes} membros)
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          {chatsPorComunidade.avulsos.length > 0 && (
+                            <optgroup label="Grupos avulsos">
+                              {chatsPorComunidade.avulsos.map((item) => (
+                                <option key={item.chatId} value={item.chatId}>
+                                  {item.nome} ({item.totalAdmins} admin{item.totalAdmins === 1 ? '' : 's'} · {item.totalParticipantes} membros)
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                      </label>
                       </li>
                     );
                   })}

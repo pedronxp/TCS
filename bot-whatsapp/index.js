@@ -90,9 +90,12 @@ async function sincronizarChats(sessao, tentativa = 1) {
   try {
     const grupos = await sessao.socket.groupFetchAllParticipating();
     const lista = Object.values(grupos || {});
+    // Hierarquia Comunidade -> grupos: o protocolo marca o grupo pai (linkedParent).
+    const nomes = new Map(lista.map((g) => [g.id, g.subject || g.id]));
     for (const grupo of lista) {
       const participantes = Array.isArray(grupo.participants) ? grupo.participants : [];
       const totalAdmins = participantes.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').length;
+      const comunidadeId = grupo.linkedParent || null;
       await supabase
         .from('bot_chats')
         .upsert(
@@ -101,6 +104,8 @@ async function sincronizarChats(sessao, tentativa = 1) {
             chat_id: grupo.id,
             nome: grupo.subject || grupo.id,
             tipo: 'grupo',
+            comunidade_id: comunidadeId,
+            comunidade_nome: comunidadeId ? (nomes.get(comunidadeId) || 'Comunidade WhatsApp') : null,
             total_admins: totalAdmins,
             total_participantes: participantes.length,
             visto_em: agoraIso(),
@@ -108,7 +113,8 @@ async function sincronizarChats(sessao, tentativa = 1) {
           { onConflict: 'sessao_id,chat_id' },
         );
     }
-    log('chats', `${sessao.orgNome} · ${sessao.telefone || sessao.id.slice(0, 8)}: ${lista.length} grupos sincronizados`);
+    const comunidades = new Set(lista.map((g) => g.linkedParent).filter(Boolean));
+    log('chats', `${sessao.orgNome} · ${sessao.telefone || sessao.id.slice(0, 8)}: ${lista.length} grupos sincronizados (${comunidades.size} comunidade(s))`);
   } catch (erro) {
     log('chats', `Falha ao sincronizar chats da sessao ${sessao.id} (tentativa ${tentativa})`, erro);
     if (tentativa < 3) {
@@ -411,10 +417,13 @@ app.get('/sessao/:id/verify', async (req, res) => {
   }
 });
 
-// Criação de grupo de avisos pela web (Comunidade oficial só no celular).
+// Criação de grupo pela web. Com ?comunidade=<jid> tenta criar DENTRO da
+// Comunidade; se a biblioteca não suportar sub-grupo, devolve orientação
+// clara para criar no celular (Comunidade → Novo grupo) e sincronizar.
 app.get('/sessao/:id/criar-grupo', async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   const nome = String(req.query.nome || '').trim();
+  const comunidade = String(req.query.comunidade || '').trim();
   if (!sessao || sessao.fase !== 'vinculado') {
     res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
     return;
@@ -424,7 +433,22 @@ app.get('/sessao/:id/criar-grupo', async (req, res) => {
     return;
   }
   try {
-    const grupo = await sessao.socket.groupCreate(nome, []);
+    let grupo = null;
+    if (comunidade) {
+      // groupCreate(title, participants, parentNodeId?) — suporte a sub-grupo
+      // de Comunidade varia por versão; detectamos pela assinatura.
+      if (typeof sessao.socket.groupCreate === 'function' && sessao.socket.groupCreate.length >= 3) {
+        grupo = await sessao.socket.groupCreate(nome, [], comunidade);
+      } else {
+        res.status(501).json({
+          ok: false,
+          motivo: 'Criar grupo dentro da Comunidade não é suportado nesta versão da biblioteca. Crie no celular (Comunidade → Novo grupo), depois use "Já criei — sincronizar agora" e selecione o grupo.',
+        });
+        return;
+      }
+    } else {
+      grupo = await sessao.socket.groupCreate(nome, []);
+    }
     if (!grupo || !grupo.id) {
       res.status(500).json({ ok: false, motivo: 'O WhatsApp não devolveu o identificador do grupo.' });
       return;
@@ -432,10 +456,20 @@ app.get('/sessao/:id/criar-grupo', async (req, res) => {
     await supabase
       .from('bot_chats')
       .upsert(
-        { sessao_id: sessao.id, chat_id: grupo.id, nome, tipo: 'grupo', total_admins: 1, total_participantes: 1, visto_em: agoraIso() },
+        {
+          sessao_id: sessao.id,
+          chat_id: grupo.id,
+          nome,
+          tipo: 'grupo',
+          comunidade_id: comunidade || null,
+          comunidade_nome: comunidade ? 'Comunidade WhatsApp' : null,
+          total_admins: 1,
+          total_participantes: 1,
+          visto_em: agoraIso(),
+        },
         { onConflict: 'sessao_id,chat_id' },
       );
-    log('grupo', `Grupo "${nome}" criado por ${sessao.telefone} (${grupo.id})`);
+    log('grupo', `Grupo "${nome}" criado por ${sessao.telefone} (${grupo.id})${comunidade ? ` na comunidade ${comunidade}` : ''}`);
     res.json({ ok: true, chat_id: grupo.id, nome });
   } catch (erro) {
     res.status(500).json({ ok: false, motivo: String((erro && erro.message) || erro).slice(0, 200) });

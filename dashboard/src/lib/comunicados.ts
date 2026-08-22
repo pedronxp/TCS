@@ -85,11 +85,14 @@ export async function fetchBotVerificacao(sessaoId: string): Promise<BotVerifica
   }
 }
 
-// Cria um grupo de avisos pela web (o número vinculado passa a ser admin dele).
-export async function criarGrupoPeloBot(sessaoId: string, nome: string): Promise<string | null> {
+// Cria um grupo pela web; com comunidadeId tenta criar DENTRO da Comunidade
+// (o bot responde 501 com orientação quando a versão não suportar sub-grupo).
+export async function criarGrupoPeloBot(sessaoId: string, nome: string, comunidadeId?: string | null): Promise<string | null> {
   try {
+    const params = new URLSearchParams({ nome });
+    if (comunidadeId) params.set('comunidade', comunidadeId);
     const resposta = await fetchComTimeout(
-      `${BOT_WHATSAPP_URL}/sessao/${sessaoId}/criar-grupo?nome=${encodeURIComponent(nome)}`,
+      `${BOT_WHATSAPP_URL}/sessao/${sessaoId}/criar-grupo?${params.toString()}`,
       30_000,
     );
     const dados = record(await resposta.json());
@@ -183,6 +186,8 @@ export interface BotChat {
   chatId: string;
   nome: string;
   tipo: string;
+  comunidadeId: string | null;
+  comunidadeNome: string | null;
   sessaoTelefone: string | null;
   totalAdmins: number;
   totalParticipantes: number;
@@ -317,6 +322,8 @@ function parseBotChat(value: unknown): BotChat | null {
     chatId: source.chat_id as string,
     nome: source.nome as string,
     tipo: string(source.tipo) ?? 'grupo',
+    comunidadeId: string(source.comunidade_id),
+    comunidadeNome: string(source.comunidade_nome),
     sessaoTelefone: string(source.sessao_telefone),
     totalAdmins: typeof source.total_admins === 'number' ? source.total_admins : 0,
     totalParticipantes: typeof source.total_participantes === 'number' ? source.total_participantes : 0,
