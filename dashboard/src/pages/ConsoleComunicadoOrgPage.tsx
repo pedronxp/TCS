@@ -79,6 +79,8 @@ export function ConsoleComunicadoOrgPage() {
     publicarEm: '',
   });
   const [comunidadeDestino, setComunidadeDestino] = useState('');
+  const [destinoCanal, setDestinoCanal] = useState('');
+  const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
 
   const orgQuery = useQuery({
     queryKey: ['console', 'comunicados', 'org', orgId],
@@ -268,7 +270,18 @@ export function ConsoleComunicadoOrgPage() {
       });
       if (modo === 'publicar') {
         await definirStatusComunicadoConsole(comunicadoId, 'publicado');
-        setStatusMessage('Mensagem publicada — use "Disparar pelo bot" abaixo para enviar às comunidades.');
+        let extras = 'Mensagem publicada no app e portal.';
+        if (enviarAposPublicar) {
+          try {
+            const total = await dispararBotConsole(comunicadoId, destinoCanal || undefined);
+            extras += total > 0
+              ? ` ${total} disparo${total === 1 ? '' : 's'} na fila do bot.`
+              : ' Nenhuma comunidade ativa com chat vinculado para o WhatsApp.';
+          } catch (erroDisparo) {
+            extras += ` Disparo não entrou na fila: ${erroDisparo instanceof Error ? erroDisparo.message : 'erro desconhecido'}.`;
+          }
+        }
+        setStatusMessage(extras);
       } else if (modo === 'agendar') {
         await definirStatusComunicadoConsole(comunicadoId, 'agendado', publicarIso);
         setStatusMessage(`Mensagem agendada para ${formatDate(publicarIso) ?? 'a data informada'}.`);
@@ -679,13 +692,47 @@ export function ConsoleComunicadoOrgPage() {
                       onChange={(event) => setRascunho((atual) => ({ ...atual, publicarEm: event.target.value }))}
                     />
                   </label>
+                  <label className="block text-sm font-medium">
+                    Destino no WhatsApp
+                    <select
+                      className="mt-1.5 h-11 w-full rounded-md border bg-card px-3 text-sm"
+                      value={destinoCanal}
+                      onChange={(event) => setDestinoCanal(event.target.value)}
+                      aria-label="Comunidade ou grupo de destino no WhatsApp"
+                    >
+                      <option value="">
+                        Todas as comunidades ativas ({org.canais.filter((canal) => canal.ativo && canal.chatId).length})
+                      </option>
+                      {org.canais.filter((canal) => canal.ativo && canal.chatId).map((canal) => {
+                        const chat = org.chats.find((item) => item.chatId === canal.chatId);
+                        return (
+                          <option key={canal.id} value={canal.id}>
+                            {canal.nome}{chat?.comunidadeNome ? ` · Comunidade: ${chat.comunidadeNome}` : ''}{chat ? ` (grupo: ${chat.nome})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+                  {org.canais.filter((canal) => canal.ativo && canal.chatId).length === 0 && (
+                    <p className="text-xs text-warning">
+                      Nenhuma comunidade com chat vinculado: a mensagem sai no app/portal; vincule a comunidade no cartão ao lado para o WhatsApp.
+                    </p>
+                  )}
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={enviarAposPublicar}
+                      onChange={(event) => setEnviarAposPublicar(event.target.checked)}
+                    />
+                    Disparar pelo bot ao publicar
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     <Button type="submit" variant="outline">Salvar rascunho</Button>
                     <Button type="button" onClick={() => void enviarMensagem('publicar')}>Publicar agora</Button>
                     <Button type="button" variant="outline" onClick={() => void enviarMensagem('agendar')}>Agendar</Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Publicada, a mensagem vai ao app e portal na hora; nas comunidades WhatsApp use "Disparar pelo bot" na lista abaixo.
+                    No app e portal a mensagem vai para todo o município; no WhatsApp, para o destino escolhido acima.
                   </p>
                 </form>
               </CardContent>
