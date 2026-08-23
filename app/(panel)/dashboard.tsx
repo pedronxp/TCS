@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { countAgendamentosPendentesAgente, getTrainingVistoriasByAgente } from '../../utils/database';
+import { countAgendamentosPendentesAgente } from '../../utils/database';
 import { verificarLaudosExpirando } from '../../utils/laudoExpiracaoNotif';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
@@ -25,7 +25,7 @@ const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'jul
 export default function DashboardScreen() {
   const { theme } = useTheme();
   const bottomPadding = useBottomTabPadding();
-  const { profile, loading: authLoading, localTestMode } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const { isTrainingActive } = useTraining();
   const { isConnected, isOnlineReal } = useConnectivity();
   const { context: subscriptionContext } = useSubscription();
@@ -39,18 +39,6 @@ export default function DashboardScreen() {
   const dateLabel = useMemo(() => {
     const today = new Date();
     return `${WEEKDAYS[today.getDay()]}, ${today.getDate()} de ${MONTHS[today.getMonth()]}`;
-  }, []);
-
-  const loadLocalMetrics = useCallback((uid: string) => {
-    const inspections = getTrainingVistoriasByAgente(uid);
-    const today = new Date().toISOString().slice(0, 10);
-    setMetrics({
-      today: inspections.filter(item => item.data_vistoria?.startsWith(today)).length,
-      attention: inspections.filter(item => ['r3', 'r4'].includes(item.nivel_risco)).length,
-      total: inspections.length,
-    });
-    setMetricsLoading(false);
-    setPendingAppointments(0);
   }, []);
 
   const fetchMetrics = useCallback(async (uid: string) => {
@@ -84,26 +72,17 @@ export default function DashboardScreen() {
     if (profile.role === 'owner') { router.replace('/(panel)/master'); return; }
     if (profile.role === 'admin') { router.replace('/(panel)/admin'); return; }
     if (profile.role === 'supervisor') { router.replace('/(panel)/supervisor'); return; }
-    if (localTestMode) {
-      loadLocalMetrics(profile.uid);
-      return;
-    }
     setPendingAppointments(countAgendamentosPendentesAgente(profile.uid));
     verificarLaudosExpirando().catch(() => null);
     if (Date.now() - cacheTimestamp.current >= 60_000 && isOnlineReal) fetchMetrics(profile.uid);
-  }, [fetchMetrics, isOnlineReal, isTrainingActive, loadLocalMetrics, localTestMode, profile]);
+  }, [fetchMetrics, isOnlineReal, isTrainingActive, profile]);
 
   const onRefresh = useCallback(() => {
     if (!profile) return;
     setRefreshing(true);
-    if (localTestMode) {
-      loadLocalMetrics(profile.uid);
-      setRefreshing(false);
-      return;
-    }
     cacheTimestamp.current = 0;
     fetchMetrics(profile.uid);
-  }, [fetchMetrics, loadLocalMetrics, localTestMode, profile]);
+  }, [fetchMetrics, profile]);
 
   if (authLoading || isTrainingActive) {
     return (
@@ -167,9 +146,7 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {localTestMode ? (
-          <StateBanner title="Ambiente local de testes" description="Os dados desta sessão ficam somente neste aparelho." variant="info" />
-        ) : !isConnected ? (
+        {!isConnected ? (
           <StateBanner title="Modo offline ativo" description="Você pode criar vistorias normalmente. A sincronização retorna com a conexão." variant="warning" />
         ) : null}
 

@@ -37,6 +37,7 @@ import {
   AppHeader,
   Badge,
   Button,
+  ErrorState,
   ListRow,
   LoadingState,
   SectionHeader,
@@ -92,17 +93,17 @@ async function resolverMidias(vistoria: any): Promise<any> {
 
 export default function ResultadoScreen() {
   const { id, formularioId: formularioIdParam, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam, treinamento } = useLocalSearchParams<{
-    id: string; formularioId?: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string; testeLocal?: string;
+    id: string; formularioId?: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string;
   }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
-  const { profile, localTestMode } = useAuth();
+  const { profile } = useAuth();
   const { trainingProfile, isTrainingActive, isExpired, exit, revalidate, loading: trainingLoading } = useTraining();
   const activeProfile = trainingProfile || profile;
   const requestedTrainingMode = treinamento === '1' || (isTrainingActive && !!trainingProfile);
   const formalTrainingMode = requestedTrainingMode && isTrainingActive && !!trainingProfile;
-  const isolatedMode = localTestMode || formalTrainingMode;
+  const isolatedMode = formalTrainingMode;
   const { isOnlineReal: isConnected } = useConnectivity();
   const { initReport } = useReport();
   const mountedRef = useRef(true);
@@ -135,7 +136,7 @@ export default function ResultadoScreen() {
     mountedRef.current = true;
     loadDados();
     return () => { mountedRef.current = false; };
-  }, [id, requestedTrainingMode, trainingLoading, localTestMode, profile?.uid]);
+  }, [id, requestedTrainingMode, trainingLoading, profile?.uid]);
 
   const refreshAcknowledgementHistory = useCallback(() => {
     if (!vistoria?.id) {
@@ -172,7 +173,7 @@ export default function ResultadoScreen() {
 
   const refreshEvidenceMedia = useCallback(async () => {
     if (!id) return;
-    const localOwnerUid = localTestMode ? profile?.uid : trainingProfile?.uid;
+    const localOwnerUid = trainingProfile?.uid;
     const local = isolatedMode && localOwnerUid
       ? getTrainingVistoriaById(id as string, localOwnerUid)
       : getOfficialVistoriaById(id as string);
@@ -184,7 +185,7 @@ export default function ResultadoScreen() {
       fotosUrls: refreshed.fotosUrls,
     } : refreshed);
     populateReport(refreshed, refreshed.agenteNome || activeProfile?.name || '—');
-  }, [id, isolatedMode, localTestMode, profile?.uid, trainingProfile?.uid, activeProfile?.name]);
+  }, [id, isolatedMode, trainingProfile?.uid, activeProfile?.name]);
 
   useFocusEffect(useCallback(() => {
     refreshAcknowledgementHistory();
@@ -193,21 +194,6 @@ export default function ResultadoScreen() {
 
   const loadDados = async () => {
     try {
-      if (localTestMode) {
-        if (!profile?.uid) return;
-        const local = getTrainingVistoriaById(id as string, profile.uid);
-        if (!local) {
-          Alert.alert('Vistoria não encontrada', 'Esta vistoria de teste não está salva neste aparelho.');
-          router.replace('/(panel)/inspecoes');
-          return;
-        }
-        const norm = normalizar(local);
-        setVistoria(norm);
-        populateReport(norm, profile.name || 'Sistema');
-        prefillTermoForm(norm);
-        return;
-      }
-
       if (requestedTrainingMode) {
         if (!trainingProfile || !isTrainingActive || isExpired() || !(await revalidate())) {
           await exit();
@@ -266,44 +252,11 @@ export default function ResultadoScreen() {
         return;
       }
 
-      // 3. Fallback mínimo: usar params da navegação
-      if (nivelParam) {
-        const norm = normalizar({
-          id,
-          nivelRisco: nivelParam,
-          pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
-          formularioId: formularioIdParam,
-          agenteNome: activeProfile?.name,
-          municipio: municipioParam || activeProfile?.municipio,
-        });
-        setVistoria(norm);
-        populateReport(norm, activeProfile?.name || '—');
-        prefillTermoForm(norm);
-      }
     } catch {
-      if (localTestMode) {
-        Alert.alert('Falha ao abrir vistoria', 'Não foi possível abrir esta vistoria de teste local.');
-        router.replace('/(panel)/inspecoes');
-        return;
-      }
       if (requestedTrainingMode) {
         Alert.alert('Falha ao abrir vistoria', 'Nao foi possivel abrir esta vistoria de treinamento.');
         router.replace('/(panel)/treinamento');
         return;
-      }
-      // Usar params da navegação como fallback silencioso
-      if (nivelParam) {
-        const norm = normalizar({
-          id,
-          nivelRisco: nivelParam,
-          pontuacaoTotal: parseFloat(pontuacaoParam || '0') || 0,
-          formularioId: formularioIdParam,
-          agenteNome: activeProfile?.name,
-          municipio: municipioParam || activeProfile?.municipio,
-        });
-        setVistoria(norm);
-        populateReport(norm, activeProfile?.name || '—');
-        prefillTermoForm(norm);
       }
     } finally {
       setLoading(false);
@@ -683,6 +636,21 @@ export default function ResultadoScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <LoadingState message="Preparando o resultado da vistoria..." />
+      </View>
+    );
+  }
+
+  if (!vistoria) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ErrorState
+          title="Não foi possível abrir a vistoria"
+          message="O registro não foi encontrado no servidor nem no armazenamento offline deste aparelho."
+          onRetry={() => {
+            setLoading(true);
+            void loadDados();
+          }}
+        />
       </View>
     );
   }

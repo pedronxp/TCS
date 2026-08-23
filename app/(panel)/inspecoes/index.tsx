@@ -36,10 +36,9 @@ interface InspecaoCardProps {
   theme: any;
   onDeleteLocal: (item: VistoriaLocal) => void;
   trainingMode?: boolean;
-  localTestMode?: boolean;
 }
 
-const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = false, localTestMode = false }: InspecaoCardProps) => {
+const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = false }: InspecaoCardProps) => {
   const apresentacao = resolverApresentacaoRisco({
     formularioId: item.formulario_id,
     pontuacao: item.pontuacao_total,
@@ -69,8 +68,7 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
           formularioId: item.formulario_id,
           pontuacao: String(item.pontuacao_total ?? 0),
           municipio: item.municipio,
-          treinamento: localTestMode ? '0' : '1',
-          testeLocal: localTestMode ? '1' : '0',
+          treinamento: '1',
         },
       })
     : router.push(`/(panel)/inspecoes/${item.id}`);
@@ -129,11 +127,11 @@ export default function InspecoesListScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
   const { isOnlineReal: isConnected } = useConnectivity();
-  const { profile, localTestMode } = useAuth();
+  const { profile } = useAuth();
   const { trainingProfile, isTrainingActive } = useTraining();
   const activeProfile = trainingProfile || profile;
   const formalTrainingMode = isTrainingActive && !!trainingProfile;
-  const isolatedMode = localTestMode || formalTrainingMode;
+  const isolatedMode = formalTrainingMode;
   const [loading, setLoading] = useState(true);
   const [vistorias, setVistorias] = useState<VistoriaLocal[]>([]);
   const [pendentesCount, setPendentesCount] = useState(0);
@@ -291,15 +289,15 @@ export default function InspecoesListScreen() {
   }, [filter, query, vistorias]);
 
   const renderItem = useCallback(({ item }: { item: VistoriaLocal }) => (
-    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={isolatedMode} localTestMode={localTestMode} />
-  ), [theme, handleDeleteLocal, isolatedMode, localTestMode]);
+    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={isolatedMode} />
+  ), [theme, handleDeleteLocal, isolatedMode]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <AppHeader
         title="Vistorias"
         subtitle={isolatedMode
-          ? localTestMode ? 'Histórico local de testes' : 'Histórico do treinamento'
+          ? 'Histórico do treinamento'
           : `${vistorias.length} registro${vistorias.length === 1 ? '' : 's'} na operação`}
         onBack={() => safeBack('/(panel)')}
         actionIcon="plus"

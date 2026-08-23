@@ -50,8 +50,7 @@ function PanelContent() {
   const { isLocked } = useSessionGuard();
   const { isOnlineReal } = useConnectivity();
   const { isTrainingActive } = useTraining();
-  const { localTestMode } = useAuth();
-  const isolatedMode = isTrainingActive || localTestMode;
+  const isolatedMode = isTrainingActive;
   const prevConnected = useRef(false);
 
   // Guarda de rota por papel — executado a cada mudança de segmento

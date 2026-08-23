@@ -4,7 +4,6 @@ import {
   Alert, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { localTestDraftKey } from '../../../services/LocalTestDataService';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -135,11 +134,11 @@ export default function WizardAvaliacaoScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { isOnlineReal: isConnected } = useConnectivity();
-  const { profile, localTestMode } = useAuth();
+  const { profile } = useAuth();
   const { session: trainingSession, trainingProfile, isTrainingActive, isExpired, exit, revalidate } = useTraining();
   const activeProfile = trainingProfile || profile;
   const formalTrainingMode = isTrainingActive && !!trainingProfile;
-  const isolatedMode = localTestMode || formalTrainingMode;
+  const isolatedMode = formalTrainingMode;
 
   const [perguntas, setPerguntas] = useState<PerguntaModel[]>([]);
   const [step, setStep] = useState(0); // índice da pergunta atual
@@ -149,9 +148,7 @@ export default function WizardAvaliacaoScreen() {
   const [limites, setLimites] = useState<LimiteRisco[]>([]);
   const [tipoCalculo, setTipoCalculo] = useState<string>('soma_total');
   const [faseConfigs, setFaseConfigs] = useState<{id: string; peso: number}[]>([]);
-  const draftKey = localTestMode && profile?.uid
-    ? localTestDraftKey(profile.uid, String(params.formularioId), String(params.formularioVersao || '1'))
-    : `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
+  const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const riscoAnim = useRef(new Animated.Value(0)).current;
 
@@ -567,7 +564,7 @@ export default function WizardAvaliacaoScreen() {
       // 1. Salvar localmente primeiro (garante zero perda de dados)
       if (isolatedMode) insertTrainingVistoria(vistoriaLocal);
       else insertVistoria(vistoriaLocal);
-      logger.info('vistoria', isolatedMode ? `Vistoria de teste salva somente no aparelho - nível ${nivel}` : `Vistoria salva localmente - nível ${nivel}`, {
+      logger.info('vistoria', isolatedMode ? `Vistoria de treinamento salva somente no aparelho - nível ${nivel}` : `Vistoria salva localmente - nível ${nivel}`, {
         id,
         endereco: `${params.rua}, ${params.numero}`,
         pontuacao,
@@ -644,7 +641,7 @@ export default function WizardAvaliacaoScreen() {
           logger.warn('sync', `Falha no sync imediato — ficará pendente`, { id, erro: error.message });
         }
       } else {
-        logger.info('vistoria', isolatedMode ? `Modo de teste - vistoria mantida somente no aparelho` : `Offline - vistoria ficará pendente de sincronização`, { id });
+        logger.info('vistoria', isolatedMode ? `Treinamento - vistoria mantida somente no aparelho` : `Offline - vistoria ficará pendente de sincronização`, { id });
       }
 
       // Vincular agendamento à vistoria criada e marcar como concluído
@@ -668,7 +665,7 @@ export default function WizardAvaliacaoScreen() {
 
       router.replace({
         pathname: '/(panel)/inspecoes/resultado',
-        params: { id, formularioId: params.formularioId, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isolatedMode || !isConnected ? '1' : '0', municipio: vistoriaLocal.municipio, treinamento: formalTrainingMode ? '1' : '0', testeLocal: localTestMode ? '1' : '0' }
+        params: { id, formularioId: params.formularioId, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isolatedMode || !isConnected ? '1' : '0', municipio: vistoriaLocal.municipio, treinamento: formalTrainingMode ? '1' : '0' }
       });
     } catch (e: any) {
       logger.error('vistoria', 'Erro crítico ao salvar vistoria', { erro: e.message });

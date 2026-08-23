@@ -30,7 +30,7 @@ export default function MasterDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
-  const { profile, developerMode, localTestMode } = useAuth();
+  const { profile } = useAuth();
   const { isConnected } = useConnectivity();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,15 +148,6 @@ export default function MasterDashboardScreen() {
 
   const confirmarDelete = async () => {
     if (!deleteTarget || !deleteMotivo.trim()) return;
-    if (localTestMode) {
-      Alert.alert(
-        'Simulação concluída',
-        'A conta Desenvolvedor pode testar esta confirmação, mas nenhuma vistoria oficial é excluída.'
-      );
-      setDeleteTarget(null);
-      setDeleteMotivo('');
-      return;
-    }
     setDeletando(true);
     try {
       await excluirVistoriaComNotificacao(deleteTarget.id, deleteMotivo.trim());
@@ -206,9 +197,9 @@ export default function MasterDashboardScreen() {
           </Text>
           <View style={styles.badgeRow}>
             <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
-              <Feather name={developerMode ? 'code' : 'shield'} size={10} color={theme.primary} />
+              <Feather name="shield" size={10} color={theme.primary} />
               <Text style={[styles.chipText, { color: theme.primary }]}>
-                {developerMode ? 'Desenvolvedor' : 'Master'}
+                Master
               </Text>
             </View>
             {isConnected ? (
@@ -252,13 +243,6 @@ export default function MasterDashboardScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
-        {developerMode && (
-          <StateBanner
-            variant="info"
-            title="Ambiente desenvolvedor"
-            description="Acesso superior à Master. Os dados criados nesta sessão são temporários e não alteram o sistema oficial."
-          />
-        )}
         {!isConnected && (
           <StateBanner
             variant="warning"
