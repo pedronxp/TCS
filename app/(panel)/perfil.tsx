@@ -75,8 +75,6 @@ export default function PerfilScreen() {
     session,
     profile: authProfile,
     loading: authLoading,
-    localTestMode,
-    developerMode,
     signOut,
     refreshProfile,
   } = useAuth();
@@ -100,12 +98,6 @@ export default function PerfilScreen() {
 
   const saveName = async () => {
     if (!newName.trim() || !authProfile) return;
-    if (localTestMode) {
-      Alert.alert('Modo de teste', 'O perfil da conta de testes não pode ser alterado.');
-      setEditingName(false);
-      setNewName(authProfile.name);
-      return;
-    }
     setSaving(true);
     try {
       const { error } = await supabase.rpc('update_my_display_name', {
@@ -123,12 +115,6 @@ export default function PerfilScreen() {
 
   const savePhone = async () => {
     if (!authProfile) return;
-    if (localTestMode) {
-      Alert.alert('Modo de teste', 'Dados de contato não são alterados na conta de testes.');
-      setEditingPhone(false);
-      setPhoneInput('');
-      return;
-    }
     const normalized = normalizarTelefone(phoneInput);
     if (!normalized) {
       Alert.alert('Número inválido', 'Informe um número brasileiro com DDD.');
@@ -195,9 +181,7 @@ export default function PerfilScreen() {
   }
 
   const initial = authProfile?.name?.[0]?.toUpperCase() || '?';
-  const roleLabel = developerMode
-    ? 'Desenvolvedor'
-    : ROLE_LABELS[authProfile?.role ?? ''] || authProfile?.role || 'Usuário';
+  const roleLabel = ROLE_LABELS[authProfile?.role ?? ''] || authProfile?.role || 'Usuário';
   const roleBadgeVariant = authProfile?.role === 'admin'
     ? 'error'
     : authProfile?.role === 'agent'
@@ -382,7 +366,7 @@ export default function PerfilScreen() {
             }
             onPress={linkGoogle}
             loading={googleLinking}
-            disabled={googleLinked || googleLinking || !isOnlineReal || localTestMode}
+            disabled={googleLinked || googleLinking || !isOnlineReal}
             success={googleLinked}
             theme={theme}
           />

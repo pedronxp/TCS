@@ -15,6 +15,7 @@ import { PortalInvitesPage } from '@/pages/portal/PortalInvitesPage';
 import { PortalInspectionPage } from '@/pages/portal/PortalInspectionPage';
 import { PortalAcknowledgementsPage } from '@/pages/portal/PortalAcknowledgementsPage';
 import { PortalReportsPage } from '@/pages/portal/PortalReportsPage';
+import { PortalComunicadosPage } from '@/pages/portal/PortalComunicadosPage';
 import { PortalSupportPage } from '@/pages/portal/PortalSupportPage';
 import { PortalProfilePage } from '@/pages/portal/PortalProfilePage';
 import { PortalAgendaPage } from '@/pages/portal/PortalAgendaPage';
@@ -83,6 +84,7 @@ export default function PortalApp() {
           <Route path="/portal/municipal/documentos" element={<PortalRoute kind="organization" permission="document.read"><PortalModulePage section="documentos" /></PortalRoute>} />
           <Route path="/portal/municipal/ciencias" element={<PortalRoute kind="organization" permission="document.read"><PortalAcknowledgementsPage /></PortalRoute>} />
           <Route path="/portal/municipal/relatorios" element={<PortalRoute kind="organization" permission="report.read"><PortalReportsPage /></PortalRoute>} />
+          <Route path="/portal/municipal/comunicados" element={<PortalRoute kind="organization" permission="communication.read"><PortalComunicadosPage /></PortalRoute>} />
           <Route path="/portal/municipal/equipe" element={<PortalRoute kind="organization" permission="team.read"><PortalTeamPage /></PortalRoute>} />
           <Route path="/portal/municipal/convites" element={<PortalRoute kind="organization" permission="invite.agent"><PortalInvitesPage /></PortalRoute>} />
           <Route path="/portal/municipal/consumo" element={<PortalRoute kind="organization" permission="usage.read"><PortalModulePage section="consumo" /></PortalRoute>} />

@@ -23,7 +23,6 @@ import { checkRealInternet } from '../context/ConnectivityContext';
 import { isRecoverableSubscriptionPeriodError, isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
 import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
 import { syncPendingDocumentAcknowledgements } from './DocumentAcknowledgementService';
-import { isCurrentSessionLocalTest } from '../utils/localTestMode';
 
 // ─── Configuração ──────────────────────────────────────────────────────────
 
@@ -128,11 +127,6 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
     const online = await checkRealInternet();
     if (!online) {
       logger.info('sync', 'Sem internet real — sync adiado, fila preservada');
-      return { sucesso: 0, falha: 0 };
-    }
-
-    if (await isCurrentSessionLocalTest()) {
-      logger.info('sync', 'Modo de teste local ativo - sincronização bloqueada');
       return { sucesso: 0, falha: 0 };
     }
 

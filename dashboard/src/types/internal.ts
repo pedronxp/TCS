@@ -31,7 +31,8 @@ export type InternalPermission =
   | 'account.lock'
   | 'account.recover_invite'
   | 'token.manage'
-  | 'notification.manage';
+  | 'notification.manage'
+  | 'communication.manage';
 
 export interface InternalStaffProfile {
   id: string;

@@ -30,6 +30,8 @@ import { TokensConsolePage } from '@/pages/TokensConsolePage';
 import { TokenAnalyticsPage } from '@/pages/TokenAnalyticsPage';
 import { OperationalStatisticsPage } from '@/pages/OperationalStatisticsPage';
 import { NotificationCampaignsPage } from '@/pages/NotificationCampaignsPage';
+import { ConsoleComunicadosPage } from '@/pages/ConsoleComunicadosPage';
+import { ConsoleComunicadoOrgPage } from '@/pages/ConsoleComunicadoOrgPage';
 import { legacyCustomerDetailPath, legacyCustomerMemberPath } from '@/lib/customerRoutes';
 
 const queryClient = new QueryClient({
@@ -98,6 +100,8 @@ export default function PrivateApp() {
           <Route path="tokens/analise" element={<ProtectedRoute requirePermission="token.manage"><TokenAnalyticsPage /></ProtectedRoute>} />
           <Route path="operacao/estatisticas" element={<ProtectedRoute requirePermission="technical.read"><OperationalStatisticsPage /></ProtectedRoute>} />
           <Route path="avisos" element={<ProtectedRoute requirePermission="technical.write"><NotificationCampaignsPage /></ProtectedRoute>} />
+          <Route path="comunicacoes" element={<ProtectedRoute requirePermission="communication.manage"><ConsoleComunicadosPage /></ProtectedRoute>} />
+          <Route path="comunicacoes/:orgId" element={<ProtectedRoute requirePermission="communication.manage"><ConsoleComunicadoOrgPage /></ProtectedRoute>} />
           <Route path="sessoes" element={<ProtectedRoute requirePermission="session.read"><SessionsPage /></ProtectedRoute>} />
           <Route path="dispositivo" element={<ProtectedRoute requirePermission="session.read"><DevicesPage /></ProtectedRoute>} />
           <Route path="suporte" element={<ProtectedRoute requirePermission="support.read"><SupportPage /></ProtectedRoute>} />

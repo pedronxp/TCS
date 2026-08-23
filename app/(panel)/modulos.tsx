@@ -51,52 +51,10 @@ const trainingAccess: ModuleItem = {
 const baseOperation: ModuleItem[] = [
   { title: 'Vistorias', description: 'Histórico, evidências e laudos', icon: 'clipboard', route: '/(panel)/inspecoes' },
   { title: 'Mapa tático', description: 'Ocorrências georreferenciadas', icon: 'map-pin', route: '/(panel)/mapas' },
+  { title: 'Avisos', description: 'Comunicados da prefeitura', icon: 'bell', route: '/(panel)/avisos' },
 ];
 
-function sectionsForRole(role: string | undefined, developerMode: boolean): ModuleSection[] {
-  if (developerMode) {
-    return [
-      {
-        key: 'operation', title: 'Operação', description: 'Fluxos utilizados em campo', items: [
-          { title: 'Nova vistoria', description: 'Iniciar fluxo técnico completo', icon: 'plus-circle', route: '/(panel)/inspecoes/dados-iniciais', badge: 'Principal' },
-          ...baseOperation,
-          { title: 'Agenda', description: 'Agendamentos e distribuição', icon: 'calendar', route: '/(panel)/agendamentos' },
-        ],
-      },
-      {
-        key: 'management', title: 'Gestão', description: 'Pessoas, territórios e documentos', items: [
-          { title: 'Painel administrativo', description: 'Visão municipal e ferramentas', icon: 'settings', route: '/(panel)/admin' },
-          { title: 'Usuários', description: 'Perfis, aprovações e acessos', icon: 'users', route: '/(panel)/admin/usuarios' },
-          { title: 'Equipe', description: 'Agentes e desempenho', icon: 'user-check', route: '/(panel)/equipe' },
-          { title: 'Tokens', description: 'Convites e níveis de acesso', icon: 'key', route: '/(panel)/admin/tokens' },
-          { title: 'Municípios', description: 'Cobertura territorial', icon: 'map', route: '/(panel)/master/municipios' },
-          { title: 'Contratações', description: 'Planos e ativações', icon: 'shopping-bag', route: '/(panel)/master/contratacoes' },
-          { title: 'Coordenação', description: 'Recursos de coordenação', icon: 'layers', route: '/(panel)/coordenacao' },
-          { title: 'Protocolo', description: 'Numeração de documentos', icon: 'hash', route: '/(panel)/admin/protocolo-doc' },
-        ],
-      },
-      {
-        key: 'configuration', title: 'Produto e configuração', description: 'Modelos, regras e observabilidade', items: [
-          { title: 'Formulários', description: 'Modelos e perguntas técnicas', icon: 'edit-3', route: '/(panel)/admin/form-editor' },
-          { title: 'Regras de risco', description: 'Faixas e classificações', icon: 'sliders', route: '/(panel)/admin/risco-config' },
-          { title: 'Relatórios', description: 'Laudos e exportações', icon: 'file-text', route: '/(panel)/admin/relatorios' },
-          { title: 'Estatísticas', description: 'Indicadores da operação', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas' },
-          { title: 'Treinamentos', description: 'Turmas e capacitação', icon: 'book-open', route: '/(panel)/master/treinamentos' },
-          { title: 'Logs do sistema', description: 'Diagnóstico e rastreabilidade', icon: 'terminal', route: '/(panel)/master/logs' },
-        ],
-      },
-      {
-        key: 'account', title: 'Conta e atendimento', description: 'Assinatura, planos e suporte', items: [
-          trainingAccess,
-          subscription,
-          { title: 'Planos', description: 'Catálogo comercial', icon: 'package', route: '/(panel)/planos' },
-          { title: 'Suporte', description: 'Ajuda e atendimento', icon: 'help-circle', route: '/(panel)/suporte' },
-          profile,
-        ],
-      },
-    ];
-  }
-
+function sectionsForRole(role: string | undefined): ModuleSection[] {
   if (role === 'master_admin') {
     return [
       {
@@ -171,11 +129,11 @@ function sectionsForRole(role: string | undefined, developerMode: boolean): Modu
 
 export default function ModulosScreen() {
   const { theme } = useTheme();
-  const { profile: userProfile, developerMode } = useAuth();
+  const { profile: userProfile } = useAuth();
   const insets = useSafeAreaInsets();
   const bottomPadding = useBottomTabPadding();
   const [query, setQuery] = useState('');
-  const sections = useMemo(() => sectionsForRole(userProfile?.role, developerMode), [userProfile?.role, developerMode]);
+  const sections = useMemo(() => sectionsForRole(userProfile?.role), [userProfile?.role]);
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const visibleSections = useMemo(() => {
     if (!normalizedQuery) return sections;
@@ -187,9 +145,7 @@ export default function ModulosScreen() {
       .filter(section => section.items.length > 0);
   }, [normalizedQuery, sections]);
 
-  const roleLabel = developerMode
-    ? 'Ambiente de desenvolvimento'
-    : userProfile?.role === 'master_admin'
+  const roleLabel = userProfile?.role === 'master_admin'
       ? 'Gestão da rede TCS'
       : userProfile?.role === 'admin'
         ? 'Administração municipal'

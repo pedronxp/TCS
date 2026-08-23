@@ -1,9 +1,7 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../utils/supabase';
-import { isDeveloperSession, isLocalTestSession } from '../utils/localTestMode';
-import { clearLocalTestSessionData } from '../services/LocalTestDataService';
 import {
   buildInternalOwnerAppProfile,
   type InternalStaffProfilePayload,
@@ -27,8 +25,6 @@ interface AuthContextData {
   session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
-  localTestMode: boolean;
-  developerMode: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -37,8 +33,6 @@ const AuthContext = createContext<AuthContextData>({
   session: null,
   profile: null,
   loading: true,
-  localTestMode: false,
-  developerMode: false,
   signOut: async () => {},
   refreshProfile: async () => {},
 });
@@ -110,19 +104,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const localTestMode = useMemo(() => isLocalTestSession(session), [session]);
-  const developerMode = useMemo(() => isDeveloperSession(session), [session]);
-  const preparedLocalUsers = useRef(new Set<string>());
-  const activeLocalUser = useRef<string | null>(null);
-
-  const prepareLocalSession = async (sess: Session) => {
-    if (!isLocalTestSession(sess)) return;
-    activeLocalUser.current = sess.user.id;
-    if (preparedLocalUsers.current.has(sess.user.id)) return;
-    preparedLocalUsers.current.add(sess.user.id);
-    await clearLocalTestSessionData(sess.user.id);
-  };
-
   useEffect(() => {
     const safetyTimer = setTimeout(() => setLoading(false), 14000);
 
@@ -142,16 +123,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         let sess = result?.data?.session as Session | null;
         if (!sess) return;
-
-        // Metadados de autorização vivem no JWT. A conta demo força uma
-        // renovação no início para receber imediatamente capacidades alteradas
-        // pelo administrador, sem confiar em valores graváveis pelo usuário.
-        if (isLocalTestSession(sess) && !isDeveloperSession(sess)) {
-          const refreshed = await supabase.auth.refreshSession().catch(() => null);
-          sess = refreshed?.data?.session ?? sess;
-        }
-
-        await prepareLocalSession(sess);
 
         const profileResult = await fetchAuthorizedProfile(sess);
 
@@ -192,7 +163,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, sess) => {
         if (event === 'SIGNED_IN' && sess) {
-          await prepareLocalSession(sess);
           const profileResult = await fetchAuthorizedProfile(sess);
           if (profileResult === 'timeout') {
             const cached = await loadProfileFromCache(sess.user.id);
@@ -211,9 +181,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
           }
         } else if (event === 'SIGNED_OUT') {
-          const localUid = activeLocalUser.current;
-          activeLocalUser.current = null;
-          if (localUid) await clearLocalTestSessionData(localUid);
           setSession(null);
           setProfile(null);
           AsyncStorage.removeItem('@sync_user_name').catch(() => {});
@@ -240,9 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    const localUid = activeLocalUser.current;
-    activeLocalUser.current = null;
-    if (localUid) await clearLocalTestSessionData(localUid);
     await supabase.auth.signOut();
   };
 
@@ -257,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, localTestMode, developerMode, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

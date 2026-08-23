@@ -43,19 +43,12 @@ const activePlan = {
 };
 
 vi.mock('@/lib/supabase', () => {
-  // thenable que também encadeia .order extra (features usa .order().order())
-  const makeOrder = (data: unknown) => {
-    const result = { data, error: null };
-    const obj = {
-      order: () => makeOrder(data),
-      then: (onFulfilled: unknown) => Promise.resolve(result).then(onFulfilled as never),
-    };
-    return obj;
-  };
-  const chain = (data: unknown) => ({ select: () => makeOrder(data) });
   return {
     supabase: {
-      from: vi.fn((table: string) => chain(table === 'features' ? [] : [retiredPlan, activePlan])),
+      rpc: vi.fn(() => Promise.resolve({
+        data: { plans: [retiredPlan, activePlan], features: [] },
+        error: null,
+      })),
     },
   };
 });

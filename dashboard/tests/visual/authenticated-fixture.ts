@@ -252,6 +252,12 @@ function rpcResponse(name: string, role: InternalRole): unknown {
       return { points: [], filtered_total: 0, geolocated_total: 0, without_coordinates: 0, can_view_sensitive: false };
     case 'get_internal_agent_operations':
       return { appointments: [], documents: [], sessions: [], technical_activity: [], can_view_sensitive: false };
+    case 'get_internal_session_workspace':
+      return {
+        items: [],
+        total: 0,
+        overview: { active_total: 0, platforms: { web: 0, android: 0, ios: 0 } },
+      };
     case 'list_internal_archive_lifecycle':
       return { config: { mode: 'manual', enabled: false, days_threshold: 7 }, pending: [], history: [], restore_requests: [] };
     default:
