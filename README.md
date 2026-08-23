@@ -1,177 +1,177 @@
 <div align="center">
 
-# TCS — Relatório e Vistoria
+# TCS — Relatório de Risco
 
-### O app que a Defesa Civil precisava
+Plataforma para registrar, acompanhar e administrar vistorias técnicas de risco.
 
-**Vistorias técnicas de risco na palma da mão.**
-**Funciona sem internet. Gera laudos em segundos. Salva vidas.**
-
-[![Plataforma](https://img.shields.io/badge/Plataforma-Android%20%7C%20iOS-blue?style=flat-square)](https://reactnative.dev)
-[![Offline](https://img.shields.io/badge/Modo-Offline--First-green?style=flat-square)](#)
-[![PDF](https://img.shields.io/badge/Laudos-PDF%20automático-orange?style=flat-square)](#)
-[![Versão](https://img.shields.io/badge/Versão-1.3.4-informational?style=flat-square)](#)
+[![Expo](https://img.shields.io/badge/Expo-54-000020?style=flat-square&logo=expo)](https://expo.dev/)
+[![React Native](https://img.shields.io/badge/React%20Native-0.81-61DAFB?style=flat-square&logo=react)](https://reactnative.dev/)
+[![Supabase](https://img.shields.io/badge/Backend-Supabase-3FCF8E?style=flat-square&logo=supabase)](https://supabase.com/)
+[![Versão](https://img.shields.io/badge/Versão-1.3.26-2563EB?style=flat-square)](./CHANGELOG.md)
 
 </div>
 
----
+## Sobre o projeto
 
-## O Problema
+O TCS apoia o trabalho de equipes de campo, coordenações municipais e operadores da plataforma. O repositório reúne o aplicativo Expo para Android, iOS e web, um portal/console web em React, o backend no Supabase e uma integração opcional com WhatsApp.
 
-Agentes da Defesa Civil enfrentam situações críticas todos os dias:
+No aplicativo, a equipe registra dados da vistoria, localização, evidências fotográficas e assinatura, aplica formulários técnicos e gera o respectivo relatório. Dados operacionais podem ser mantidos localmente durante instabilidades de conexão e sincronizados com o backend quando a rede estiver disponível.
 
-- Vistorias em encostas, morros e áreas de difícil acesso — **sem sinal de internet**
-- Laudos preenchidos à mão em papel — **sujeitos a erros e perdas**
-- Cálculo manual de risco — **lento e impreciso**
-- Relatórios que demoram dias para chegar ao gestor — **decisões atrasadas**
+O projeto está em desenvolvimento ativo. Recursos que envolvem autenticação, sincronização, notificações, pagamentos, documentos ou WhatsApp dependem da configuração dos serviços externos correspondentes.
 
----
+## O que existe hoje
 
-## A Solução
+### Aplicativo de campo e gestão
 
-O **TCS** é um aplicativo mobile desenvolvido especificamente para equipes de Defesa Civil.
-Com ele, o agente vai a campo e faz tudo no celular — mesmo sem internet.
+- Cadastro e acesso de clientes, recuperação de senha, onboarding e treinamento.
+- Fluxo guiado de vistoria com dados iniciais, formulário, risco, fotos, assinatura e resultado.
+- Catálogo de formulários técnicos versionados para árvore, deslizamento, risco estrutural, inundação, incêndio em vegetação, pontes/passarelas e drenagem.
+- Classificação de risco, histórico, busca, mapa e rota até o local vistoriado.
+- Geração, armazenamento e compartilhamento de laudos e relatórios.
+- Operação offline-first com SQLite local e serviço de sincronização.
+- Agendamentos, avisos, notificações, grupos, equipe e perfis com permissões distintas.
+- Áreas administrativas para usuários, tokens de convite, formulários, regras de risco, estatísticas, relatórios, logs e protocolos.
+- Assinaturas e planos para contas individuais ou organizações.
 
----
+### Portal e console web
 
-## Por que o TCS é diferente?
+O diretório `dashboard/` contém uma aplicação React/Vite com três experiências:
 
-### Funciona 100% offline
+- site comercial público;
+- portal do cliente para acompanhar vistorias, documentos, equipe, agenda, comunicados e assinatura;
+- console interno para suporte, clientes, planos, protocolos, dispositivos, comunicações, auditoria e configuração operacional.
 
-Não precisa de sinal. O app salva tudo localmente no dispositivo e sincroniza automaticamente com o servidor assim que a internet retornar. **Nenhum dado é perdido.**
+As operações sensíveis são validadas no backend, com funções, políticas RLS, trilhas de auditoria e contratos de permissão versionados nas migrations do Supabase.
 
-### Classificação de risco automática
+### Integração opcional com WhatsApp
 
-Ao final de cada vistoria, o app calcula automaticamente o nível de risco —
-**R1 (baixo) a R4 (iminente)** — com base nas respostas preenchidas. Sem contas manuais, sem planilhas.
+O diretório `bot-whatsapp/` contém um serviço externo para vincular números por QR Code e processar filas de comunicados. Ele não é necessário para o funcionamento principal do TCS e usa uma biblioteca não oficial, sujeita a indisponibilidade ou banimento do número. Consulte [`bot-whatsapp/README.md`](./bot-whatsapp/README.md) antes de utilizá-lo.
 
-### Laudo PDF em segundos
+## Arquitetura do repositório
 
-Com um toque, o agente gera um **laudo técnico em PDF** com foto da evidência, dados da vistoria,
-protocolo sequencial e classificação de risco. Pronto para compartilhar pelo WhatsApp, e-mail ou imprimir.
+```text
+app/              rotas e telas do aplicativo Expo
+assets/           imagens, ícones e formulários técnicos versionados
+components/       componentes compartilhados do aplicativo
+context/          autenticação, conexão, sessão, assinatura e estado global
+services/         sincronização, armazenamento, laudos e serviços de domínio
+utils/            banco local, regras, PDF e utilitários
+dashboard/        site público, portal do cliente e console interno
+supabase/         migrations, testes SQL e Edge Functions
+bot-whatsapp/     integração opcional para comunicados no WhatsApp
+__tests__/        testes de integração e regressão do aplicativo
+docs/             decisões técnicas e documentação operacional
+```
 
-### Protocolo oficial rastreável
+## Tecnologias principais
 
-Cada vistoria recebe automaticamente um **número de protocolo único** no formato `TCS-CGS-2026-00001`.
-Rastreabilidade completa, do campo ao gestor.
+| Área | Tecnologias |
+| --- | --- |
+| Aplicativo | Expo 54, React Native 0.81, React 19, Expo Router e TypeScript |
+| Persistência local | Expo SQLite e AsyncStorage |
+| Portal e console | React 18, Vite, React Router, TanStack Query/Table e Tailwind CSS |
+| Backend | Supabase Auth, PostgreSQL, Storage, RLS e Edge Functions |
+| Mapas | React Native Maps, MapLibre e Leaflet |
+| Documentos | Expo Print, Expo Sharing e geração de PDF no backend |
+| Qualidade | Jest, Vitest, Testing Library, Playwright e testes SQL |
 
-### Mapa interativo
+## Executando o aplicativo
 
-Visualize todas as vistorias no mapa. Filtros por nível de risco, período e agente.
-Veja onde estão as áreas de maior risco no município — em tempo real.
+### Pré-requisitos
 
-### Como Chegar
+- Node.js 20 ou superior;
+- npm;
+- Android Studio, Xcode ou Expo Go, conforme a plataforma escolhida;
+- um projeto Supabase para os fluxos que usam backend.
 
-O agente toca em "Como Chegar" e o **Google Maps (Android) ou Apple Maps (iOS)** abre com a rota
-completa do dispositivo até o local da vistoria. Zero esforço.
-
----
-
-## Funcionalidades Principais
-
-| Funcionalidade | Descrição |
-|----------------|-----------|
-| **Vistoria offline** | Preenche formulários sem internet, sync automático ao conectar |
-| **7 formulários técnicos** | Árvore, Deslizamento, Edificação, Inundação, Incêndio, Ponte e Drenagem |
-| **Classificação R1–R4** | Calculada automaticamente com base nas respostas |
-| **Laudo em PDF** | Gerado no dispositivo com foto, protocolo e assinatura |
-| **Compartilhamento rico** | Mensagem formatada com todos os dados para WhatsApp |
-| **Mapa nativo** | Google Maps / Apple Maps com pins por nível de risco |
-| **Navegação GPS** | Rota do agente até o local da vistoria |
-| **Agendamentos** | Supervisor agenda vistorias para agentes específicos |
-| **Notificações push** | Alertas de vistoria, risco alto e laudos expirando |
-| **Histórico completo** | Todas as vistorias com filtros e busca |
-| **Modo escuro** | Interface adaptável ao ambiente de campo |
-
----
-
-## Para Gestores e Administradores
-
-O TCS não é só um app de campo. É uma plataforma de **gestão completa**:
-
-- **Dashboard de KPIs** — vistorias realizadas, distribuição por risco, evolução temporal
-- **Gestão de equipe** — aprovar usuários, definir funções, monitorar atividade
-- **Formulários dinâmicos** — crie e publique novos formulários sem atualizar o app
-- **Relatórios exportáveis** — dados em múltiplos formatos para relatórios institucionais
-- **Audit trail completo** — cada ação registrada com data, hora e responsável
-- **Multimunicípio** — gestão centralizada de múltiplas cidades pelo Master Admin
-
----
-
-## Segurança em Primeiro Lugar
-
-- **Acesso por convite** — novos usuários só entram com token gerado pelo admin
-- **4 níveis de permissão** — cada role só vê e faz o que lhe compete
-- **Bloqueio automático de sessão** — app bloqueia após 8h de inatividade
-- **Rate limiting** — proteção contra abuso (PDFs, logins, vistorias)
-- **Audit log completo** — trilha de auditoria de todas as ações sensíveis
-- **Dados protegidos** — banco de dados com Row Level Security (RLS) ativo em todas as tabelas
-
----
-
-## Resultados Esperados
-
-| Antes do TCS | Com o TCS |
-|--------------|-----------|
-| Laudos em papel, risco de perda | Laudo digital com backup em nuvem |
-| Cálculo manual de risco | Classificação automática R1–R4 |
-| Relatório chega em dias | Dados disponíveis ao gestor em minutos |
-| Sem rastreabilidade | Protocolo único + audit log completo |
-| Dependente de internet | Funciona 100% offline |
-| Cada agente no seu silo | Gestão centralizada por município |
-
----
-
-## Para Quem é o TCS?
-
-- **Defesas Civis municipais** que precisam digitalizar e acelerar o processo de vistoria
-- **Prefeituras** que querem rastreabilidade e dados para políticas públicas de risco
-- **Equipes de campo** que realizam vistorias em locais com cobertura precária de internet
-- **Gestores** que precisam de dados em tempo real para tomada de decisão
-
----
-
-<details>
-<summary>Informações técnicas para desenvolvedores</summary>
-
-### Stack Tecnológica
-
-| Camada | Tecnologia |
-|--------|-----------|
-| Framework | Expo ~54.0 + Expo Router |
-| Runtime | React Native 0.81 + React 19 |
-| Linguagem | TypeScript (strict) |
-| Backend | Supabase (Auth · Postgres · Storage · RLS) |
-| Banco local | expo-sqlite v16 |
-| Mapas | react-native-maps (Google Maps / Apple Maps) |
-| PDF | expo-print + expo-sharing |
-| Notificações | expo-notifications + expo-task-manager |
-
-### Configuração
+Instale as dependências na raiz:
 
 ```bash
 npm install
-cp .env.example .env
-# Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY
+```
+
+Crie um arquivo `.env` na raiz, sem versioná-lo:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-publica-anon
+EXPO_PUBLIC_DOCUMENT_ACKNOWLEDGEMENT_BASE_URL=http://localhost:5173
+```
+
+Inicie o Expo:
+
+```bash
 npm start
 ```
 
-### Documentação completa
+Atalhos disponíveis:
 
-Consulte `README.CLIENT.md` para documentação técnica detalhada,
-arquitetura completa, schema do banco de dados e instruções de build.
+```bash
+npm run android
+npm run ios
+npm run web
+```
 
-</details>
+> Algumas APIs nativas, como câmera, localização, notificações, mapas e armazenamento seguro, não têm o mesmo comportamento no navegador ou no Expo Go. Para validar o aplicativo completo, use um development build ou build nativo.
 
----
+## Executando o portal e console web
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+Use `dashboard/.env.example` como referência para criar `dashboard/.env.local`. As variáveis mínimas para autenticação e acesso ao Supabase são:
+
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-chave-publica-anon
+```
+
+A documentação específica do frontend web está em [`dashboard/README.md`](./dashboard/README.md).
+
+## Verificações
+
+Aplicativo:
+
+```bash
+npm test
+npx tsc --noEmit
+```
+
+Portal e console:
+
+```bash
+cd dashboard
+npm run lint
+npm test
+npm run build
+```
+
+O repositório também possui testes direcionados para concorrência de assinatura, protocolo oficial, detalhes de agentes e restauração de arquivos. Veja os scripts disponíveis em [`package.json`](./package.json).
+
+## Backend e implantação
+
+O histórico do banco está em `supabase/migrations/`; as Edge Functions ficam em `supabase/functions/` e os testes de segurança/contrato em `supabase/tests/`. A aplicação web possui configuração de deploy no Netlify em [`netlify.toml`](./netlify.toml), mas URLs, chaves, segredos de pagamento, e-mail e credenciais administrativas devem ser configurados no ambiente de implantação — nunca no repositório.
+
+Antes de aplicar migrations ou publicar funções em um ambiente compartilhado, revise a documentação em `docs/` e valide a sequência em um projeto Supabase local ou de homologação.
+
+## Documentação
+
+- [`README.CLIENT.md`](./README.CLIENT.md) — referência técnica ampliada do aplicativo.
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — convenções para contribuir.
+- [`CHANGELOG.md`](./CHANGELOG.md) — histórico de versões documentado.
+- [`ROADMAP.md`](./ROADMAP.md) — planejamento registrado; pode conter itens ainda não entregues.
+- [`docs/`](./docs/) — arquitetura, segurança, operações e decisões técnicas.
+
+## Segurança
+
+- Não versione arquivos `.env`, chaves privadas, tokens, sessões do WhatsApp ou a chave `service_role` do Supabase.
+- Use somente a chave pública `anon` nos clientes mobile e web.
+- Mantenha autorização, limites e validações críticas no backend; controles de interface não substituem RLS e RPCs seguras.
+- Revise migrations e políticas antes de qualquer implantação em produção.
 
 ## Licença
 
-Desenvolvido por **Pedronxp — Pedro Paulo** para uso exclusivo do **TCS — Relatório e Risco**.
-Todos os direitos reservados © 2026. Redistribuição e uso não autorizados são expressamente proibidos.
-
----
-
-<div align="center">
-  <sub>Tecnologia a serviço da proteção civil</sub>
-</div>
+Software proprietário desenvolvido por **Pedronxp — Pedro Paulo**. Todos os direitos reservados © 2026. O código não possui licença de redistribuição pública.
