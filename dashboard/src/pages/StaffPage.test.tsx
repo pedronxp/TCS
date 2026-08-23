@@ -40,7 +40,7 @@ vi.mock('@/hooks/useAdministrativeMutation', () => ({
 vi.mock('@/lib/supabase', () => ({ supabase: {} }));
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'staff-1' }, profile: { role: 'owner' } }),
+  useAuth: () => ({ can: () => true, user: { id: 'staff-1' }, profile: { role: 'owner' } }),
 }));
 
 afterEach(cleanup);
