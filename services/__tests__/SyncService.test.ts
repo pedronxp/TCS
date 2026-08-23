@@ -73,7 +73,7 @@ jest.mock('../../context/ConnectivityContext', () => ({
 }));
 
 jest.mock('../../utils/localTestMode', () => ({
-  isCurrentSessionLocalTest: jest.fn().mockResolvedValue(false),
+  isCurrentSessionLocalTest: jest.fn().mockRejectedValue(new Error('runtime consultou marcador técnico')),
 }));
 
 // Mock database — factory pura com jest.fn() inline
@@ -101,7 +101,6 @@ let mockGetVistoriasNaoSincronizadas: jest.Mock;
 let mockGetAgendamentosNaoSincronizados: jest.Mock;
 let mockMarkAgendamentoSincronizado: jest.Mock;
 let mockDeleteAgendamento: jest.Mock;
-let mockIsCurrentSessionLocalTest: jest.Mock;
 let mockSyncPendingDocumentAcknowledgements: jest.Mock;
 
 // ─── Import do módulo em teste (uma única vez) ────────────────────────────────
@@ -189,7 +188,6 @@ beforeEach(() => {
 
   // Obter referência ao mock de checkRealInternet
   mockCheckRealInternet = jest.requireMock('../../context/ConnectivityContext').checkRealInternet as jest.Mock;
-  mockIsCurrentSessionLocalTest = jest.requireMock('../../utils/localTestMode').isCurrentSessionLocalTest as jest.Mock;
   mockSyncPendingDocumentAcknowledgements = jest.requireMock('../../services/DocumentAcknowledgementService').syncPendingDocumentAcknowledgements as jest.Mock;
   mockSyncPendingDocumentAcknowledgements.mockReset();
   mockSyncPendingDocumentAcknowledgements.mockResolvedValue({ success: 0, failed: 0 });
@@ -212,8 +210,6 @@ beforeEach(() => {
   mockDeleteAgendamento.mockClear();
   mockCheckRealInternet.mockClear();
   mockCheckRealInternet.mockResolvedValue(true);
-  mockIsCurrentSessionLocalTest.mockReset();
-  mockIsCurrentSessionLocalTest.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -421,14 +417,13 @@ describe('syncPendentes', () => {
     expect(mockMarkSincronizado).not.toHaveBeenCalled();
   });
 
-  it('não consulta nem envia a fila quando a conta está no modo de teste local', async () => {
-    mockIsCurrentSessionLocalTest.mockResolvedValue(true);
+  it('processa a fila operacional sem consultar marcadores de conta técnica', async () => {
     mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
 
-    await expect(syncPendentes()).resolves.toEqual({ sucesso: 0, falha: 0 });
+    await expect(syncPendentes()).resolves.toEqual({ sucesso: 1, falha: 0 });
 
-    expect(mockGetVistoriasNaoSincronizadas).not.toHaveBeenCalled();
-    expect(mockFromFn).not.toHaveBeenCalled();
+    expect(mockGetVistoriasNaoSincronizadas).toHaveBeenCalledTimes(1);
+    expect(mockMarkSincronizado).toHaveBeenCalledWith('v-1');
   });
 
   it('recupera vistoria esgotada pelo erro antigo de schema calculoRisco', async () => {
