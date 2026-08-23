@@ -72,10 +72,6 @@ jest.mock('../../context/ConnectivityContext', () => ({
   checkRealInternet: jest.fn().mockResolvedValue(true),
 }));
 
-jest.mock('../../utils/localTestMode', () => ({
-  isCurrentSessionLocalTest: jest.fn().mockRejectedValue(new Error('runtime consultou marcador técnico')),
-}));
-
 // Mock database — factory pura com jest.fn() inline
 // Referências obtidas via jest.requireMock() no beforeEach (após hoisting)
 jest.mock('../../utils/database', () => ({

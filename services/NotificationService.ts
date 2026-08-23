@@ -3,7 +3,6 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
-import { isLocalTestSession } from '../utils/localTestMode';
 import { logger } from '../utils/logger';
 
 Notifications.setNotificationHandler({
@@ -45,7 +44,7 @@ export async function registrarPushToken(): Promise<void> {
     const token = await getExpoPushToken();
     if (!token) return;
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session || isLocalTestSession(session)) return;
+    if (!session) return;
     const platform = Platform.OS === 'android' || Platform.OS === 'ios' ? Platform.OS : 'unknown';
     const { error } = await supabase.rpc('register_my_notification_endpoint', {
       p_platform: platform,
