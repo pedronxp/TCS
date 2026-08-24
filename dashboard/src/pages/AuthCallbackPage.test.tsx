@@ -42,16 +42,46 @@ describe('tela intermediária de autenticação TCS', () => {
 
     expect(screen.getByRole('heading', { name: 'Conectando ao Google' })).toBeVisible();
     expect(screen.getByText('Confirmar a autorização da conta Google')).toBeVisible();
+    expect(screen.getByRole('progressbar', { name: 'Progresso da autenticação' })).toHaveAttribute('aria-valuenow', '33');
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(450);
+      await vi.advanceTimersByTimeAsync(1199);
     });
 
-    expect(screen.getByText('Preparando portal profissional individual para você.')).toBeVisible();
+    expect(screen.getByText('Etapa 1 de 3')).toBeVisible();
+    expect(accountEntry.resolveAuthenticatedAccountEntry).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(screen.getByText('Etapa 2 de 3')).toBeVisible();
+    expect(screen.getByRole('progressbar', { name: 'Progresso da autenticação' })).toHaveAttribute('aria-valuenow', '67');
     expect(screen.queryByText('Portal individual aberto')).not.toBeInTheDocument();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1350);
+      await vi.advanceTimersByTimeAsync(1499);
+    });
+
+    expect(screen.getByText('Etapa 2 de 3')).toBeVisible();
+    expect(screen.queryByText('Preparando portal profissional individual para você.')).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(screen.getByText('Etapa 3 de 3')).toBeVisible();
+    expect(screen.getByText('Preparando portal profissional individual para você.')).toBeVisible();
+    expect(screen.getByRole('progressbar', { name: 'Progresso da autenticação' })).toHaveAttribute('aria-valuenow', '100');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1499);
+    });
+
+    expect(screen.queryByText('Portal individual aberto')).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
 
     expect(screen.getByText('Portal individual aberto')).toBeVisible();

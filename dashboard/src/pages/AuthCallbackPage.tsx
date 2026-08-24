@@ -15,14 +15,13 @@ const steps = [
   'Abrir o ambiente correto',
 ] as const;
 
-const PROFILE_STEP_MINIMUM_MS = 450;
-const CALLBACK_MINIMUM_MS = 1800;
+const AUTHENTICATION_STEP_MS = 1200;
+const PROFILE_STEP_MS = 1500;
+const DESTINATION_STEP_MS = 1500;
 
-function waitUntilVisibleSince(startedAt: number, minimumDuration: number) {
-  const remaining = minimumDuration - (Date.now() - startedAt);
-  if (remaining <= 0) return Promise.resolve();
+function waitForVisibleStep(duration: number) {
   return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, remaining);
+    window.setTimeout(resolve, duration);
   });
 }
 
@@ -36,26 +35,30 @@ export function AuthCallbackPage() {
   const source = search.get('source');
   const googleAuthentication = search.get('provider') === 'google';
   const fallback = source === 'console' ? '/login' : '/entrar';
+  const progress = Math.round(((currentStep + 1) / steps.length) * 100);
 
   useEffect(() => {
     let active = true;
-    const startedAt = Date.now();
 
     async function completeAuthentication() {
       try {
-        const session = await resolveAuthCallbackSession(window.location.href);
-        if (!active) return;
-        await waitUntilVisibleSince(startedAt, PROFILE_STEP_MINIMUM_MS);
+        const [session] = await Promise.all([
+          resolveAuthCallbackSession(window.location.href),
+          waitForVisibleStep(AUTHENTICATION_STEP_MS),
+        ]);
         if (!active) return;
         setCurrentStep(1);
 
         const returnTo = new URLSearchParams(window.location.search).get('returnTo');
-        const entry = await resolveAuthenticatedAccountEntry(session.user, returnTo);
+        const [entry] = await Promise.all([
+          resolveAuthenticatedAccountEntry(session.user, returnTo),
+          waitForVisibleStep(PROFILE_STEP_MS),
+        ]);
         if (!active) return;
 
         setDestinationLabel(entry.label);
         setCurrentStep(2);
-        await waitUntilVisibleSince(startedAt, CALLBACK_MINIMUM_MS);
+        await waitForVisibleStep(DESTINATION_STEP_MS);
         if (!active) return;
         window.history.replaceState({}, '', '/auth/callback');
         navigate(entry.destination, { replace: true });
@@ -103,27 +106,48 @@ export function AuthCallbackPage() {
           </div>
 
           {!error && (
-            <ol className="mt-8 space-y-4 rounded-lg border border-border bg-secondary/30 p-5" role="status">
-              {steps.map((step, index) => {
-                const label = googleAuthentication && index === 0
-                  ? 'Confirmar a autorização da conta Google'
-                  : step;
-                const completed = index < currentStep;
-                const running = index === currentStep;
-                return (
-                  <li key={step} className="flex items-center gap-3 text-sm">
-                    {completed ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    ) : running ? (
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" />
-                    ) : (
-                      <span className="h-4 w-4 shrink-0 rounded-full border border-border" aria-hidden="true" />
-                    )}
-                    <span className={running || completed ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
-                  </li>
-                );
-              })}
-            </ol>
+            <div className="mt-8 space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Etapa {currentStep + 1} de {steps.length}</span>
+                  <span>{progress}%</span>
+                </div>
+                <div
+                  aria-label="Progresso da autenticação"
+                  aria-valuemax={100}
+                  aria-valuemin={0}
+                  aria-valuenow={progress}
+                  className="h-1.5 overflow-hidden rounded-full bg-secondary"
+                  role="progressbar"
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+              <ol className="space-y-4 rounded-lg border border-border bg-secondary/30 p-5" role="status">
+                {steps.map((step, index) => {
+                  const label = googleAuthentication && index === 0
+                    ? 'Confirmar a autorização da conta Google'
+                    : step;
+                  const completed = index < currentStep;
+                  const running = index === currentStep;
+                  return (
+                    <li key={step} className="flex items-center gap-3 text-sm">
+                      {completed ? (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      ) : running ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" />
+                      ) : (
+                        <span className="h-4 w-4 shrink-0 rounded-full border border-border" aria-hidden="true" />
+                      )}
+                      <span className={running || completed ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
           )}
 
           {error && (
