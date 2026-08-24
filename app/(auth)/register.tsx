@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ScrollView,
@@ -15,6 +15,8 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Card, Button } from '../../components/ui';
 import { ProductIdentity } from '../../components/brand';
+import { TurnstileChallenge } from '../../components/TurnstileChallenge';
+import { getTurnstileConfiguration } from '../../services/TurnstileService';
 import { TCSPalette } from '../../constants/Colors';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -124,6 +126,8 @@ export default function RegisterScreen() {
   // Estado de loading/erro
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstile = useMemo(() => getTurnstileConfiguration(), []);
 
   // Verificação inline de token
   type TokenStatus =
@@ -281,6 +285,10 @@ export default function RegisterScreen() {
 
   // ── Etapa 4: registrar ───────────────────────────────────────────────────
   const handleRegistrar = async () => {
+    if (turnstile.enabled && !captchaToken) {
+      setError('Conclua a verificação de segurança antes de criar sua conta.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -308,6 +316,7 @@ export default function RegisterScreen() {
         email: email.trim().toLowerCase(),
         password: senha,
         options: {
+          ...(captchaToken ? { captchaToken } : {}),
           data: {
             name: nome,
             username: email.split('@')[0],
@@ -555,6 +564,13 @@ export default function RegisterScreen() {
               Li e concordo com a Política de Privacidade e os Termos de Uso
             </Text>
           </TouchableOpacity>
+
+          {turnstile.enabled ? (
+            <View style={{ marginBottom: 12 }}>
+              <TurnstileChallenge configuration={turnstile} onToken={setCaptchaToken} />
+              {error ? <ErrorBox msg={error} /> : null}
+            </View>
+          ) : null}
 
           <TouchableOpacity
             style={[

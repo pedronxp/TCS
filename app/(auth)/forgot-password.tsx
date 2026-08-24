@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ScrollView,
@@ -8,7 +8,9 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../../components/ui';
+import { TurnstileChallenge } from '../../components/TurnstileChallenge';
 import { requestCustomerPasswordRecovery } from '../../services/CustomerAuthService';
+import { getTurnstileConfiguration } from '../../services/TurnstileService';
 import { TCSPalette } from '../../constants/Colors';
 
 type Canal = 'email' | 'whatsapp';
@@ -20,10 +22,16 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstile = useMemo(() => getTurnstileConfiguration(), []);
 
   const handleEnviar = async () => {
     if (!email.trim()) {
       setError('Informe o e-mail cadastrado.');
+      return;
+    }
+    if (turnstile.enabled && !captchaToken) {
+      setError('Conclua a verificação de segurança para solicitar a recuperação.');
       return;
     }
 
@@ -31,7 +39,7 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     try {
-      await requestCustomerPasswordRecovery(email);
+      await requestCustomerPasswordRecovery(email, captchaToken);
       setSent(true);
     } catch (recoveryError: any) {
       if (recoveryError?.message === 'password_recovery_disabled') {
@@ -134,6 +142,10 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
             </View>
+
+            {turnstile.enabled ? (
+              <TurnstileChallenge configuration={turnstile} onToken={setCaptchaToken} />
+            ) : null}
 
             {error !== null && (
               <View style={[styles.errorBox, { backgroundColor: theme.errorLight, borderColor: theme.error }]}>

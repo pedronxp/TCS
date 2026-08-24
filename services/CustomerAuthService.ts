@@ -257,12 +257,18 @@ export async function signInCustomerWithGoogle(): Promise<'completed' | 'redirec
   return 'completed';
 }
 
-export async function requestCustomerPasswordRecovery(email: string): Promise<void> {
+export async function requestCustomerPasswordRecovery(
+  email: string,
+  captchaToken?: string | null,
+): Promise<void> {
   const capabilities = await getPublicAuthCapabilities();
   if (!capabilities.passwordRecovery) throw new Error('password_recovery_disabled');
   const { error } = await supabase.auth.resetPasswordForEmail(
     email.trim().toLowerCase(),
-    { redirectTo: PASSWORD_RECOVERY_CALLBACK },
+    {
+      redirectTo: PASSWORD_RECOVERY_CALLBACK,
+      ...(captchaToken ? { captchaToken } : {}),
+    },
   );
   if (error) throw error;
 }
