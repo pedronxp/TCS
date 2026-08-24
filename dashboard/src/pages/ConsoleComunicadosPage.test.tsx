@@ -134,6 +134,19 @@ describe('comunicados no console interno', () => {
     expect(screen.getByRole('button', { name: 'Ocultar' })).toHaveAttribute('aria-expanded', 'true');
   });
 
+  it('protege nomes e grupos quando a organização não possui sessão online', async () => {
+    mocks.fetchComunicadosOrgConsole.mockResolvedValue({
+      ...orgDetalhe,
+      runtime: { sessionsOnline: 0, serviceOnline: true, state: 'offline', sessions: [] },
+      sessoes: [{ ...orgDetalhe.sessoes[0], status: 'desconectado', runtimeState: 'offline' }],
+    });
+    renderPage('/app/whatsapp/org-1');
+
+    expect(await screen.findByText(/dados protegidos até um número reconectar/i)).toBeVisible();
+    expect(screen.queryByText('Comunidade Cataguases')).not.toBeInTheDocument();
+    expect(screen.queryByText('Avisos do Centro')).not.toBeInTheDocument();
+  });
+
   it('rota de comunicados mantém o editor sem repetir a operação do WhatsApp', async () => {
     renderPage('/app/comunicacoes/org-1');
     expect(await screen.findByRole('heading', { name: 'Nova mensagem' })).toBeVisible();

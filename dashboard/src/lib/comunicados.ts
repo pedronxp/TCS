@@ -18,17 +18,17 @@ export interface BotSessaoStatus {
   ultimoErro: string | null;
 }
 
-async function fetchComTimeout(url: string, ms = 6000, authenticated = true): Promise<Response> {
+async function fetchComTimeout(url: string, ms = 6000, authenticated = true, options?: RequestInit): Promise<Response> {
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), ms);
   try {
-    const headers = new Headers();
+    const headers = new Headers(options?.headers);
     if (authenticated) {
       const { data } = await supabase.auth.getSession();
       if (!data.session?.access_token) throw new Error('Sessão do painel não encontrada.');
       headers.set('Authorization', `Bearer ${data.session.access_token}`);
     }
-    return await fetch(url, { signal: controle.signal, headers });
+    return await fetch(url, { ...options, signal: controle.signal, headers });
   } finally {
     clearTimeout(timer);
   }
@@ -496,6 +496,25 @@ export async function fetchBotQrObjectUrl(sessaoId: string): Promise<string> {
   const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/qr/${sessaoId}`);
   if (!resposta.ok) throw new Error('QR Code indisponível. Aguarde a renovação e tente novamente.');
   return URL.createObjectURL(await resposta.blob());
+}
+
+export async function requestBotPairingCode(sessaoId: string, phone: string): Promise<string> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/pairing-code`,
+    30_000,
+    true,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    },
+  );
+  const dados = record(await resposta.json());
+  const codigo = string(dados?.code);
+  if (!resposta.ok || dados?.ok !== true || !codigo) {
+    throw new Error(string(dados?.motivo) ?? 'Não foi possível gerar o código de vinculação.');
+  }
+  return codigo;
 }
 
 export async function openBotQr(sessaoId: string): Promise<void> {

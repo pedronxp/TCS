@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, LogOut, Megaphone, Power, RefreshCw, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, KeyRound, LogOut, Megaphone, Power, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +21,7 @@ import {
   fetchComunicadosOrgConsole,
   mascararTelefone,
   operarSessaoBotConsole,
+  requestBotPairingCode,
   salvarCanalConsole,
   salvarComunicadoConsole,
   sincronizarChatsBot,
@@ -103,6 +104,10 @@ export function ConsoleComunicadoOrgPage({
   const [acaoSessao, setAcaoSessao] = useState<{ id: string; acao: SessaoBotAcao; telefone: string } | null>(null);
   const [qrTick, setQrTick] = useState(0);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
+  const [pairingMethod, setPairingMethod] = useState<'qr' | 'code'>('qr');
+  const [pairingPhone, setPairingPhone] = useState('');
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [communityAction, setCommunityAction] = useState<'create_group' | 'create_community' | null>(null);
   // Assistente de vinculação: qr -> verificando (sem falso positivo) -> comunidade -> pronto.
   const [wizard, setWizard] = useState<{ etapa: 'qr' | 'verificando' | 'comunidade' | 'pronto'; sessaoId: string } | null>(null);
   const [nomeComunidadeManual, setNomeComunidadeManual] = useState('');
@@ -125,6 +130,7 @@ export function ConsoleComunicadoOrgPage({
     refetchInterval: 10_000,
   });
   const org = orgQuery.data ?? null;
+  const groupsVisible = !isWhatsAppMode || !org?.runtime || org.runtime.sessionsOnline > 0;
   const destinosDisponiveis = useMemo(
     () => (org?.canais ?? [])
       .filter((canal) => canal.ativo && canal.chatId)
@@ -243,13 +249,13 @@ export function ConsoleComunicadoOrgPage({
   }, [wizard, comunidadeAtiva]);
 
   useEffect(() => {
-    if (!wizard || wizard.etapa !== 'qr') return undefined;
+    if (!wizard || wizard.etapa !== 'qr' || pairingMethod !== 'qr') return undefined;
     const timer = setInterval(() => setQrTick((atual) => atual + 1), 5_000);
     return () => clearInterval(timer);
-  }, [wizard]);
+  }, [pairingMethod, wizard]);
 
   useEffect(() => {
-    if (!wizard || wizard.etapa !== 'qr') {
+    if (!wizard || wizard.etapa !== 'qr' || pairingMethod !== 'qr') {
       setQrImageUrl(null);
       return undefined;
     }
@@ -266,15 +272,26 @@ export function ConsoleComunicadoOrgPage({
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [wizard?.sessaoId, wizard?.etapa, qrTick]);
+  }, [pairingMethod, qrTick, wizard]);
 
   const sessaoCriarMutation = useMutation({
     mutationFn: criarSessaoBotConsole,
     onSuccess: async (sessaoId) => {
       setStatusMessage(null);
       setErrorMessage(null);
+      setPairingMethod('qr');
+      setPairingCode(null);
       setWizard({ etapa: 'qr', sessaoId });
       invalidate();
+    },
+    onError: (error: Error) => setErrorMessage(error.message),
+  });
+
+  const pairingCodeMutation = useMutation({
+    mutationFn: () => requestBotPairingCode(wizard?.sessaoId as string, pairingPhone),
+    onSuccess: (code) => {
+      setPairingCode(code);
+      setErrorMessage(null);
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
@@ -476,11 +493,16 @@ export function ConsoleComunicadoOrgPage({
                 ) : (
                   <div className="rounded-md border bg-card p-3" aria-label="Assistente de vinculação de número">
                     <p className="text-sm font-semibold">
-                      Assistente de vinculação — etapa {wizard.etapa === 'qr' ? '1 de 3: ler o QR' : wizard.etapa === 'verificando' ? '2 de 3: confirmar conexão' : wizard.etapa === 'comunidade' ? '3 de 3: comunidade' : 'concluído'}
+                      Assistente de vinculação — etapa {wizard.etapa === 'qr' ? '1 de 3: conectar o aparelho' : wizard.etapa === 'verificando' ? '2 de 3: confirmar conexão' : wizard.etapa === 'comunidade' ? '3 de 3: comunidade' : 'concluído'}
                     </p>
 
                     {wizard.etapa === 'qr' && (
-                      <div className="mt-3 space-y-2">
+                      <div className="mt-4 space-y-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant={pairingMethod === 'qr' ? 'default' : 'outline'} onClick={() => setPairingMethod('qr')}><QrCode />Usar QR Code</Button>
+                          <Button type="button" size="sm" variant={pairingMethod === 'code' ? 'default' : 'outline'} onClick={() => setPairingMethod('code')}><KeyRound />Usar código de vinculação</Button>
+                        </div>
+                        {pairingMethod === 'qr' ? <>
                         <div className="flex items-center justify-center rounded-md bg-white p-2">
                           {qrImageUrl ? <img
                             src={qrImageUrl}
@@ -493,12 +515,23 @@ export function ConsoleComunicadoOrgPage({
                           O QR se renova a cada 5 segundos — espere trocar em vez de escanear um velho.
                           Antes: WhatsApp atualizado, celular da prefeitura em mãos e menos de 4 aparelhos conectados.
                         </p>
+                        </> : <form className="space-y-3" onSubmit={(event) => {
+                          event.preventDefault();
+                          setPairingCode(null);
+                          pairingCodeMutation.mutate();
+                        }}>
+                          <label className="block text-xs font-medium text-muted-foreground">Telefone do WhatsApp
+                            <Input className="mt-1.5" value={pairingPhone} onChange={(event) => setPairingPhone(event.target.value)} inputMode="tel" autoComplete="tel" placeholder="(32) 98479-2322" />
+                          </label>
+                          <Button type="submit" size="sm" disabled={pairingCodeMutation.isPending || pairingPhone.replace(/\D/g, '').length < 10}><KeyRound />{pairingCodeMutation.isPending ? 'Gerando código…' : 'Gerar código'}</Button>
+                          {pairingCode && <div className="rounded-lg border border-success/25 bg-success-soft p-3" role="status"><p className="text-xs text-muted-foreground">Digite em Aparelhos conectados → Vincular com número de telefone.</p><p className="mt-2 font-mono text-xl font-semibold tracking-[0.2em]">{pairingCode}</p></div>}
+                        </form>}
                         {botStatus?.ultimoErro && (
                           <p className="rounded-md border border-destructive/30 bg-destructive-soft p-2 text-xs text-destructive" role="alert">
                             {explicarErroPareamento(botStatus.ultimoErro)}
                           </p>
                         )}
-                        <p className="text-center text-xs text-muted-foreground">Aguardando a leitura do QR…</p>
+                        <p className="text-center text-xs text-muted-foreground">Aguardando a confirmação do vínculo pelo WhatsApp…</p>
                         <div className="flex justify-center">
                           <Button size="sm" variant="ghost" onClick={() => setWizard(null)}>Cancelar</Button>
                         </div>
@@ -549,7 +582,7 @@ export function ConsoleComunicadoOrgPage({
                               </select>
                             </label>
                           )}
-                          <Button size="sm" className="mt-2" disabled={criarGrupoMutation.isPending} onClick={() => criarGrupoMutation.mutate()}>
+                          <Button size="sm" className="mt-2" disabled={criarGrupoMutation.isPending} onClick={() => setCommunityAction('create_group')}>
                             <Smartphone />
                             Criar grupo de avisos pelo bot
                           </Button>
@@ -570,7 +603,7 @@ export function ConsoleComunicadoOrgPage({
                               onSubmit={(event) => {
                                 event.preventDefault();
                                 if (nomeComunidadeManual.trim().length >= 3 && chatManual) {
-                                  vincularManualMutation.mutate();
+                                  setCommunityAction('create_community');
                                 }
                               }}
                             >
@@ -646,12 +679,17 @@ export function ConsoleComunicadoOrgPage({
                         </p>
                       )}
                       <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
-                        {sessao.status === 'vinculado' && (
+                        {sessao.status === 'aguardando_qr' && (
+                          <Button variant="outline" size="sm" onClick={() => { setPairingMethod('qr'); setPairingCode(null); setWizard({ etapa: 'qr', sessaoId: sessao.id }); }}>
+                            <QrCode />Vincular novamente
+                          </Button>
+                        )}
+                        {sessao.status === 'vinculado' && sessao.runtimeState !== 'offline' && (
                           <Button variant="outline" size="sm" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'desconectar', telefone: sessao.telefone ?? 'este número' })}>
                             <Unplug />Desconectar
                           </Button>
                         )}
-                        {sessao.status === 'desconectado' && (
+                        {(sessao.status === 'desconectado' || (sessao.status === 'vinculado' && sessao.runtimeState === 'offline')) && (
                           <Button variant="outline" size="sm" disabled={sessaoStatusMutation.isPending || !botOnline} onClick={() => sessaoStatusMutation.mutate({ id: sessao.id, acao: 'reconectar' })}>
                             <RefreshCw />Reconectar
                           </Button>
@@ -687,7 +725,8 @@ export function ConsoleComunicadoOrgPage({
                     <Link to={`/app/whatsapp/${orgId}/comunidades`}>Gerenciar comunidades<ChevronRight /></Link>
                   </Button>
                 </div>
-                {org.canais.some((canal) => !canal.chatId) && (
+                {!groupsVisible && <p className="mt-5 rounded-xl border border-dashed bg-secondary/20 p-4 text-sm leading-6 text-muted-foreground" role="status"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />Dados protegidos até um número reconectar. Nomes, grupos e vínculos não são exibidos enquanto o WhatsApp estiver offline.</p>}
+                {groupsVisible && org.canais.some((canal) => !canal.chatId) && (
                   <p className="mt-4 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning-foreground">
                     {org.canais.filter((canal) => !canal.chatId).length} comunidade{org.canais.filter((canal) => !canal.chatId).length === 1 ? '' : 's'} ainda sem grupo de envio vinculado.
                   </p>
@@ -825,7 +864,7 @@ export function ConsoleComunicadoOrgPage({
                         {entrega.status === 'incerto' && <Badge variant="warning">Confirmação pendente</Badge>}
                         {entrega.status === 'falhou' && <Badge variant="destructive">Falhou</Badge>}
                         <span className="min-w-0 flex-1 break-words text-sm font-semibold">{entrega.comunicadoTitulo}</span>
-                        <span className="text-xs text-muted-foreground">→ {entrega.canalNome ?? 'comunidade'}</span>
+                        <span className="text-xs text-muted-foreground">→ {groupsVisible ? entrega.canalNome ?? 'comunidade' : 'Destino protegido'}</span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {entrega.status === 'enviado'
@@ -910,6 +949,27 @@ export function ConsoleComunicadoOrgPage({
             >
               {acaoSessao?.acao === 'desconectar' ? 'Desconectar' : acaoSessao?.acao === 'sair' ? 'Sair do WhatsApp' : 'Marcar como banido'}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={communityAction !== null} onOpenChange={(open) => !open && setCommunityAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{communityAction === 'create_group' ? 'Criar grupo no WhatsApp?' : 'Cadastrar comunidade e vincular grupo?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {communityAction === 'create_group'
+                ? `O grupo “Comunicados ${org?.organization.name ?? ''}” será criado no WhatsApp e cadastrado nesta organização.`
+                : `A comunidade “${nomeComunidadeManual.trim()}” será criada e associada ao grupo escolhido.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (communityAction === 'create_group') criarGrupoMutation.mutate();
+              else if (communityAction === 'create_community') vincularManualMutation.mutate();
+              setCommunityAction(null);
+            }}>Confirmar criação</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
