@@ -168,7 +168,7 @@ export default function MasterDashboardScreen() {
             <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
               <Feather name="shield" size={10} color={theme.primary} />
               <Text style={[styles.chipText, { color: theme.primary }]}>
-                {profile?.organizationId ? 'Master municipal' : 'Master operacional'}
+                {access.hasOrganization ? 'Master municipal' : 'Master operacional'}
               </Text>
             </View>
             {isConnected ? (

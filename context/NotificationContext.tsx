@@ -51,10 +51,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     // No boot apenas observa a permissão existente. A solicitação deve partir
     // de uma ação contextual do usuário, nunca do cadastro ou da abertura.
-    hasNotificationPermission().then(granted => {
-      setHasPermission(granted);
-      if (granted) getBadgeCount().then(setBadgeState);
-    });
+    let active = true;
+    hasNotificationPermission()
+      .then(granted => {
+        if (!active) return;
+        setHasPermission(granted);
+        if (granted) {
+          void getBadgeCount()
+            .then(count => {
+              if (active) setBadgeState(count);
+            })
+            .catch(() => null);
+        }
+      })
+      .catch(error => {
+        logger.warn('notifications', 'Não foi possível verificar a permissão de notificações', { erro: String(error) });
+      });
 
     // Listener: notificação recebida com app em foreground
     receivedRef.current = addNotificationReceivedListener(notification => {
@@ -71,6 +83,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     });
 
     return () => {
+      active = false;
       receivedRef.current?.remove();
       responseRef.current?.remove();
     };

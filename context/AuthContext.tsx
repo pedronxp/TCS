@@ -145,7 +145,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const safetyTimer = setTimeout(() => setLoading(false), 14000);
+    let active = true;
+    let authRevision = 0;
+    const isCurrent = (revision: number) => active && revision === authRevision;
+    const safetyTimer = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 14000);
 
     const getSessionTimeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('getSession timeout')), 8000)
@@ -164,12 +169,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let sess = result?.data?.session as Session | null;
         if (!sess) return;
 
+        const revision = authRevision;
         const profileResult = await fetchAuthorizedProfile(sess);
+        if (!isCurrent(revision)) return;
 
         if (profileResult === 'timeout') {
           // Offline ou rede indisponível — tentar cache
           const cached = await loadProfileFromCache(sess.user.id);
-          if (cached?.isApproved) {
+          if (isCurrent(revision) && cached?.isApproved) {
             setSession(sess);
             setProfile(cached);
           }
@@ -182,7 +189,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Identidades OAuth novas permanecem autenticadas, porém neutras,
           // para concluir o bootstrap server-side. A reconciliação nunca aprova.
           try { await supabase.rpc('reconcile_customer_identity'); } catch { /* mantém sessão neutra */ }
+          if (!isCurrent(revision)) return;
           const reconciled = await fetchProfile(sess.user.id);
+          if (!isCurrent(revision)) return;
           setSession(sess);
           if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
         }
@@ -197,12 +206,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .finally(() => {
         clearTimeout(safetyTimer);
-        setLoading(false);
+        if (active) setLoading(false);
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, sess) => {
+        if (!active) return;
         if (event === 'SIGNED_OUT') {
+          authRevision += 1;
           setSession(null);
           setProfile(null);
           AsyncStorage.removeItem('@sync_user_name').catch(() => {});
@@ -210,16 +221,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if ((event !== 'SIGNED_IN' && event !== 'TOKEN_REFRESHED') || !sess) return;
+        const revision = ++authRevision;
 
         // A documentação do Supabase alerta que aguardar chamadas da própria
         // API dentro do callback de auth pode travar as requisições seguintes.
         setTimeout(() => {
+          if (!isCurrent(revision)) return;
           void (async () => {
             if (event === 'SIGNED_IN') {
               const profileResult = await fetchAuthorizedProfile(sess);
+              if (!isCurrent(revision)) return;
               if (profileResult === 'timeout') {
                 const cached = await loadProfileFromCache(sess.user.id);
-                if (cached?.isApproved) {
+                if (isCurrent(revision) && cached?.isApproved) {
                   setSession(sess);
                   setProfile(cached);
                 }
@@ -229,7 +243,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (profileResult.isApproved) await saveProfileToCache(profileResult);
               } else {
                 try { await supabase.rpc('reconcile_customer_identity'); } catch { /* mantém sessão neutra */ }
+                if (!isCurrent(revision)) return;
                 const reconciled = await fetchProfile(sess.user.id);
+                if (!isCurrent(revision)) return;
                 setSession(sess);
                 if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
               }
@@ -238,6 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             setSession(sess);
             const profileResult = await fetchAuthorizedProfile(sess);
+            if (!isCurrent(revision)) return;
             if (profileResult === 'timeout') {
               // Offline: manter perfil atual.
             } else if (profileResult) {
@@ -254,6 +271,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => {
+      active = false;
+      authRevision += 1;
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };

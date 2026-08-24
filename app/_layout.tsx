@@ -75,15 +75,26 @@ function RootNavigator() {
 
     Linking.getInitialURL().then(handleDeepLink);
     const sub = Linking.addEventListener('url', (e) => handleDeepLink(e.url));
+    let active = true;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, recoverySession) => {
-        if (event === 'PASSWORD_RECOVERY' && recoverySession) {
-          await markPasswordRecoverySession(recoverySession);
-          router.replace('/(auth)/reset-password');
-        }
+      (event, recoverySession) => {
+        if (event !== 'PASSWORD_RECOVERY' || !recoverySession) return;
+        // Chamadas assíncronas dentro do callback de auth podem bloquear
+        // requisições seguintes do Supabase; a recuperação roda fora dele.
+        setTimeout(() => {
+          if (!active) return;
+          void markPasswordRecoverySession(recoverySession)
+            .then(() => {
+              if (active) router.replace('/(auth)/reset-password');
+            })
+            .catch(() => {
+              // A sessão continua válida e o usuário pode solicitar novo link.
+            });
+        }, 0);
       },
     );
     return () => {
+      active = false;
       sub.remove();
       subscription.unsubscribe();
     };

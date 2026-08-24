@@ -58,6 +58,40 @@ describe('MobileAccessService', () => {
     });
   });
 
+  it('bloqueia organização com vínculo convidado ou suspenso', () => {
+    for (const status of ['invited', 'suspended'] as const) {
+      const result = resolveMobileOrganizationAccess(
+        profile({ role: 'agent', municipio: 'Município A', organizationId: 'org-1' }),
+        subscription({
+          organization: { id: 'org-1', display_name: 'Organização A', status: 'active' },
+          membership: { role: 'agent', status },
+        }),
+      );
+
+      expect(result).toMatchObject({
+        kind: 'organization_required',
+        organizationId: null,
+        requiresOrganizationLink: true,
+      });
+    }
+  });
+
+  it('usa a organização confirmada pelo backend quando o perfil legado aponta para outra', () => {
+    const result = resolveMobileOrganizationAccess(
+      profile({ role: 'supervisor', organizationId: 'org-antiga' }),
+      subscription({
+        organization: { id: 'org-atual', display_name: 'Organização atual', status: 'active' },
+        membership: { role: 'supervisor', status: 'active' },
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: 'organization',
+      organizationId: 'org-atual',
+      organizationName: 'Organização atual',
+    });
+  });
+
   it('mantém uma conta profissional individual separada de organizações', () => {
     const result = resolveMobileOrganizationAccess(profile(), subscription({
       plan: {
