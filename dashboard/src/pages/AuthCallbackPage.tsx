@@ -15,21 +15,37 @@ const steps = [
   'Abrir o ambiente correto',
 ] as const;
 
+const PROFILE_STEP_MINIMUM_MS = 450;
+const CALLBACK_MINIMUM_MS = 1800;
+
+function waitUntilVisibleSince(startedAt: number, minimumDuration: number) {
+  const remaining = minimumDuration - (Date.now() - startedAt);
+  if (remaining <= 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, remaining);
+  });
+}
+
 export function AuthCallbackPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [destinationLabel, setDestinationLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const source = new URLSearchParams(location.search).get('source');
+  const search = new URLSearchParams(location.search);
+  const source = search.get('source');
+  const googleAuthentication = search.get('provider') === 'google';
   const fallback = source === 'console' ? '/login' : '/entrar';
 
   useEffect(() => {
     let active = true;
+    const startedAt = Date.now();
 
     async function completeAuthentication() {
       try {
         const session = await resolveAuthCallbackSession(window.location.href);
+        if (!active) return;
+        await waitUntilVisibleSince(startedAt, PROFILE_STEP_MINIMUM_MS);
         if (!active) return;
         setCurrentStep(1);
 
@@ -39,6 +55,8 @@ export function AuthCallbackPage() {
 
         setDestinationLabel(entry.label);
         setCurrentStep(2);
+        await waitUntilVisibleSince(startedAt, CALLBACK_MINIMUM_MS);
+        if (!active) return;
         window.history.replaceState({}, '', '/auth/callback');
         navigate(entry.destination, { replace: true });
       } catch (cause) {
@@ -69,18 +87,27 @@ export function AuthCallbackPage() {
               <Loader2 className="mx-auto h-9 w-9 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" />
             )}
             <h1 className="mt-5 text-[24px] font-semibold leading-tight tracking-[-0.02em]">
-              {error ? 'Não foi possível concluir o acesso' : 'Autenticando sua conta TCS'}
+              {error
+                ? 'Não foi possível concluir o acesso'
+                : googleAuthentication
+                  ? 'Conectando ao Google'
+                  : 'Autenticando sua conta TCS'}
             </h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {error || (destinationLabel
                 ? `Preparando ${destinationLabel.toLowerCase()} para você.`
-                : 'Estamos validando sua sessão e identificando o ambiente correto.')}
+                : googleAuthentication
+                  ? 'Validando sua conta Google e identificando o ambiente correto.'
+                  : 'Estamos validando sua sessão e identificando o ambiente correto.')}
             </p>
           </div>
 
           {!error && (
             <ol className="mt-8 space-y-4 rounded-lg border border-border bg-secondary/30 p-5" role="status">
               {steps.map((step, index) => {
+                const label = googleAuthentication && index === 0
+                  ? 'Confirmar a autorização da conta Google'
+                  : step;
                 const completed = index < currentStep;
                 const running = index === currentStep;
                 return (
@@ -92,7 +119,7 @@ export function AuthCallbackPage() {
                     ) : (
                       <span className="h-4 w-4 shrink-0 rounded-full border border-border" aria-hidden="true" />
                     )}
-                    <span className={running || completed ? 'text-foreground' : 'text-muted-foreground'}>{step}</span>
+                    <span className={running || completed ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
                   </li>
                 );
               })}

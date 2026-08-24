@@ -44,6 +44,7 @@ export function buildAuthCallbackUrl(
 ): string {
   const url = new URL('/auth/callback', window.location.origin);
   url.searchParams.set('source', source);
+  url.searchParams.set('provider', 'google');
   if (returnTo?.startsWith('/') && !returnTo.startsWith('//')) {
     url.searchParams.set('returnTo', returnTo);
   }

@@ -46,13 +46,13 @@ export function LoginPage() {
 
   // Cliente autenticado que caiu em /login por engano: encaminhe ao portal
   // em vez de mostrar um beco sem saída com visual divergente.
-  if (session && !isAuthorized) {
+  if (session && !isAuthorized && !submitting) {
     const search = new URLSearchParams({ source: 'console' });
     if (requestedPath) search.set('returnTo', requestedPath);
     return <Navigate to={`/auth/callback?${search.toString()}`} replace />;
   }
 
-  if (isAuthorized) return <Navigate to={destination} replace />;
+  if (isAuthorized && !submitting) return <Navigate to={destination} replace />;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -76,12 +76,12 @@ export function LoginPage() {
       setError(result.error);
       setCaptchaToken(null);
       setCaptchaRevision((value) => value + 1);
+      setSubmitting(false);
     } else {
       const callback = new URLSearchParams({ source: 'console' });
       if (requestedPath) callback.set('returnTo', requestedPath);
       navigate(`/auth/callback?${callback.toString()}`, { replace: true });
     }
-    setSubmitting(false);
   }
 
   async function handleGoogle() {

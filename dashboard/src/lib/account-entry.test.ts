@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { resolveAccountEntry } from './account-entry';
+import { buildAuthCallbackUrl, resolveAccountEntry } from './account-entry';
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -12,6 +13,22 @@ vi.mock('@/lib/supabase', () => ({
 }));
 
 describe('entrada unificada por perfil e vínculo', () => {
+  it('identifica o retorno Google na tela intermediária e preserva destinos internos', () => {
+    const url = new URL(buildAuthCallbackUrl('portal', '/portal/municipal/vistorias'));
+
+    expect(url.pathname).toBe('/auth/callback');
+    expect(url.searchParams.get('source')).toBe('portal');
+    expect(url.searchParams.get('provider')).toBe('google');
+    expect(url.searchParams.get('returnTo')).toBe('/portal/municipal/vistorias');
+  });
+
+  it('não permite redirecionamentos externos durante a autorização Google', () => {
+    const url = new URL(buildAuthCallbackUrl('console', '//outro-site.example'));
+
+    expect(url.searchParams.get('provider')).toBe('google');
+    expect(url.searchParams.has('returnTo')).toBe(false);
+  });
+
   it('encaminha equipe interna ativa e autorizada para o Console', () => {
     expect(resolveAccountEntry({
       userId: 'staff-1',

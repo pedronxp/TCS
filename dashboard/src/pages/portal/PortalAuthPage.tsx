@@ -72,16 +72,16 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     return <AuthLoadingCard />;
   }
 
-  if (!loading && session && (
+  if (!loading && !submitting && session && (
     entryContext?.accountKind === 'internal'
     || (!access && !entryContext)
   )) {
     return <Navigate to="/login" replace />;
   }
-  if (!loading && session && inviteReturn) {
+  if (!loading && !submitting && session && inviteReturn) {
     return <Navigate to={inviteReturn} replace />;
   }
-  if (!loading && access && status !== 'vinculo-inativo') {
+  if (!loading && !submitting && access && status !== 'vinculo-inativo') {
     return <Navigate to={safePortalDestination(query.get('returnTo'), access.accountKind)} replace />;
   }
 
@@ -141,14 +141,15 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       : captchaToken
         ? await signUp(name, email, password, query.get('plan'), captchaToken)
         : await signUp(name, email, password, query.get('plan'));
-    setSubmitting(false);
     if (error) {
+      setSubmitting(false);
       setMessage(error);
       setCaptchaToken(null);
       setCaptchaRevision((value) => value + 1);
       return;
     }
     if (mode === 'sign-up') {
+      setSubmitting(false);
       setSuccess(true);
       setMessage('Conta criada. Confirme o link enviado ao seu e-mail para continuar.');
       return;
