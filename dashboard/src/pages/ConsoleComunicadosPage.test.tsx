@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,12 +12,20 @@ import { ConsoleComunicadoOrgPage } from './ConsoleComunicadoOrgPage';
 const mocks = vi.hoisted(() => ({
   fetchOrgsComunicadosConsole: vi.fn(),
   fetchComunicadosOrgConsole: vi.fn(),
+  fetchBotOnline: vi.fn(),
+  salvarComunicadoConsole: vi.fn(),
+  definirStatusComunicadoConsole: vi.fn(),
+  dispararBotConsole: vi.fn(),
 }));
 
 vi.mock('@/lib/comunicados', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/comunicados')>()),
   fetchOrgsComunicadosConsole: mocks.fetchOrgsComunicadosConsole,
   fetchComunicadosOrgConsole: mocks.fetchComunicadosOrgConsole,
+  fetchBotOnline: mocks.fetchBotOnline,
+  salvarComunicadoConsole: mocks.salvarComunicadoConsole,
+  definirStatusComunicadoConsole: mocks.definirStatusComunicadoConsole,
+  dispararBotConsole: mocks.dispararBotConsole,
 }));
 
 const orgResumo = {
@@ -37,9 +46,11 @@ const orgDetalhe = {
   ],
   chats: [
     { chatId: '1203@g.us', nome: 'Anúncios · Cataguases', tipo: 'grupo', sessaoTelefone: '55****9001', totalAdmins: 2, totalParticipantes: 157, vistoEm: '2026-08-22T10:05:00Z' },
+    { chatId: '1204@g.us', nome: 'Avisos do Centro', tipo: 'grupo', comunidadeId: 'community-1', comunidadeNome: 'Bairros de Cataguases', sessaoTelefone: '55****9001', totalAdmins: 2, totalParticipantes: 84, vistoEm: '2026-08-22T10:05:00Z' },
   ],
   canais: [
     { id: 'k-1', nome: 'Comunidade Cataguases', chatId: '1203@g.us', ativo: true, totalEnvios: 2 },
+    { id: 'k-2', nome: 'Grupo Centro', chatId: '1204@g.us', ativo: true, totalEnvios: 0 },
   ],
   comunicados: [
     {
@@ -77,6 +88,10 @@ describe('comunicados no console interno', () => {
   beforeEach(() => {
     mocks.fetchOrgsComunicadosConsole.mockReset().mockResolvedValue([orgResumo]);
     mocks.fetchComunicadosOrgConsole.mockReset().mockResolvedValue(orgDetalhe);
+    mocks.fetchBotOnline.mockReset().mockResolvedValue(true);
+    mocks.salvarComunicadoConsole.mockReset().mockResolvedValue('com-new');
+    mocks.definirStatusComunicadoConsole.mockReset().mockResolvedValue(undefined);
+    mocks.dispararBotConsole.mockReset().mockResolvedValue(1);
   });
   afterEach(cleanup);
 
@@ -104,6 +119,40 @@ describe('comunicados no console interno', () => {
     expect(await screen.findByRole('heading', { name: 'Nova mensagem' })).toBeVisible();
     expect(screen.getByRole('checkbox', { name: /disparar pelo bot/i })).toBeChecked();
     expect(screen.queryByRole('heading', { name: 'Entregas' })).not.toBeInTheDocument();
+  });
+
+  it('publica um comunicado em vários grupos e comunidades selecionados', async () => {
+    const user = userEvent.setup();
+    renderPage('/app/comunicacoes/org-1');
+    await screen.findByRole('heading', { name: 'Nova mensagem' });
+
+    await user.type(screen.getByLabelText('Título'), 'Alerta de chuva forte');
+    await user.type(screen.getByLabelText('Mensagem'), 'Procure um local seguro.');
+    await user.click(screen.getByRole('checkbox', { name: /Comunidade Cataguases/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Grupo Centro/i }));
+    expect(screen.getByText('2 destinos selecionados para o disparo.')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Publicar agora' }));
+
+    await waitFor(() => {
+      expect(mocks.dispararBotConsole).toHaveBeenNthCalledWith(1, 'com-new', 'k-1');
+      expect(mocks.dispararBotConsole).toHaveBeenNthCalledWith(2, 'com-new', 'k-2');
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('2 grupos ou comunidades na fila do WhatsApp');
+  });
+
+  it('insere emojis e contexto complementar na mensagem do console', async () => {
+    const user = userEvent.setup();
+    renderPage('/app/comunicacoes/org-1');
+    await screen.findByRole('heading', { name: 'Nova mensagem' });
+
+    await user.click(screen.getByRole('button', { name: 'Emojis' }));
+    await user.click(screen.getByRole('button', { name: 'Inserir emoji Emergência' }));
+    expect(screen.getByLabelText('Mensagem')).toHaveValue('🚨');
+
+    await user.click(screen.getByRole('button', { name: 'Adicionar contexto' }));
+    await user.click(screen.getByRole('button', { name: 'Local e horário' }));
+    expect(screen.getByLabelText('Mensagem')).toHaveValue('🚨\n\n📍 Local: \n🕒 Horário: ');
   });
 
   it('mantém a estrutura acessível', async () => {

@@ -4,8 +4,8 @@ import { Archive, Bot, CalendarClock, Check, Copy, ExternalLink, Megaphone, Penc
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { ComunicadoMessageField, WhatsAppDestinationPicker } from '@/components/domain/ComunicadoComposerFields';
 import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,6 +140,9 @@ export function PortalComunicadosPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [novoBairro, setNovoBairro] = useState('');
   const [novaComunidade, setNovaComunidade] = useState({ nome: '', linkConvite: '' });
+  const [destinosWhatsApp, setDestinosWhatsApp] = useState<string[]>([]);
+  const [destinosPorComunicado, setDestinosPorComunicado] = useState<Record<string, string[]>>({});
+  const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
 
   const comunicados = comunicadosQuery.data ?? [];
   const bairros = bairrosQuery.data ?? [];
@@ -149,7 +152,21 @@ export function PortalComunicadosPage() {
   const rascunhos = useMemo(() => comunicados.filter((item) => item.status === 'rascunho'), [comunicados]);
   const arquivados = useMemo(() => comunicados.filter((item) => item.status === 'arquivado'), [comunicados]);
   const canaisAtivos = useMemo(() => canais.filter((canal) => canal.ativo), [canais]);
-  const botChats = botChatsQuery.data ?? [];
+  const botChats = useMemo(() => botChatsQuery.data ?? [], [botChatsQuery.data]);
+  const destinosDisponiveis = useMemo(
+    () => canaisAtivos
+      .filter((canal) => canal.chatId)
+      .map((canal) => {
+        const chat = botChats.find((item) => item.chatId === canal.chatId);
+        return {
+          id: canal.id,
+          nome: canal.nome,
+          grupoNome: chat?.nome,
+          comunidadeNome: chat?.comunidadeNome,
+        };
+      }),
+    [botChats, canaisAtivos],
+  );
 
   const invalidateComunicados = () => queryClient.invalidateQueries({ queryKey: ['portal', 'comunicados'] });
 
@@ -236,7 +253,23 @@ export function PortalComunicadosPage() {
     onError: (error: Error) => setErrorMessage(error.message),
   });
   const botMutation = useMutation({
-    mutationFn: ({ comunicadoId, canalId }: { comunicadoId: string; canalId?: string }) => dispararBot(comunicadoId, canalId),
+    mutationFn: async ({
+      comunicadoId,
+      canalId,
+      canalIds,
+    }: {
+      comunicadoId: string;
+      canalId?: string;
+      canalIds?: string[];
+    }) => {
+      if (canalId) return dispararBot(comunicadoId, canalId);
+      if (!canalIds?.length) return dispararBot(comunicadoId);
+      let total = 0;
+      for (const selectedCanalId of canalIds) {
+        total += await dispararBot(comunicadoId, selectedCanalId);
+      }
+      return total;
+    },
     onSuccess: async (total) => {
       setStatusMessage(total > 0
         ? `${total} disparo${total === 1 ? '' : 's'} na fila do bot — o envio ocorre em segundos.`
@@ -321,7 +354,25 @@ export function PortalComunicadosPage() {
       });
       if (mode === 'publicar') {
         await setComunicadoStatus(comunicadoId, 'publicado');
-        setStatusMessage('Comunicado publicado para a equipe municipal.');
+        let message = 'Comunicado publicado para a equipe municipal.';
+        if (enviarAposPublicar) {
+          try {
+            let total = 0;
+            if (destinosWhatsApp.length === 0) {
+              total = await dispararBot(comunicadoId);
+            } else {
+              for (const canalId of destinosWhatsApp) {
+                total += await dispararBot(comunicadoId, canalId);
+              }
+            }
+            message += total > 0
+              ? ` ${total} grupo${total === 1 ? '' : 's'} ou comunidade${total === 1 ? '' : 's'} na fila do WhatsApp.`
+              : ' Nenhum grupo ou comunidade ativo com chat vinculado ao WhatsApp.';
+          } catch (error) {
+            message += ` O envio para o WhatsApp não entrou na fila: ${error instanceof Error ? error.message : 'erro desconhecido'}.`;
+          }
+        }
+        setStatusMessage(message);
       } else if (mode === 'agendar') {
         await setComunicadoStatus(comunicadoId, 'agendado', publicarIso);
         setStatusMessage(`Comunicado agendado para ${formatDate(publicarIso) ?? 'a data informada'}.`);
@@ -394,16 +445,11 @@ export function PortalComunicadosPage() {
                       required
                     />
                   </label>
-                  <label className="block text-sm font-medium">
-                    Conteúdo
-                    <Textarea
-                      className="mt-2 min-h-24"
-                      value={draft.conteudo}
-                      onChange={(event) => setDraft((current) => ({ ...current, conteudo: event.target.value }))}
-                      maxLength={5000}
-                      required
-                    />
-                  </label>
+                  <ComunicadoMessageField
+                    label="Conteúdo"
+                    value={draft.conteudo}
+                    onChange={(conteudo) => setDraft((current) => ({ ...current, conteudo }))}
+                  />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block text-sm font-medium">
                       Severidade
@@ -464,6 +510,20 @@ export function PortalComunicadosPage() {
                       </div>
                     )}
                   </fieldset>
+                  <WhatsAppDestinationPicker
+                    destinations={destinosDisponiveis}
+                    selectedIds={destinosWhatsApp}
+                    onChange={setDestinosWhatsApp}
+                    disabled={!enviarAposPublicar}
+                  />
+                  <label className="flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={enviarAposPublicar}
+                      onChange={(event) => setEnviarAposPublicar(event.target.checked)}
+                    />
+                    Disparar pelo WhatsApp ao publicar
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     <Button type="submit" disabled={saveMutation.isPending}>
                       {saveMutation.isPending ? 'Salvando…' : 'Salvar rascunho'}
@@ -779,11 +839,24 @@ export function PortalComunicadosPage() {
                             </p>
                           ) : (
                             <>
+                              <div className="mt-3">
+                                <WhatsAppDestinationPicker
+                                  destinations={destinosDisponiveis}
+                                  selectedIds={destinosPorComunicado[comunicado.id] ?? []}
+                                  onChange={(selectedIds) => setDestinosPorComunicado((current) => ({
+                                    ...current,
+                                    [comunicado.id]: selectedIds,
+                                  }))}
+                                />
+                              </div>
                               <div className="mt-2 flex flex-wrap gap-2">
                                 <Button
                                   size="sm"
                                   disabled={botMutation.isPending}
-                                  onClick={() => botMutation.mutate({ comunicadoId: comunicado.id })}
+                                  onClick={() => botMutation.mutate({
+                                    comunicadoId: comunicado.id,
+                                    canalIds: destinosPorComunicado[comunicado.id] ?? [],
+                                  })}
                                 >
                                   <Bot />
                                   Disparar pelo bot

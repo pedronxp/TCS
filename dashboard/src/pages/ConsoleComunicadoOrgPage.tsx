@@ -6,8 +6,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { ComunicadoMessageField, WhatsAppDestinationPicker } from '@/components/domain/ComunicadoComposerFields';
 import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
   fetchBotQrObjectUrl,
@@ -114,7 +114,7 @@ export function ConsoleComunicadoOrgPage({
     publicarEm: '',
   });
   const [comunidadeDestino, setComunidadeDestino] = useState('');
-  const [destinoCanal, setDestinoCanal] = useState('');
+  const [destinosWhatsApp, setDestinosWhatsApp] = useState<string[]>([]);
   const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
 
   const orgQuery = useQuery({
@@ -124,6 +124,20 @@ export function ConsoleComunicadoOrgPage({
     refetchInterval: 10_000,
   });
   const org = orgQuery.data ?? null;
+  const destinosDisponiveis = useMemo(
+    () => (org?.canais ?? [])
+      .filter((canal) => canal.ativo && canal.chatId)
+      .map((canal) => {
+        const chat = org?.chats.find((item) => item.chatId === canal.chatId);
+        return {
+          id: canal.id,
+          nome: canal.nome,
+          grupoNome: chat?.nome,
+          comunidadeNome: chat?.comunidadeNome,
+        };
+      }),
+    [org],
+  );
 
   const entregas = useMemo(() => {
     if (!org) return [] as Array<ComunicadoEnvio & { comunicadoTitulo: string }>;
@@ -329,9 +343,16 @@ export function ConsoleComunicadoOrgPage({
         let extras = 'Mensagem publicada no app e portal.';
         if (enviarAposPublicar) {
           try {
-            const total = await dispararBotConsole(comunicadoId, destinoCanal || undefined);
+            let total = 0;
+            if (destinosWhatsApp.length === 0) {
+              total = await dispararBotConsole(comunicadoId);
+            } else {
+              for (const canalId of destinosWhatsApp) {
+                total += await dispararBotConsole(comunicadoId, canalId);
+              }
+            }
             extras += total > 0
-              ? ` ${total} disparo${total === 1 ? '' : 's'} na fila do bot.`
+              ? ` ${total} grupo${total === 1 ? '' : 's'} ou comunidade${total === 1 ? '' : 's'} na fila do WhatsApp.`
               : ' Nenhuma comunidade ativa com chat vinculado para o WhatsApp.';
           } catch (erroDisparo) {
             extras += ` Disparo não entrou na fila: ${erroDisparo instanceof Error ? erroDisparo.message : 'erro desconhecido'}.`;
@@ -692,16 +713,11 @@ export function ConsoleComunicadoOrgPage({
                       required
                     />
                   </label>
-                  <label className="block text-sm font-medium">
-                    Mensagem
-                    <Textarea
-                      className="mt-1.5 min-h-28"
-                      value={rascunho.conteudo}
-                      onChange={(event) => setRascunho((atual) => ({ ...atual, conteudo: event.target.value }))}
-                      maxLength={5000}
-                      required
-                    />
-                  </label>
+                  <ComunicadoMessageField
+                    label="Mensagem"
+                    value={rascunho.conteudo}
+                    onChange={(conteudo) => setRascunho((atual) => ({ ...atual, conteudo }))}
+                  />
                   <label className="block text-sm font-medium">
                     Tipo de mensagem
                     <select
@@ -723,32 +739,12 @@ export function ConsoleComunicadoOrgPage({
                       onChange={(event) => setRascunho((atual) => ({ ...atual, publicarEm: event.target.value }))}
                     />
                   </label>
-                  <label className="block text-sm font-medium">
-                    Destino no WhatsApp
-                    <select
-                      className="mt-1.5 h-11 w-full rounded-md border bg-card px-3 text-sm"
-                      value={destinoCanal}
-                      onChange={(event) => setDestinoCanal(event.target.value)}
-                      aria-label="Comunidade ou grupo de destino no WhatsApp"
-                    >
-                      <option value="">
-                        Todas as comunidades ativas ({org.canais.filter((canal) => canal.ativo && canal.chatId).length})
-                      </option>
-                      {org.canais.filter((canal) => canal.ativo && canal.chatId).map((canal) => {
-                        const chat = org.chats.find((item) => item.chatId === canal.chatId);
-                        return (
-                          <option key={canal.id} value={canal.id}>
-                            {canal.nome}{chat?.comunidadeNome ? ` · Comunidade: ${chat.comunidadeNome}` : ''}{chat ? ` (grupo: ${chat.nome})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </label>
-                  {org.canais.filter((canal) => canal.ativo && canal.chatId).length === 0 && (
-                    <p className="text-xs text-warning">
-                      Nenhuma comunidade com chat vinculado: a mensagem sai no app/portal; vincule a comunidade no cartão ao lado para o WhatsApp.
-                    </p>
-                  )}
+                  <WhatsAppDestinationPicker
+                    destinations={destinosDisponiveis}
+                    selectedIds={destinosWhatsApp}
+                    onChange={setDestinosWhatsApp}
+                    disabled={!enviarAposPublicar}
+                  />
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -763,7 +759,7 @@ export function ConsoleComunicadoOrgPage({
                     <Button type="button" variant="outline" onClick={() => void enviarMensagem('agendar')}>Agendar</Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    No app e portal a mensagem vai para todo o município; no WhatsApp, para o destino escolhido acima.
+                    No app e portal a mensagem vai para todo o município; no WhatsApp, para os grupos e comunidades selecionados.
                   </p>
                 </form>
               </CardContent>
