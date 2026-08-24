@@ -5,6 +5,7 @@ import { TcsMark } from '@/components/brand/TcsMark';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { TurnstileChallenge, turnstileEnabled } from '@/components/auth/TurnstileChallenge';
 import { supabase } from '@/lib/supabase';
 
 const RECOVERY_MARKER = 'tcs.portal.password-recovery';
@@ -21,6 +22,8 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRevision, setCaptchaRevision] = useState(0);
   const loginPath = `/entrar${location.search}`;
   const requestPath = `/recuperar-senha${location.search}`;
 
@@ -60,6 +63,10 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
 
   async function request(event: FormEvent) {
     event.preventDefault();
+    if (turnstileEnabled && !captchaToken) {
+      setMessage('Conclua a verificação de segurança antes de continuar.');
+      return;
+    }
     setSubmitting(true);
     setMessage(null);
     const normalizedEmail = email.trim().toLowerCase();
@@ -70,10 +77,17 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
       setMessage('A recuperação de senha está temporariamente indisponível.');
       return;
     }
-    const recovery = await supabase.functions.invoke('password-recovery-request', { body: { email: normalizedEmail } });
+    const recovery = await supabase.functions.invoke('password-recovery-request', {
+      body: {
+        email: normalizedEmail,
+        ...(captchaToken ? { captchaToken } : {}),
+      },
+    });
     if (recovery.error) {
       const status = (recovery.error as { context?: Response }).context?.status;
       setSubmitting(false);
+      setCaptchaToken(null);
+      setCaptchaRevision((value) => value + 1);
       if (status === 429) {
         setMessage('Muitas tentativas de recuperação. Aguarde alguns minutos e tente novamente.');
         return;
@@ -163,7 +177,8 @@ export function PortalPasswordRecoveryPage({ mode }: { mode: 'request' | 'reset'
                     <Input className="mt-2" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
                   </label>
                   {message && <p className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="alert">{message}</p>}
-                  <Button type="submit" className="w-full" disabled={submitting}>
+                  {turnstileEnabled && <TurnstileChallenge key={captchaRevision} onToken={setCaptchaToken} />}
+                  <Button type="submit" className="w-full" disabled={submitting || (turnstileEnabled && !captchaToken)}>
                     {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                     {submitting ? 'Enviando…' : 'Enviar link seguro'}
                   </Button>

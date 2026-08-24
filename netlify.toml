@@ -8,6 +8,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  VITE_TURNSTILE_SITE_KEY = "0x4AAAAAAEZrvk6QszB6lWKY"
 
 # SPA: qualquer rota não encontrada retorna index.html
 [[redirects]]

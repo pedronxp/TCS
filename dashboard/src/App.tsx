@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 
 const PrivateApp = lazy(() => import('@/PrivateApp'));
 const PortalApp = lazy(() => import('@/PortalApp'));
+const AuthCallbackPage = lazy(() => import('@/pages/AuthCallbackPage').then((module) => ({ default: module.AuthCallbackPage })));
 
 function PrivateAppFallback() {
   return <div className="grid min-h-screen place-items-center bg-background p-6" aria-live="polite"><div className="w-full max-w-sm space-y-3"><span className="sr-only">Carregando área protegida…</span><Skeleton className="h-8 w-48" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div></div>;
@@ -28,6 +29,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/auth/callback" element={<Suspense fallback={<PrivateAppFallback />}><AuthCallbackPage /></Suspense>} />
         <Route element={<PublicLayout />}>
           <Route index element={<CommercialPage />} />
           <Route path="/planos" element={<PlansCatalogPage />} />

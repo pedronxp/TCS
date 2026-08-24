@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -7,6 +7,7 @@ import { GoogleMark } from '@/components/brand/GoogleMark';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { AuthFrame, AuthLoadingCard } from '@/components/auth/AuthFrame';
+import { TurnstileChallenge, turnstileEnabled } from '@/components/auth/TurnstileChallenge';
 import { useAuth } from '@/contexts/AuthContext';
 import { safeConsoleDestination } from '@/lib/routes';
 import { supabaseConfigurationAvailable } from '@/lib/supabase';
@@ -26,12 +27,15 @@ interface LoginLocationState {
 export function LoginPage() {
   const { session, signIn, signInWithGoogle, isAuthorized, loading: authLoading, authMessage } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRevision, setCaptchaRevision] = useState(0);
   const requested = (location.state as LoginLocationState | null)?.from;
   const requestedPath = `${requested?.pathname || ''}${requested?.search || ''}${requested?.hash || ''}`;
   const destination = safeConsoleDestination(requestedPath);
@@ -43,8 +47,9 @@ export function LoginPage() {
   // Cliente autenticado que caiu em /login por engano: encaminhe ao portal
   // em vez de mostrar um beco sem saída com visual divergente.
   if (session && !isAuthorized) {
-    const search = requestedPath ? `?returnTo=${encodeURIComponent(requestedPath)}` : '';
-    return <Navigate to={`/entrar${search}`} replace />;
+    const search = new URLSearchParams({ source: 'console' });
+    if (requestedPath) search.set('returnTo', requestedPath);
+    return <Navigate to={`/auth/callback?${search.toString()}`} replace />;
   }
 
   if (isAuthorized) return <Navigate to={destination} replace />;
@@ -58,9 +63,24 @@ export function LoginPage() {
       return;
     }
 
+    if (turnstileEnabled && !captchaToken) {
+      setError('Conclua a verificação de segurança antes de continuar.');
+      return;
+    }
+
     setSubmitting(true);
-    const result = await signIn(email.trim(), password);
-    if (result.error) setError(result.error);
+    const result = captchaToken
+      ? await signIn(email.trim(), password, captchaToken)
+      : await signIn(email.trim(), password);
+    if (result.error) {
+      setError(result.error);
+      setCaptchaToken(null);
+      setCaptchaRevision((value) => value + 1);
+    } else {
+      const callback = new URLSearchParams({ source: 'console' });
+      if (requestedPath) callback.set('returnTo', requestedPath);
+      navigate(`/auth/callback?${callback.toString()}`, { replace: true });
+    }
     setSubmitting(false);
   }
 
@@ -160,9 +180,15 @@ export function LoginPage() {
             </Alert>
           )}
 
+          {turnstileEnabled && (
+            <div className="mt-6">
+              <TurnstileChallenge key={captchaRevision} onToken={setCaptchaToken} />
+            </div>
+          )}
+
           <Button
             type="submit"
-            disabled={submitting || !supabaseConfigurationAvailable}
+            disabled={submitting || !supabaseConfigurationAvailable || (turnstileEnabled && !captchaToken)}
             className="mt-8 h-[46px] w-full"
           >
             {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}

@@ -17,8 +17,16 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return response({}, allowedOrigins.has(origin) ? 204 : 403, origin);
   if (request.method !== 'POST' || !allowedOrigins.has(origin)) return response({ error: 'not_found' }, 404);
   let email = '';
-  try { email = String((await request.json()).email ?? '').trim().toLowerCase(); } catch { return response({ error: 'invalid_request' }, 400, origin); }
+  let captchaToken: string | null = null;
+  try {
+    const payload = await request.json() as { email?: unknown; captchaToken?: unknown };
+    email = String(payload.email ?? '').trim().toLowerCase();
+    captchaToken = typeof payload.captchaToken === 'string' ? payload.captchaToken.trim() : null;
+  } catch {
+    return response({ error: 'invalid_request' }, 400, origin);
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return response({ error: 'invalid_request' }, 400, origin);
+  if (captchaToken && captchaToken.length > 4096) return response({ error: 'invalid_request' }, 400, origin);
   const forwarded = request.headers.get('x-forwarded-for') ?? '';
   const ip = forwarded.split(',')[0]?.trim() || request.headers.get('x-real-ip')?.trim() || request.headers.get('cf-connecting-ip')?.trim() || '';
   const { data: quota, error: quotaError } = await admin.rpc('consume_password_recovery_quota', { p_email: email, p_ip: ip });
@@ -28,7 +36,11 @@ Deno.serve(async (request) => {
   const recover = await fetch(`${supabaseUrl}/auth/v1/recover`, {
     method: 'POST',
     headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, redirect_to: `${origin}/redefinir-senha` }),
+    body: JSON.stringify({
+      email,
+      redirect_to: `${origin}/redefinir-senha`,
+      ...(captchaToken ? { captcha_token: captchaToken } : {}),
+    }),
   });
   if (!recover.ok) {
     console.error('password_recovery_auth_error', recover.status);
