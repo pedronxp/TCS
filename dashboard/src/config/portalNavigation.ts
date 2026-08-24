@@ -9,6 +9,8 @@ import {
   Gauge,
   Headphones,
   Map,
+  Mail,
+  MessageCircleMore,
   Megaphone,
   Settings,
   UserRoundPlus,
@@ -43,12 +45,14 @@ const modules = [
   ['Ciências', 'ciencias', FileCheck2, 'document.read', 'work'],
   ['Relatórios', 'relatorios', ChartNoAxesCombined, 'report.read', 'work'],
   ['Comunicados', 'comunicados', Megaphone, 'communication.read', 'work'],
+  ['WhatsApp', 'whatsapp', MessageCircleMore, 'whatsapp.read', 'work'],
   ['Equipe', 'equipe', Users, 'team.read', 'management'],
   ['Convites', 'convites', UserRoundPlus, 'invite.agent', 'management'],
   ['Consumo', 'consumo', Gauge, 'usage.read', 'management'],
   ['Assinatura', 'assinatura', CreditCard, 'billing.read', 'management'],
   ['Configurações', 'configuracoes', Settings, 'settings.read', 'management'],
   ['Suporte', 'suporte', Headphones, 'support.read', 'account'],
+  ['Mensagens', 'mensagens', Mail, 'profile.read', 'account'],
   ['Perfil', 'perfil', CircleUserRound, 'profile.read', 'account'],
 ] as const satisfies ReadonlyArray<readonly [string, string, LucideIcon, PortalPermission, PortalNavigationGroup]>;
 

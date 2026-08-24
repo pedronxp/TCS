@@ -495,7 +495,6 @@ function FormEditorContent({
   const [description, setDescription] = useState(form?.description || '');
   const [municipality, setMunicipality] = useState(form?.municipality || '');
   const [calculation, setCalculation] = useState(form?.calculationType || 'soma_total');
-  const [classification, setClassification] = useState(JSON.stringify(form?.classification ?? {}, null, 2));
   const [phases, setPhases] = useState<EditablePhase[]>(() => editablePhases(form?.phases, form?.questions));
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -504,7 +503,7 @@ function FormEditorContent({
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const initialSnapshot = useRef<string | undefined>(undefined);
   const preview = useMemo(() => phases.flatMap((phase) => phase.perguntas).map((question) => question.texto || 'Pergunta sem título'), [phases]);
-  const editorSnapshot = useMemo(() => JSON.stringify({ title, description, municipality, calculation, classification, phases, reason }), [title, description, municipality, calculation, classification, phases, reason]);
+  const editorSnapshot = useMemo(() => JSON.stringify({ title, description, municipality, calculation, phases, reason }), [title, description, municipality, calculation, phases, reason]);
   if (initialSnapshot.current === undefined) initialSnapshot.current = editorSnapshot;
   const hasUnsavedChanges = initialSnapshot.current !== editorSnapshot;
 
@@ -560,10 +559,6 @@ function FormEditorContent({
 
   function payload(): Json {
     if (title.trim().length < 3) throw new Error('Informe um título com pelo menos 3 caracteres.');
-    const parsedClassification = JSON.parse(classification) as Json;
-    if (!Array.isArray(parsedClassification) && !jsonObject(parsedClassification)) {
-      throw new Error('A classificação deve conter um objeto ou uma lista JSON válida.');
-    }
     const normalizedPhases = phases
       .map((phase) => ({ ...phase, titulo: phase.titulo.trim(), perguntas: phase.perguntas.filter((question) => question.texto.trim()) }))
       .filter((phase) => phase.titulo || phase.perguntas.length);
@@ -575,7 +570,7 @@ function FormEditorContent({
       municipality: municipality.trim(),
       calculation_type: calculation,
       questions: serializedPhases.flatMap((phase) => phase.perguntas),
-      classification: parsedClassification,
+      classification: form?.classification ?? {},
       phases: serializedPhases,
     };
   }
@@ -664,9 +659,9 @@ function FormEditorContent({
                 ))}
                 {!phases.length && <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Adicione uma etapa para começar a montar o formulário.</p>}
               </section>
-              <div>
-                <JsonField id="form-classification" label="Classificação de risco (avançado)" value={classification} onChange={setClassification} />
-                <p className="mt-2 text-xs text-muted-foreground">Use para faixas e regras de resultado. A pontuação das respostas é configurada diretamente nos cards acima.</p>
+              <div className="rounded-xl border border-info/20 bg-info-soft p-4">
+                <p className="text-sm font-semibold">Classificação de risco automática</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Defina a pontuação diretamente nas respostas. O sistema preserva as regras existentes e calcula o resultado sem exigir edição em JSON.</p>
               </div>
               {form ? (
                 <p className="text-xs text-muted-foreground">O escopo municipal é imutável depois da criação. Para outro escopo, crie um novo formulário.</p>
@@ -1085,32 +1080,6 @@ function pendingConfirmLabel(pending: PendingAction) {
 
 function ImageControl({ id, label, value, uploading, onChange, onUpload }: { id: string; label: string; value: string; uploading: boolean; onChange: (value: string) => void; onUpload: (file: File) => void }) {
   return <div className="mt-3 rounded-xl border border-border/70 bg-muted/25 p-3"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><div><Label htmlFor={id}>{label}</Label><Input id={id} className="mt-2" value={value} onChange={(event) => onChange(event.target.value)} placeholder="URL da imagem ou envie um arquivo" /></div><label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-medium hover:bg-secondary"><ImagePlus className="h-4 w-4" />{uploading ? 'Enviando…' : 'Enviar imagem'}<input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) onUpload(file); event.currentTarget.value = ''; }} /></label></div>{value ? <div className="mt-3 flex items-center gap-3 rounded-lg border border-border/70 bg-card p-2"><img src={value} alt={`Prévia: ${label}`} className="h-12 w-16 rounded-md border border-border/70 object-cover" /><p className="text-xs font-medium text-success-foreground">Imagem configurada para o aplicativo</p></div> : <p className="mt-2 text-xs text-muted-foreground">Nenhuma imagem configurada.</p>}</div>;
-}
-
-function JsonField({
-  id,
-  label,
-  value,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <Label htmlFor={id}>{label} (JSON)</Label>
-      <Textarea
-        id={id}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={14}
-        spellCheck={false}
-        className="mt-2 font-mono text-xs"
-      />
-    </div>
-  );
 }
 
 function previewQuestions(phases: Json, questions: Json) {

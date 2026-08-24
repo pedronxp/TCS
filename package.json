@@ -85,6 +85,7 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/dashboard/",
+      "/bot-whatsapp/",
       "/.claude/worktrees/",
       "/\\.claude/"
     ],

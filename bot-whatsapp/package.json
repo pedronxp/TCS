@@ -5,7 +5,8 @@
   "description": "Bot WhatsApp externo do TCS: QR Code, fila de disparo de comunicados em comunidades/grupos. Componente opcional e isolado — ver README.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test organization-isolation.test.js"
   },
   "engines": {
     "node": ">=20"

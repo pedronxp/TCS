@@ -30,7 +30,7 @@ const subscriptionStatuses = new Set<PortalSubscriptionStatus>([
 const permissions = new Set<PortalPermission>([
   'dashboard.read', 'inspection.read', 'inspection.create', 'map.read',
   'appointment.read', 'document.read', 'report.read', 'communication.read',
-  'communication.write', 'team.read', 'team.manage',
+  'communication.write', 'whatsapp.read', 'whatsapp.write', 'team.read', 'team.manage',
   'invite.agent', 'invite.manage', 'usage.read', 'billing.read', 'billing.manage',
   'support.read', 'support.create', 'settings.read', 'settings.manage',
   'profile.read', 'profile.manage',

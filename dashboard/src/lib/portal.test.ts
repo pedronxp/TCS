@@ -87,7 +87,7 @@ describe('contrato de acesso do portal', () => {
 
   it('deriva a navegação somente das permissões efetivas', () => {
     const individual = getPortalNavigation(context());
-    expect(individual.map((item) => item.label)).toEqual(['Visão geral', 'Vistorias', 'Assinatura', 'Perfil']);
+    expect(individual.map((item) => item.label)).toEqual(['Visão geral', 'Vistorias', 'Assinatura', 'Mensagens', 'Perfil']);
 
     const agent = getPortalNavigation(context({
       accountKind: 'organization',

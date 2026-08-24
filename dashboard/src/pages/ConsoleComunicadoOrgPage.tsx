@@ -1,24 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bot, CheckCircle2, Clock, Megaphone, Smartphone, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronRight, Clock, LogOut, Megaphone, Power, RefreshCw, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { ComunicadoMessageField, WhatsAppDestinationPicker } from '@/components/domain/ComunicadoComposerFields';
 import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
+import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
-  botQrUrl,
+  fetchBotQrObjectUrl,
   criarGrupoPeloBot,
   criarSessaoBotConsole,
   definirStatusComunicadoConsole,
-  definirStatusSessaoBotConsole,
   dispararBotConsole,
   fetchBotOnline,
   fetchBotSessaoStatus,
   fetchBotVerificacao,
   fetchComunicadosOrgConsole,
   mascararTelefone,
+  operarSessaoBotConsole,
   salvarCanalConsole,
   salvarComunicadoConsole,
   sincronizarChatsBot,
@@ -27,6 +29,7 @@ import {
   type ComunicadoEnvio,
   type ComunicadoSeveridade,
   type SessaoBotStatus,
+  type SessaoBotAcao,
 } from '@/lib/comunicados';
 
 const sessaoLabels: Record<SessaoBotStatus, string> = {
@@ -34,6 +37,28 @@ const sessaoLabels: Record<SessaoBotStatus, string> = {
   vinculado: 'Vinculado',
   desconectado: 'Desconectado',
   banido: 'Banido',
+};
+
+const runtimeSessionLabels: Record<string, string> = {
+  starting: 'Iniciando',
+  awaiting_qr: 'Aguardando QR',
+  online: 'Online',
+  reconnecting: 'Reconectando',
+  paused: 'Pausado',
+  offline: 'Fora do ar',
+  banned: 'Banido',
+};
+
+const organizationRuntimeLabels: Record<string, string> = {
+  online: 'Organização online',
+  degraded: 'Operação parcial',
+  reconnecting: 'Reconectando',
+  awaiting_qr: 'Aguardando QR',
+  paused: 'Organização pausada',
+  offline: 'Organização fora do ar',
+  service_offline: 'Docker fora do ar',
+  unconfigured: 'Sem número',
+  banned: 'Números banidos',
 };
 
 function formatDate(value: string | null) {
@@ -61,13 +86,23 @@ function explicarErroPareamento(erro: string | null): string {
 
 // Espaço de operação de UMA prefeitura: entregas com motivo e fallback,
 // programados, números vinculados e comunidades com admins/membros.
-export function ConsoleComunicadoOrgPage() {
+export function ConsoleComunicadoOrgPage({
+  backTo = '/app/comunicacoes',
+  backLabel = 'Comunicados e comunidades',
+  mode = 'communications',
+}: {
+  backTo?: string;
+  backLabel?: string;
+  mode?: 'communications' | 'whatsapp';
+} = {}) {
   const { orgId } = useParams();
+  const isWhatsAppMode = mode === 'whatsapp';
   const queryClient = useQueryClient();
-  const [novaComunidade, setNovaComunidade] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [acaoSessao, setAcaoSessao] = useState<{ id: string; acao: SessaoBotAcao; telefone: string } | null>(null);
   const [qrTick, setQrTick] = useState(0);
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   // Assistente de vinculação: qr -> verificando (sem falso positivo) -> comunidade -> pronto.
   const [wizard, setWizard] = useState<{ etapa: 'qr' | 'verificando' | 'comunidade' | 'pronto'; sessaoId: string } | null>(null);
   const [nomeComunidadeManual, setNomeComunidadeManual] = useState('');
@@ -79,7 +114,7 @@ export function ConsoleComunicadoOrgPage() {
     publicarEm: '',
   });
   const [comunidadeDestino, setComunidadeDestino] = useState('');
-  const [destinoCanal, setDestinoCanal] = useState('');
+  const [destinosWhatsApp, setDestinosWhatsApp] = useState<string[]>([]);
   const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
 
   const orgQuery = useQuery({
@@ -89,6 +124,20 @@ export function ConsoleComunicadoOrgPage() {
     refetchInterval: 10_000,
   });
   const org = orgQuery.data ?? null;
+  const destinosDisponiveis = useMemo(
+    () => (org?.canais ?? [])
+      .filter((canal) => canal.ativo && canal.chatId)
+      .map((canal) => {
+        const chat = org?.chats.find((item) => item.chatId === canal.chatId);
+        return {
+          id: canal.id,
+          nome: canal.nome,
+          grupoNome: chat?.nome,
+          comunidadeNome: chat?.comunidadeNome,
+        };
+      }),
+    [org],
+  );
 
   const entregas = useMemo(() => {
     if (!org) return [] as Array<ComunicadoEnvio & { comunicadoTitulo: string }>;
@@ -156,13 +205,14 @@ export function ConsoleComunicadoOrgPage() {
   const chatsPorComunidade = useMemo(() => {
     const dentro = new Map<string, NonNullable<typeof org>['chats']>();
     const avulsos: Array<NonNullable<typeof org>['chats'][number]> = [];
+    const avulsosAprovados = new Set((org?.canais ?? []).map((canal) => canal.chatId).filter(Boolean));
     for (const chat of org?.chats ?? []) {
       if (chat.comunidadeId) {
         const atual = dentro.get(chat.comunidadeId) ?? [];
         atual.push(chat);
         dentro.set(chat.comunidadeId, atual);
       } else {
-        avulsos.push(chat);
+        if (avulsosAprovados.has(chat.chatId)) avulsos.push(chat);
       }
     }
     return { dentro, avulsos };
@@ -196,6 +246,26 @@ export function ConsoleComunicadoOrgPage() {
     const timer = setInterval(() => setQrTick((atual) => atual + 1), 5_000);
     return () => clearInterval(timer);
   }, [wizard]);
+
+  useEffect(() => {
+    if (!wizard || wizard.etapa !== 'qr') {
+      setQrImageUrl(null);
+      return undefined;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    fetchBotQrObjectUrl(wizard.sessaoId)
+      .then((url) => {
+        objectUrl = url;
+        if (active) setQrImageUrl(url);
+        else URL.revokeObjectURL(url);
+      })
+      .catch(() => { if (active) setQrImageUrl(null); });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [wizard?.sessaoId, wizard?.etapa, qrTick]);
 
   const sessaoCriarMutation = useMutation({
     mutationFn: criarSessaoBotConsole,
@@ -273,9 +343,16 @@ export function ConsoleComunicadoOrgPage() {
         let extras = 'Mensagem publicada no app e portal.';
         if (enviarAposPublicar) {
           try {
-            const total = await dispararBotConsole(comunicadoId, destinoCanal || undefined);
+            let total = 0;
+            if (destinosWhatsApp.length === 0) {
+              total = await dispararBotConsole(comunicadoId);
+            } else {
+              for (const canalId of destinosWhatsApp) {
+                total += await dispararBotConsole(comunicadoId, canalId);
+              }
+            }
             extras += total > 0
-              ? ` ${total} disparo${total === 1 ? '' : 's'} na fila do bot.`
+              ? ` ${total} grupo${total === 1 ? '' : 's'} ou comunidade${total === 1 ? '' : 's'} na fila do WhatsApp.`
               : ' Nenhuma comunidade ativa com chat vinculado para o WhatsApp.';
           } catch (erroDisparo) {
             extras += ` Disparo não entrou na fila: ${erroDisparo instanceof Error ? erroDisparo.message : 'erro desconhecido'}.`;
@@ -295,53 +372,52 @@ export function ConsoleComunicadoOrgPage() {
     }
   }
   const sessaoStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'banido' | 'desconectado' }) => definirStatusSessaoBotConsole(id, status),
-    onSuccess: async () => {
-      setStatusMessage('Status do número atualizado.');
+    mutationFn: ({ id, acao }: { id: string; acao: SessaoBotAcao }) => operarSessaoBotConsole(id, acao),
+    onSuccess: async (_, variables) => {
+      const mensagens: Record<SessaoBotAcao, string> = {
+        desconectar: 'Número desconectado. O vínculo foi preservado para uma retomada rápida.',
+        reconectar: 'Reconexão solicitada. O status será atualizado automaticamente.',
+        sair: 'Saída do WhatsApp solicitada. As credenciais deste número serão removidas com segurança.',
+        banir: 'Número marcado como banido e removido do fallback de envio.',
+      };
+      setStatusMessage(mensagens[variables.acao]);
+      setAcaoSessao(null);
       invalidate();
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
-  const canalSalvarMutation = useMutation({
-    mutationFn: ({ nome }: { nome: string }) => salvarCanalConsole(orgId as string, nome),
-    onSuccess: async () => {
-      setNovaComunidade('');
-      setStatusMessage('Comunidade registrada.');
-      invalidate();
-    },
-    onError: (error: Error) => setErrorMessage(error.message),
-  });
-  const chatVincularMutation = useMutation({
-    mutationFn: ({ canalId, chatId }: { canalId: string; chatId: string | null }) => vincularCanalChatConsole(canalId, chatId),
-    onSuccess: async () => {
-      setStatusMessage('Chat vinculado à comunidade.');
-      invalidate();
-    },
-    onError: (error: Error) => setErrorMessage(error.message),
-  });
-  const dispararMutation = useMutation({
-    mutationFn: ({ comunicadoId }: { comunicadoId: string }) => dispararBotConsole(comunicadoId),
-    onSuccess: async (total) => {
-      setStatusMessage(total > 0
-        ? `${total} disparo${total === 1 ? '' : 's'} na fila do bot.`
-        : 'Nenhuma comunidade ativa com chat vinculado.');
-      invalidate();
-    },
-    onError: (error: Error) => setErrorMessage(error.message),
-  });
-
   return (
-    <div className="page-stack">
-      <header>
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
-          <Link to="/app/comunicacoes" className="inline-flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Comunicados e comunidades
-          </Link>
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold">{org?.organization.name ?? 'Prefeitura'}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {org?.organization.municipality ?? ''} · Números do bot, comunidades, disparo com fallback e entregas.
-        </p>
+    <div className="communications-compact page-stack mx-auto max-w-[1220px]">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            <Link to={backTo} className="inline-flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> {backLabel}
+            </Link>
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold">{org?.organization.name ?? 'Prefeitura'}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {org?.organization.municipality ?? ''} · {isWhatsAppMode
+              ? 'Números conectados, comunidades, grupos por bairro e entregas.'
+              : 'Conteúdo oficial, alcance territorial, agendamentos e histórico.'}
+          </p>
+        </div>
+        <GuidedTutorial
+          workspace="internal"
+          organizationId={orgId ?? null}
+          tutorialKey={isWhatsAppMode ? 'console-whatsapp-operations' : 'console-defesa-civil-comunicados'}
+          title={isWhatsAppMode ? 'Monitoramento do WhatsApp' : 'Comunicados da Defesa Civil'}
+          description={isWhatsAppMode ? 'Confira números, Comunidades, grupos por bairro e falhas da organização.' : 'Prepare e acompanhe alertas oficiais sem misturar a configuração do canal.'}
+          steps={isWhatsAppMode ? [
+            { title: 'Números e conexão', description: 'Acompanhe a conexão e inicie a recuperação quando necessário.', target: 'console-whatsapp-sessions' },
+            { title: 'Comunidades e bairros', description: 'Confira a hierarquia sincronizada e os grupos destinados a cada bairro.', target: 'console-whatsapp-communities' },
+            { title: 'Entregas', description: 'Monitore fila, falhas e envios incertos sem repetir automaticamente.', target: 'console-whatsapp-deliveries' },
+          ] : [
+            { title: 'Nova mensagem', description: 'Crie o conteúdo, defina a severidade e revise os destinos.', target: 'console-communication-composer' },
+            { title: 'Programados', description: 'Acompanhe mensagens agendadas antes da publicação.', target: 'console-communication-scheduled' },
+            { title: 'Histórico', description: 'Revise comunicados publicados e mantenha a trilha editorial da organização.', target: 'console-communication-history' },
+          ]}
+        />
       </header>
 
       {statusMessage && <p className="rounded-md border border-success/25 bg-success-soft p-3 text-sm text-foreground" role="status">{statusMessage}</p>}
@@ -356,34 +432,42 @@ export function ConsoleComunicadoOrgPage() {
       )}
 
       {org && (
-        <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Smartphone /> Números do bot</CardTitle>
+        <section className={isWhatsAppMode ? 'grid items-start gap-4 2xl:grid-cols-[minmax(0,1.05fr)_minmax(400px,0.95fr)]' : 'grid gap-4'}>
+          {isWhatsAppMode && <div className="space-y-6">
+            <Card data-tutorial="console-whatsapp-sessions" className="overflow-hidden">
+              <CardHeader className="border-b bg-secondary/20 pb-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Smartphone /> Números do bot</CardTitle>
+                    <p className="mt-1.5 text-sm text-muted-foreground">Conexões oficiais usadas no envio e na contingência.</p>
+                  </div>
+                  {botOnlineQuery.isLoading ? (
+                    <Badge variant="info">Verificando serviço…</Badge>
+                  ) : botOnline ? (
+                    <Badge variant="success" className="gap-1.5"><Wifi className="h-3.5 w-3.5" /> Serviço online</Badge>
+                  ) : (
+                    <Badge variant="destructive" className="gap-1.5"><WifiOff className="h-3.5 w-3.5" /> Serviço indisponível</Badge>
+                  )}
+                  {org.runtime && (
+                    <Badge variant={org.runtime.state === 'online' ? 'success' : org.runtime.state === 'degraded' || org.runtime.state === 'reconnecting' ? 'warning' : 'secondary'}>
+                      {organizationRuntimeLabels[org.runtime.state]} · {org.runtime.sessionsOnline}/{org.runtime.sessionsTotal} online
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  O disparo tenta todos os vinculados que enxergam o chat (um cai, o outro envia).
+              <CardContent className="p-5 sm:p-6">
+                <p className="mb-5 text-sm leading-6 text-muted-foreground">
+                  O disparo usa todos os números online que enxergam o grupo. Se um perder a conexão, o próximo assume o envio.
                 </p>
 
                 {wizard === null ? (
                   <div>
-                    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-                      {botOnlineQuery.isLoading ? (
-                        <Badge variant="info">Verificando o bot…</Badge>
-                      ) : botOnline ? (
-                        <Badge variant="success">Bot online</Badge>
-                      ) : (
-                        <Badge variant="destructive">Bot offline</Badge>
-                      )}
-                      {!botOnline && (
-                        <span className="text-muted-foreground">
-                          Ligue o bot na máquina dele (<code>cd bot-whatsapp && npm start</code>) — a verificação refaz sozinha.
-                        </span>
-                      )}
-                    </div>
-                    <Button size="sm" disabled={sessaoCriarMutation.isPending || !botOnline} onClick={() => orgId && sessaoCriarMutation.mutate(orgId)}>
+                    {!botOnline && (
+                      <p className="mb-4 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning-foreground">
+                        O serviço hospedado está temporariamente indisponível. Os envios permanecem protegidos na fila e serão retomados após a reconexão.
+                      </p>
+                    )}
+                    <Button disabled={sessaoCriarMutation.isPending || !botOnline} onClick={() => orgId && sessaoCriarMutation.mutate(orgId)}>
                       <Smartphone />
                       Vincular número
                     </Button>
@@ -397,11 +481,11 @@ export function ConsoleComunicadoOrgPage() {
                     {wizard.etapa === 'qr' && (
                       <div className="mt-3 space-y-2">
                         <div className="flex items-center justify-center rounded-md bg-white p-2">
-                          <img
-                            src={`${botQrUrl(wizard.sessaoId)}?t=${qrTick}`}
+                          {qrImageUrl ? <img
+                            src={qrImageUrl}
                             alt="QR Code de vinculação do WhatsApp — escaneie em até 20 segundos"
                             className="h-56 w-56"
-                          />
+                          /> : <div className="flex h-56 w-56 items-center justify-center text-center text-xs text-muted-foreground">Preparando QR Code seguro…</div>}
                         </div>
                         <p className="text-center text-xs text-muted-foreground">
                           WhatsApp → Aparelhos conectados → Conectar aparelho → escaneie <b>em até 20 segundos</b>.
@@ -538,113 +622,81 @@ export function ConsoleComunicadoOrgPage() {
                   </div>
                 )}
 
-                <ul className="mt-4 divide-y">
-                  {org.sessoes.length === 0 && <li className="py-3 text-sm text-muted-foreground">Nenhum número vinculado.</li>}
+                <ul className="mt-6 space-y-3">
+                  {org.sessoes.length === 0 && <li className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhum número vinculado.</li>}
                   {org.sessoes.map((sessao) => (
-                    <li key={sessao.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-2.5">
-                      <span className="min-w-0">
-                        <span className="block break-words text-sm font-semibold">{sessao.telefone ?? 'número desconhecido'}</span>
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {sessaoLabels[sessao.status]}
-                          {sessao.totalChats > 0 ? ` · ${sessao.totalChats} grupos` : ''}
+                    <li key={sessao.id} className="rounded-xl border bg-card p-4">
+                      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-semibold">{sessao.telefone ?? 'Número ainda não identificado'}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {sessao.totalChats} grupo{sessao.totalChats === 1 ? '' : 's'} sincronizado{sessao.totalChats === 1 ? '' : 's'}
+                          </span>
                         </span>
-                      </span>
-                      {sessao.status !== 'banido' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={sessaoStatusMutation.isPending}
-                          onClick={() => sessaoStatusMutation.mutate({ id: sessao.id, status: 'banido' })}
-                        >
-                          Marcar banido
-                        </Button>
+                        <Badge variant={sessao.runtimeState === 'online' ? 'success' : sessao.runtimeState === 'reconnecting' || sessao.runtimeState === 'starting' ? 'warning' : sessao.runtimeState === 'banned' || sessao.runtimeState === 'offline' ? 'destructive' : sessao.status === 'aguardando_qr' ? 'info' : 'secondary'} className="gap-1.5">
+                          {sessao.runtimeState === 'online' && <span className="h-2 w-2 rounded-full bg-success" />}
+                          {sessao.runtimeState ? runtimeSessionLabels[sessao.runtimeState] : sessaoLabels[sessao.status]}
+                        </Badge>
+                      </div>
+                      {(sessao.lastSeenAt || sessao.lastError) && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {sessao.lastSeenAt ? `Último sinal: ${formatDate(sessao.lastSeenAt)}` : 'Sem heartbeat registrado'}
+                          {sessao.lastError ? ` · ${sessao.lastError}` : ''}
+                        </p>
                       )}
+                      <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
+                        {sessao.status === 'vinculado' && (
+                          <Button variant="outline" size="sm" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'desconectar', telefone: sessao.telefone ?? 'este número' })}>
+                            <Unplug />Desconectar
+                          </Button>
+                        )}
+                        {sessao.status === 'desconectado' && (
+                          <Button variant="outline" size="sm" disabled={sessaoStatusMutation.isPending || !botOnline} onClick={() => sessaoStatusMutation.mutate({ id: sessao.id, acao: 'reconectar' })}>
+                            <RefreshCw />Reconectar
+                          </Button>
+                        )}
+                        {sessao.status !== 'banido' && sessao.status !== 'aguardando_qr' && (
+                          <Button variant="ghost" size="sm" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'sair', telefone: sessao.telefone ?? 'este número' })}>
+                            <LogOut />Sair do WhatsApp
+                          </Button>
+                        )}
+                        {sessao.status !== 'banido' && (
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'banir', telefone: sessao.telefone ?? 'este número' })}>
+                            <Power />Marcar como banido
+                          </Button>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Megaphone /> Comunidades</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form
-                  className="flex gap-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (novaComunidade.trim().length >= 3 && orgId) {
-                      canalSalvarMutation.mutate({ nome: novaComunidade.trim() });
-                    }
-                  }}
-                >
-                  <Input
-                    value={novaComunidade}
-                    onChange={(event) => setNovaComunidade(event.target.value)}
-                    placeholder="Nome da comunidade"
-                    minLength={3}
-                    maxLength={80}
-                    aria-label="Nome da comunidade"
-                  />
-                  <Button type="submit" variant="outline" disabled={canalSalvarMutation.isPending}>Adicionar</Button>
-                </form>
-                <ul className="mt-4 divide-y">
-                  {org.canais.length === 0 && <li className="py-3 text-sm text-muted-foreground">Nenhuma comunidade registrada.</li>}
-                  {org.canais.map((canal) => {
-                    const chat = org.chats.find((item) => item.chatId === canal.chatId);
-                    return (
-                      <li key={canal.id} className="py-2.5">
-                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                          <span className="min-w-0 break-words text-sm font-semibold">
-                            {canal.nome}
-                            {!canal.ativo && <span className="ml-2 text-xs text-muted-foreground">(inativa)</span>}
-                          </span>
-                          {chat
-                            ? <Badge variant="success">{chat.totalAdmins} admin{chat.totalAdmins === 1 ? '' : 's'} · {chat.totalParticipantes} membros</Badge>
-                            : <Badge variant="warning">Sem chat</Badge>}
-                        </div>
-                      <label className="mt-1 block text-xs text-muted-foreground">
-                        Chat do bot
-                        <select
-                          className="mt-1 h-9 w-full rounded-md border bg-card px-2 text-xs"
-                          value={canal.chatId ?? ''}
-                          aria-label={`Chat vinculado à comunidade ${canal.nome}`}
-                          onChange={(event) => chatVincularMutation.mutate({ canalId: canal.id, chatId: event.target.value || null })}
-                        >
-                          <option value="">
-                            {org.chats.length === 0 ? 'Nenhum chat sincronizado' : 'Selecionar chat…'}
-                          </option>
-                          {comunidades.map((comunidade) => (
-                            <optgroup key={comunidade.id} label={`Comunidade: ${comunidade.nome}`}>
-                              {(chatsPorComunidade.dentro.get(comunidade.id) ?? []).map((item) => (
-                                <option key={item.chatId} value={item.chatId}>
-                                  {item.nome} ({item.totalAdmins} admin{item.totalAdmins === 1 ? '' : 's'} · {item.totalParticipantes} membros)
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                          {chatsPorComunidade.avulsos.length > 0 && (
-                            <optgroup label="Grupos avulsos">
-                              {chatsPorComunidade.avulsos.map((item) => (
-                                <option key={item.chatId} value={item.chatId}>
-                                  {item.nome} ({item.totalAdmins} admin{item.totalAdmins === 1 ? '' : 's'} · {item.totalParticipantes} membros)
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                      </label>
-                      </li>
-                    );
-                  })}
-                </ul>
+            <Card data-tutorial="console-whatsapp-communities" className="overflow-hidden">
+              <CardContent className="p-5 sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="rounded-xl bg-primary/10 p-2.5 text-primary"><Users className="h-5 w-5" /></span>
+                    <div>
+                      <h2 className="font-semibold">Comunidades e grupos</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">{org.canais.length} comunidade{org.canais.length === 1 ? '' : 's'} no painel · {org.canais.filter((canal) => canal.chatId).length} destino{org.canais.filter((canal) => canal.chatId).length === 1 ? '' : 's'} pronto{org.canais.filter((canal) => canal.chatId).length === 1 ? '' : 's'}</p>
+                    </div>
+                  </div>
+                  <Button asChild variant="outline">
+                    <Link to={`/app/whatsapp/${orgId}/comunidades`}>Gerenciar comunidades<ChevronRight /></Link>
+                  </Button>
+                </div>
+                {org.canais.some((canal) => !canal.chatId) && (
+                  <p className="mt-4 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning-foreground">
+                    {org.canais.filter((canal) => !canal.chatId).length} comunidade{org.canais.filter((canal) => !canal.chatId).length === 1 ? '' : 's'} ainda sem grupo de envio vinculado.
+                  </p>
+                )}
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           <div className="space-y-6">
-            <Card>
+            {!isWhatsAppMode && <Card data-tutorial="console-communication-composer">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Megaphone /> Nova mensagem</CardTitle>
               </CardHeader>
@@ -661,16 +713,11 @@ export function ConsoleComunicadoOrgPage() {
                       required
                     />
                   </label>
-                  <label className="block text-sm font-medium">
-                    Mensagem
-                    <Textarea
-                      className="mt-1.5 min-h-28"
-                      value={rascunho.conteudo}
-                      onChange={(event) => setRascunho((atual) => ({ ...atual, conteudo: event.target.value }))}
-                      maxLength={5000}
-                      required
-                    />
-                  </label>
+                  <ComunicadoMessageField
+                    label="Mensagem"
+                    value={rascunho.conteudo}
+                    onChange={(conteudo) => setRascunho((atual) => ({ ...atual, conteudo }))}
+                  />
                   <label className="block text-sm font-medium">
                     Tipo de mensagem
                     <select
@@ -692,32 +739,12 @@ export function ConsoleComunicadoOrgPage() {
                       onChange={(event) => setRascunho((atual) => ({ ...atual, publicarEm: event.target.value }))}
                     />
                   </label>
-                  <label className="block text-sm font-medium">
-                    Destino no WhatsApp
-                    <select
-                      className="mt-1.5 h-11 w-full rounded-md border bg-card px-3 text-sm"
-                      value={destinoCanal}
-                      onChange={(event) => setDestinoCanal(event.target.value)}
-                      aria-label="Comunidade ou grupo de destino no WhatsApp"
-                    >
-                      <option value="">
-                        Todas as comunidades ativas ({org.canais.filter((canal) => canal.ativo && canal.chatId).length})
-                      </option>
-                      {org.canais.filter((canal) => canal.ativo && canal.chatId).map((canal) => {
-                        const chat = org.chats.find((item) => item.chatId === canal.chatId);
-                        return (
-                          <option key={canal.id} value={canal.id}>
-                            {canal.nome}{chat?.comunidadeNome ? ` · Comunidade: ${chat.comunidadeNome}` : ''}{chat ? ` (grupo: ${chat.nome})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </label>
-                  {org.canais.filter((canal) => canal.ativo && canal.chatId).length === 0 && (
-                    <p className="text-xs text-warning">
-                      Nenhuma comunidade com chat vinculado: a mensagem sai no app/portal; vincule a comunidade no cartão ao lado para o WhatsApp.
-                    </p>
-                  )}
+                  <WhatsAppDestinationPicker
+                    destinations={destinosDisponiveis}
+                    selectedIds={destinosWhatsApp}
+                    onChange={setDestinosWhatsApp}
+                    disabled={!enviarAposPublicar}
+                  />
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -732,14 +759,14 @@ export function ConsoleComunicadoOrgPage() {
                     <Button type="button" variant="outline" onClick={() => void enviarMensagem('agendar')}>Agendar</Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    No app e portal a mensagem vai para todo o município; no WhatsApp, para o destino escolhido acima.
+                    No app e portal a mensagem vai para todo o município; no WhatsApp, para os grupos e comunidades selecionados.
                   </p>
                 </form>
               </CardContent>
-            </Card>
+            </Card>}
 
-            {programados.length > 0 && (
-              <Card>
+            {!isWhatsAppMode && programados.length > 0 && (
+                <Card data-tutorial="console-communication-scheduled">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Clock /> Programados ({programados.length})</CardTitle>
                 </CardHeader>
@@ -761,7 +788,7 @@ export function ConsoleComunicadoOrgPage() {
               </Card>
             )}
 
-            <Card>
+            {isWhatsAppMode && <Card data-tutorial="console-whatsapp-deliveries">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   {entregas.some((entrega) => entrega.status === 'falhou') ? <XCircle /> : <CheckCircle2 />}
@@ -780,6 +807,8 @@ export function ConsoleComunicadoOrgPage() {
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         {entrega.status === 'enviado' && <Badge variant="success">Entregue</Badge>}
                         {entrega.status === 'pendente' && <Badge variant="info">Na fila do bot</Badge>}
+                        {entrega.status === 'processando' && <Badge variant="info">Processando</Badge>}
+                        {entrega.status === 'incerto' && <Badge variant="warning">Confirmação pendente</Badge>}
                         {entrega.status === 'falhou' && <Badge variant="destructive">Falhou</Badge>}
                         <span className="min-w-0 flex-1 break-words text-sm font-semibold">{entrega.comunicadoTitulo}</span>
                         <span className="text-xs text-muted-foreground">→ {entrega.canalNome ?? 'comunidade'}</span>
@@ -789,6 +818,10 @@ export function ConsoleComunicadoOrgPage() {
                           ? `Enviado ${entrega.origem === 'bot' ? 'pelo bot' : 'manualmente'}${entrega.sessaoTelefone ? ` pelo número ${entrega.sessaoTelefone}` : ''} · ${formatDate(entrega.enviadoEm) ?? ''}`
                           : entrega.status === 'pendente'
                             ? 'Aguardando o bot consumir a fila (segundos).'
+                            : entrega.status === 'processando'
+                              ? 'O bot assumiu este envio e está aguardando a confirmação do WhatsApp.'
+                              : entrega.status === 'incerto'
+                                ? `O WhatsApp não confirmou o resultado. Verifique antes de tentar novamente${entrega.erro ? `: ${entrega.erro}` : '.'}`
                             : `Motivo: ${entrega.erro ?? 'erro desconhecido'}`}
                       </p>
                       {(entrega.tentativas?.length ?? 0) > 0 && (
@@ -803,9 +836,9 @@ export function ConsoleComunicadoOrgPage() {
                   ))}
                 </ul>
               </CardContent>
-            </Card>
+            </Card>}
 
-            <Card>
+            {!isWhatsAppMode && <Card data-tutorial="console-communication-history">
               <CardHeader><CardTitle>Comunicados</CardTitle></CardHeader>
               <CardContent>
                 {org.comunicados.length === 0 && (
@@ -823,16 +856,7 @@ export function ConsoleComunicadoOrgPage() {
                             {comunicadoSeverityLabels[comunicado.severidade]}
                           </Badge>
                           <span className="min-w-0 flex-1 break-words text-sm font-semibold">{comunicado.titulo}</span>
-                          {publicavel && (
-                            <Button
-                              size="sm"
-                              disabled={dispararMutation.isPending}
-                              onClick={() => dispararMutation.mutate({ comunicadoId: comunicado.id })}
-                            >
-                              <Bot />
-                              Disparar pelo bot
-                            </Button>
-                          )}
+                          {publicavel && <Badge variant="success">Conteúdo aprovado</Badge>}
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {comunicado.status === 'agendado'
@@ -844,10 +868,37 @@ export function ConsoleComunicadoOrgPage() {
                 })}
                 </ul>
               </CardContent>
-            </Card>
+            </Card>}
           </div>
         </section>
       )}
+
+      <AlertDialog open={acaoSessao !== null} onOpenChange={(open) => !open && setAcaoSessao(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {acaoSessao?.acao === 'desconectar' && 'Desconectar temporariamente?'}
+              {acaoSessao?.acao === 'sair' && 'Sair do WhatsApp neste número?'}
+              {acaoSessao?.acao === 'banir' && 'Marcar número como banido?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {acaoSessao?.acao === 'desconectar' && `O número ${acaoSessao.telefone} ficará fora dos envios, mas o vínculo será preservado para reconectar depois.`}
+              {acaoSessao?.acao === 'sair' && `O número ${acaoSessao.telefone} será desconectado e as credenciais salvas serão removidas. Para voltar a usá-lo, será necessário ler um novo QR Code.`}
+              {acaoSessao?.acao === 'banir' && `O número ${acaoSessao.telefone} será retirado do fallback e identificado como banido no histórico.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className={acaoSessao?.acao === 'banir' || acaoSessao?.acao === 'sair' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}
+              disabled={sessaoStatusMutation.isPending}
+              onClick={() => acaoSessao && sessaoStatusMutation.mutate({ id: acaoSessao.id, acao: acaoSessao.acao })}
+            >
+              {acaoSessao?.acao === 'desconectar' ? 'Desconectar' : acaoSessao?.acao === 'sair' ? 'Sair do WhatsApp' : 'Marcar como banido'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

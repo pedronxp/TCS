@@ -7,6 +7,7 @@ export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
+      data-slot="card"
       className={cn(
         'min-w-0 rounded-2xl border border-border/70 bg-card/85 backdrop-blur-md text-card-foreground shadow-sm transition-all duration-200 hover:border-border hover:shadow-md',
         className
@@ -21,6 +22,7 @@ export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
+      data-slot="card-header"
       className={cn('flex min-w-0 flex-col flex-wrap space-y-1.5 p-6', className)}
       {...props}
     />
@@ -32,6 +34,7 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
   ({ className, ...props }, ref) => (
     <h2
       ref={ref}
+      data-slot="card-title"
       className={cn('min-w-0 text-lg font-semibold tracking-tight leading-none', className)}
       {...props}
     />
@@ -53,7 +56,7 @@ CardDescription.displayName = 'CardDescription';
 
 export const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('min-w-0 p-6 pt-0', className)} {...props} />
+    <div ref={ref} data-slot="card-content" className={cn('min-w-0 p-6 pt-0', className)} {...props} />
   )
 );
 CardContent.displayName = 'CardContent';

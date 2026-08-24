@@ -32,6 +32,10 @@ import { OperationalStatisticsPage } from '@/pages/OperationalStatisticsPage';
 import { NotificationCampaignsPage } from '@/pages/NotificationCampaignsPage';
 import { ConsoleComunicadosPage } from '@/pages/ConsoleComunicadosPage';
 import { ConsoleComunicadoOrgPage } from '@/pages/ConsoleComunicadoOrgPage';
+import { ConsoleWhatsAppPage } from '@/pages/ConsoleWhatsAppPage';
+import { ConsoleWhatsAppOrgPage } from '@/pages/ConsoleWhatsAppOrgPage';
+import { ConsoleWhatsAppCommunitiesPage } from '@/pages/ConsoleWhatsAppCommunitiesPage';
+import { InboxPage } from '@/pages/InboxPage';
 import { legacyCustomerDetailPath, legacyCustomerMemberPath } from '@/lib/customerRoutes';
 
 const queryClient = new QueryClient({
@@ -100,8 +104,12 @@ export default function PrivateApp() {
           <Route path="tokens/analise" element={<ProtectedRoute requirePermission="token.manage"><TokenAnalyticsPage /></ProtectedRoute>} />
           <Route path="operacao/estatisticas" element={<ProtectedRoute requirePermission="technical.read"><OperationalStatisticsPage /></ProtectedRoute>} />
           <Route path="avisos" element={<ProtectedRoute requirePermission="technical.write"><NotificationCampaignsPage /></ProtectedRoute>} />
+          <Route path="mensagens" element={<ProtectedRoute requirePermission="console.read"><InboxPage workspace="internal" /></ProtectedRoute>} />
           <Route path="comunicacoes" element={<ProtectedRoute requirePermission="communication.manage"><ConsoleComunicadosPage /></ProtectedRoute>} />
           <Route path="comunicacoes/:orgId" element={<ProtectedRoute requirePermission="communication.manage"><ConsoleComunicadoOrgPage /></ProtectedRoute>} />
+          <Route path="whatsapp" element={<ProtectedRoute requirePermission="whatsapp.read"><ConsoleWhatsAppPage /></ProtectedRoute>} />
+          <Route path="whatsapp/:orgId/comunidades" element={<ProtectedRoute requirePermission="whatsapp.read"><ConsoleWhatsAppCommunitiesPage /></ProtectedRoute>} />
+          <Route path="whatsapp/:orgId" element={<ProtectedRoute requirePermission="whatsapp.read"><ConsoleWhatsAppOrgPage /></ProtectedRoute>} />
           <Route path="sessoes" element={<ProtectedRoute requirePermission="session.read"><SessionsPage /></ProtectedRoute>} />
           <Route path="dispositivo" element={<ProtectedRoute requirePermission="session.read"><DevicesPage /></ProtectedRoute>} />
           <Route path="suporte" element={<ProtectedRoute requirePermission="support.read"><SupportPage /></ProtectedRoute>} />

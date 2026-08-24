@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: tcs-whatsapp-bot-cataguases
+    runtime: docker
+    plan: free
+    region: ohio
+    dockerfilePath: ./bot-whatsapp/Dockerfile
+    dockerContext: ./bot-whatsapp
+    healthCheckPath: /healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: DASHBOARD_ORIGIN
+        value: https://tcsvisto.netlify.app,https://tcsvistoria.netlify.app
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: BOT_SESSION_ENCRYPTION_KEY
+        generateValue: true

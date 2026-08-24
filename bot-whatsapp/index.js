@@ -16,11 +16,12 @@ const QRCode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   fetchLatestBaileysVersion,
   DisconnectReason,
 } = require('@whiskeysockets/baileys');
 const { createClient } = require('@supabase/supabase-js');
+const { useSupabaseAuthState } = require('./supabase-auth-state');
+const { sameOrganization } = require('./organization-isolation');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -37,13 +38,22 @@ const { createClient } = require('@supabase/supabase-js');
 })();
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const BOT_SESSION_ENCRYPTION_KEY = process.env.BOT_SESSION_ENCRYPTION_KEY;
 const PORT = Number(process.env.PORT || 8787);
 const POLL_MS = Number(process.env.POLL_MS || 5000);
 const CHAT_SYNC_MS = Number(process.env.CHAT_SYNC_MS || 10 * 60 * 1000);
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 20_000);
+const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
+  || 'https://tcsvisto.netlify.app,http://localhost:5173,http://127.0.0.1:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean));
+const WORKER_ID = process.env.RENDER_INSTANCE_ID || `bot-${process.pid}-${Date.now().toString(36)}`;
+const BOT_VERSION = (process.env.RENDER_GIT_COMMIT || process.env.npm_package_version || 'local').slice(0, 80);
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('[bot] Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env.');
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !BOT_SESSION_ENCRYPTION_KEY) {
+  console.error('[bot] Configure SUPABASE_URL, SUPABASE_SECRET_KEY e BOT_SESSION_ENCRYPTION_KEY.');
   process.exit(1);
 }
 
@@ -84,6 +94,33 @@ function textoComunicado(comunicado, organizacao) {
 async function atualizarSessaoDb(id, campos) {
   const { error } = await supabase.from('bot_sessoes').update(campos).eq('id', id);
   if (error) log('db', `Falha ao atualizar sessao ${id}`, error);
+}
+
+async function reportarWorker(state = 'online') {
+  const { error } = await supabase.rpc('bot_report_worker_heartbeat', {
+    p_worker_id: WORKER_ID,
+    p_state: state,
+    p_version: BOT_VERSION,
+  });
+  if (error) log('heartbeat', `Falha ao registrar worker ${state}`, error);
+}
+
+function runtimeDaFase(fase) {
+  if (fase === 'vinculado') return 'online';
+  if (fase === 'aguardando_qr') return 'awaiting_qr';
+  if (fase === 'reconectando') return 'reconnecting';
+  if (fase === 'banido') return 'banned';
+  return 'starting';
+}
+
+async function reportarSessao(sessao, state = runtimeDaFase(sessao.fase), lastError = sessao.ultimoErro) {
+  const { error } = await supabase.rpc('bot_report_session_runtime', {
+    p_session_id: sessao.id,
+    p_worker_id: WORKER_ID,
+    p_state: state,
+    p_last_error: lastError || null,
+  });
+  if (error) log('heartbeat', `Falha ao registrar sessão ${sessao.id} como ${state}`, error);
 }
 
 async function sincronizarChats(sessao, tentativa = 1) {
@@ -129,7 +166,11 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
   const anterior = sessoes.get(linha.id);
   if (anterior && !tentativaReconexao) return;
 
-  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'sessao-wa', linha.id));
+  const { state, saveCreds, clearState } = await useSupabaseAuthState(
+    supabase,
+    linha.id,
+    BOT_SESSION_ENCRYPTION_KEY,
+  );
   const { version } = await fetchLatestBaileysVersion();
 
   const sessao = {
@@ -142,8 +183,11 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     qrGeradoEm: null,
     telefone: linha.telefone || null,
     ultimoErro: null,
+    clearState,
+    encerramentoSolicitado: false,
   };
   sessoes.set(linha.id, sessao);
+  await reportarSessao(sessao);
 
   const socket = makeWASocket({
     version,
@@ -162,11 +206,17 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       sessao.fase = 'aguardando_qr';
       sessao.qr = qr;
       sessao.qrGeradoEm = new Date();
-      qrcodeTerminal.generate(qr, { small: true }, (codigo) => console.log(codigo));
+      // O QR contém credencial temporária e não deve aparecer nos logs do
+      // provedor. A impressão fica disponível apenas para depuração local opt-in.
+      if (process.env.PRINT_QR_TERMINAL === 'true') {
+        qrcodeTerminal.generate(qr, { small: true }, (codigo) => console.log(codigo));
+      }
       log('sessao', `${sessao.orgNome}: QR gerado às ${sessao.qrGeradoEm.toLocaleTimeString('pt-BR')} — painel em /sessao/${sessao.id}`);
+      await reportarSessao(sessao, 'awaiting_qr');
     }
     if (connection === 'connecting') {
       sessao.fase = state.creds.registered ? 'conectando' : sessao.fase;
+      await reportarSessao(sessao);
     }
     if (connection === 'open') {
       sessao.fase = 'vinculado';
@@ -182,9 +232,14 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
         vinculado_em: agoraIso(),
         atualizado_em: agoraIso(),
       });
+      await reportarSessao(sessao, 'online', null);
       await sincronizarChats(sessao);
     }
     if (connection === 'close') {
+      if (sessao.encerramentoSolicitado) {
+        sessoes.delete(sessao.id);
+        return;
+      }
       const codigo = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
         ? lastDisconnect.error.output.statusCode
         : null;
@@ -194,8 +249,10 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
         ? 'Sessão encerrada pelo WhatsApp (número des conectado/banido) — vincule o número novamente.'
         : `desconectado (código ${codigo})`;
       log('sessao', `${sessao.orgNome}: conexão fechada — ${deslogado ? 'deslogado, requer novo QR' : 'vai reconectar'}`);
+      await reportarSessao(sessao, deslogado ? 'offline' : 'reconnecting');
       if (deslogado) {
         await atualizarSessaoDb(sessao.id, { status: 'desconectado', atualizado_em: agoraIso() });
+        await clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${linha.id}`, erro));
         sessoes.delete(sessao.id);
       } else if (tentativaReconexao < 5) {
         setTimeout(() => {
@@ -208,30 +265,55 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
   return sessao;
 }
 
-async function pararSessao(id) {
+async function pararSessao(id, { sair = false, runtimeState = 'paused' } = {}) {
   const sessao = sessoes.get(id);
-  if (!sessao) return;
-  try {
-    if (sessao.socket && typeof sessao.socket.end === 'function') {
-      sessao.socket.end(new Error('encerrada pelo painel'));
+  if (sessao) {
+    sessao.encerramentoSolicitado = true;
+    await reportarSessao(sessao, runtimeState, runtimeState === 'offline' ? 'Serviço encerrado.' : null);
+    try {
+      if (sair && sessao.socket && typeof sessao.socket.logout === 'function') {
+        await sessao.socket.logout();
+      } else if (sessao.socket && typeof sessao.socket.end === 'function') {
+        sessao.socket.end(new Error('encerrada pelo painel'));
+      }
+    } catch (_erro) { /* socket já fechado */ }
+    if (sair && typeof sessao.clearState === 'function') {
+      await sessao.clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${id}`, erro));
     }
-  } catch (_erro) { /* socket já fechado */ }
-  sessoes.delete(id);
-  log('sessao', `Sessao ${id} encerrada (banida/desativada no painel).`);
+    sessoes.delete(id);
+  } else if (sair) {
+    const auth = await useSupabaseAuthState(supabase, id, BOT_SESSION_ENCRYPTION_KEY);
+    await auth.clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais inativas ${id}`, erro));
+  }
+  log('sessao', `Sessao ${id} ${sair ? 'desvinculada do WhatsApp' : 'desconectada pelo painel'}.`);
 }
 
 // Descobre sessões novas no painel, encerra as desativadas e mantém nomes das orgs.
 async function gerenciarSessoes() {
   const { data: linhas, error } = await supabase
     .from('bot_sessoes')
-    .select('id, organization_id, telefone, status, organizations(display_name)')
-    .in('status', ['aguardando_qr', 'vinculado', 'desconectado']);
+    .select('id, organization_id, telefone, status, acao_pendente, organizations(display_name)');
   if (error) {
     log('db', 'Falha ao listar sessoes', error);
     return;
   }
   const ativas = new Set();
   for (const linha of linhas || []) {
+    if (linha.acao_pendente === 'sair') {
+      await pararSessao(linha.id, { sair: true });
+      await atualizarSessaoDb(linha.id, {
+        status: 'desconectado',
+        acao_pendente: null,
+        atualizado_em: agoraIso(),
+      });
+      continue;
+    }
+    if (!['aguardando_qr', 'vinculado'].includes(linha.status)) {
+      if (sessoes.has(linha.id)) {
+        await pararSessao(linha.id, { runtimeState: linha.status === 'banido' ? 'banned' : 'paused' });
+      }
+      continue;
+    }
     ativas.add(linha.id);
     const orgNome = linha.organizations && linha.organizations.display_name;
     const existente = sessoes.get(linha.id);
@@ -267,12 +349,10 @@ async function candidatosDoChat(orgId, chatId) {
 }
 
 async function processarFila() {
-  const { data: pendentes, error } = await supabase
-    .from('canal_envios')
-    .select('id, canal_id, comunicado_id')
-    .eq('status', 'pendente')
-    .order('created_at', { ascending: true })
-    .limit(5);
+  const { data: pendentes, error } = await supabase.rpc('bot_claim_pending_deliveries', {
+    p_worker_id: WORKER_ID,
+    p_limit: 5,
+  });
   if (error) {
     log('fila', 'Falha ao consultar fila', error);
     return;
@@ -289,11 +369,22 @@ async function processarFila() {
     }
     const { data: comunicado } = await supabase
       .from('comunicados')
-      .select('titulo, conteudo, severidade, status')
+      .select('titulo, conteudo, severidade, status, organization_id')
       .eq('id', item.comunicado_id)
       .maybeSingle();
     if (!comunicado || !['publicado', 'arquivado'].includes(comunicado.status)) {
       await finalizarEnvio(item.id, null, 'falhou', 'Comunicado não está publicado.', []);
+      continue;
+    }
+    if (!sameOrganization(canal.organization_id, comunicado.organization_id)) {
+      await finalizarEnvio(
+        item.id,
+        null,
+        'falhou',
+        'Entrega bloqueada: comunicado e comunidade pertencem a organizações diferentes.',
+        [],
+      );
+      log('seguranca', `Entrega ${item.id} bloqueada por divergencia de organizacao.`);
       continue;
     }
     const { data: org } = await supabase
@@ -313,7 +404,7 @@ async function processarFila() {
     let sucesso = null;
     for (const candidato of candidatos) {
       const sessao = sessoes.get(candidato.sessaoId);
-      if (!sessao || sessao.fase !== 'vinculado') {
+      if (!sessao || sessao.fase !== 'vinculado' || !sameOrganization(canal.organization_id, sessao.orgId)) {
         tentativas.push({ telefone: candidato.telefone, erro: 'sessão não está conectada agora' });
         continue;
       }
@@ -347,8 +438,10 @@ async function finalizarEnvio(envioId, sessaoId, status, erro, tentativas) {
       tentativas: tentativas && tentativas.length ? tentativas : null,
       enviado_em: status === 'enviado' ? agoraIso() : null,
       bot_atualizado_em: agoraIso(),
+      processing_started_at: null,
     })
-    .eq('id', envioId);
+    .eq('id', envioId)
+    .eq('worker_id', WORKER_ID);
   if (error) log('db', `Falha ao finalizar envio ${envioId}`, error);
 }
 
@@ -358,24 +451,65 @@ async function finalizarEnvio(envioId, sessaoId, status, erro, tentativas) {
 
 const app = express();
 
-app.use('/healthz', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/status', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/sessao', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/qr', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  if (origin && DASHBOARD_ORIGINS.has(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  }
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Referrer-Policy', 'no-referrer');
+  if (req.method === 'OPTIONS') res.sendStatus(204);
+  else next();
+});
+
+function authorizeSession({ manage = false } = {}) {
+  return async (req, res, next) => {
+    const authorization = req.get('authorization') || '';
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    if (!token) {
+      res.status(401).json({ ok: false, motivo: 'Autenticação necessária.' });
+      return;
+    }
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData || !authData.user) {
+        res.status(401).json({ ok: false, motivo: 'Sessão do painel inválida.' });
+        return;
+      }
+      const { data: allowed, error: accessError } = await supabase.rpc('bot_authorize_session_access', {
+        p_session_id: req.params.id,
+        p_user_id: authData.user.id,
+        p_manage: manage,
+      });
+      if (accessError || allowed !== true) {
+        res.status(403).json({ ok: false, motivo: 'Acesso negado para esta organização.' });
+        return;
+      }
+      next();
+    } catch (error) {
+      log('seguranca', 'Falha ao validar acesso HTTP.', error);
+      res.status(503).json({ ok: false, motivo: 'Não foi possível validar o acesso agora.' });
+    }
+  };
+}
+
+const canReadSession = authorizeSession();
+const canManageSession = authorizeSession({ manage: true });
 
 app.get('/healthz', (_req, res) => {
-  res.json({ ok: true, sessoes: sessoes.size });
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true });
 });
 
 app.get('/status', (_req, res) => {
-  res.json({
-    sessoes: [...sessoes.values()].map((s) => ({
-      id: s.id, orgNome: s.orgNome, fase: s.fase, telefone: s.telefone, ultimoErro: s.ultimoErro,
-    })),
-  });
+  res.json({ ok: true });
 });
 
-app.get('/sessao/:id/status', (req, res) => {
+app.get('/sessao/:id/status', canReadSession, (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao) {
     res.status(404).json({ fase: 'nao_encontrada', telefone: null, ultimoErro: 'Sessão não encontrada no bot — gere o QR novamente no painel.' });
@@ -392,7 +526,7 @@ app.get('/sessao/:id/status', (req, res) => {
 
 // Verificação SEM falso positivo: conexão aberta + usuário autenticado + leitura
 // real dos grupos via protocolo (groupFetchAllParticipating).
-app.get('/sessao/:id/verify', async (req, res) => {
+app.get('/sessao/:id/verify', canReadSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao) {
     res.status(404).json({ conectado: false, motivo: 'Sessão não encontrada no bot.' });
@@ -420,7 +554,7 @@ app.get('/sessao/:id/verify', async (req, res) => {
 // Criação de grupo pela web. Com ?comunidade=<jid> tenta criar DENTRO da
 // Comunidade; se a biblioteca não suportar sub-grupo, devolve orientação
 // clara para criar no celular (Comunidade → Novo grupo) e sincronizar.
-app.get('/sessao/:id/criar-grupo', async (req, res) => {
+app.get('/sessao/:id/criar-grupo', canManageSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   const nome = String(req.query.nome || '').trim();
   const comunidade = String(req.query.comunidade || '').trim();
@@ -477,7 +611,7 @@ app.get('/sessao/:id/criar-grupo', async (req, res) => {
 });
 
 // Força a sincronização de chats da sessão.
-app.get('/sessao/:id/sincronizar', async (req, res) => {
+app.get('/sessao/:id/sincronizar', canManageSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || sessao.fase !== 'vinculado') {
     res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
@@ -488,7 +622,7 @@ app.get('/sessao/:id/sincronizar', async (req, res) => {
 });
 
 // Compatibilidade (era do whatsapp-web.js): apenas sincroniza.
-app.get('/sessao/:id/recuperar', async (req, res) => {
+app.get('/sessao/:id/recuperar', canManageSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || sessao.fase !== 'vinculado') {
     res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
@@ -526,7 +660,7 @@ ${sessao.qr ? `<img src="/qr/${sessao.id}" alt="QR Code do WhatsApp"><p>QR gerad
 </div></body></html>`;
 }
 
-app.get('/qr/:id', async (req, res) => {
+app.get('/qr/:id', canReadSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || !sessao.qr) {
     res.status(404).type('text').send('QR indisponível');
@@ -542,42 +676,12 @@ app.get('/qr/:id', async (req, res) => {
   }
 });
 
-app.get('/sessao/:id', (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  if (!sessao) {
-    res.status(404).type('html').send('<p>Sessão não encontrada ou encerrada. Volte ao painel e vincule o número novamente.</p><a href="/">todos os números</a>');
-    return;
-  }
-  res.type('html').send(paginaQr(sessao));
+app.get('/sessao/:id', canReadSession, (_req, res) => {
+  res.type('text').send('Use o painel TCS para visualizar este QR Code com segurança.');
 });
 
 app.get('/', (_req, res) => {
-  const linhas = [...sessoes.values()].map((s) => `
-    <tr>
-      <td>${s.orgNome}</td>
-      <td>${s.telefone || '—'}</td>
-      <td>${s.fase}${s.ultimoErro ? ` <span class="erro">(${String(s.ultimoErro).slice(0, 60)})</span>` : ''}</td>
-      <td>${s.fase === 'vinculado' ? '✅' : `<a href="/sessao/${s.id}">abrir QR</a>`}</td>
-    </tr>`).join('');
-  const corpo = `<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TCS — Números do bot</title>
-<meta http-equiv="refresh" content="10">
-<style>
-  body{font-family:system-ui,sans-serif;background:#0b1120;color:#e2e8f0;margin:0;padding:32px}
-  h1{font-size:18px}
-  table{border-collapse:collapse;width:100%;max-width:720px;background:#111a2e;border:1px solid #1e293b;border-radius:12px}
-  th,td{padding:10px 14px;text-align:left;font-size:13px;border-bottom:1px solid #1e293b}
-  .erro{color:#f87171}
-  a{color:#7dd3fc}
-  p{font-size:13px;color:#94a3b8}
-</style></head><body>
-<h1>TCS — Números vinculados ao bot</h1>
-<p>Números são vinculados no painel (Comunicados → Números do bot). Número banido: marque como banido no painel e vincule outro.</p>
-<table><tr><th>Prefeitura</th><th>Número</th><th>Estado</th><th>QR</th></tr>${linhas || '<tr><td colspan="4">Nenhum número emparelhando — comece pelo painel.</td></tr>'}</table>
-</body></html>`;
-  res.type('html').send(corpo);
+  res.json({ service: 'TCS WhatsApp Bot', ok: true });
 });
 
 setInterval(() => {
@@ -607,6 +711,28 @@ setInterval(() => {
   }
 }, CHAT_SYNC_MS);
 
-app.listen(PORT, () => {
-  log('http', `Painel do bot em http://localhost:${PORT} (números e QR por sessão)`);
+setInterval(() => {
+  reportarWorker('online').catch(() => null);
+  for (const sessao of sessoes.values()) {
+    reportarSessao(sessao).catch(() => null);
+  }
+}, HEARTBEAT_MS);
+
+const server = app.listen(PORT, '0.0.0.0', () => {
+  log('http', `Serviço do bot disponível na porta ${PORT} (números e QR por sessão)`);
+  reportarWorker('online').catch(() => null);
 });
+
+let encerrando = false;
+async function encerrar(signal) {
+  if (encerrando) return;
+  encerrando = true;
+  log('shutdown', `${signal}: encerrando conexões com segurança`);
+  server.close();
+  await Promise.all([...sessoes.keys()].map((id) => pararSessao(id, { runtimeState: 'offline' })));
+  await reportarWorker('stopping');
+  setTimeout(() => process.exit(0), 500).unref();
+}
+
+process.on('SIGTERM', () => void encerrar('SIGTERM'));
+process.on('SIGINT', () => void encerrar('SIGINT'));

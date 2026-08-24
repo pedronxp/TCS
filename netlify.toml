@@ -9,6 +9,7 @@
 [build.environment]
   NODE_VERSION = "22"
   VITE_TURNSTILE_SITE_KEY = "0x4AAAAAAEZrvk6QszB6lWKY"
+  VITE_BOT_WHATSAPP_URL = "https://tcs-whatsapp-bot-cataguases.onrender.com"
 
 # SPA: qualquer rota não encontrada retorna index.html
 [[redirects]]

@@ -20,6 +20,7 @@ import { PortalOnboardingChecklist } from '@/components/portal/PortalOnboardingC
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalDashboard, portalHome } from '@/lib/portal';
 import type { PortalDashboardData } from '@/types/portal';
+import { BotServiceStatus } from '@/components/bot/BotServiceStatus';
 
 const metricIcons: Record<string, LucideIcon> = {
   inspections: ClipboardCheck,
@@ -93,6 +94,8 @@ export function PortalDashboardPage() {
           <Button asChild className="shrink-0"><Link to={`${root}/vistorias?nova=1`}>Iniciar nova vistoria <ArrowRight aria-hidden="true" /></Link></Button>
         )}
       </header>
+
+      {isMunicipal && permissions.has('whatsapp.read') && <BotServiceStatus workspace="organization" />}
 
       <PortalOnboardingChecklist />
 
