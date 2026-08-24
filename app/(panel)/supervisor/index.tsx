@@ -14,6 +14,8 @@ import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { tempoRelativo } from '../../../utils/htmlUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useConnectivity } from '../../../context/ConnectivityContext';
+import { useSubscription } from '../../../context/SubscriptionContext';
+import { resolveMobileOrganizationAccess } from '../../../services/MobileAccessService';
 import { DashboardGuide } from '../../../components/DashboardGuide';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
@@ -26,6 +28,8 @@ export default function SupervisorDashboardScreen() {
   const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isConnected } = useConnectivity();
+  const { context: subscriptionContext } = useSubscription();
+  const access = resolveMobileOrganizationAccess(profile, subscriptionContext);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [vistorias, setVistorias] = useState<VistoriaNormalizada[]>([]);
@@ -165,6 +169,14 @@ export default function SupervisorDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
         <DashboardGuide role="supervisor" inline />
+
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Vínculo municipal pendente"
+            description="Sua conta precisa ser vinculada à organização pelo painel web para receber avisos e compartilhar dados da equipe."
+          />
+        ) : null}
 
         {!isConnected ? (
           <StateBanner

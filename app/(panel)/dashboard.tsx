@@ -8,6 +8,7 @@ import { verificarLaudosExpirando } from '../../utils/laudoExpiracaoNotif';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
 import { isInternalMobileRole } from '../../services/AppProfileService';
+import { resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
 import { syncPendentes } from '../../services/SyncService';
 import { resolveInstitutionalIdentity } from '../../utils/institutionalIdentity';
 import { useTheme } from '../../context/ThemeContext';
@@ -126,7 +127,8 @@ export default function DashboardScreen() {
   const initial = firstName[0]?.toUpperCase() ?? '?';
   const institutionalIdentity = resolveInstitutionalIdentity(subscriptionContext);
   const organizationLabel = institutionalIdentity?.organizationName || profile?.municipio || null;
-  const individualAccount = !profile?.organizationId && !organizationLabel;
+  const access = resolveMobileOrganizationAccess(profile, subscriptionContext);
+  const individualAccount = access.kind === 'individual';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
@@ -181,6 +183,14 @@ export default function DashboardScreen() {
       >
         {!isConnected ? (
           <StateBanner title="Modo offline ativo" description="Você pode criar vistorias normalmente. A sincronização retorna com a conexão." variant="warning" />
+        ) : null}
+
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Vínculo municipal pendente"
+            description="Seu acesso precisa ser vinculado a uma organização pelo painel web para receber avisos e compartilhar informações municipais."
+          />
         ) : null}
 
         {pendingSync > 0 ? (
@@ -243,7 +253,7 @@ export default function DashboardScreen() {
               { title: 'Vistorias', description: 'Histórico e laudos', icon: 'clipboard' as const, route: '/(panel)/inspecoes' },
               { title: 'Mapa tático', description: 'Ocorrências no território', icon: 'map-pin' as const, route: '/(panel)/mapas' },
               { title: 'Agenda', description: 'Tarefas atribuídas', icon: 'calendar' as const, route: '/(panel)/agendamentos' },
-              ...(individualAccount
+              ...(individualAccount || !access.hasOrganization
                 ? [{ title: 'Minha conta', description: 'Plano e preferências', icon: 'user' as const, route: '/(panel)/perfil' }]
                 : [{ title: 'Avisos', description: 'Comunicados da organização', icon: 'bell' as const, route: '/(panel)/avisos' }]),
             ].map(item => (

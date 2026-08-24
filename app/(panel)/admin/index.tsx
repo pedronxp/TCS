@@ -9,6 +9,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
+import { useSubscription } from '../../../context/SubscriptionContext';
+import { resolveMobileOrganizationAccess } from '../../../services/MobileAccessService';
 import { DashboardGuide } from '../../../components/DashboardGuide';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
@@ -36,6 +38,8 @@ export default function AdminDashboardScreen() {
   const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isConnected } = useConnectivity();
+  const { context: subscriptionContext } = useSubscription();
+  const access = resolveMobileOrganizationAccess(profile, subscriptionContext);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [erro, setErro] = useState(false);
@@ -174,6 +178,13 @@ export default function AdminDashboardScreen() {
       >
         <DashboardGuide role="admin" inline />
         <CustomerOnboardingChecklist />
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Organização ainda não vinculada"
+            description="Confirme a vinculação da sua conta pelo painel web para liberar avisos e recursos compartilhados."
+          />
+        ) : null}
         {!isConnected ? (
           <StateBanner
             title="Modo offline ativo"

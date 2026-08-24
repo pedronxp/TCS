@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useSubscription } from '../context/SubscriptionContext';
+import { resolveMobileOrganizationAccess } from '../services/MobileAccessService';
 import { navSystemBottom } from '../utils/useBottomTabPadding';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Spacing, SpacingAlias } from '../constants/Spacing';
@@ -146,11 +147,12 @@ export function BottomNavBar() {
   const { context, hasFeature } = useSubscription();
   const pathname = usePathname();
   if (!profile) return null;
+  const access = resolveMobileOrganizationAccess(profile, context);
   return (
     <BottomNavBarInner
       role={profile.role}
       pathname={pathname}
-      hasOrganization={Boolean(profile.organizationId || context?.organization?.id)}
+      hasOrganization={access.hasOrganization}
       noticesEnabled={!context?.features || !('comunicados' in context.features) || hasFeature('comunicados')}
     />
   );

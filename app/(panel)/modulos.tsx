@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { isInternalMobileRole } from '../../services/AppProfileService';
+import { resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { ModuleCard, SectionHeader, StateBanner } from '../../components/ui';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -139,7 +140,8 @@ export default function ModulosScreen() {
   const insets = useSafeAreaInsets();
   const bottomPadding = useBottomTabPadding();
   const [query, setQuery] = useState('');
-  const organizationId = userProfile?.organizationId || subscriptionContext?.organization?.id || null;
+  const access = resolveMobileOrganizationAccess(userProfile, subscriptionContext);
+  const organizationId = access.organizationId;
   const sections = useMemo(() => sectionsForRole(userProfile?.role)
     .map(section => ({
       ...section,
@@ -206,6 +208,13 @@ export default function ModulosScreen() {
             variant="info"
             title="Administração disponível no painel web"
             description="Ativação de módulos, permissões, contratações e configurações administrativas não são feitas pelo aplicativo."
+          />
+        ) : null}
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Vínculo com organização pendente"
+            description="Peça ao responsável para vincular sua conta pelo painel web. Avisos e módulos municipais ficam indisponíveis até a confirmação."
           />
         ) : null}
         {visibleSections.length ? visibleSections.map(section => (

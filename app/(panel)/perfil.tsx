@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +17,9 @@ import { ThemeMode, useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import { useSessionGuard } from '../../context/SessionGuardContext';
+import { useNotifications } from '../../context/NotificationContext';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
 import { supabase } from '../../utils/supabase';
 import { AppHeader, Badge, StateBanner } from '../../components/ui';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
@@ -84,6 +88,9 @@ export default function PerfilScreen() {
   } = useAuth();
   const { isOnlineReal } = useConnectivity();
   const { biometricAvailable, biometricEnabled, biometricLabel, setBiometricEnabled } = useSessionGuard();
+  const { hasPermission, pushSupported, solicitarPermissao } = useNotifications();
+  const { context: subscriptionContext } = useSubscription();
+  const access = resolveMobileOrganizationAccess(authProfile, subscriptionContext);
 
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -97,6 +104,7 @@ export default function PerfilScreen() {
   const [googleLinking, setGoogleLinking] = useState(false);
   const [googleLinkedLocally, setGoogleLinkedLocally] = useState(false);
   const [biometricUpdating, setBiometricUpdating] = useState(false);
+  const [notificationUpdating, setNotificationUpdating] = useState(false);
 
   useEffect(() => {
     setNewName(authProfile?.name || '');
@@ -193,6 +201,28 @@ export default function PerfilScreen() {
     }
   };
 
+  const ativarNotificacoes = async () => {
+    if (notificationUpdating || !pushSupported) return;
+    setNotificationUpdating(true);
+    try {
+      const granted = await solicitarPermissao();
+      if (!granted) {
+        Alert.alert(
+          'Notificações desativadas',
+          'Permita as notificações nas configurações do aparelho para receber avisos.',
+          [
+            { text: 'Agora não', style: 'cancel' },
+            { text: 'Abrir configurações', onPress: () => void Linking.openSettings() },
+          ],
+        );
+      }
+    } catch {
+      Alert.alert('Não foi possível ativar', 'Confira sua conexão e tente novamente em alguns instantes.');
+    } finally {
+      setNotificationUpdating(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -229,6 +259,13 @@ export default function PerfilScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}
       >
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Organização não vinculada"
+            description="Solicite ao responsável a vinculação da sua conta pelo painel web para liberar os avisos e recursos municipais."
+          />
+        ) : null}
         <View style={[styles.profileCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
             <Text style={[styles.avatarText, { color: theme.onPrimary }]}>{initial}</Text>
@@ -359,6 +396,25 @@ export default function PerfilScreen() {
               theme={theme}
             />
           )}
+
+          <Divider color={theme.border} />
+
+          <SettingsRow
+            icon="bell"
+            title="Notificações do aplicativo"
+            description={
+              !pushSupported
+                ? 'Disponíveis na versão instalada do aplicativo'
+                : hasPermission
+                  ? 'Ativadas neste aparelho'
+                  : 'Toque para ativar os avisos'
+            }
+            onPress={ativarNotificacoes}
+            loading={notificationUpdating}
+            disabled={!pushSupported || hasPermission || notificationUpdating}
+            success={hasPermission && pushSupported}
+            theme={theme}
+          />
 
           <Divider color={theme.border} />
 

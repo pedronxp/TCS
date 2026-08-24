@@ -20,10 +20,11 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useNotifications } from '../../../context/NotificationContext';
 import { useSubscription } from '../../../context/SubscriptionContext';
 import { isInternalMobileRole } from '../../../services/AppProfileService';
+import { resolveMobileOrganizationAccess } from '../../../services/MobileAccessService';
 import { logger } from '../../../utils/logger';
 import { supabase } from '../../../utils/supabase';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
-import { AppHeader, Badge, Button, EmptyState, LoadingState } from '../../../components/ui';
+import { AppHeader, Badge, Button, EmptyState, LoadingState, StateBanner } from '../../../components/ui';
 import { FontSize, FontWeight } from '../../../constants/Typography';
 import { Spacing } from '../../../constants/Spacing';
 
@@ -74,14 +75,18 @@ export default function AvisosScreen() {
   const { profile } = useAuth();
   const { isOnlineReal } = useConnectivity();
   const { context: subscriptionContext, loading: subscriptionLoading, hasFeature } = useSubscription();
-  const { atualizarBadge } = useNotifications();
-  const organizationId = profile?.organizationId || subscriptionContext?.organization?.id || null;
+  const { atualizarBadge, hasPermission, pushSupported, solicitarPermissao } = useNotifications();
+  const access = resolveMobileOrganizationAccess(profile, subscriptionContext);
+  const organizationId = access.organizationId;
   const internalProfile = isInternalMobileRole(profile?.role);
   const noticesEnabled = !subscriptionContext?.features
     || !('comunicados' in subscriptionContext.features)
     || hasFeature('comunicados');
   const noticeCacheKey = profile?.uid && organizationId
     ? `@tcs_avisos_${profile.uid}_${organizationId}`
+    : null;
+  const pendingReadsKey = profile?.uid && organizationId
+    ? `@tcs_avisos_leituras_${profile.uid}_${organizationId}`
     : null;
   // Cadastro de comunicado é exclusivo do painel web; no app apenas
   // admin/master podem disparar um aviso já publicado nas comunidades.
@@ -94,6 +99,20 @@ export default function AvisosScreen() {
   const [erro, setErro] = useState<string | null>(null);
   const [comunicados, setComunicados] = useState<ComunicadoApp[]>([]);
   const [selecionado, setSelecionado] = useState<ComunicadoApp | null>(null);
+  const [pedindoPermissao, setPedindoPermissao] = useState(false);
+
+  const ativarNotificacoes = useCallback(async () => {
+    if (pedindoPermissao) return;
+    setPedindoPermissao(true);
+    try {
+      await solicitarPermissao();
+    } catch (excecao) {
+      logger.warn('notifications', 'Não foi possível ativar as notificações do aparelho', excecao);
+      setErro('Não foi possível ativar as notificações. Confira sua conexão e tente novamente.');
+    } finally {
+      setPedindoPermissao(false);
+    }
+  }, [pedindoPermissao, solicitarPermissao]);
 
   const persistirComunicados = useCallback(async (lista: ComunicadoApp[]) => {
     if (!noticeCacheKey) return;
@@ -118,6 +137,51 @@ export default function AvisosScreen() {
     }
   }, [noticeCacheKey]);
 
+  const carregarLeiturasPendentes = useCallback(async (): Promise<string[]> => {
+    if (!pendingReadsKey) return [];
+    try {
+      const raw = await AsyncStorage.getItem(pendingReadsKey);
+      const parsed = raw ? JSON.parse(raw) as unknown : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((id): id is string => typeof id === 'string');
+    } catch {
+      return [];
+    }
+  }, [pendingReadsKey]);
+
+  const salvarLeiturasPendentes = useCallback(async (ids: string[]) => {
+    if (!pendingReadsKey) return;
+    if (ids.length === 0) {
+      await AsyncStorage.removeItem(pendingReadsKey);
+      return;
+    }
+    await AsyncStorage.setItem(pendingReadsKey, JSON.stringify([...new Set(ids)]));
+  }, [pendingReadsKey]);
+
+  const enfileirarLeitura = useCallback(async (id: string) => {
+    const atuais = await carregarLeiturasPendentes();
+    await salvarLeiturasPendentes([...atuais, id]);
+  }, [carregarLeiturasPendentes, salvarLeiturasPendentes]);
+
+  const sincronizarLeiturasPendentes = useCallback(async () => {
+    const pendentes = await carregarLeiturasPendentes();
+    if (!pendentes.length) return;
+
+    const restantes: string[] = [];
+    for (const comunicadoId of pendentes) {
+      try {
+        const { error } = await supabase.rpc('portal_register_comunicado_leitura', {
+          p_comunicado_id: comunicadoId,
+        });
+        if (error) restantes.push(comunicadoId);
+      } catch {
+        restantes.push(comunicadoId);
+      }
+    }
+
+    await salvarLeiturasPendentes(restantes);
+  }, [carregarLeiturasPendentes, salvarLeiturasPendentes]);
+
   const carregar = useCallback(async (mostrarSpinner: boolean) => {
     if (!organizationId || !noticesEnabled) {
       setComunicados([]);
@@ -128,12 +192,16 @@ export default function AvisosScreen() {
     if (mostrarSpinner) setCarregando(true);
     setErro(null);
     try {
+      await sincronizarLeiturasPendentes().catch(() => null);
       const { data, error: rpcError } = await supabase.rpc('portal_list_comunicados');
       if (rpcError) throw rpcError;
       const lista = Array.isArray(data) ? data as ComunicadoApp[] : [];
+      const leiturasPendentes = new Set(await carregarLeiturasPendentes());
       const publicados = lista.filter((item) => (
         item.status === 'publicado'
         && (!item.expira_em || new Date(item.expira_em).getTime() > Date.now())
+      )).map((item) => (
+        leiturasPendentes.has(item.id) ? { ...item, lido: true } : item
       ));
       setComunicados(publicados);
       await persistirComunicados(publicados);
@@ -146,7 +214,15 @@ export default function AvisosScreen() {
       setCarregando(false);
       setAtualizando(false);
     }
-  }, [atualizarBadge, carregarCache, noticesEnabled, organizationId, persistirComunicados]);
+  }, [
+    atualizarBadge,
+    carregarCache,
+    carregarLeiturasPendentes,
+    noticesEnabled,
+    organizationId,
+    persistirComunicados,
+    sincronizarLeiturasPendentes,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -183,6 +259,10 @@ export default function AvisosScreen() {
     setComunicados(atualizados);
     await persistirComunicados(atualizados);
     await atualizarBadge(atualizados.filter((item) => !item.lido).length).catch(() => null);
+    if (!isOnlineReal) {
+      await enfileirarLeitura(comunicado.id).catch(() => null);
+      return;
+    }
     try {
       const { error: leituraError } = await supabase.rpc('portal_register_comunicado_leitura', {
         p_comunicado_id: comunicado.id,
@@ -190,6 +270,7 @@ export default function AvisosScreen() {
       if (leituraError) throw leituraError;
     } catch (excecao) {
       logger.warn('notifications', 'Falha ao registrar leitura', excecao);
+      await enfileirarLeitura(comunicado.id).catch(() => null);
     }
   }
 
@@ -242,6 +323,22 @@ export default function AvisosScreen() {
           />
         }
       >
+        {!carregando && organizationId && noticesEnabled && !hasPermission && pushSupported ? (
+          <StateBanner
+            variant="info"
+            title="Receba novos avisos no aparelho"
+            description="Autorize as notificações para receber comunicados da sua organização mesmo com o aplicativo fechado."
+            actionLabel={pedindoPermissao ? 'Aguarde…' : 'Ativar'}
+            onAction={!pedindoPermissao ? () => void ativarNotificacoes() : undefined}
+          />
+        ) : null}
+        {!carregando && organizationId && !pushSupported ? (
+          <StateBanner
+            variant="info"
+            title="Avisos disponíveis dentro do aplicativo"
+            description="Notificações push em segundo plano exigem uma versão instalada do aplicativo; elas não funcionam no Expo Go."
+          />
+        ) : null}
         {carregando && <LoadingState message="Carregando avisos…" />}
         {!carregando && erro && (
           <EmptyState
@@ -255,9 +352,15 @@ export default function AvisosScreen() {
         {!carregando && !erro && !organizationId && (
           <EmptyState
             icon={internalProfile ? 'briefcase' : 'user'}
-            title={internalProfile ? 'Selecione uma organização no painel web' : 'Sua conta é individual'}
+            title={internalProfile
+              ? 'Selecione uma organização no painel web'
+              : access.requiresOrganizationLink
+                ? 'Sua conta ainda não está vinculada'
+                : 'Sua conta é individual'}
             description={internalProfile
               ? 'Comunicados municipais pertencem a uma organização. Consulte e administre os avisos pelo painel web da TCS.'
+              : access.requiresOrganizationLink
+                ? 'O responsável precisa vincular sua conta à organização pelo painel web. Após a confirmação, os comunicados serão sincronizados aqui.'
               : 'Comunicados municipais são disponibilizados apenas para contas vinculadas a uma organização.'}
           />
         )}

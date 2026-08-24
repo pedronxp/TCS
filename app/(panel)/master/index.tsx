@@ -9,6 +9,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
+import { useSubscription } from '../../../context/SubscriptionContext';
+import { resolveMobileOrganizationAccess } from '../../../services/MobileAccessService';
 import { DashboardGuide } from '../../../components/DashboardGuide';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
@@ -29,6 +31,8 @@ export default function MasterDashboardScreen() {
   const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isConnected } = useConnectivity();
+  const { context: subscriptionContext } = useSubscription();
+  const access = resolveMobileOrganizationAccess(profile, subscriptionContext);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [erro, setErro] = useState(false);
@@ -208,6 +212,13 @@ export default function MasterDashboardScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
       >
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="info"
+            title="Avisos dependem de uma organização"
+            description="O acompanhamento global continua disponível. Para consultar comunicados municipais, vincule esta conta à organização pelo painel web."
+          />
+        ) : null}
         {!isConnected && (
           <StateBanner
             variant="warning"
