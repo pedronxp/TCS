@@ -95,7 +95,7 @@ export function PortalDashboardPage() {
         )}
       </header>
 
-      {isMunicipal && <BotServiceStatus workspace="organization" />}
+      {isMunicipal && permissions.has('whatsapp.read') && <BotServiceStatus workspace="organization" />}
 
       <PortalOnboardingChecklist />
 

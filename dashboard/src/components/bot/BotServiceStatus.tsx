@@ -55,7 +55,10 @@ export function BotServiceStatus({ workspace }: { workspace: 'internal' | 'organ
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold">Bot WhatsApp</p>
-            <Badge variant={checking ? 'outline' : presentation?.variant ?? (online ? 'success' : 'warning')}>
+            <Badge
+              variant={checking ? 'outline' : presentation?.variant ?? (online ? 'success' : 'warning')}
+              className="text-foreground"
+            >
               {checking ? 'Verificando' : presentation?.label ?? (online ? 'Online' : 'Offline ou iniciando')}
             </Badge>
           </div>

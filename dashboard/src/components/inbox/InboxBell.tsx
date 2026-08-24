@@ -27,6 +27,16 @@ const inboxQueryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
 
+function realtimeConnectionAvailable() {
+  const configuredUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  if (!configuredUrl || import.meta.env.MODE === 'test') return false;
+  try {
+    return !new URL(configuredUrl).hostname.endsWith('.invalid');
+  } catch {
+    return false;
+  }
+}
+
 export function InboxBell({ workspace }: { workspace: InboxWorkspace }) {
   return (
     <QueryClientProvider client={inboxQueryClient}>
@@ -55,6 +65,11 @@ function InboxBellContent({ workspace }: { workspace: InboxWorkspace }) {
   });
 
   useEffect(() => {
+    // Visual and unit tests use an intentionally invalid Supabase host. Avoid
+    // opening a Realtime socket there so a deterministic render is not reported
+    // as a production runtime error.
+    if (!realtimeConnectionAvailable()) return undefined;
+
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let cancelled = false;
     void supabase.auth.getUser().then(({ data }) => {

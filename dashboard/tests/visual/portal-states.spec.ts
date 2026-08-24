@@ -275,7 +275,7 @@ const asyncRoutes: AsyncRouteState[] = [
     kind: 'organization',
     loadingText: 'Carregando equipe',
     errorText: 'Não foi possível carregar a equipe.',
-    emptyText: 'Nenhum membro encontrado.',
+    emptyText: 'Nenhuma pessoa corresponde aos filtros.',
     emptyOptions: { emptyWorkspaceSections: ['equipe'] },
   },
   {
