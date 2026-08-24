@@ -3,14 +3,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { CircleHelp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/Dialog';
 import type { InboxWorkspace } from '@/lib/inbox';
 import { getTutorialPreference, saveTutorialPreference } from '@/lib/tutorials';
 
@@ -81,22 +73,30 @@ export function GuidedTutorial({
       <Button variant="outline" size="sm" onClick={() => void handleOpenChange(true)}>
         <CircleHelp /> Ajuda
       </Button>
-      <Dialog open={open} onOpenChange={(next) => void handleOpenChange(next)}>
-        <DialogContent>
-          <DialogHeader>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Tutorial {step + 1} de {steps.length}</p>
-            <DialogTitle>{step === 0 ? title : current.title}</DialogTitle>
-            <DialogDescription>{step === 0 ? description : current.description}</DialogDescription>
-          </DialogHeader>
-          <div className="rounded-xl border bg-secondary/45 p-4 text-sm">
-            <p className="font-semibold">{current.title}</p>
-            <p className="mt-1 text-muted-foreground">{current.description}</p>
+      {open && (
+        <aside
+          aria-label={`Tutorial: ${title}`}
+          className="fixed bottom-4 right-4 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border bg-background p-4 shadow-2xl sm:bottom-6 sm:right-6"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Tutorial {step + 1} de {steps.length}</p>
+              <h2 className="mt-1 text-base font-semibold">{step === 0 ? title : current.title}</h2>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{step === 0 ? description : current.description}</p>
+            </div>
+            <Button variant="ghost" size="sm" className="-mr-2 -mt-2 h-8 px-2" onClick={() => void handleOpenChange(false)} aria-label="Fechar tutorial">
+              Fechar
+            </Button>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-3 rounded-xl border bg-secondary/45 p-3 text-sm">
+            <p className="font-semibold">{current.title}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{current.description}</p>
+          </div>
+          <label className="mt-3 flex cursor-pointer items-start gap-2 text-xs leading-5 text-muted-foreground">
             <Checkbox checked={suppress} onCheckedChange={(checked) => setSuppress(checked === true)} />
-            Não mostrar novamente neste dispositivo e nos meus outros acessos
+            Não mostrar este tutorial novamente
           </label>
-          <DialogFooter className="items-center sm:justify-between">
+          <div className="mt-3 flex items-center justify-between gap-2">
             <Button variant="ghost" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>
               <ChevronLeft /> Voltar
             </Button>
@@ -107,10 +107,9 @@ export function GuidedTutorial({
             ) : (
               <Button disabled={save.isPending} onClick={() => void finish()}>{save.isPending ? 'Salvando…' : 'Concluir tutorial'}</Button>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </aside>
+      )}
     </>
   );
 }
-

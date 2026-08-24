@@ -3,7 +3,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { axe } from 'vitest-axe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortalBillingPage } from './PortalBillingPage';
@@ -12,6 +12,7 @@ import { PortalProfilePage } from './PortalProfilePage';
 import { PortalSettingsPage } from './PortalSettingsPage';
 import { PortalSupportPage } from './PortalSupportPage';
 import { PortalTeamPage } from './PortalTeamPage';
+import { PortalTeamMemberPage } from './PortalTeamMemberPage';
 import type { PortalAccessContext, PortalPermission } from '@/types/portal';
 
 const state = vi.hoisted(() => ({
@@ -233,32 +234,18 @@ describe('conta e administração do portal', () => {
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
-  it('move e restaura foco ao gerenciar uma pessoa', async () => {
-    const user = userEvent.setup();
+  it('abre a gestão de uma pessoa em uma rota dedicada', () => {
     state.workspaceItems = [{ id: 'member-1', user_id: 'user-2', title: 'Agente Um', subtitle: 'agent', status: 'active' }];
-    render(<PortalTeamPage />);
-    const trigger = screen.getByRole('button', { name: 'Gerenciar' });
-
-    await user.click(trigger);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Confirmar alteração de alto impacto' })).toHaveFocus());
-    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
-    await waitFor(() => expect(trigger).toHaveFocus());
+    render(<MemoryRouter><PortalTeamPage /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Gerenciar' })).toHaveAttribute('href', '/portal/municipal/equipe/member-1');
   });
 
-  it('fecha a gestão de equipe e restaura foco seguro após downgrade', async () => {
-    const user = userEvent.setup();
+  it('mantém a gestão individual em consulta após downgrade', () => {
     state.workspaceItems = [{ id: 'member-1', user_id: 'user-2', title: 'Agente Um', subtitle: 'agent', status: 'active' }];
-    const view = render(<PortalTeamPage />);
-    await user.click(screen.getByRole('button', { name: 'Gerenciar' }));
-    expect(screen.getByRole('heading', { name: 'Confirmar alteração de alto impacto' })).toBeVisible();
-
     state.access.role = 'supervisor';
     state.access.permissions = state.access.permissions.filter((permission) => permission !== 'team.manage');
-    view.rerender(<PortalTeamPage />);
-
-    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Confirmar alteração de alto impacto' })).not.toBeInTheDocument());
-    expect(screen.getByText(/modo de consulta/i)).toBeVisible();
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Equipe' })).toHaveFocus());
+    render(<MemoryRouter initialEntries={['/portal/municipal/equipe/member-1']}><Routes><Route path="/portal/municipal/equipe/:memberId" element={<PortalTeamMemberPage />} /></Routes></MemoryRouter>);
+    expect(screen.getByText(/você pode consultar este perfil/i)).toBeVisible();
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
@@ -280,15 +267,14 @@ describe('conta e administração do portal', () => {
     const user = userEvent.setup();
     state.workspaceItems = [{ id: 'member-1', user_id: 'user-2', title: 'Agente Um', subtitle: 'agent', status: 'active' }];
     state.rpc.mockResolvedValueOnce({ data: null, error: { message: 'failed' } });
-    render(<PortalTeamPage />);
-    await user.click(screen.getByRole('button', { name: 'Gerenciar' }));
+    render(<MemoryRouter initialEntries={['/portal/municipal/equipe/member-1']}><Routes><Route path="/portal/municipal/equipe/:memberId" element={<PortalTeamMemberPage />} /></Routes></MemoryRouter>);
     await user.type(screen.getByLabelText('Justificativa'), 'Ajuste operacional necessário');
-    await user.type(screen.getByLabelText('Digite CONFIRMAR'), 'CONFIRMAR');
+    await user.type(screen.getByLabelText('Confirmação'), 'CONFIRMAR');
     await user.click(screen.getByRole('button', { name: 'Aplicar alteração' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('não foi concluída');
     expect(screen.getByLabelText('Justificativa')).toHaveValue('Ajuste operacional necessário');
-    expect(screen.getByLabelText('Digite CONFIRMAR')).toHaveValue('CONFIRMAR');
+    expect(screen.getByLabelText('Confirmação')).toHaveValue('CONFIRMAR');
   });
 
   it('anuncia falha de convite e preserva o e-mail para retry', async () => {

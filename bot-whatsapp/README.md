@@ -60,6 +60,9 @@ Supabase; o filesystem local é descartável.
   criptografia é gerada no primeiro Blueprint.
 - No plano gratuito, um monitor HTTP pode consultar `/healthz`; períodos de
   suspensão ainda podem ocorrer conforme as regras do provedor.
+- Para o monitor gratuito, crie no UptimeRobot um monitor do tipo **HTTP(s)**,
+  use `https://SEU-SERVICO.onrender.com/healthz` e intervalo de **5 minutos**.
+  O endpoint não recebe dados pessoais e responde apenas o estado do processo.
 - Número banido: marque no painel e conecte outro. O estado antigo é removido
   automaticamente quando o WhatsApp encerra a sessão.
 

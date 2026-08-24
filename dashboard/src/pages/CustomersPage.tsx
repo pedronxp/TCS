@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Filter, Plus, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Plus, Search, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { IndividualClientDialog } from '@/components/customers/IndividualClientDialog';
@@ -132,6 +132,11 @@ export function CustomersPage() {
               placeholder="Nome, município, contato ou identificador"
               className="h-11 border-0 bg-background pl-10"
             />
+            {search && (
+              <Button type="button" variant="ghost" size="icon" onClick={() => setSearchFilter('')} className="absolute right-2 top-1.5 h-8 w-8 text-muted-foreground" aria-label="Limpar busca">
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </label>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {statusFilters.map((filter) => (

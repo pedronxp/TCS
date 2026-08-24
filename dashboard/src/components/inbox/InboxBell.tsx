@@ -56,10 +56,11 @@ function InboxBellContent({ workspace }: { workspace: InboxWorkspace }) {
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
     void supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) return;
+      if (!data.user || cancelled) return;
       channel = supabase
-        .channel(`inbox:${workspace}:${data.user.id}`)
+        .channel(`inbox:${workspace}:${data.user.id}:${crypto.randomUUID()}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -70,7 +71,10 @@ function InboxBellContent({ workspace }: { workspace: InboxWorkspace }) {
         })
         .subscribe();
     });
-    return () => { if (channel) void supabase.removeChannel(channel); };
+    return () => {
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
   }, [queryClient, workspace]);
 
   async function openItem(item: InboxItem) {
@@ -95,7 +99,7 @@ function InboxBellContent({ workspace }: { workspace: InboxWorkspace }) {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(25rem,calc(100vw-2rem))] p-2">
+      <DropdownMenuContent align="end" className="w-[min(23rem,calc(100vw-2rem))] overflow-hidden p-0">
         <div className="flex items-center justify-between gap-3 px-2 py-1.5">
           <DropdownMenuLabel className="p-0">Caixa de mensagens</DropdownMenuLabel>
           <div className="flex items-center gap-1">
@@ -109,25 +113,30 @@ function InboxBellContent({ workspace }: { workspace: InboxWorkspace }) {
             )}
           </div>
         </div>
+        <DropdownMenuSeparator className="m-0" />
+        <div className="max-h-[min(24rem,60vh)] overflow-y-auto p-2">
+          {query.isLoading ? (
+            <p className="px-2 py-5 text-sm text-muted-foreground">Carregando mensagens…</p>
+          ) : query.isError ? (
+            <div className="space-y-2 px-2 py-4">
+              <p className="text-sm text-destructive">Não foi possível carregar a caixa.</p>
+              <Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button>
+            </div>
+          ) : query.data?.items.length === 0 ? (
+            <p className="px-2 py-5 text-sm text-muted-foreground">Nenhuma mensagem para você.</p>
+          ) : query.data?.items.map((item) => (
+            <DropdownMenuItem key={item.id} onSelect={() => void openItem(item)} className="items-start gap-3 whitespace-normal py-2.5">
+              <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', item.readAt ? 'bg-transparent' : severityDot(item.severity))} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{item.title}</span>
+                <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">{item.body}</span>
+                <span className="mt-1 block text-[11px] text-muted-foreground">{formatDate(item.createdAt)}</span>
+              </span>
+            </DropdownMenuItem>
+          ))}
+        </div>
         <DropdownMenuSeparator />
-        {query.isLoading ? (
-          <p className="px-2 py-5 text-sm text-muted-foreground">Carregando mensagens…</p>
-        ) : query.isError ? (
-          <p className="px-2 py-5 text-sm text-destructive">Não foi possível carregar a caixa.</p>
-        ) : query.data?.items.length === 0 ? (
-          <p className="px-2 py-5 text-sm text-muted-foreground">Nenhuma mensagem para você.</p>
-        ) : query.data?.items.map((item) => (
-          <DropdownMenuItem key={item.id} onSelect={() => void openItem(item)} className="items-start gap-3 whitespace-normal py-3">
-            <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', item.readAt ? 'bg-transparent' : severityDot(item.severity))} />
-            <span className="min-w-0">
-              <span className="block font-medium">{item.title}</span>
-              <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">{item.body}</span>
-              <span className="mt-1 block text-[11px] text-muted-foreground">{formatDate(item.createdAt)}</span>
-            </span>
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild className="m-2 mt-0">
           <Link to={inboxHome(workspace)} onClick={() => setOpen(false)}>Ver todas as mensagens</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>

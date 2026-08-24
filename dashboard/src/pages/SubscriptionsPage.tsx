@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Search, X } from 'lucide-react';
 import { StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
@@ -17,6 +17,7 @@ import {
 import { HighRiskDialog } from '@/components/ui/HighRiskDialog';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useSubscriptionMutation } from '@/hooks/useSubscriptionMutation';
@@ -90,6 +91,8 @@ interface SubscriptionRow {
 
 export function SubscriptionsPage() {
   const [editing, setEditing] = useState<SubscriptionRow | 'new' | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const { can } = useAuth();
   const customers = useCustomers('', '', 0, 100);
   const plans = useQuery({
@@ -122,6 +125,21 @@ export function SubscriptionsPage() {
   );
   const rows = useMemo(() => query.data ?? [], [query.data]);
   const metrics = useMemo(() => subscriptionMetrics(rows), [rows]);
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase('pt-BR');
+    return rows.filter((subscription) => {
+      if (statusFilter !== 'all' && subscription.status !== statusFilter) return false;
+      if (!term) return true;
+      const customer = customerMap.get(subscription.organization_id || subscription.user_id || '');
+      return [
+        subscription.organizations?.display_name,
+        customer?.display_name,
+        subscription.plans?.name,
+        subscription.status,
+      ].some((value) => value?.toLocaleLowerCase('pt-BR').includes(term));
+    });
+  }, [customerMap, rows, search, statusFilter]);
+  const tableMetrics = useMemo(() => subscriptionMetrics(filteredRows), [filteredRows]);
 
   function openNewSubscription() {
     setEditing('new');
@@ -162,12 +180,26 @@ export function SubscriptionsPage() {
       >
         <RevenuePortfolio metrics={metrics} />
 
+        <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">Buscar assinatura</span>
+            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} className="h-11 pl-9 pr-10" placeholder="Cliente, plano ou situação" />
+            {search && <Button type="button" variant="ghost" size="icon" onClick={() => setSearch('')} className="absolute right-2 top-1.5 h-8 w-8 text-muted-foreground" aria-label="Limpar busca"><X className="h-4 w-4" /></Button>}
+          </label>
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <span>Situação</span>
+            <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger aria-label="Filtrar assinaturas por situação" className="h-11 min-w-40 text-sm text-foreground"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem>{statuses.map((status) => <SelectItem key={status} value={status}>{ptBrLabel(status)}</SelectItem>)}</SelectContent></Select>
+          </div>
+          {(search || statusFilter !== 'all') && <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatusFilter('all'); }}>Limpar filtros</Button>}
+        </div>
+
         <div className="grid gap-6 xl:grid-cols-[minmax(0,822px)_248px]">
           <Card className="min-w-0 shadow-none">
             <CardHeader><h2 className="text-[17px] font-semibold">Ciclos prioritários</h2></CardHeader>
             <CardContent className="px-0 pb-4">
               <DataTable headers={['Cliente', 'Plano', 'Renovação', 'Valor', 'Status']} minWidth={680}>
-                {metrics.priorityRows.map((subscription) => {
+                {tableMetrics.priorityRows.map((subscription) => {
                   const customer = customerMap.get(subscription.organization_id || subscription.user_id || '');
                   return (
                     <tr key={subscription.id} className="border-t">
@@ -196,9 +228,10 @@ export function SubscriptionsPage() {
                   );
                 })}
               </DataTable>
-              {rows.length > metrics.priorityRows.length && (
+              {filteredRows.length === 0 && <p className="px-6 py-8 text-center text-sm text-muted-foreground">Nenhuma assinatura corresponde aos filtros.</p>}
+              {filteredRows.length > tableMetrics.priorityRows.length && (
                 <p className="px-6 pt-4 text-xs font-semibold text-primary">
-                  {rows.length - metrics.priorityRows.length} outros ciclos disponíveis na base
+                  {filteredRows.length - tableMetrics.priorityRows.length} outros ciclos correspondem aos filtros
                 </p>
               )}
             </CardContent>

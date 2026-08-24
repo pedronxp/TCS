@@ -172,6 +172,15 @@ export const routeManifest = [
     automatedVisualBaselines: section === 'mensagens' ? null : undefined,
   })),
   portalRoute({
+    id: 'portal-municipal-equipe-member',
+    path: '/portal/municipal/equipe/:memberId',
+    audience: ['coordinator', 'supervisor'],
+    permission: 'team.read',
+    template: 'context-detail',
+    penpot: '29 · Municipal — Coordenador + 30 · Supervisor',
+    automatedVisualBaselines: null,
+  }),
+  portalRoute({
     id: 'portal-individual-ciencias',
     path: '/portal/individual/ciencias',
     audience: ['individual'],

@@ -655,8 +655,8 @@ setInterval(() => {
   }
 }, CHAT_SYNC_MS);
 
-const server = app.listen(PORT, () => {
-  log('http', `Painel do bot em http://localhost:${PORT} (números e QR por sessão)`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  log('http', `Serviço do bot disponível na porta ${PORT} (números e QR por sessão)`);
 });
 
 let encerrando = false;

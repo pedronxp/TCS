@@ -75,7 +75,7 @@ export function InboxPage({ workspace }: { workspace: InboxWorkspace }) {
         <CardHeader><CardTitle>Atividade recente</CardTitle></CardHeader>
         <CardContent className="divide-y p-0">
           {query.isLoading && <p className="p-6 text-sm text-muted-foreground">Carregando mensagens…</p>}
-          {query.isError && <p className="p-6 text-sm text-destructive">Não foi possível carregar sua caixa. Tente novamente.</p>}
+          {query.isError && <div className="flex items-center justify-between gap-4 p-6"><p className="text-sm text-destructive">Não foi possível carregar sua caixa.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
           {!query.isLoading && !query.isError && items.length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhuma mensagem neste filtro.</p>}
           {items.map((item) => (
             <button key={item.id} type="button" onClick={() => void openItem(item)} className={cn('flex w-full gap-4 p-5 text-left outline-none hover:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', !item.readAt && 'bg-primary/[0.035]')}>
@@ -104,4 +104,3 @@ function moduleLabel(moduleKey: string) {
   const labels: Record<string, string> = { whatsapp: 'WhatsApp', communication: 'Comunicados', notifications: 'Sistema' };
   return labels[moduleKey] ?? 'Plataforma';
 }
-

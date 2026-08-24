@@ -323,7 +323,7 @@ export function ConsoleComunicadoOrgPage({
     onError: (error: Error) => setErrorMessage(error.message),
   });
   return (
-    <div className="page-stack">
+    <div className="communications-compact page-stack mx-auto max-w-[1220px]">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
@@ -368,7 +368,7 @@ export function ConsoleComunicadoOrgPage({
       )}
 
       {org && (
-        <section className={isWhatsAppMode ? 'grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]' : 'grid gap-6'}>
+        <section className={isWhatsAppMode ? 'grid items-start gap-4 2xl:grid-cols-[minmax(0,1.05fr)_minmax(400px,0.95fr)]' : 'grid gap-4'}>
           {isWhatsAppMode && <div className="space-y-6">
             <Card data-tutorial="console-whatsapp-sessions" className="overflow-hidden">
               <CardHeader className="border-b bg-secondary/20 pb-5">

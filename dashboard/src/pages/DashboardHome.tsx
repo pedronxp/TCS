@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { customerDetailPath } from '@/lib/customerRoutes';
 import type { InternalPermission } from '@/types/internal';
+import { BotServiceStatus } from '@/components/bot/BotServiceStatus';
 
 export interface DashboardMetric {
   key: string;
@@ -173,6 +174,8 @@ export function DashboardHome() {
           </Badge>
         </div>
       </header>
+
+      <BotServiceStatus workspace="internal" />
 
       {!technical && <ExecutiveBrief metrics={metrics} attention={attention} can={can} />}
 

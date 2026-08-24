@@ -362,6 +362,22 @@
     @apply mt-1.5;
   }
 
+  .communications-compact [data-slot='card'] {
+    @apply rounded-xl shadow-none;
+  }
+
+  .communications-compact [data-slot='card-header'] {
+    @apply p-4 pb-3;
+  }
+
+  .communications-compact [data-slot='card-title'] {
+    @apply text-base leading-5;
+  }
+
+  .communications-compact [data-slot='card-content'] {
+    @apply px-4 pb-4 pt-0;
+  }
+
   @media (prefers-reduced-transparency: reduce) {
     .glass {
       background: hsl(var(--card));

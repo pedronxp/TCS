@@ -345,11 +345,11 @@ export function PortalComunicadosPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="communications-compact page-stack mx-auto max-w-[1180px]">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Comunicação municipal</p>
-          <h1 className="mt-2 text-3xl font-semibold">Comunicados</h1>
+          <h1 className="mt-1 text-2xl font-semibold">Comunicados</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Avisos oficiais da prefeitura para a equipe, com destino por bairro ou para todo o município.
           </p>
@@ -371,7 +371,7 @@ export function PortalComunicadosPage() {
       {statusMessage && <p className="rounded-md border border-success/25 bg-success-soft p-3 text-sm text-foreground" role="status">{statusMessage}</p>}
       {errorMessage && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{errorMessage}</p>}
 
-      <section data-tutorial="communication-composer" className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <section data-tutorial="communication-composer" className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
         {mayManage ? (
           <div className="space-y-4">
             <Card>
@@ -382,7 +382,7 @@ export function PortalComunicadosPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void submit('rascunho'); }}>
+                <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void submit('rascunho'); }}>
                   <label className="block text-sm font-medium">
                     Título
                     <Input
@@ -397,7 +397,7 @@ export function PortalComunicadosPage() {
                   <label className="block text-sm font-medium">
                     Conteúdo
                     <Textarea
-                      className="mt-2 min-h-32"
+                      className="mt-2 min-h-24"
                       value={draft.conteudo}
                       onChange={(event) => setDraft((current) => ({ ...current, conteudo: event.target.value }))}
                       maxLength={5000}
