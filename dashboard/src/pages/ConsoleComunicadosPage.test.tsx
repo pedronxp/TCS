@@ -66,6 +66,7 @@ function renderPage(entry: string) {
         <Routes>
           <Route path="/app/comunicacoes" element={<ConsoleComunicadosPage />} />
           <Route path="/app/comunicacoes/:orgId" element={<ConsoleComunicadoOrgPage />} />
+          <Route path="/app/whatsapp/:orgId" element={<ConsoleComunicadoOrgPage mode="whatsapp" backTo="/app/whatsapp" backLabel="WhatsApp Bot" />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -89,15 +90,20 @@ describe('comunicados no console interno', () => {
     expect(await screen.findByRole('heading', { name: 'Prefeitura de Cataguases', level: 1 })).toBeVisible();
   });
 
-  it('espaço da prefeitura mostra entregas, número mascarado que enviou e fallback', async () => {
-    renderPage('/app/comunicacoes/org-1');
+  it('rota do WhatsApp mostra entregas, número mascarado que enviou e fallback', async () => {
+    renderPage('/app/whatsapp/org-1');
     expect(await screen.findByRole('heading', { name: 'Entregas' })).toBeVisible();
     expect(await screen.findByText('Entregue')).toBeVisible();
     expect(screen.getByText(/pelo número 55\*\*\*\*9001/)).toBeInTheDocument();
     expect(screen.getByText(/55\*\*\*\*9002 \(sessão não está conectada agora\)/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /disparar pelo bot/i })).toBeEnabled();
-    expect(screen.getByText('2 admins · 157 membros')).toBeInTheDocument();
     expect(screen.getByText('55****9001')).toBeInTheDocument();
+  });
+
+  it('rota de comunicados mantém o editor sem repetir a operação do WhatsApp', async () => {
+    renderPage('/app/comunicacoes/org-1');
+    expect(await screen.findByRole('heading', { name: 'Nova mensagem' })).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: /disparar pelo bot/i })).toBeChecked();
+    expect(screen.queryByRole('heading', { name: 'Entregas' })).not.toBeInTheDocument();
   });
 
   it('mantém a estrutura acessível', async () => {

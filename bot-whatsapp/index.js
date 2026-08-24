@@ -16,11 +16,11 @@ const QRCode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   fetchLatestBaileysVersion,
   DisconnectReason,
 } = require('@whiskeysockets/baileys');
 const { createClient } = require('@supabase/supabase-js');
+const { useSupabaseAuthState } = require('./supabase-auth-state');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -37,13 +37,20 @@ const { createClient } = require('@supabase/supabase-js');
 })();
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const BOT_SESSION_ENCRYPTION_KEY = process.env.BOT_SESSION_ENCRYPTION_KEY;
 const PORT = Number(process.env.PORT || 8787);
 const POLL_MS = Number(process.env.POLL_MS || 5000);
 const CHAT_SYNC_MS = Number(process.env.CHAT_SYNC_MS || 10 * 60 * 1000);
+const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
+  || 'https://tcsvisto.netlify.app,http://localhost:5173,http://127.0.0.1:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean));
+const WORKER_ID = process.env.RENDER_INSTANCE_ID || `bot-${process.pid}-${Date.now().toString(36)}`;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('[bot] Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env.');
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !BOT_SESSION_ENCRYPTION_KEY) {
+  console.error('[bot] Configure SUPABASE_URL, SUPABASE_SECRET_KEY e BOT_SESSION_ENCRYPTION_KEY.');
   process.exit(1);
 }
 
@@ -129,7 +136,11 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
   const anterior = sessoes.get(linha.id);
   if (anterior && !tentativaReconexao) return;
 
-  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'sessao-wa', linha.id));
+  const { state, saveCreds, clearState } = await useSupabaseAuthState(
+    supabase,
+    linha.id,
+    BOT_SESSION_ENCRYPTION_KEY,
+  );
   const { version } = await fetchLatestBaileysVersion();
 
   const sessao = {
@@ -142,6 +153,8 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     qrGeradoEm: null,
     telefone: linha.telefone || null,
     ultimoErro: null,
+    clearState,
+    encerramentoSolicitado: false,
   };
   sessoes.set(linha.id, sessao);
 
@@ -185,6 +198,10 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       await sincronizarChats(sessao);
     }
     if (connection === 'close') {
+      if (sessao.encerramentoSolicitado) {
+        sessoes.delete(sessao.id);
+        return;
+      }
       const codigo = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
         ? lastDisconnect.error.output.statusCode
         : null;
@@ -196,6 +213,7 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       log('sessao', `${sessao.orgNome}: conexão fechada — ${deslogado ? 'deslogado, requer novo QR' : 'vai reconectar'}`);
       if (deslogado) {
         await atualizarSessaoDb(sessao.id, { status: 'desconectado', atualizado_em: agoraIso() });
+        await clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${linha.id}`, erro));
         sessoes.delete(sessao.id);
       } else if (tentativaReconexao < 5) {
         setTimeout(() => {
@@ -208,30 +226,53 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
   return sessao;
 }
 
-async function pararSessao(id) {
+async function pararSessao(id, { sair = false } = {}) {
   const sessao = sessoes.get(id);
-  if (!sessao) return;
-  try {
-    if (sessao.socket && typeof sessao.socket.end === 'function') {
-      sessao.socket.end(new Error('encerrada pelo painel'));
+  if (sessao) {
+    sessao.encerramentoSolicitado = true;
+    try {
+      if (sair && sessao.socket && typeof sessao.socket.logout === 'function') {
+        await sessao.socket.logout();
+      } else if (sessao.socket && typeof sessao.socket.end === 'function') {
+        sessao.socket.end(new Error('encerrada pelo painel'));
+      }
+    } catch (_erro) { /* socket já fechado */ }
+    if (sair && typeof sessao.clearState === 'function') {
+      await sessao.clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${id}`, erro));
     }
-  } catch (_erro) { /* socket já fechado */ }
-  sessoes.delete(id);
-  log('sessao', `Sessao ${id} encerrada (banida/desativada no painel).`);
+    sessoes.delete(id);
+  } else if (sair) {
+    const auth = await useSupabaseAuthState(supabase, id, BOT_SESSION_ENCRYPTION_KEY);
+    await auth.clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais inativas ${id}`, erro));
+  }
+  log('sessao', `Sessao ${id} ${sair ? 'desvinculada do WhatsApp' : 'desconectada pelo painel'}.`);
 }
 
 // Descobre sessões novas no painel, encerra as desativadas e mantém nomes das orgs.
 async function gerenciarSessoes() {
   const { data: linhas, error } = await supabase
     .from('bot_sessoes')
-    .select('id, organization_id, telefone, status, organizations(display_name)')
-    .in('status', ['aguardando_qr', 'vinculado', 'desconectado']);
+    .select('id, organization_id, telefone, status, acao_pendente, organizations(display_name)')
+    .neq('status', 'banido');
   if (error) {
     log('db', 'Falha ao listar sessoes', error);
     return;
   }
   const ativas = new Set();
   for (const linha of linhas || []) {
+    if (linha.acao_pendente === 'sair') {
+      await pararSessao(linha.id, { sair: true });
+      await atualizarSessaoDb(linha.id, {
+        status: 'desconectado',
+        acao_pendente: null,
+        atualizado_em: agoraIso(),
+      });
+      continue;
+    }
+    if (!['aguardando_qr', 'vinculado'].includes(linha.status)) {
+      if (sessoes.has(linha.id)) await pararSessao(linha.id);
+      continue;
+    }
     ativas.add(linha.id);
     const orgNome = linha.organizations && linha.organizations.display_name;
     const existente = sessoes.get(linha.id);
@@ -267,12 +308,10 @@ async function candidatosDoChat(orgId, chatId) {
 }
 
 async function processarFila() {
-  const { data: pendentes, error } = await supabase
-    .from('canal_envios')
-    .select('id, canal_id, comunicado_id')
-    .eq('status', 'pendente')
-    .order('created_at', { ascending: true })
-    .limit(5);
+  const { data: pendentes, error } = await supabase.rpc('bot_claim_pending_deliveries', {
+    p_worker_id: WORKER_ID,
+    p_limit: 5,
+  });
   if (error) {
     log('fila', 'Falha ao consultar fila', error);
     return;
@@ -347,8 +386,10 @@ async function finalizarEnvio(envioId, sessaoId, status, erro, tentativas) {
       tentativas: tentativas && tentativas.length ? tentativas : null,
       enviado_em: status === 'enviado' ? agoraIso() : null,
       bot_atualizado_em: agoraIso(),
+      processing_started_at: null,
     })
-    .eq('id', envioId);
+    .eq('id', envioId)
+    .eq('worker_id', WORKER_ID);
   if (error) log('db', `Falha ao finalizar envio ${envioId}`, error);
 }
 
@@ -358,13 +399,20 @@ async function finalizarEnvio(envioId, sessaoId, status, erro, tentativas) {
 
 const app = express();
 
-app.use('/healthz', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/status', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/sessao', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
-app.use('/qr', (_req, res, next) => { res.set('Access-Control-Allow-Origin', '*'); next(); });
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  if (origin && DASHBOARD_ORIGINS.has(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
+  }
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Referrer-Policy', 'no-referrer');
+  next();
+});
 
 app.get('/healthz', (_req, res) => {
-  res.json({ ok: true, sessoes: sessoes.size });
+  res.json({ ok: true, sessoes: sessoes.size, worker: WORKER_ID, uptime: Math.round(process.uptime()) });
 });
 
 app.get('/status', (_req, res) => {
@@ -607,6 +655,19 @@ setInterval(() => {
   }
 }, CHAT_SYNC_MS);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   log('http', `Painel do bot em http://localhost:${PORT} (números e QR por sessão)`);
 });
+
+let encerrando = false;
+async function encerrar(signal) {
+  if (encerrando) return;
+  encerrando = true;
+  log('shutdown', `${signal}: encerrando conexões com segurança`);
+  server.close();
+  await Promise.all([...sessoes.keys()].map((id) => pararSessao(id)));
+  setTimeout(() => process.exit(0), 500).unref();
+}
+
+process.on('SIGTERM', () => void encerrar('SIGTERM'));
+process.on('SIGINT', () => void encerrar('SIGINT'));

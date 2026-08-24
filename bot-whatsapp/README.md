@@ -14,24 +14,30 @@ painel como contingência.
 
 ## Como funciona
 
-1. O painel (console `/app/comunicacoes` ou portal municipal) enfileira
+1. O editor em `/app/comunicacoes` prepara e publica o alerta; a operação do
+   canal fica em `/app/whatsapp` e no módulo WhatsApp da organização.
+2. O painel enfileira
    disparos em `canal_envios` com status `pendente` (botão "Disparar pelo bot").
-2. Este bot consome a fila e envia a mensagem formatada no chat vinculado a
+3. Este bot retira cada item da fila de forma atômica e envia a mensagem formatada no chat vinculado a
    cada comunidade, gravando `enviado` ou `falhou` (com erro) — mesma tabela de
-   auditoria do envio manual, com trilha de fallback entre números.
-3. O bot sincroniza os grupos que cada número enxerga (com contagem de
+   auditoria do envio manual, com trilha de fallback entre números. Se o worker
+   cair no meio do envio, o item vira `incerto` e nunca é repetido automaticamente.
+4. O bot sincroniza os grupos que cada número enxerga (com contagem de
    admins/membros) para `bot_chats`; no painel, cada comunidade é vinculada ao
-   chat correspondente. Sessões ficam em `./sessao-wa/<id>` (não versione).
+   chat correspondente. As credenciais Baileys ficam criptografadas no esquema
+   privado do Supabase e sobrevivem aos reinícios do Render.
 
 ## Requisitos
 
-- Node 20+ (o `whatsapp-web.js` baixa um Chromium na instalação).
+- Node 22+; Baileys não precisa de Chromium.
 - Variáveis de ambiente:
 
 | Variável | Obrigatória | Descrição |
 | --- | --- | --- |
 | `SUPABASE_URL` | sim | URL do projeto Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | sim | **somente aqui** — nunca no app/painel/repo |
+| `SUPABASE_SECRET_KEY` | sim | Chave secreta do backend, **somente no Render** |
+| `BOT_SESSION_ENCRYPTION_KEY` | sim | Segredo com 24+ caracteres usado para AES-256-GCM; trocar exige novo pareamento |
+| `DASHBOARD_ORIGIN` | não | Origem autorizada no CORS (padrão `https://tcsvisto.netlify.app`) |
 | `PORT` | não | porta da tela de QR (padrão 8787) |
 | `POLL_MS` | não | intervalo da fila (padrão 5000) |
 
@@ -40,26 +46,26 @@ painel como contingência.
 ```bash
 cd bot-whatsapp
 npm install
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm start
+SUPABASE_URL=... SUPABASE_SECRET_KEY=... BOT_SESSION_ENCRYPTION_KEY=... npm start
 ```
 
 Abra `http://localhost:8787`, escaneie o QR Code (WhatsApp → Aparelhos
-conectados → Conectar aparelho) e deixe rodando. A sessão fica em `./sessao`
-(não versione esta pasta).
+conectados → Conectar aparelho) e deixe rodando. A sessão criptografada fica no
+Supabase; o filesystem local é descartável.
 
-## Implantação sugerida (outra hospedagem, como decidido)
+## Implantação piloto no Render
 
-- VPS pequena (1 vCPU/1 GB dá conta), Docker ou systemd; porta exposta apenas
-  para você (firewall/VPN) — a tela de QR é acesso administrativo.
-- Reinício automático (`Restart=always`); o bot retoma a sessão salva.
-- Número banido: pare o bot, apague `./sessao`, inicie e escaneie com o novo
-  número; os vínculos de chat em `canais_externos.chat_id` continuam válidos
-  se a nova conta for administradora das mesmas comunidades.
+- O `render.yaml` cria um Web Service Docker gratuito e usa `/healthz`.
+- Informe `SUPABASE_URL` e `SUPABASE_SECRET_KEY` no painel do Render; a chave de
+  criptografia é gerada no primeiro Blueprint.
+- No plano gratuito, um monitor HTTP pode consultar `/healthz`; períodos de
+  suspensão ainda podem ocorrer conforme as regras do provedor.
+- Número banido: marque no painel e conecte outro. O estado antigo é removido
+  automaticamente quando o WhatsApp encerra a sessão.
 
 ## Avisos
 
 - Uso não oficial: viola os termos da Meta e o número **pode ser banido**.
   Decisão de risco do dono do produto, registrada em `docs/decisions/`.
 - Sem SLA: se o WhatsApp Web mudar, o bot para até atualização da biblioteca.
-- Mantenha `service_role` apenas neste ambiente e proteja a pasta `./sessao`
-  (quem a tiver, controla a conta).
+- Mantenha a chave secreta e a chave de criptografia apenas no Render.

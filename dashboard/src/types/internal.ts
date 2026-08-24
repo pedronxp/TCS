@@ -32,7 +32,10 @@ export type InternalPermission =
   | 'account.recover_invite'
   | 'token.manage'
   | 'notification.manage'
-  | 'communication.manage';
+  | 'communication.manage'
+  | 'whatsapp.read'
+  | 'whatsapp.recover'
+  | 'whatsapp.manage';
 
 export interface InternalStaffProfile {
   id: string;

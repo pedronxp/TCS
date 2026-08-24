@@ -15,6 +15,7 @@ import {
 import { portalHome, portalRestrictionMessage, portalSubscriptionPresentation } from '@/lib/portal';
 import type { PortalAccessContext } from '@/types/portal';
 import { cn } from '@/lib/utils';
+import { InboxBell } from '@/components/inbox/InboxBell';
 
 const mobilePriorities = ['Visão geral', 'Vistorias', 'Agenda', 'Documentos', 'Mapa'];
 const roleLabels = {
@@ -109,6 +110,7 @@ export function PortalShell() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <InboxBell workspace={access.accountKind} />
             {roleMunicipalityTag && <Badge variant="outline" className="hidden text-foreground sm:inline-flex">{roleMunicipalityTag}</Badge>}
             <Badge variant={subscription.tone} className="text-foreground">{subscription.label}</Badge>
           </div>

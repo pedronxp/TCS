@@ -36,7 +36,15 @@ const internalPermissions = new Set<string>([
   'configuration.prepare', 'configuration.publish', 'protocol.read', 'protocol.rotate',
   'account.approve', 'account.lock', 'account.recover_invite', 'token.manage', 'notification.manage',
   'communication.manage',
+  'whatsapp.read', 'whatsapp.recover', 'whatsapp.manage',
 ]);
+
+const whatsappRoleFallbacks: Partial<Record<InternalStaffProfile['role'], ReadonlySet<InternalPermission>>> = {
+  owner: new Set(['whatsapp.read', 'whatsapp.recover', 'whatsapp.manage']),
+  developer: new Set(['whatsapp.read', 'whatsapp.recover', 'whatsapp.manage']),
+  support: new Set(['whatsapp.read', 'whatsapp.recover']),
+  auditor: new Set(['whatsapp.read']),
+};
 
 function isInternalRole(value: string | null): value is InternalRole {
   return value === 'owner' || value === 'developer' || value === 'support' || value === 'auditor';
@@ -183,8 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const permissions = useMemo(() => new Set(profile?.permissions ?? []), [profile?.permissions]);
   const can = useCallback(
-    (permission: InternalPermission) => permissions.has(permission),
-    [permissions],
+    (permission: InternalPermission) => permissions.has(permission)
+      || Boolean(profile && whatsappRoleFallbacks[profile.role]?.has(permission)),
+    [permissions, profile],
   );
   const isAuthorized = Boolean(session && profile?.status === 'active' && can('console.read'));
 

@@ -16,12 +16,14 @@ import { PortalInspectionPage } from '@/pages/portal/PortalInspectionPage';
 import { PortalAcknowledgementsPage } from '@/pages/portal/PortalAcknowledgementsPage';
 import { PortalReportsPage } from '@/pages/portal/PortalReportsPage';
 import { PortalComunicadosPage } from '@/pages/portal/PortalComunicadosPage';
+import { PortalWhatsAppPage } from '@/pages/portal/PortalWhatsAppPage';
 import { PortalSupportPage } from '@/pages/portal/PortalSupportPage';
 import { PortalProfilePage } from '@/pages/portal/PortalProfilePage';
 import { PortalAgendaPage } from '@/pages/portal/PortalAgendaPage';
 import { PortalTeamPage } from '@/pages/portal/PortalTeamPage';
 import { PortalSettingsPage } from '@/pages/portal/PortalSettingsPage';
 import { PortalPasswordRecoveryPage } from '@/pages/portal/PortalPasswordRecoveryPage';
+import { InboxPage } from '@/pages/InboxPage';
 import { DocumentAcknowledgementLinkPage } from '@/pages/public/DocumentAcknowledgementLinkPage';
 import type { PortalAccountKind } from '@/types/portal';
 
@@ -73,6 +75,7 @@ export default function PortalApp() {
           <Route path="/portal/individual/assinatura" element={<PortalRoute kind="individual" permission="billing.read"><PortalBillingPage /></PortalRoute>} />
           <Route path="/portal/individual/suporte" element={<PortalRoute kind="individual" permission="support.read"><PortalSupportPage /></PortalRoute>} />
           <Route path="/portal/individual/perfil" element={<PortalRoute kind="individual" permission="profile.read"><PortalProfilePage /></PortalRoute>} />
+          <Route path="/portal/individual/mensagens" element={<PortalRoute kind="individual" permission="profile.read"><InboxPage workspace="individual" /></PortalRoute>} />
         </Route>
 
         <Route path="/portal/municipal" element={shell('organization')}>
@@ -85,6 +88,7 @@ export default function PortalApp() {
           <Route path="/portal/municipal/ciencias" element={<PortalRoute kind="organization" permission="document.read"><PortalAcknowledgementsPage /></PortalRoute>} />
           <Route path="/portal/municipal/relatorios" element={<PortalRoute kind="organization" permission="report.read"><PortalReportsPage /></PortalRoute>} />
           <Route path="/portal/municipal/comunicados" element={<PortalRoute kind="organization" permission="communication.read"><PortalComunicadosPage /></PortalRoute>} />
+          <Route path="/portal/municipal/whatsapp" element={<PortalRoute kind="organization" permission="whatsapp.read"><PortalWhatsAppPage /></PortalRoute>} />
           <Route path="/portal/municipal/equipe" element={<PortalRoute kind="organization" permission="team.read"><PortalTeamPage /></PortalRoute>} />
           <Route path="/portal/municipal/convites" element={<PortalRoute kind="organization" permission="invite.agent"><PortalInvitesPage /></PortalRoute>} />
           <Route path="/portal/municipal/consumo" element={<PortalRoute kind="organization" permission="usage.read"><PortalModulePage section="consumo" /></PortalRoute>} />
@@ -92,6 +96,7 @@ export default function PortalApp() {
           <Route path="/portal/municipal/suporte" element={<PortalRoute kind="organization" permission="support.read"><PortalSupportPage /></PortalRoute>} />
           <Route path="/portal/municipal/configuracoes" element={<PortalRoute kind="organization" permission="settings.read"><PortalSettingsPage /></PortalRoute>} />
           <Route path="/portal/municipal/perfil" element={<PortalRoute kind="organization" permission="profile.read"><PortalProfilePage /></PortalRoute>} />
+          <Route path="/portal/municipal/mensagens" element={<PortalRoute kind="organization" permission="profile.read"><InboxPage workspace="organization" /></PortalRoute>} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/entrar" replace />} />

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Bell, Check, Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Sun } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Check, Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Sun } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { GlobalCustomerSearch } from '@/components/GlobalCustomerSearch';
 import { Button } from '@/components/ui/Button';
 import {
@@ -16,7 +16,7 @@ import { ChangePasswordDialog } from '@/components/account/ChangePasswordDialog'
 import { ThemePickerModal } from '@/components/ThemePickerModal';
 import type { Theme } from '@/hooks/useTheme';
 import { ptBrLabel } from '@/lib/ptBrLabels';
-import { supabase } from '@/lib/supabase';
+import { InboxBell } from '@/components/inbox/InboxBell';
 
 type AppHeaderProps = {
   onOpenMobile: () => void;
@@ -29,15 +29,6 @@ type AppHeaderProps = {
 type PageContext = {
   eyebrow: string;
   title: string;
-};
-
-type InboxNotification = {
-  id: string;
-  titulo: string;
-  corpo: string;
-  tipo: string;
-  criada_em: string;
-  lida: boolean;
 };
 
 const STATIC_PAGE_CONTEXTS: ReadonlyArray<{ prefix: string; context: PageContext }> = [
@@ -57,6 +48,7 @@ const STATIC_PAGE_CONTEXTS: ReadonlyArray<{ prefix: string; context: PageContext
   { prefix: '/app/sessoes', context: { eyebrow: 'Segurança', title: 'Sessões e dispositivos' } },
   { prefix: '/app/dispositivo', context: { eyebrow: 'Segurança', title: 'Inventário de dispositivos' } },
   { prefix: '/app/suporte', context: { eyebrow: 'Suporte', title: 'Central de atendimento' } },
+  { prefix: '/app/mensagens', context: { eyebrow: 'Operação', title: 'Caixa de mensagens' } },
   { prefix: '/app/staff', context: { eyebrow: 'Governança', title: 'Equipe e permissões' } },
   { prefix: '/app/auditoria', context: { eyebrow: 'Governança', title: 'Auditoria e eventos' } },
 ];
@@ -93,10 +85,6 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
   const { profile, can, signOut } = useAuth();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
-  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState<InboxNotification[]>([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(true);
-  const [notificationsError, setNotificationsError] = useState(false);
   const customerDetailKind = pathname.match(/^\/app\/clientes\/(organizacoes|contas)\/[^/]+(?:\/|$)/)?.[1];
   const isCustomerDetail = Boolean(customerDetailKind);
   const customerEditLabel = customerDetailKind === 'contas' ? 'Editar pessoa' : 'Editar organização';
@@ -111,29 +99,6 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
     .map((part) => part[0])
     .join('')
     .toUpperCase() || 'TC';
-  const loadNotifications = useCallback(async () => {
-    setNotificationsLoading(true);
-    const { data, error } = await supabase.from('notificacoes')
-      .select('id,titulo,corpo,tipo,criada_em,lida')
-      .order('criada_em', { ascending: false })
-      .limit(8);
-    if (error) {
-      setNotificationsError(true);
-    } else {
-      setNotifications((data ?? []) as InboxNotification[]);
-      setNotificationsError(false);
-    }
-    setNotificationsLoading(false);
-  }, []);
-  useEffect(() => { void loadNotifications(); }, [loadNotifications]);
-  const unreadCount = notifications.filter((notification) => !notification.lida).length;
-  const markNotificationRead = async (notification: InboxNotification) => {
-    if (notification.lida) return;
-    setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, lida: true } : item));
-    const { error } = await supabase.from('notificacoes').update({ lida: true }).eq('id', notification.id);
-    if (error) void loadNotifications();
-  };
-
   return (
     <header className="sticky top-0 z-30 h-[72px] border-b border-border/60 bg-card/80 backdrop-blur-md">
       <div className="flex h-full items-center gap-3 px-4 sm:px-6 lg:px-8">
@@ -158,20 +123,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
         </nav>
 
         <div className="ml-auto flex items-center gap-2.5">
-          {profile && <DropdownMenu open={notificationMenuOpen} onOpenChange={setNotificationMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="relative h-10 w-10 rounded-full" aria-label="Abrir notificações">
-                <Bell className="h-4 w-4" aria-hidden="true" />
-                {unreadCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-2rem))] p-2">
-              <div className="flex items-center justify-between gap-3 px-2 py-1.5"><DropdownMenuLabel className="p-0">Notificações</DropdownMenuLabel><button type="button" className="text-xs text-primary hover:underline" onClick={() => void loadNotifications()}>Atualizar</button></div>
-              <DropdownMenuSeparator />
-              {notificationsLoading ? <p className="px-2 py-4 text-sm text-muted-foreground">Carregando notificações…</p> : notificationsError ? <p className="px-2 py-4 text-sm text-destructive">Não foi possível carregar as notificações.</p> : notifications.length === 0 ? <p className="px-2 py-4 text-sm text-muted-foreground">Nenhuma notificação para você.</p> : notifications.map((notification) => <DropdownMenuItem key={notification.id} onSelect={() => void markNotificationRead(notification)} className="items-start gap-3 whitespace-normal py-3"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${notification.lida ? 'bg-transparent' : 'bg-primary'}`} /><span className="min-w-0"><span className="block font-medium">{notification.titulo}</span><span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">{notification.corpo}</span><span className="mt-1 block text-[11px] text-muted-foreground">{formatNotificationDate(notification.criada_em)}</span></span></DropdownMenuItem>)}
-              {(can('notification.manage') || can('technical.write')) && <><DropdownMenuSeparator /><DropdownMenuItem asChild><Link to="/app/avisos">Gerenciar avisos e campanhas</Link></DropdownMenuItem></>}
-            </DropdownMenuContent>
-          </DropdownMenu>}
+          {profile && <InboxBell workspace="internal" />}
           {isCustomerDetail && can('customer.write') ? (
             <Button
               type="submit"
@@ -319,8 +271,4 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
       />
     </header>
   );
-}
-
-function formatNotificationDate(value: string) {
-  return new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }

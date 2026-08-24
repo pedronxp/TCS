@@ -54,6 +54,7 @@ const permissionGroups: ReadonlyArray<{ label: string; permissions: ReadonlyArra
   { label: 'Operação e negócio', permissions: [
     ['commercial.read', 'Consultar comercial'], ['commercial.write', 'Alterar planos e assinaturas'], ['support.read', 'Consultar suporte'], ['support.write', 'Responder suporte'],
     ['session.read', 'Consultar sessões'], ['session.terminate', 'Encerrar sessões'], ['protocol.read', 'Consultar protocolos'], ['protocol.rotate', 'Rotacionar protocolos'],
+    ['communication.manage', 'Gerenciar comunicados'], ['whatsapp.read', 'Consultar WhatsApp'], ['whatsapp.recover', 'Recuperar WhatsApp'], ['whatsapp.manage', 'Administrar WhatsApp'],
   ] },
   { label: 'Governança e segurança', permissions: [
     ['staff.read', 'Consultar equipe interna'], ['staff.manage', 'Gerenciar equipe interna'], ['audit.read', 'Consultar auditoria'],

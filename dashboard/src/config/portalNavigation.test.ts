@@ -51,6 +51,6 @@ describe('navegação do portal', () => {
     }));
 
     expect(items.every((item) => item.path.startsWith('/portal/municipal'))).toBe(true);
-    expect(items.map((item) => item.label)).toEqual(['Visão geral', 'Vistorias', 'Equipe', 'Perfil']);
+    expect(items.map((item) => item.label)).toEqual(['Visão geral', 'Vistorias', 'Equipe', 'Mensagens', 'Perfil']);
   });
 });

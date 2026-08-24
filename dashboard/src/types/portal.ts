@@ -22,6 +22,8 @@ export type PortalPermission =
   | 'report.read'
   | 'communication.read'
   | 'communication.write'
+  | 'whatsapp.read'
+  | 'whatsapp.write'
   | 'team.read'
   | 'team.manage'
   | 'invite.agent'

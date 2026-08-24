@@ -133,7 +133,7 @@ export interface ComunicadoDestino {
   todoMunicipio: boolean;
 }
 
-export type ComunicadoEnvioStatus = 'pendente' | 'enviado' | 'falhou';
+export type ComunicadoEnvioStatus = 'pendente' | 'processando' | 'incerto' | 'enviado' | 'falhou';
 
 export interface EnvioTentativa {
   telefone: string;
@@ -195,6 +195,7 @@ export interface BotChat {
 }
 
 export type SessaoBotStatus = 'aguardando_qr' | 'vinculado' | 'desconectado' | 'banido';
+export type SessaoBotAcao = 'desconectar' | 'reconectar' | 'sair' | 'banir';
 
 export interface SessaoBot {
   id: string;
@@ -269,7 +270,7 @@ function parseComunicado(value: unknown): Comunicado | null {
           return {
             canalId: string(envio.canal_id) ?? '',
             canalNome: string(envio.canal_nome),
-            status: (status === 'pendente' || status === 'falhou' || status === 'enviado'
+            status: (status === 'pendente' || status === 'processando' || status === 'incerto' || status === 'falhou' || status === 'enviado'
               ? status
               : 'enviado') as ComunicadoEnvioStatus,
             origem: origem === 'bot' ? 'bot' : origem === 'manual' ? 'manual' : null,
@@ -409,6 +410,11 @@ export async function definirStatusSessaoBot(id: string, status: 'banido' | 'des
   if (error) throw new Error(error.message);
 }
 
+export async function operarSessaoBot(id: string, acao: SessaoBotAcao): Promise<void> {
+  const { error } = await rpc('portal_operar_sessao_bot', { p_sessao_id: id, p_acao: acao });
+  if (error) throw new Error(error.message);
+}
+
 // ---------------------------------------------------------------------------
 // Console interno (/app): equipe TCS opera qualquer prefeitura (communication.manage).
 // ---------------------------------------------------------------------------
@@ -523,7 +529,7 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
             return {
               canalId: string(e.canal_id) ?? '',
               canalNome: string(e.canal_nome),
-              status: (['pendente', 'falhou', 'enviado'].includes(eStatus ?? '') ? eStatus : 'enviado') as ComunicadoEnvioStatus,
+              status: (['pendente', 'processando', 'incerto', 'falhou', 'enviado'].includes(eStatus ?? '') ? eStatus : 'enviado') as ComunicadoEnvioStatus,
               origem: eOrigem === 'bot' ? 'bot' : eOrigem === 'manual' ? 'manual' : null,
               erro: string(e.erro),
               enviadoEm: string(e.enviado_em),
@@ -548,6 +554,11 @@ export async function criarSessaoBotConsole(organizationId: string): Promise<str
 
 export async function definirStatusSessaoBotConsole(id: string, status: 'banido' | 'desconectado'): Promise<void> {
   const { error } = await rpc('internal_definir_status_sessao_bot', { p_sessao_id: id, p_status: status });
+  if (error) throw new Error(error.message);
+}
+
+export async function operarSessaoBotConsole(id: string, acao: SessaoBotAcao): Promise<void> {
+  const { error } = await rpc('internal_operar_sessao_bot', { p_sessao_id: id, p_acao: acao });
   if (error) throw new Error(error.message);
 }
 

@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/AlertDialog';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
   comunicadoDestinosLabel,
   comunicadoSeverityLabels,
@@ -345,18 +346,32 @@ export function PortalComunicadosPage() {
 
   return (
     <div className="page-stack">
-      <header>
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Comunicação municipal</p>
-        <h1 className="mt-2 text-3xl font-semibold">Comunicados</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Avisos oficiais da prefeitura para a equipe, com destino por bairro ou para todo o município.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Comunicação municipal</p>
+          <h1 className="mt-2 text-3xl font-semibold">Comunicados</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Avisos oficiais da prefeitura para a equipe, com destino por bairro ou para todo o município.
+          </p>
+        </div>
+        <GuidedTutorial
+          workspace="organization"
+          organizationId={organizationId}
+          tutorialKey="defesa-civil-comunicados"
+          title="Como publicar um alerta da Defesa Civil"
+          description="Prepare o conteúdo, selecione município, Comunidade ou bairros e revise o alcance antes do disparo."
+          steps={[
+            { title: 'Prepare o alerta', description: 'Defina título, orientação, severidade e validade.', target: 'communication-composer' },
+            { title: 'Escolha o território', description: 'Selecione todo o município ou os bairros; o sistema resolverá os grupos vinculados.', target: 'communication-targets' },
+            { title: 'Acompanhe o histórico', description: 'Publicados, correções, cancelamentos e entregas permanecem registrados.', target: 'communication-history' },
+          ]}
+        />
       </header>
 
       {statusMessage && <p className="rounded-md border border-success/25 bg-success-soft p-3 text-sm text-foreground" role="status">{statusMessage}</p>}
       {errorMessage && <p className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{errorMessage}</p>}
 
-      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <section data-tutorial="communication-composer" className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         {mayManage ? (
           <div className="space-y-4">
             <Card>
@@ -643,7 +658,7 @@ export function PortalComunicadosPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card data-tutorial="communication-targets">
               <CardHeader><CardTitle>Bairros do município</CardTitle></CardHeader>
               <CardContent>
                 <form
@@ -702,7 +717,7 @@ export function PortalComunicadosPage() {
         )}
 
         <div className="space-y-4">
-          <Card>
+          <Card data-tutorial="communication-history">
             <CardHeader><CardTitle>Publicados ({publicados.length})</CardTitle></CardHeader>
             <CardContent>
               {comunicadosQuery.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}

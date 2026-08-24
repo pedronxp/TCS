@@ -8,6 +8,21 @@ import { cn } from '@/lib/utils';
 
 type Density = 'comfortable' | 'compact';
 
+function consolePageTitle(pathname: string) {
+  if (pathname === '/app') return 'Visão geral';
+  if (pathname === '/app/whatsapp') return 'WhatsApp Bot';
+  if (/^\/app\/whatsapp\/[^/]+\/comunidades$/.test(pathname)) return 'Comunidades do WhatsApp';
+  if (/^\/app\/whatsapp\/[^/]+$/.test(pathname)) return 'Operação do WhatsApp';
+  if (pathname === '/app/comunicacoes') return 'Comunicados da Defesa Civil';
+  if (/^\/app\/comunicacoes\/[^/]+$/.test(pathname)) return 'Comunicação da organização';
+  return pathname
+    .split('/')
+    .filter(Boolean)
+    .slice(1)
+    .map((part) => decodeURIComponent(part).replace(/-/g, ' '))
+    .join(' / ');
+}
+
 export function ConsoleShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tcs.sidebar.collapsed') === 'true');
@@ -41,10 +56,7 @@ export function ConsoleShell() {
   }, [density]);
 
   useEffect(() => {
-    const title = pathname === '/app'
-      ? 'Visão geral'
-      : pathname.split('/').filter(Boolean).map((part) => decodeURIComponent(part).replace(/-/g, ' ')).join(' / ');
-    document.title = `${title} — TCS Console`;
+    document.title = `${consolePageTitle(pathname)} — TCS Console`;
   }, [pathname]);
 
   return (
