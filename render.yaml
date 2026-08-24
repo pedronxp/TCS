@@ -7,7 +7,6 @@ services:
     dockerfilePath: ./bot-whatsapp/Dockerfile
     dockerContext: ./bot-whatsapp
     healthCheckPath: /healthz
-    maxShutdownDelaySeconds: 60
     autoDeployTrigger: off
     envVars:
       - key: PORT
