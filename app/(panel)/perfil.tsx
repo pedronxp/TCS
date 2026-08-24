@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
+import { useSessionGuard } from '../../context/SessionGuardContext';
+import { useNotifications } from '../../context/NotificationContext';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
 import { supabase } from '../../utils/supabase';
 import { AppHeader, Badge, StateBanner } from '../../components/ui';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
@@ -30,7 +35,10 @@ const ROLE_LABELS: Record<string, string> = {
   supervisor: 'Supervisor',
   admin: 'Administrador',
   master_admin: 'Master Admin',
-  owner: 'Responsável pela conta',
+  owner: 'Proprietário TCS',
+  developer: 'Desenvolvimento TCS',
+  support: 'Suporte TCS',
+  auditor: 'Auditoria TCS',
 };
 
 const THEME_OPTIONS: {
@@ -79,6 +87,10 @@ export default function PerfilScreen() {
     refreshProfile,
   } = useAuth();
   const { isOnlineReal } = useConnectivity();
+  const { biometricAvailable, biometricEnabled, biometricLabel, setBiometricEnabled } = useSessionGuard();
+  const { hasPermission, pushSupported, solicitarPermissao } = useNotifications();
+  const { context: subscriptionContext } = useSubscription();
+  const access = resolveMobileOrganizationAccess(authProfile, subscriptionContext);
 
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -91,6 +103,8 @@ export default function PerfilScreen() {
   const [resetLoading, setResetLoading] = useState(false);
   const [googleLinking, setGoogleLinking] = useState(false);
   const [googleLinkedLocally, setGoogleLinkedLocally] = useState(false);
+  const [biometricUpdating, setBiometricUpdating] = useState(false);
+  const [notificationUpdating, setNotificationUpdating] = useState(false);
 
   useEffect(() => {
     setNewName(authProfile?.name || '');
@@ -172,6 +186,43 @@ export default function PerfilScreen() {
     ]);
   };
 
+  const toggleBiometric = async () => {
+    if (biometricUpdating || !biometricAvailable) return;
+    setBiometricUpdating(true);
+    try {
+      const changed = await setBiometricEnabled(!biometricEnabled);
+      if (!changed) {
+        Alert.alert('Não foi possível confirmar', `Confira se ${biometricLabel} está configurado neste aparelho e tente novamente.`);
+      }
+    } catch {
+      Alert.alert('Não foi possível atualizar', 'Tente novamente em alguns instantes.');
+    } finally {
+      setBiometricUpdating(false);
+    }
+  };
+
+  const ativarNotificacoes = async () => {
+    if (notificationUpdating || !pushSupported) return;
+    setNotificationUpdating(true);
+    try {
+      const granted = await solicitarPermissao();
+      if (!granted) {
+        Alert.alert(
+          'Notificações desativadas',
+          'Permita as notificações nas configurações do aparelho para receber avisos.',
+          [
+            { text: 'Agora não', style: 'cancel' },
+            { text: 'Abrir configurações', onPress: () => void Linking.openSettings() },
+          ],
+        );
+      }
+    } catch {
+      Alert.alert('Não foi possível ativar', 'Confira sua conexão e tente novamente em alguns instantes.');
+    } finally {
+      setNotificationUpdating(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -208,6 +259,13 @@ export default function PerfilScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}
       >
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Organização não vinculada"
+            description="Solicite ao responsável a vinculação da sua conta pelo painel web para liberar os avisos e recursos municipais."
+          />
+        ) : null}
         <View style={[styles.profileCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
             <Text style={[styles.avatarText, { color: theme.onPrimary }]}>{initial}</Text>
@@ -338,6 +396,44 @@ export default function PerfilScreen() {
               theme={theme}
             />
           )}
+
+          <Divider color={theme.border} />
+
+          <SettingsRow
+            icon="bell"
+            title="Notificações do aplicativo"
+            description={
+              !pushSupported
+                ? 'Disponíveis na versão instalada do aplicativo'
+                : hasPermission
+                  ? 'Ativadas neste aparelho'
+                  : 'Toque para ativar os avisos'
+            }
+            onPress={ativarNotificacoes}
+            loading={notificationUpdating}
+            disabled={!pushSupported || hasPermission || notificationUpdating}
+            success={hasPermission && pushSupported}
+            theme={theme}
+          />
+
+          <Divider color={theme.border} />
+
+          <SettingsRow
+            icon="shield"
+            title={biometricAvailable ? `Acesso com ${biometricLabel}` : 'Acesso biométrico'}
+            description={
+              !biometricAvailable
+                ? 'Indisponível ou não configurado neste aparelho'
+                : biometricEnabled
+                  ? 'Ativado — toque para desativar'
+                  : 'Desativado — toque para ativar'
+            }
+            onPress={toggleBiometric}
+            loading={biometricUpdating}
+            disabled={!biometricAvailable || biometricUpdating}
+            success={biometricEnabled}
+            theme={theme}
+          />
 
           <Divider color={theme.border} />
 

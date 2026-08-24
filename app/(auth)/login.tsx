@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { traduzirErroAuth } from '../../utils/authErrors';
 import { recordLoginAttempt, getLoginBlockedUntil, clearLoginAttempts } from '../../utils/loginRateLimit';
 import { registrarAuditoria } from '../../utils/auditLogger';
 import { GoogleMark, ProductIdentity } from '../../components/brand';
+import { TurnstileChallenge } from '../../components/TurnstileChallenge';
 import { Button, Card, FormField, StateBanner } from '../../components/ui';
 import { useTheme } from '../../context/ThemeContext';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -16,7 +17,8 @@ import {
   getPublicAuthCapabilities,
   signInCustomerWithGoogle,
 } from '../../services/CustomerAuthService';
-import { isNeutralCustomerProfile } from '../../services/AppProfileService';
+import { isActiveInternalMobileStaff, isNeutralCustomerProfile } from '../../services/AppProfileService';
+import { getTurnstileConfiguration } from '../../services/TurnstileService';
 
 export default function LoginScreen() {
   const { theme } = useTheme();
@@ -27,6 +29,9 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [googleAvailable, setGoogleAvailable] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRevision, setCaptchaRevision] = useState(0);
+  const turnstile = useMemo(() => getTurnstileConfiguration(), []);
 
   useEffect(() => {
     getPublicAuthCapabilities()
@@ -51,6 +56,10 @@ export default function LoginScreen() {
       setError('Preencha o e-mail e a senha para continuar.');
       return;
     }
+    if (turnstile.enabled && !captchaToken) {
+      setError('Conclua a verificação de segurança antes de continuar.');
+      return;
+    }
 
     const emailNorm = email.trim().toLowerCase();
     const blockedUntil = await getLoginBlockedUntil(emailNorm);
@@ -63,8 +72,16 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({ email: emailNorm, password });
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailNorm,
+        password,
+        ...(captchaToken ? { options: { captchaToken } } : {}),
+      });
       if (authError) {
+        if (turnstile.enabled) {
+          setCaptchaToken(null);
+          setCaptchaRevision(value => value + 1);
+        }
         await recordLoginAttempt(emailNorm);
         registrarAuditoria({
           acao: 'login_falhou',
@@ -76,32 +93,34 @@ export default function LoginScreen() {
         throw authError;
       }
 
-      const { data: userData, error: userError } = await supabase.rpc('get_my_user_profile');
+      const [customerResult, staffResult] = await Promise.all([
+        supabase.rpc('get_my_user_profile'),
+        supabase.rpc('get_internal_staff_profile'),
+      ]);
+      const { data: userData, error: userError } = customerResult;
+      const { data: staffData, error: staffError } = staffResult;
+      const staff = staffData as { role?: string; status?: string } | null;
+      const activeInternalStaff = isActiveInternalMobileStaff(staff);
 
-      if (userError) {
+      if (userError && !activeInternalStaff) {
         await supabase.auth.signOut();
         throw new Error('Não foi possível validar o perfil desta conta. Tente novamente.');
       }
 
-      // Conta owner não requer aprovação manual — é aprovada pelo sistema de onboarding
-      const isOwnerRole = userData?.role === 'owner';
       const isNeutralCustomer = isNeutralCustomerProfile(userData);
 
-      // Proprietários criados no console web vivem em internal_staff e não
-      // precisam de uma linha duplicada em public.users. A autorização continua
-      // sendo validada pelo RPC seguro do próprio usuário autenticado.
-      if (!userData) {
-        const { data: staffData, error: staffError } = await supabase.rpc('get_internal_staff_profile');
-        const staff = staffData as { role?: string; status?: string } | null;
+      // Staff ativo e autorizado sempre prevalece sobre um perfil municipal
+      // legado. A validação usa apenas RPCs vinculados ao usuário autenticado.
+      if (!userData && !activeInternalStaff) {
         if (staffError) {
           await supabase.auth.signOut();
           throw new Error('Não foi possível validar o perfil desta conta. Tente novamente.');
         }
-        if (staff && (staff.role !== 'owner' || staff.status !== 'active')) {
+        if (staff) {
           await supabase.auth.signOut();
           throw new Error('Esta conta não possui acesso operacional ao aplicativo.');
         }
-      } else if (!userData.isApproved && !isOwnerRole && !isNeutralCustomer) {
+      } else if (!activeInternalStaff && userData && !userData.isApproved && !isNeutralCustomer) {
         await supabase.auth.signOut();
         await recordLoginAttempt(emailNorm);
         registrarAuditoria({
@@ -200,6 +219,14 @@ export default function LoginScreen() {
                   </Pressable>
                 </View>
               </View>
+
+              {turnstile.enabled ? (
+                <TurnstileChallenge
+                  key={captchaRevision}
+                  configuration={turnstile}
+                  onToken={setCaptchaToken}
+                />
+              ) : null}
 
               {error ? <StateBanner title="Não foi possível entrar" description={error} variant="danger" /> : null}
 

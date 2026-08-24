@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { buildAuthCallbackUrl } from '@/lib/account-entry';
 import { jsonArray, jsonObject, jsonString } from '@/lib/json';
 import type {
   AssuranceLevel,
@@ -16,7 +17,7 @@ interface AuthContextValue {
   user: User | null;
   profile: InternalStaffProfile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, captchaToken?: string | null) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshAssurance: () => Promise<AssuranceLevel>;
@@ -121,10 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ? 'Conta Google conectada. O acesso ao console permanece pendente até a aprovação da equipe TCS.'
             : 'Acesso restrito à equipe interna ativa.',
         );
-        setSession(null);
+        setSession(nextSession);
         setProfile(null);
         setLoading(false);
-        await supabase.auth.signOut({ scope: 'local' });
         return;
       }
       setSession(nextSession);
@@ -143,9 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
-  async function signIn(email: string, password: string) {
+  async function signIn(email: string, password: string, captchaToken?: string | null) {
     setAuthMessage(null);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      ...(captchaToken ? { options: { captchaToken } } : {}),
+    });
     if (error) return { error: traduzirErroSupabase(error.message) };
 
     const nextProfile = data.user ? await loadProfile() : null;
@@ -156,8 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         p_target_id: data.user?.id ?? null,
         p_reason: 'active_internal_staff_required',
       });
-      await supabase.auth.signOut();
-      return { error: 'Acesso restrito à equipe interna ativa.' };
+      setSession(data.session);
+      setProfile(null);
+      return { error: null };
     }
     setSession(data.session);
     setProfile(nextProfile);
@@ -170,7 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/login`,
+          redirectTo: buildAuthCallbackUrl(
+            'console',
+            new URLSearchParams(window.location.search).get('returnTo'),
+          ),
         },
       });
       return { error: error ? traduzirErroSupabase(error.message) : null };

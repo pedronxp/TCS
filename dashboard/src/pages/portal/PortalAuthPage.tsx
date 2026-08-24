@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { GoogleMark } from '@/components/brand/GoogleMark';
 import { AuthFrame, AuthLoadingCard } from '@/components/auth/AuthFrame';
+import { TurnstileChallenge, turnstileEnabled } from '@/components/auth/TurnstileChallenge';
 import { TermsPrivacyDialog } from '@/components/auth/TermsPrivacyDialog';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
@@ -39,6 +40,8 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [accountKind, setAccountKind] = useState<'individual' | 'municipal'>('individual');
   const [municipalToken, setMunicipalToken] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRevision, setCaptchaRevision] = useState(0);
   const query = new URLSearchParams(location.search);
   const status = query.get('status');
   const returnTo = query.get('returnTo');
@@ -69,16 +72,16 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     return <AuthLoadingCard />;
   }
 
-  if (!loading && session && (
+  if (!loading && !submitting && session && (
     entryContext?.accountKind === 'internal'
     || (!access && !entryContext)
   )) {
     return <Navigate to="/login" replace />;
   }
-  if (!loading && session && inviteReturn) {
+  if (!loading && !submitting && session && inviteReturn) {
     return <Navigate to={inviteReturn} replace />;
   }
-  if (!loading && access && status !== 'vinculo-inativo') {
+  if (!loading && !submitting && access && status !== 'vinculo-inativo') {
     return <Navigate to={safePortalDestination(query.get('returnTo'), access.accountKind)} replace />;
   }
 
@@ -110,6 +113,10 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (turnstileEnabled && !captchaToken) {
+      setMessage('Conclua a verificação de segurança antes de continuar.');
+      return;
+    }
     if (mode === 'sign-up') {
       const senhaCheck = validarSenha(password);
       if (!senhaCheck.valido) {
@@ -128,19 +135,28 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     setSubmitting(true);
     setMessage(null);
     const error = mode === 'sign-in'
-      ? await signIn(email, password)
-      : await signUp(name, email, password, query.get('plan'));
-    setSubmitting(false);
+      ? captchaToken
+        ? await signIn(email, password, captchaToken)
+        : await signIn(email, password)
+      : captchaToken
+        ? await signUp(name, email, password, query.get('plan'), captchaToken)
+        : await signUp(name, email, password, query.get('plan'));
     if (error) {
+      setSubmitting(false);
       setMessage(error);
+      setCaptchaToken(null);
+      setCaptchaRevision((value) => value + 1);
       return;
     }
     if (mode === 'sign-up') {
+      setSubmitting(false);
       setSuccess(true);
       setMessage('Conta criada. Confirme o link enviado ao seu e-mail para continuar.');
       return;
     }
-    navigate(`/entrar${location.search}`, { replace: true });
+    const callback = new URLSearchParams({ source: 'portal' });
+    if (returnTo) callback.set('returnTo', returnTo);
+    navigate(`/auth/callback?${callback.toString()}`, { replace: true });
   }
 
   async function google() {
@@ -350,7 +366,8 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                     <label htmlFor="portal-terms" className="inline-flex min-h-11 items-center cursor-pointer lg:min-h-0">vigentes.</label>
                   </div>
                 )}
-                <Button type="submit" className="w-full" disabled={submitting || (mode === 'sign-up' && !termsAccepted)}>
+                {turnstileEnabled && <TurnstileChallenge key={captchaRevision} onToken={setCaptchaToken} />}
+                <Button type="submit" className="w-full" disabled={submitting || (mode === 'sign-up' && !termsAccepted) || (turnstileEnabled && !captchaToken)}>
                   {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                   {submitting ? 'Aguarde…' : mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta'}
                 </Button>

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { fetchAuthenticatedInternalProfile } from '@/lib/account-entry';
+import { buildAuthCallbackUrl, fetchAuthenticatedInternalProfile } from '@/lib/account-entry';
 import { supabase } from '@/lib/supabase';
 import {
   fetchCustomerEntryContext,
@@ -30,8 +30,8 @@ interface PortalAuthValue {
   entryContext: PortalCustomerEntryContext | null;
   loading: boolean;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (name: string, email: string, password: string, selectedPlanCode?: string | null) => Promise<string | null>;
+  signIn: (email: string, password: string, captchaToken?: string | null) => Promise<string | null>;
+  signUp: (name: string, email: string, password: string, selectedPlanCode?: string | null, captchaToken?: string | null) => Promise<string | null>;
   signInWithGoogle: () => Promise<string | null>;
   linkGoogleIdentity: () => Promise<string | null>;
   bootstrapIndividual: () => Promise<string | null>;
@@ -151,15 +151,19 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     await hydrate(session);
   }, [hydrate, session]);
 
-  async function signIn(email: string, password: string) {
+  async function signIn(email: string, password: string, captchaToken?: string | null) {
     setError(null);
-    const result = await supabase.auth.signInWithPassword({ email, password });
+    const result = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      ...(captchaToken ? { options: { captchaToken } } : {}),
+    });
     if (result.error) return translateAuthError(result.error.message);
     await hydrate(result.data.session);
     return null;
   }
 
-  async function signUp(name: string, email: string, password: string, selectedPlanCode?: string | null) {
+  async function signUp(name: string, email: string, password: string, selectedPlanCode?: string | null, captchaToken?: string | null) {
     setError(null);
     void selectedPlanCode;
     const result = await supabase.auth.signUp({
@@ -169,6 +173,7 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
         data: {
           name: name.trim(),
         },
+        ...(captchaToken ? { captchaToken } : {}),
         emailRedirectTo: `${window.location.origin}/entrar`,
       },
     });
@@ -183,7 +188,12 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     }
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/entrar` },
+      options: {
+        redirectTo: buildAuthCallbackUrl(
+          'portal',
+          new URLSearchParams(window.location.search).get('returnTo'),
+        ),
+      },
     });
     return oauthError ? translateAuthError(oauthError.message) : null;
   }

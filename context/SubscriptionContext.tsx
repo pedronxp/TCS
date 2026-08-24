@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './AuthContext';
 import { featureIsAvailable } from '../utils/subscription';
@@ -15,7 +15,7 @@ export interface UsageItem {
 export interface SubscriptionContextValue {
   enforced: boolean;
   organization: { id: string; display_name: string; status: string } | null;
-  membership: { role: 'owner' | 'coordinator' | 'supervisor' | 'agent'; status: string } | null;
+  membership: { role: 'master' | 'admin' | 'supervisor' | 'agent'; status: 'invited' | 'active' | 'suspended' | 'removed' } | null;
   subscription: { id: string; status: SubscriptionStatus; period_start: string; period_end: string | null; grace_ends_at: string | null } | null;
   plan: {
     id: string;
@@ -60,15 +60,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [context, setContext] = useState<SubscriptionContextValue | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   const refresh = useCallback(async () => {
+    const currentRequest = ++requestVersion.current;
     if (!session) {
       setContext(null);
       setError(null);
+      setLoading(false);
       return;
     }
     setLoading(true);
     const { data, error: rpcError } = await supabase.rpc('get_subscription_context');
+    if (currentRequest !== requestVersion.current) return;
     if (rpcError) {
       // Compatibilidade: deployments anteriores à migration continuam liberados.
       setContext(null);
@@ -81,7 +85,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [session]);
 
   useEffect(() => {
-    refresh().catch(() => setLoading(false));
+    refresh().catch(() => {
+      setContext(null);
+      setLoading(false);
+    });
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [refresh]);
 
   const value = useMemo<Value>(() => ({

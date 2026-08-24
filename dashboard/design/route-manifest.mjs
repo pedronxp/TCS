@@ -73,6 +73,18 @@ export const routeManifest = [
     visualBaselines: ['docs/ui-final/login-1440-viewport.png', 'docs/ui-final/login-390-viewport.png'],
     automatedVisualBaselines: 'tests/visual/__screenshots__/public-entry.spec.ts/{1440,1024,768,390}/login.png',
   }),
+  route({
+    id: 'auth-callback',
+    path: '/auth/callback',
+    audience: ['anonymous', 'owner', 'developer', 'support', 'auditor', 'individual', 'coordinator', 'supervisor', 'agent'],
+    permission: null,
+    template: 'authentication',
+    penpot: '32 · Conta, planos e checkout',
+    states: ['loading', 'error', 'success', 'permission-denied'],
+    approvalStatus: 'approved-in-penpot',
+    automatedVisualBaselines: null,
+    visualSource: 'Penpot/TCS — Web Dashboard/32 · Conta, planos e checkout',
+  }),
   portalRoute({
     id: 'public-plans',
     path: '/planos',
