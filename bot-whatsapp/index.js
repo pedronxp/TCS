@@ -21,6 +21,7 @@ const {
 } = require('@whiskeysockets/baileys');
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./supabase-auth-state');
+const { sameOrganization } = require('./organization-isolation');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -328,11 +329,22 @@ async function processarFila() {
     }
     const { data: comunicado } = await supabase
       .from('comunicados')
-      .select('titulo, conteudo, severidade, status')
+      .select('titulo, conteudo, severidade, status, organization_id')
       .eq('id', item.comunicado_id)
       .maybeSingle();
     if (!comunicado || !['publicado', 'arquivado'].includes(comunicado.status)) {
       await finalizarEnvio(item.id, null, 'falhou', 'Comunicado não está publicado.', []);
+      continue;
+    }
+    if (!sameOrganization(canal.organization_id, comunicado.organization_id)) {
+      await finalizarEnvio(
+        item.id,
+        null,
+        'falhou',
+        'Entrega bloqueada: comunicado e comunidade pertencem a organizações diferentes.',
+        [],
+      );
+      log('seguranca', `Entrega ${item.id} bloqueada por divergencia de organizacao.`);
       continue;
     }
     const { data: org } = await supabase
@@ -352,7 +364,7 @@ async function processarFila() {
     let sucesso = null;
     for (const candidato of candidatos) {
       const sessao = sessoes.get(candidato.sessaoId);
-      if (!sessao || sessao.fase !== 'vinculado') {
+      if (!sessao || sessao.fase !== 'vinculado' || !sameOrganization(canal.organization_id, sessao.orgId)) {
         tentativas.push({ telefone: candidato.telefone, erro: 'sessão não está conectada agora' });
         continue;
       }
@@ -405,25 +417,59 @@ app.use((req, res, next) => {
   if (origin && DASHBOARD_ORIGINS.has(origin)) {
     res.set('Access-Control-Allow-Origin', origin);
     res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
   }
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'no-referrer');
-  next();
+  if (req.method === 'OPTIONS') res.sendStatus(204);
+  else next();
 });
 
+function authorizeSession({ manage = false } = {}) {
+  return async (req, res, next) => {
+    const authorization = req.get('authorization') || '';
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    if (!token) {
+      res.status(401).json({ ok: false, motivo: 'Autenticação necessária.' });
+      return;
+    }
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData || !authData.user) {
+        res.status(401).json({ ok: false, motivo: 'Sessão do painel inválida.' });
+        return;
+      }
+      const { data: allowed, error: accessError } = await supabase.rpc('bot_authorize_session_access', {
+        p_session_id: req.params.id,
+        p_user_id: authData.user.id,
+        p_manage: manage,
+      });
+      if (accessError || allowed !== true) {
+        res.status(403).json({ ok: false, motivo: 'Acesso negado para esta organização.' });
+        return;
+      }
+      next();
+    } catch (error) {
+      log('seguranca', 'Falha ao validar acesso HTTP.', error);
+      res.status(503).json({ ok: false, motivo: 'Não foi possível validar o acesso agora.' });
+    }
+  };
+}
+
+const canReadSession = authorizeSession();
+const canManageSession = authorizeSession({ manage: true });
+
 app.get('/healthz', (_req, res) => {
-  res.json({ ok: true, sessoes: sessoes.size, worker: WORKER_ID, uptime: Math.round(process.uptime()) });
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true });
 });
 
 app.get('/status', (_req, res) => {
-  res.json({
-    sessoes: [...sessoes.values()].map((s) => ({
-      id: s.id, orgNome: s.orgNome, fase: s.fase, telefone: s.telefone, ultimoErro: s.ultimoErro,
-    })),
-  });
+  res.json({ ok: true });
 });
 
-app.get('/sessao/:id/status', (req, res) => {
+app.get('/sessao/:id/status', canReadSession, (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao) {
     res.status(404).json({ fase: 'nao_encontrada', telefone: null, ultimoErro: 'Sessão não encontrada no bot — gere o QR novamente no painel.' });
@@ -440,7 +486,7 @@ app.get('/sessao/:id/status', (req, res) => {
 
 // Verificação SEM falso positivo: conexão aberta + usuário autenticado + leitura
 // real dos grupos via protocolo (groupFetchAllParticipating).
-app.get('/sessao/:id/verify', async (req, res) => {
+app.get('/sessao/:id/verify', canReadSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao) {
     res.status(404).json({ conectado: false, motivo: 'Sessão não encontrada no bot.' });
@@ -468,7 +514,7 @@ app.get('/sessao/:id/verify', async (req, res) => {
 // Criação de grupo pela web. Com ?comunidade=<jid> tenta criar DENTRO da
 // Comunidade; se a biblioteca não suportar sub-grupo, devolve orientação
 // clara para criar no celular (Comunidade → Novo grupo) e sincronizar.
-app.get('/sessao/:id/criar-grupo', async (req, res) => {
+app.get('/sessao/:id/criar-grupo', canManageSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   const nome = String(req.query.nome || '').trim();
   const comunidade = String(req.query.comunidade || '').trim();
@@ -525,7 +571,7 @@ app.get('/sessao/:id/criar-grupo', async (req, res) => {
 });
 
 // Força a sincronização de chats da sessão.
-app.get('/sessao/:id/sincronizar', async (req, res) => {
+app.get('/sessao/:id/sincronizar', canManageSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || sessao.fase !== 'vinculado') {
     res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
@@ -536,7 +582,7 @@ app.get('/sessao/:id/sincronizar', async (req, res) => {
 });
 
 // Compatibilidade (era do whatsapp-web.js): apenas sincroniza.
-app.get('/sessao/:id/recuperar', async (req, res) => {
+app.get('/sessao/:id/recuperar', canManageSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || sessao.fase !== 'vinculado') {
     res.status(409).json({ ok: false, motivo: 'Número não está vinculado agora.' });
@@ -574,7 +620,7 @@ ${sessao.qr ? `<img src="/qr/${sessao.id}" alt="QR Code do WhatsApp"><p>QR gerad
 </div></body></html>`;
 }
 
-app.get('/qr/:id', async (req, res) => {
+app.get('/qr/:id', canReadSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
   if (!sessao || !sessao.qr) {
     res.status(404).type('text').send('QR indisponível');
@@ -590,42 +636,12 @@ app.get('/qr/:id', async (req, res) => {
   }
 });
 
-app.get('/sessao/:id', (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  if (!sessao) {
-    res.status(404).type('html').send('<p>Sessão não encontrada ou encerrada. Volte ao painel e vincule o número novamente.</p><a href="/">todos os números</a>');
-    return;
-  }
-  res.type('html').send(paginaQr(sessao));
+app.get('/sessao/:id', canReadSession, (_req, res) => {
+  res.type('text').send('Use o painel TCS para visualizar este QR Code com segurança.');
 });
 
 app.get('/', (_req, res) => {
-  const linhas = [...sessoes.values()].map((s) => `
-    <tr>
-      <td>${s.orgNome}</td>
-      <td>${s.telefone || '—'}</td>
-      <td>${s.fase}${s.ultimoErro ? ` <span class="erro">(${String(s.ultimoErro).slice(0, 60)})</span>` : ''}</td>
-      <td>${s.fase === 'vinculado' ? '✅' : `<a href="/sessao/${s.id}">abrir QR</a>`}</td>
-    </tr>`).join('');
-  const corpo = `<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TCS — Números do bot</title>
-<meta http-equiv="refresh" content="10">
-<style>
-  body{font-family:system-ui,sans-serif;background:#0b1120;color:#e2e8f0;margin:0;padding:32px}
-  h1{font-size:18px}
-  table{border-collapse:collapse;width:100%;max-width:720px;background:#111a2e;border:1px solid #1e293b;border-radius:12px}
-  th,td{padding:10px 14px;text-align:left;font-size:13px;border-bottom:1px solid #1e293b}
-  .erro{color:#f87171}
-  a{color:#7dd3fc}
-  p{font-size:13px;color:#94a3b8}
-</style></head><body>
-<h1>TCS — Números vinculados ao bot</h1>
-<p>Números são vinculados no painel (Comunicados → Números do bot). Número banido: marque como banido no painel e vincule outro.</p>
-<table><tr><th>Prefeitura</th><th>Número</th><th>Estado</th><th>QR</th></tr>${linhas || '<tr><td colspan="4">Nenhum número emparelhando — comece pelo painel.</td></tr>'}</table>
-</body></html>`;
-  res.type('html').send(corpo);
+  res.json({ service: 'TCS WhatsApp Bot', ok: true });
 });
 
 setInterval(() => {

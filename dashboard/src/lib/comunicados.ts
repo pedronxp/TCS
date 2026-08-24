@@ -3,10 +3,6 @@ import { supabase } from '@/lib/supabase';
 // Endereço do bot WhatsApp externo: mesmo host em desenvolvimento, VPS em produção.
 const BOT_WHATSAPP_URL = (import.meta.env.VITE_BOT_WHATSAPP_URL as string | undefined) ?? 'http://localhost:8787';
 
-export function botQrUrl(sessaoId: string): string {
-  return `${BOT_WHATSAPP_URL}/qr/${sessaoId}`;
-}
-
 // O servidor já devolve telefones mascarados; valores ao vivo (bot) passam por aqui.
 export function mascararTelefone(telefone: string | null | undefined): string {
   const digitos = (telefone ?? '').replace(/\D/g, '');
@@ -22,11 +18,17 @@ export interface BotSessaoStatus {
   ultimoErro: string | null;
 }
 
-async function fetchComTimeout(url: string, ms = 6000): Promise<Response> {
+async function fetchComTimeout(url: string, ms = 6000, authenticated = true): Promise<Response> {
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), ms);
   try {
-    return await fetch(url, { signal: controle.signal });
+    const headers = new Headers();
+    if (authenticated) {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error('Sessão do painel não encontrada.');
+      headers.set('Authorization', `Bearer ${data.session.access_token}`);
+    }
+    return await fetch(url, { signal: controle.signal, headers });
   } finally {
     clearTimeout(timer);
   }
@@ -34,7 +36,7 @@ async function fetchComTimeout(url: string, ms = 6000): Promise<Response> {
 
 export async function fetchBotOnline(): Promise<boolean> {
   try {
-    const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/healthz`);
+    const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/healthz`, 6000, false);
     return resposta.ok;
   } catch {
     return false;
@@ -408,6 +410,26 @@ export async function criarSessaoBot(): Promise<string> {
 export async function definirStatusSessaoBot(id: string, status: 'banido' | 'desconectado'): Promise<void> {
   const { error } = await rpc('portal_definir_status_sessao_bot', { p_sessao_id: id, p_status: status });
   if (error) throw new Error(error.message);
+}
+
+export async function fetchBotQrObjectUrl(sessaoId: string): Promise<string> {
+  const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/qr/${sessaoId}`);
+  if (!resposta.ok) throw new Error('QR Code indisponível. Aguarde a renovação e tente novamente.');
+  return URL.createObjectURL(await resposta.blob());
+}
+
+export async function openBotQr(sessaoId: string): Promise<void> {
+  const popup = window.open('about:blank', '_blank');
+  if (popup) popup.opener = null;
+  try {
+    const objectUrl = await fetchBotQrObjectUrl(sessaoId);
+    if (popup) popup.location.href = objectUrl;
+    else window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    if (popup) popup.close();
+    throw error;
+  }
 }
 
 export async function operarSessaoBot(id: string, acao: SessaoBotAcao): Promise<void> {

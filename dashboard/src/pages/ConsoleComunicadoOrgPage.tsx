@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
-  botQrUrl,
+  fetchBotQrObjectUrl,
   criarGrupoPeloBot,
   criarSessaoBotConsole,
   definirStatusComunicadoConsole,
@@ -80,6 +80,7 @@ export function ConsoleComunicadoOrgPage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [acaoSessao, setAcaoSessao] = useState<{ id: string; acao: SessaoBotAcao; telefone: string } | null>(null);
   const [qrTick, setQrTick] = useState(0);
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   // Assistente de vinculação: qr -> verificando (sem falso positivo) -> comunidade -> pronto.
   const [wizard, setWizard] = useState<{ etapa: 'qr' | 'verificando' | 'comunidade' | 'pronto'; sessaoId: string } | null>(null);
   const [nomeComunidadeManual, setNomeComunidadeManual] = useState('');
@@ -209,6 +210,26 @@ export function ConsoleComunicadoOrgPage({
     const timer = setInterval(() => setQrTick((atual) => atual + 1), 5_000);
     return () => clearInterval(timer);
   }, [wizard]);
+
+  useEffect(() => {
+    if (!wizard || wizard.etapa !== 'qr') {
+      setQrImageUrl(null);
+      return undefined;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    fetchBotQrObjectUrl(wizard.sessaoId)
+      .then((url) => {
+        objectUrl = url;
+        if (active) setQrImageUrl(url);
+        else URL.revokeObjectURL(url);
+      })
+      .catch(() => { if (active) setQrImageUrl(null); });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [wizard?.sessaoId, wizard?.etapa, qrTick]);
 
   const sessaoCriarMutation = useMutation({
     mutationFn: criarSessaoBotConsole,
@@ -412,11 +433,11 @@ export function ConsoleComunicadoOrgPage({
                     {wizard.etapa === 'qr' && (
                       <div className="mt-3 space-y-2">
                         <div className="flex items-center justify-center rounded-md bg-white p-2">
-                          <img
-                            src={`${botQrUrl(wizard.sessaoId)}?t=${qrTick}`}
+                          {qrImageUrl ? <img
+                            src={qrImageUrl}
                             alt="QR Code de vinculação do WhatsApp — escaneie em até 20 segundos"
                             className="h-56 w-56"
-                          />
+                          /> : <div className="flex h-56 w-56 items-center justify-center text-center text-xs text-muted-foreground">Preparando QR Code seguro…</div>}
                         </div>
                         <p className="text-center text-xs text-muted-foreground">
                           WhatsApp → Aparelhos conectados → Conectar aparelho → escaneie <b>em até 20 segundos</b>.

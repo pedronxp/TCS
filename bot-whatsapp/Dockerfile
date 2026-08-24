@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
-COPY index.js supabase-auth-state.js README.md ./
+COPY index.js supabase-auth-state.js organization-isolation.js README.md ./
 
 USER node
 EXPOSE 10000

@@ -60,9 +60,12 @@ Supabase; o filesystem local é descartável.
   criptografia é gerada no primeiro Blueprint.
 - No plano gratuito, um monitor HTTP pode consultar `/healthz`; períodos de
   suspensão ainda podem ocorrer conforme as regras do provedor.
-- Para o monitor gratuito, crie no UptimeRobot um monitor do tipo **HTTP(s)**,
-  use `https://SEU-SERVICO.onrender.com/healthz` e intervalo de **5 minutos**.
-  O endpoint não recebe dados pessoais e responde apenas o estado do processo.
+- No [cron-job.org](https://cron-job.org/en/), crie uma tarefa HTTP `GET` para
+  `https://SEU-SERVICO.onrender.com/healthz`, a cada **5 minutos**. Não adicione
+  identificadores, tokens ou parâmetros à URL. O endpoint não recebe dados
+  pessoais e responde somente `{ "ok": true }`.
+- Os demais endpoints exigem o JWT do painel e validam novamente usuário,
+  módulo e organização no Supabase. QR, status e comandos não são públicos.
 - Número banido: marque no painel e conecte outro. O estado antigo é removido
   automaticamente quando o WhatsApp encerra a sessão.
 

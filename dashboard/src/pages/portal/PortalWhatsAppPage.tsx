@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
-  botQrUrl,
+  openBotQr,
   criarSessaoBot,
   deleteCanal,
   fetchBotChats,
@@ -129,7 +129,7 @@ export function PortalWhatsAppPage() {
     onSuccess: async (sessionId) => {
       setNotice('Sessão criada. Abra o QR Code e faça a leitura no celular da organização.');
       await refresh();
-      window.open(botQrUrl(sessionId), '_blank', 'noopener,noreferrer');
+      await openBotQr(sessionId);
     },
     onError: (mutationError: Error) => setError(mutationError.message),
   });
@@ -210,7 +210,7 @@ export function PortalWhatsAppPage() {
                     <Badge variant={sessionVariant(session.status)}>{sessaoLabels[session.status]}</Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {session.status === 'aguardando_qr' && <Button size="sm" variant="outline" onClick={() => window.open(botQrUrl(session.id), '_blank', 'noopener,noreferrer')}><ExternalLink />Abrir QR Code</Button>}
+                    {session.status === 'aguardando_qr' && <Button size="sm" variant="outline" onClick={() => void openBotQr(session.id).catch((qrError: Error) => setError(qrError.message))}><ExternalLink />Abrir QR Code</Button>}
                     {session.status === 'vinculado' && <Button size="sm" variant="outline" disabled={updateSession.isPending} onClick={() => updateSession.mutate({ id: session.id, action: 'desconectar' })}><Unplug />Desconectar</Button>}
                     {session.status === 'desconectado' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !onlineQuery.data} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
                     {session.status !== 'banido' && session.status !== 'aguardando_qr' && <Button size="sm" variant="ghost" disabled={updateSession.isPending} onClick={() => window.confirm('Sair do WhatsApp removerá as credenciais deste número. Continuar?') && updateSession.mutate({ id: session.id, action: 'sair' })}><LogOut />Sair do WhatsApp</Button>}
