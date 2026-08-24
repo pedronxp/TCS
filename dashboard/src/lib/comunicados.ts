@@ -198,6 +198,32 @@ export interface BotChat {
 
 export type SessaoBotStatus = 'aguardando_qr' | 'vinculado' | 'desconectado' | 'banido';
 export type SessaoBotAcao = 'desconectar' | 'reconectar' | 'sair' | 'banir';
+export type BotRuntimeState = 'online' | 'degraded' | 'reconnecting' | 'awaiting_qr' | 'paused' | 'offline' | 'service_offline' | 'unconfigured' | 'banned';
+
+export interface BotOrganizationRuntime {
+  organizationId: string;
+  state: BotRuntimeState;
+  serviceOnline: boolean;
+  serviceLastSeenAt: string | null;
+  lastSeenAt: string | null;
+  lastTransitionAt: string | null;
+  sessionsTotal: number;
+  sessionsOnline: number;
+  sessionsReconnecting: number;
+  sessionsAwaitingQr: number;
+  sessionsPaused: number;
+  sessionsOffline: number;
+  sessionsBanned: number;
+  sessions: Array<{
+    id: string;
+    telefone: string | null;
+    databaseStatus: SessaoBotStatus;
+    runtimeState: Exclude<BotRuntimeState, 'degraded' | 'service_offline' | 'unconfigured'> | 'starting' | null;
+    lastSeenAt: string | null;
+    lastTransitionAt: string | null;
+    lastError: string | null;
+  }>;
+}
 
 export interface SessaoBot {
   id: string;
@@ -412,6 +438,60 @@ export async function definirStatusSessaoBot(id: string, status: 'banido' | 'des
   if (error) throw new Error(error.message);
 }
 
+const runtimeStates = new Set<BotRuntimeState>([
+  'online', 'degraded', 'reconnecting', 'awaiting_qr', 'paused',
+  'offline', 'service_offline', 'unconfigured', 'banned',
+]);
+
+function parseBotOrganizationRuntime(value: unknown): BotOrganizationRuntime | null {
+  const source = record(value);
+  const organizationId = string(source?.organization_id);
+  const state = string(source?.state);
+  if (!source || !organizationId || !runtimeStates.has(state as BotRuntimeState)) return null;
+  const number = (key: string) => typeof source[key] === 'number' ? source[key] as number : 0;
+  return {
+    organizationId,
+    state: state as BotRuntimeState,
+    serviceOnline: source.service_online === true,
+    serviceLastSeenAt: string(source.service_last_seen_at),
+    lastSeenAt: string(source.last_seen_at),
+    lastTransitionAt: string(source.last_transition_at),
+    sessionsTotal: number('sessions_total'),
+    sessionsOnline: number('sessions_online'),
+    sessionsReconnecting: number('sessions_reconnecting'),
+    sessionsAwaitingQr: number('sessions_awaiting_qr'),
+    sessionsPaused: number('sessions_paused'),
+    sessionsOffline: number('sessions_offline'),
+    sessionsBanned: number('sessions_banned'),
+    sessions: parseArray(source.sessions, (item) => {
+      const session = record(item);
+      const id = string(session?.id);
+      if (!session || !id) return null;
+      const databaseStatus = string(session.database_status);
+      const runtimeState = string(session.runtime_state);
+      return {
+        id,
+        telefone: string(session.telefone),
+        databaseStatus: (['aguardando_qr', 'vinculado', 'desconectado', 'banido'].includes(databaseStatus ?? '')
+          ? databaseStatus
+          : 'desconectado') as SessaoBotStatus,
+        runtimeState: runtimeState as BotOrganizationRuntime['sessions'][number]['runtimeState'],
+        lastSeenAt: string(session.last_seen_at),
+        lastTransitionAt: string(session.last_transition_at),
+        lastError: string(session.last_error),
+      };
+    }),
+  };
+}
+
+export async function fetchPortalBotRuntimeStatus(): Promise<BotOrganizationRuntime> {
+  const { data, error } = await rpc('portal_bot_runtime_status');
+  if (error) throw new Error(error.message);
+  const runtime = parseBotOrganizationRuntime(data);
+  if (!runtime) throw new Error('Status do bot indisponível.');
+  return runtime;
+}
+
 export async function fetchBotQrObjectUrl(sessaoId: string): Promise<string> {
   const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/qr/${sessaoId}`);
   if (!resposta.ok) throw new Error('QR Code indisponível. Aguarde a renovação e tente novamente.');
@@ -450,11 +530,13 @@ export interface OrgComunicadosResumo {
   numerosVinculados: number;
   enviosPendentes: number;
   enviosFalhas: number;
+  runtime: BotOrganizationRuntime | null;
 }
 
 export interface ConsoleComunicadosOrg {
   organization: { id: string; name: string; municipality: string | null };
-  sessoes: Array<{ id: string; telefone: string | null; status: SessaoBotStatus; vinculadoPorNome: string | null; vinculadoEm: string | null; totalChats: number }>;
+  runtime: BotOrganizationRuntime | null;
+  sessoes: Array<{ id: string; telefone: string | null; status: SessaoBotStatus; runtimeState: BotOrganizationRuntime['sessions'][number]['runtimeState']; lastSeenAt: string | null; lastError: string | null; vinculadoPorNome: string | null; vinculadoEm: string | null; totalChats: number }>;
   chats: BotChat[];
   canais: Array<{ id: string; nome: string; chatId: string | null; ativo: boolean; totalEnvios: number }>;
   comunicados: Array<{
@@ -471,8 +553,15 @@ export interface ConsoleComunicadosOrg {
 }
 
 export async function fetchOrgsComunicadosConsole(): Promise<OrgComunicadosResumo[]> {
-  const { data, error } = await rpc('internal_list_orgs_comunicados');
+  const [{ data, error }, runtimeResponse] = await Promise.all([
+    rpc('internal_list_orgs_comunicados'),
+    rpc('internal_list_bot_runtime_status'),
+  ]);
   if (error) throw new Error(error.message);
+  if (runtimeResponse.error) throw new Error(runtimeResponse.error.message);
+  const runtimeByOrganization = new Map(
+    parseArray(runtimeResponse.data, parseBotOrganizationRuntime).map((runtime) => [runtime.organizationId, runtime]),
+  );
   return parseArray(data, (value) => {
     const source = record(value);
     if (!source || !string(source.organization_id) || !string(source.organization_name)) return null;
@@ -485,13 +574,19 @@ export async function fetchOrgsComunicadosConsole(): Promise<OrgComunicadosResum
       numerosVinculados: typeof source.numeros_vinculados === 'number' ? source.numeros_vinculados : 0,
       enviosPendentes: typeof source.envios_pendentes === 'number' ? source.envios_pendentes : 0,
       enviosFalhas: typeof source.envios_falhas === 'number' ? source.envios_falhas : 0,
+      runtime: runtimeByOrganization.get(source.organization_id as string) ?? null,
     };
   });
 }
 
 export async function fetchComunicadosOrgConsole(organizationId: string): Promise<ConsoleComunicadosOrg | null> {
-  const { data, error } = await rpc('internal_comunicados_org', { p_organization_id: organizationId });
+  const [{ data, error }, runtimeResponse] = await Promise.all([
+    rpc('internal_comunicados_org', { p_organization_id: organizationId }),
+    rpc('internal_bot_runtime_status', { p_organization_id: organizationId }),
+  ]);
   if (error) throw new Error(error.message);
+  if (runtimeResponse.error) throw new Error(runtimeResponse.error.message);
+  const runtime = parseBotOrganizationRuntime(runtimeResponse.data);
   const source = record(data);
   if (!source) return null;
   const org = record(source.organization);
@@ -503,6 +598,7 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
       name: string(org?.name) ?? 'Prefeitura',
       municipality: string(org?.municipality),
     },
+    runtime,
     sessoes: parseArray(source.sessoes, (value) => {
       const sessao = record(value);
       if (!sessao || !string(sessao.id)) return null;
@@ -513,6 +609,9 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
         status: (['aguardando_qr', 'vinculado', 'desconectado', 'banido'].includes(sessaoStatus ?? '')
           ? sessaoStatus
           : 'desconectado') as SessaoBotStatus,
+        runtimeState: runtime?.sessions.find((item) => item.id === sessao.id)?.runtimeState ?? null,
+        lastSeenAt: runtime?.sessions.find((item) => item.id === sessao.id)?.lastSeenAt ?? null,
+        lastError: runtime?.sessions.find((item) => item.id === sessao.id)?.lastError ?? null,
         vinculadoPorNome: string(sessao.vinculado_por_nome),
         vinculadoEm: string(sessao.vinculado_em),
         totalChats: typeof sessao.total_chats === 'number' ? sessao.total_chats : 0,

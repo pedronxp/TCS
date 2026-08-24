@@ -4,7 +4,19 @@ import { Bot, Building2, ChevronRight, CircleAlert, MessageCircleMore, Smartphon
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { fetchOrgsComunicadosConsole } from '@/lib/comunicados';
+import { fetchOrgsComunicadosConsole, type BotRuntimeState } from '@/lib/comunicados';
+
+const runtimeBadges: Record<BotRuntimeState, { label: string; variant: 'success' | 'warning' | 'destructive' | 'outline' | 'secondary' | 'info' }> = {
+  online: { label: 'Online', variant: 'success' },
+  degraded: { label: 'Operação parcial', variant: 'warning' },
+  reconnecting: { label: 'Reconectando', variant: 'warning' },
+  awaiting_qr: { label: 'Aguardando QR', variant: 'info' },
+  paused: { label: 'Pausado', variant: 'secondary' },
+  offline: { label: 'Fora do ar', variant: 'destructive' },
+  service_offline: { label: 'Docker fora do ar', variant: 'destructive' },
+  unconfigured: { label: 'Sem número', variant: 'outline' },
+  banned: { label: 'Número banido', variant: 'destructive' },
+};
 
 export function ConsoleWhatsAppPage() {
   const navigate = useNavigate();
@@ -13,8 +25,8 @@ export function ConsoleWhatsAppPage() {
     queryFn: fetchOrgsComunicadosConsole,
   });
   const organizations = organizationsQuery.data ?? [];
-  const connected = organizations.filter((item) => item.numerosVinculados > 0).length;
-  const needsAttention = organizations.filter((item) => item.enviosFalhas > 0 || item.numerosVinculados === 0).length;
+  const connected = organizations.filter((item) => item.runtime && ['online', 'degraded'].includes(item.runtime.state)).length;
+  const needsAttention = organizations.filter((item) => item.enviosFalhas > 0 || !item.runtime || !['online'].includes(item.runtime.state)).length;
   const communities = organizations.reduce((total, item) => total + item.comunidadesAtivas, 0);
 
   return (
@@ -28,7 +40,7 @@ export function ConsoleWhatsAppPage() {
       </header>
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo das organizações no WhatsApp">
-        <Summary label="Organizações com número" value={connected} icon={Smartphone} />
+        <Summary label="Organizações online" value={connected} icon={Smartphone} />
         <Summary label="Comunidades ativas" value={communities} icon={Users} />
         <Summary label="Precisam de atenção" value={needsAttention} icon={CircleAlert} warning={needsAttention > 0} />
       </section>
@@ -43,14 +55,20 @@ export function ConsoleWhatsAppPage() {
             {organizations.map((organization) => {
               const configured = organization.numerosVinculados > 0 && organization.comunidadesAtivas > 0;
               const failing = organization.enviosFalhas > 0;
+              const runtimeBadge = organization.runtime ? runtimeBadges[organization.runtime.state] : null;
               return (
                 <li key={organization.organizationId}>
                   <button type="button" className="flex w-full min-w-0 items-center justify-between gap-4 py-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Abrir WhatsApp de ${organization.organizationName}`} onClick={() => navigate(`/app/whatsapp/${organization.organizationId}`)}>
                     <span className="flex min-w-0 items-start gap-3">
                       <span className="mt-0.5 rounded-lg bg-success/10 p-2 text-success"><Bot className="h-5 w-5" /></span>
                       <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-2"><span className="break-words text-sm font-semibold">{organization.organizationName}</span><Badge variant={failing ? 'destructive' : configured ? 'success' : 'warning'}>{failing ? 'Falha no envio' : configured ? 'Configurado' : 'Configuração pendente'}</Badge></span>
-                        <span className="mt-1 block text-xs text-muted-foreground">{organization.municipality ?? 'Município não informado'} · {organization.numerosVinculados} número{organization.numerosVinculados === 1 ? '' : 's'} · {organization.comunidadesAtivas} comunidade{organization.comunidadesAtivas === 1 ? '' : 's'}{organization.enviosPendentes > 0 ? ` · ${organization.enviosPendentes} na fila` : ''}</span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="break-words text-sm font-semibold">{organization.organizationName}</span>
+                          <Badge variant={runtimeBadge?.variant ?? 'outline'}>{runtimeBadge?.label ?? 'Sem leitura'}</Badge>
+                          {failing && <Badge variant="destructive">Falha no envio</Badge>}
+                          {!configured && !failing && <Badge variant="outline">Configuração pendente</Badge>}
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">{organization.municipality ?? 'Município não informado'} · {organization.runtime?.sessionsOnline ?? 0}/{organization.runtime?.sessionsTotal ?? organization.numerosVinculados} número(s) online · {organization.comunidadesAtivas} comunidade{organization.comunidadesAtivas === 1 ? '' : 's'}{organization.enviosPendentes > 0 ? ` · ${organization.enviosPendentes} na fila` : ''}</span>
                       </span>
                     </span>
                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />

@@ -43,12 +43,14 @@ const BOT_SESSION_ENCRYPTION_KEY = process.env.BOT_SESSION_ENCRYPTION_KEY;
 const PORT = Number(process.env.PORT || 8787);
 const POLL_MS = Number(process.env.POLL_MS || 5000);
 const CHAT_SYNC_MS = Number(process.env.CHAT_SYNC_MS || 10 * 60 * 1000);
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 20_000);
 const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
   || 'https://tcsvisto.netlify.app,http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean));
 const WORKER_ID = process.env.RENDER_INSTANCE_ID || `bot-${process.pid}-${Date.now().toString(36)}`;
+const BOT_VERSION = (process.env.RENDER_GIT_COMMIT || process.env.npm_package_version || 'local').slice(0, 80);
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !BOT_SESSION_ENCRYPTION_KEY) {
   console.error('[bot] Configure SUPABASE_URL, SUPABASE_SECRET_KEY e BOT_SESSION_ENCRYPTION_KEY.');
@@ -92,6 +94,33 @@ function textoComunicado(comunicado, organizacao) {
 async function atualizarSessaoDb(id, campos) {
   const { error } = await supabase.from('bot_sessoes').update(campos).eq('id', id);
   if (error) log('db', `Falha ao atualizar sessao ${id}`, error);
+}
+
+async function reportarWorker(state = 'online') {
+  const { error } = await supabase.rpc('bot_report_worker_heartbeat', {
+    p_worker_id: WORKER_ID,
+    p_state: state,
+    p_version: BOT_VERSION,
+  });
+  if (error) log('heartbeat', `Falha ao registrar worker ${state}`, error);
+}
+
+function runtimeDaFase(fase) {
+  if (fase === 'vinculado') return 'online';
+  if (fase === 'aguardando_qr') return 'awaiting_qr';
+  if (fase === 'reconectando') return 'reconnecting';
+  if (fase === 'banido') return 'banned';
+  return 'starting';
+}
+
+async function reportarSessao(sessao, state = runtimeDaFase(sessao.fase), lastError = sessao.ultimoErro) {
+  const { error } = await supabase.rpc('bot_report_session_runtime', {
+    p_session_id: sessao.id,
+    p_worker_id: WORKER_ID,
+    p_state: state,
+    p_last_error: lastError || null,
+  });
+  if (error) log('heartbeat', `Falha ao registrar sessão ${sessao.id} como ${state}`, error);
 }
 
 async function sincronizarChats(sessao, tentativa = 1) {
@@ -158,6 +187,7 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     encerramentoSolicitado: false,
   };
   sessoes.set(linha.id, sessao);
+  await reportarSessao(sessao);
 
   const socket = makeWASocket({
     version,
@@ -178,9 +208,11 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       sessao.qrGeradoEm = new Date();
       qrcodeTerminal.generate(qr, { small: true }, (codigo) => console.log(codigo));
       log('sessao', `${sessao.orgNome}: QR gerado às ${sessao.qrGeradoEm.toLocaleTimeString('pt-BR')} — painel em /sessao/${sessao.id}`);
+      await reportarSessao(sessao, 'awaiting_qr');
     }
     if (connection === 'connecting') {
       sessao.fase = state.creds.registered ? 'conectando' : sessao.fase;
+      await reportarSessao(sessao);
     }
     if (connection === 'open') {
       sessao.fase = 'vinculado';
@@ -196,6 +228,7 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
         vinculado_em: agoraIso(),
         atualizado_em: agoraIso(),
       });
+      await reportarSessao(sessao, 'online', null);
       await sincronizarChats(sessao);
     }
     if (connection === 'close') {
@@ -212,6 +245,7 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
         ? 'Sessão encerrada pelo WhatsApp (número des conectado/banido) — vincule o número novamente.'
         : `desconectado (código ${codigo})`;
       log('sessao', `${sessao.orgNome}: conexão fechada — ${deslogado ? 'deslogado, requer novo QR' : 'vai reconectar'}`);
+      await reportarSessao(sessao, deslogado ? 'offline' : 'reconnecting');
       if (deslogado) {
         await atualizarSessaoDb(sessao.id, { status: 'desconectado', atualizado_em: agoraIso() });
         await clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${linha.id}`, erro));
@@ -227,10 +261,11 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
   return sessao;
 }
 
-async function pararSessao(id, { sair = false } = {}) {
+async function pararSessao(id, { sair = false, runtimeState = 'paused' } = {}) {
   const sessao = sessoes.get(id);
   if (sessao) {
     sessao.encerramentoSolicitado = true;
+    await reportarSessao(sessao, runtimeState, runtimeState === 'offline' ? 'Serviço encerrado.' : null);
     try {
       if (sair && sessao.socket && typeof sessao.socket.logout === 'function') {
         await sessao.socket.logout();
@@ -253,8 +288,7 @@ async function pararSessao(id, { sair = false } = {}) {
 async function gerenciarSessoes() {
   const { data: linhas, error } = await supabase
     .from('bot_sessoes')
-    .select('id, organization_id, telefone, status, acao_pendente, organizations(display_name)')
-    .neq('status', 'banido');
+    .select('id, organization_id, telefone, status, acao_pendente, organizations(display_name)');
   if (error) {
     log('db', 'Falha ao listar sessoes', error);
     return;
@@ -271,7 +305,9 @@ async function gerenciarSessoes() {
       continue;
     }
     if (!['aguardando_qr', 'vinculado'].includes(linha.status)) {
-      if (sessoes.has(linha.id)) await pararSessao(linha.id);
+      if (sessoes.has(linha.id)) {
+        await pararSessao(linha.id, { runtimeState: linha.status === 'banido' ? 'banned' : 'paused' });
+      }
       continue;
     }
     ativas.add(linha.id);
@@ -671,8 +707,16 @@ setInterval(() => {
   }
 }, CHAT_SYNC_MS);
 
+setInterval(() => {
+  reportarWorker('online').catch(() => null);
+  for (const sessao of sessoes.values()) {
+    reportarSessao(sessao).catch(() => null);
+  }
+}, HEARTBEAT_MS);
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   log('http', `Serviço do bot disponível na porta ${PORT} (números e QR por sessão)`);
+  reportarWorker('online').catch(() => null);
 });
 
 let encerrando = false;
@@ -681,7 +725,8 @@ async function encerrar(signal) {
   encerrando = true;
   log('shutdown', `${signal}: encerrando conexões com segurança`);
   server.close();
-  await Promise.all([...sessoes.keys()].map((id) => pararSessao(id)));
+  await Promise.all([...sessoes.keys()].map((id) => pararSessao(id, { runtimeState: 'offline' })));
+  await reportarWorker('stopping');
   setTimeout(() => process.exit(0), 500).unref();
 }
 

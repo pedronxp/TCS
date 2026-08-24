@@ -39,6 +39,28 @@ const sessaoLabels: Record<SessaoBotStatus, string> = {
   banido: 'Banido',
 };
 
+const runtimeSessionLabels: Record<string, string> = {
+  starting: 'Iniciando',
+  awaiting_qr: 'Aguardando QR',
+  online: 'Online',
+  reconnecting: 'Reconectando',
+  paused: 'Pausado',
+  offline: 'Fora do ar',
+  banned: 'Banido',
+};
+
+const organizationRuntimeLabels: Record<string, string> = {
+  online: 'Organização online',
+  degraded: 'Operação parcial',
+  reconnecting: 'Reconectando',
+  awaiting_qr: 'Aguardando QR',
+  paused: 'Organização pausada',
+  offline: 'Organização fora do ar',
+  service_offline: 'Docker fora do ar',
+  unconfigured: 'Sem número',
+  banned: 'Números banidos',
+};
+
 function formatDate(value: string | null) {
   if (!value) return null;
   const parsed = new Date(value);
@@ -405,6 +427,11 @@ export function ConsoleComunicadoOrgPage({
                   ) : (
                     <Badge variant="destructive" className="gap-1.5"><WifiOff className="h-3.5 w-3.5" /> Serviço indisponível</Badge>
                   )}
+                  {org.runtime && (
+                    <Badge variant={org.runtime.state === 'online' ? 'success' : org.runtime.state === 'degraded' || org.runtime.state === 'reconnecting' ? 'warning' : 'secondary'}>
+                      {organizationRuntimeLabels[org.runtime.state]} · {org.runtime.sessionsOnline}/{org.runtime.sessionsTotal} online
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-5 sm:p-6">
@@ -585,11 +612,17 @@ export function ConsoleComunicadoOrgPage({
                             {sessao.totalChats} grupo{sessao.totalChats === 1 ? '' : 's'} sincronizado{sessao.totalChats === 1 ? '' : 's'}
                           </span>
                         </span>
-                        <Badge variant={sessao.status === 'vinculado' ? 'success' : sessao.status === 'aguardando_qr' ? 'info' : sessao.status === 'banido' ? 'destructive' : 'secondary'} className="gap-1.5">
-                          {sessao.status === 'vinculado' && <span className="h-2 w-2 rounded-full bg-success" />}
-                          {sessao.status === 'vinculado' ? 'Online' : sessaoLabels[sessao.status]}
+                        <Badge variant={sessao.runtimeState === 'online' ? 'success' : sessao.runtimeState === 'reconnecting' || sessao.runtimeState === 'starting' ? 'warning' : sessao.runtimeState === 'banned' || sessao.runtimeState === 'offline' ? 'destructive' : sessao.status === 'aguardando_qr' ? 'info' : 'secondary'} className="gap-1.5">
+                          {sessao.runtimeState === 'online' && <span className="h-2 w-2 rounded-full bg-success" />}
+                          {sessao.runtimeState ? runtimeSessionLabels[sessao.runtimeState] : sessaoLabels[sessao.status]}
                         </Badge>
                       </div>
+                      {(sessao.lastSeenAt || sessao.lastError) && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {sessao.lastSeenAt ? `Último sinal: ${formatDate(sessao.lastSeenAt)}` : 'Sem heartbeat registrado'}
+                          {sessao.lastError ? ` · ${sessao.lastError}` : ''}
+                        </p>
+                      )}
                       <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
                         {sessao.status === 'vinculado' && (
                           <Button variant="outline" size="sm" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'desconectar', telefone: sessao.telefone ?? 'este número' })}>

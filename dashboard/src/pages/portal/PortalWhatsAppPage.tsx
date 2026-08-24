@@ -12,7 +12,7 @@ import {
   criarSessaoBot,
   deleteCanal,
   fetchBotChats,
-  fetchBotOnline,
+  fetchPortalBotRuntimeStatus,
   fetchCanais,
   fetchSessoesBot,
   operarSessaoBot,
@@ -63,9 +63,9 @@ export function PortalWhatsAppPage() {
     enabled: Boolean(organizationId) && mayManage,
     retry: false,
   });
-  const onlineQuery = useQuery({
-    queryKey: ['portal', 'bot-online'],
-    queryFn: fetchBotOnline,
+  const runtimeQuery = useQuery({
+    queryKey: ['portal', 'bot-runtime', organizationId],
+    queryFn: fetchPortalBotRuntimeStatus,
     enabled: mayManage,
     refetchInterval: 10_000,
     retry: false,
@@ -78,22 +78,26 @@ export function PortalWhatsAppPage() {
   const chats = allChats.filter((chat) => Boolean(chat.comunidadeId) || approvedStandaloneChats.has(chat.chatId));
   const activeChannels = channels.filter((channel) => channel.ativo);
   const linkedChannels = activeChannels.filter((channel) => channel.chatId);
-  const connectedSessions = sessions.filter((session) => session.status === 'vinculado');
   const awaitingSession = sessions.find((session) => session.status === 'aguardando_qr');
   const readiness = useMemo(() => {
     if (!mayManage) return null;
-    if (!onlineQuery.data) return { tone: 'warning', title: 'Serviço do bot indisponível', detail: 'O painel continua funcionando, mas os disparos automáticos ficam pausados até o serviço voltar.' };
-    if (connectedSessions.length === 0) return { tone: 'info', title: 'Conecte um número', detail: 'Vincule o WhatsApp da organização para sincronizar os grupos disponíveis.' };
+    const runtime = runtimeQuery.data;
+    if (!runtime || runtime.state === 'service_offline') return { tone: 'warning', title: 'Serviço do bot indisponível', detail: 'O painel continua funcionando, mas os disparos automáticos ficam pausados até o Docker voltar.' };
+    if (runtime.state === 'reconnecting') return { tone: 'warning', title: 'Reconectando o WhatsApp', detail: 'O serviço está online e tenta restabelecer a conexão automaticamente.' };
+    if (runtime.state === 'paused') return { tone: 'warning', title: 'WhatsApp pausado', detail: 'Reative um dos números para retomar os disparos desta organização.' };
+    if (runtime.state === 'offline' || runtime.state === 'banned') return { tone: 'warning', title: 'Números fora do ar', detail: 'O Docker está online, mas nenhum número desta organização está conectado.' };
+    if (runtime.sessionsOnline === 0) return { tone: 'info', title: 'Conecte um número', detail: 'Vincule o WhatsApp da organização para sincronizar os grupos disponíveis.' };
+    if (runtime.state === 'degraded') return { tone: 'warning', title: 'Operação parcial', detail: `${runtime.sessionsOnline} de ${runtime.sessionsTotal} números estão online; os disparos ainda possuem contingência limitada.` };
     if (linkedChannels.length === 0) return { tone: 'info', title: 'Vincule uma comunidade', detail: 'Escolha o grupo correspondente em cada comunidade para habilitar os disparos.' };
     return { tone: 'success', title: 'WhatsApp pronto para disparos', detail: `${linkedChannels.length} comunidade${linkedChannels.length === 1 ? '' : 's'} com envio automático habilitado.` };
-  }, [connectedSessions.length, linkedChannels.length, mayManage, onlineQuery.data]);
+  }, [linkedChannels.length, mayManage, runtimeQuery.data]);
 
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['portal', 'canais'] }),
       queryClient.invalidateQueries({ queryKey: ['portal', 'bot-sessoes'] }),
       queryClient.invalidateQueries({ queryKey: ['portal', 'bot-chats'] }),
-      queryClient.invalidateQueries({ queryKey: ['portal', 'bot-online'] }),
+      queryClient.invalidateQueries({ queryKey: ['portal', 'bot-runtime'] }),
     ]);
   };
 
@@ -184,8 +188,8 @@ export function PortalWhatsAppPage() {
       )}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do WhatsApp">
-        <Summary label="Serviço" value={!mayManage ? 'Restrito' : onlineQuery.data ? 'Online' : 'Offline'} icon={onlineQuery.data ? Wifi : WifiOff} />
-        <Summary label="Números conectados" value={mayManage ? String(connectedSessions.length) : '—'} icon={Smartphone} />
+        <Summary label="Serviço" value={!mayManage ? 'Restrito' : runtimeQuery.data?.serviceOnline ? 'Online' : 'Offline'} icon={runtimeQuery.data?.serviceOnline ? Wifi : WifiOff} />
+        <Summary label="Números online" value={mayManage ? String(runtimeQuery.data?.sessionsOnline ?? 0) : '—'} icon={Smartphone} />
         <Summary label="Comunidades ativas" value={String(activeChannels.length)} icon={Users} />
         <Summary label="Envio automático" value={mayManage ? `${linkedChannels.length}/${activeChannels.length}` : '—'} icon={Link2} />
       </section>
@@ -203,21 +207,33 @@ export function PortalWhatsAppPage() {
             {mayManage && <ul className="mt-4 divide-y">
               {sessionsQuery.isLoading && <li className="py-4 text-sm text-muted-foreground">Carregando números…</li>}
               {!sessionsQuery.isLoading && sessions.length === 0 && <li className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhum número conectado.</li>}
-              {sessions.map((session) => (
+              {sessions.map((session) => {
+                const liveSession = runtimeQuery.data?.sessions.find((item) => item.id === session.id);
+                const liveLabel = liveSession?.runtimeState === 'online' ? 'Online'
+                  : liveSession?.runtimeState === 'reconnecting' ? 'Reconectando'
+                    : liveSession?.runtimeState === 'starting' ? 'Iniciando'
+                      : liveSession?.runtimeState === 'paused' ? 'Pausado'
+                        : liveSession?.runtimeState === 'offline' ? 'Fora do ar'
+                          : liveSession?.runtimeState === 'banned' ? 'Banido'
+                            : liveSession?.runtimeState === 'awaiting_qr' ? 'Aguardando QR'
+                              : sessaoLabels[session.status];
+                return (
                 <li key={session.id} className="py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0"><p className="break-words text-sm font-semibold">{session.telefone ?? 'Número ainda não identificado'}</p><p className="mt-1 text-xs text-muted-foreground">{session.totalChats} grupo{session.totalChats === 1 ? '' : 's'} sincronizado{session.totalChats === 1 ? '' : 's'}{session.vinculadoPorNome ? ` · por ${session.vinculadoPorNome}` : ''}</p></div>
-                    <Badge variant={sessionVariant(session.status)}>{sessaoLabels[session.status]}</Badge>
+                    <Badge variant={liveSession?.runtimeState === 'online' ? 'success' : liveSession?.runtimeState === 'offline' || liveSession?.runtimeState === 'banned' ? 'destructive' : sessionVariant(session.status)}>{liveLabel}</Badge>
                   </div>
+                  {liveSession?.lastSeenAt && <p className="mt-2 text-xs text-muted-foreground">Último sinal: {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(liveSession.lastSeenAt))}</p>}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {session.status === 'aguardando_qr' && <Button size="sm" variant="outline" onClick={() => void openBotQr(session.id).catch((qrError: Error) => setError(qrError.message))}><ExternalLink />Abrir QR Code</Button>}
                     {session.status === 'vinculado' && <Button size="sm" variant="outline" disabled={updateSession.isPending} onClick={() => updateSession.mutate({ id: session.id, action: 'desconectar' })}><Unplug />Desconectar</Button>}
-                    {session.status === 'desconectado' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !onlineQuery.data} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
+                    {session.status === 'desconectado' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
                     {session.status !== 'banido' && session.status !== 'aguardando_qr' && <Button size="sm" variant="ghost" disabled={updateSession.isPending} onClick={() => window.confirm('Sair do WhatsApp removerá as credenciais deste número. Continuar?') && updateSession.mutate({ id: session.id, action: 'sair' })}><LogOut />Sair do WhatsApp</Button>}
                     {session.status !== 'banido' && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={updateSession.isPending} onClick={() => window.confirm('Marcar este número como banido?') && updateSession.mutate({ id: session.id, action: 'banir' })}>Marcar como banido</Button>}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>}
             {mayManage && awaitingSession && <p className="mt-3 text-xs text-muted-foreground">O QR expira rapidamente. Se não funcionar, crie uma nova sessão.</p>}
           </CardContent>
