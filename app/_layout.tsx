@@ -52,6 +52,8 @@ function RootNavigator() {
     const data = lastResponse.notification.request.content.data as Record<string, any>;
     if (data?.tipo === 'atribuicao' || data?.tipo === 'vistoria_salva' || data?.tipo === 'sync') {
       router.push('/(panel)/inspecoes');
+    } else if (data?.tipo === 'comunicado' || data?.tipo === 'aviso' || data?.tipo === 'emergencia') {
+      router.push('/(panel)/avisos');
     }
   }, [lastResponse]);
 
@@ -73,15 +75,26 @@ function RootNavigator() {
 
     Linking.getInitialURL().then(handleDeepLink);
     const sub = Linking.addEventListener('url', (e) => handleDeepLink(e.url));
+    let active = true;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, recoverySession) => {
-        if (event === 'PASSWORD_RECOVERY' && recoverySession) {
-          await markPasswordRecoverySession(recoverySession);
-          router.replace('/(auth)/reset-password');
-        }
+      (event, recoverySession) => {
+        if (event !== 'PASSWORD_RECOVERY' || !recoverySession) return;
+        // Chamadas assíncronas dentro do callback de auth podem bloquear
+        // requisições seguintes do Supabase; a recuperação roda fora dele.
+        setTimeout(() => {
+          if (!active) return;
+          void markPasswordRecoverySession(recoverySession)
+            .then(() => {
+              if (active) router.replace('/(auth)/reset-password');
+            })
+            .catch(() => {
+              // A sessão continua válida e o usuário pode solicitar novo link.
+            });
+        }, 0);
       },
     );
     return () => {
+      active = false;
       sub.remove();
       subscription.unsubscribe();
     };
@@ -108,7 +121,7 @@ function RootNavigator() {
       if (cancelled) return;
       const done = val === '1';
       const segs = segmentsRef.current;          // sempre atualizado via ref
-      const isAuthenticated = !!session && (profile?.isApproved === true || profile?.role === 'owner');
+      const isAuthenticated = !!session && profile?.isApproved === true;
       const hasPendingCustomerSession = !!session && !isAuthenticated;
       const hasExpiredTrainingSession = !!trainingSession && isExpired();
       const hasTrainingSession = !!trainingSession && isTrainingActive && !hasExpiredTrainingSession;

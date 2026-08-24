@@ -5,6 +5,9 @@ import { router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { isInternalMobileRole } from '../../services/AppProfileService';
+import { resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { ModuleCard, SectionHeader, StateBanner } from '../../components/ui';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -18,6 +21,8 @@ interface ModuleItem {
   icon: FeatherName;
   route: string;
   badge?: string;
+  feature?: string;
+  requiresOrganization?: boolean;
 }
 
 interface ModuleSection {
@@ -51,28 +56,32 @@ const trainingAccess: ModuleItem = {
 const baseOperation: ModuleItem[] = [
   { title: 'Vistorias', description: 'Histórico, evidências e laudos', icon: 'clipboard', route: '/(panel)/inspecoes' },
   { title: 'Mapa tático', description: 'Ocorrências georreferenciadas', icon: 'map-pin', route: '/(panel)/mapas' },
-  { title: 'Avisos', description: 'Comunicados da prefeitura', icon: 'bell', route: '/(panel)/avisos' },
+  { title: 'Avisos', description: 'Comunicados da organização', icon: 'bell', route: '/(panel)/avisos', feature: 'comunicados', requiresOrganization: true },
 ];
 
 function sectionsForRole(role: string | undefined): ModuleSection[] {
+  if (isInternalMobileRole(role)) {
+    return [
+      {
+        key: 'internal',
+        title: 'Acompanhamento TCS',
+        description: 'Acesso mobile conforme suas permissões',
+        items: [
+          { title: 'Painel interno', description: 'Indicadores do seu perfil', icon: 'activity', route: '/(panel)/internal' },
+          profile,
+        ],
+      },
+    ];
+  }
+
   if (role === 'master_admin') {
     return [
       {
-        key: 'network', title: 'Rede TCS', description: 'Operação global e cobertura', items: [
-          { title: 'Contratações', description: 'Analisar e ativar planos', icon: 'shopping-bag', route: '/(panel)/master/contratacoes' },
-          { title: 'Municípios', description: 'Gerenciar cobertura', icon: 'map', route: '/(panel)/master/municipios' },
-          { title: 'Equipe', description: 'Agentes de todos os municípios', icon: 'user-check', route: '/(panel)/equipe' },
-          { title: 'Usuários', description: 'Todos os perfis da rede', icon: 'users', route: '/(panel)/admin/usuarios' },
-        ],
-      },
-      {
-        key: 'intelligence', title: 'Operação e inteligência', description: 'Dados técnicos e controle', items: [
+        key: 'operation', title: 'Acompanhamento operacional', description: 'Informações úteis durante o uso do aplicativo', items: [
           ...baseOperation,
-          { title: 'Formulários', description: 'Criar, editar e publicar modelos técnicos', icon: 'edit-3', route: '/(panel)/admin/form-editor' },
-          { title: 'Relatórios', description: 'Laudos e exportações', icon: 'file-text', route: '/(panel)/admin/relatorios' },
-          { title: 'Estatísticas', description: 'Indicadores globais', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas' },
-          { title: 'Tokens', description: 'Convites e acesso', icon: 'key', route: '/(panel)/admin/tokens' },
-          { title: 'Logs', description: 'Auditoria do sistema', icon: 'terminal', route: '/(panel)/master/logs' },
+          { title: 'Equipe', description: 'Acompanhar profissionais', icon: 'user-check', route: '/(panel)/equipe' },
+          { title: 'Agenda', description: 'Compromissos e atividades', icon: 'calendar', route: '/(panel)/agendamentos' },
+          { title: 'Relatórios', description: 'Consultar laudos disponíveis', icon: 'file-text', route: '/(panel)/admin/relatorios' },
         ],
       },
       { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingAccess, subscription, profile] },
@@ -82,20 +91,17 @@ function sectionsForRole(role: string | undefined): ModuleSection[] {
   if (role === 'admin') {
     return [
       {
-        key: 'municipal', title: 'Gestão municipal', description: 'Equipe, acesso e organização', items: [
-          { title: 'Usuários', description: 'Aprovações e perfis', icon: 'users', route: '/(panel)/admin/usuarios' },
+        key: 'municipal', title: 'Acompanhamento municipal', description: 'Equipe e organização do trabalho', items: [
           { title: 'Equipe', description: 'Desempenho dos agentes', icon: 'user-check', route: '/(panel)/equipe' },
           { title: 'Grupos', description: 'Organização por área ou turno', icon: 'grid', route: '/(panel)/grupos' },
-          { title: 'Tokens', description: 'Convites de acesso', icon: 'key', route: '/(panel)/admin/tokens' },
+          { title: 'Agenda', description: 'Compromissos da organização', icon: 'calendar', route: '/(panel)/agendamentos' },
         ],
       },
       {
         key: 'technical', title: 'Operação técnica', description: 'Vistorias e inteligência local', items: [
           ...baseOperation,
-          { title: 'Formulários', description: 'Criar, editar e publicar modelos técnicos', icon: 'edit-3', route: '/(panel)/admin/form-editor' },
-          { title: 'Relatórios', description: 'Exportar laudos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
+          { title: 'Relatórios', description: 'Consultar laudos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
           { title: 'Estatísticas', description: 'Métricas municipais', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas' },
-          { title: 'Logs', description: 'Atividades recentes', icon: 'terminal', route: '/(panel)/admin/logs' },
         ],
       },
       { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingAccess, subscription, profile] },
@@ -130,10 +136,23 @@ function sectionsForRole(role: string | undefined): ModuleSection[] {
 export default function ModulosScreen() {
   const { theme } = useTheme();
   const { profile: userProfile } = useAuth();
+  const { context: subscriptionContext, hasFeature } = useSubscription();
   const insets = useSafeAreaInsets();
   const bottomPadding = useBottomTabPadding();
   const [query, setQuery] = useState('');
-  const sections = useMemo(() => sectionsForRole(userProfile?.role), [userProfile?.role]);
+  const access = resolveMobileOrganizationAccess(userProfile, subscriptionContext);
+  const organizationId = access.organizationId;
+  const sections = useMemo(() => sectionsForRole(userProfile?.role)
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => {
+        if (item.requiresOrganization && !organizationId) return false;
+        if (!item.feature || !subscriptionContext?.features) return true;
+        if (!(item.feature in subscriptionContext.features)) return true;
+        return hasFeature(item.feature);
+      }),
+    }))
+    .filter(section => section.items.length > 0), [hasFeature, organizationId, subscriptionContext?.features, userProfile?.role]);
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const visibleSections = useMemo(() => {
     if (!normalizedQuery) return sections;
@@ -145,13 +164,15 @@ export default function ModulosScreen() {
       .filter(section => section.items.length > 0);
   }, [normalizedQuery, sections]);
 
-  const roleLabel = userProfile?.role === 'master_admin'
-      ? 'Gestão da rede TCS'
+  const roleLabel = isInternalMobileRole(userProfile?.role)
+      ? 'Acompanhamento interno TCS'
+      : userProfile?.role === 'master_admin'
+      ? 'Acompanhamento da operação'
       : userProfile?.role === 'admin'
         ? 'Administração municipal'
         : userProfile?.role === 'supervisor'
           ? 'Supervisão de campo'
-          : 'Operação de campo';
+          : organizationId ? 'Operação de campo' : 'Conta profissional individual';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
@@ -182,6 +203,20 @@ export default function ModulosScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + Spacing[4] }]}
         keyboardShouldPersistTaps="handled"
       >
+        {(userProfile?.role === 'master_admin' || userProfile?.role === 'admin' || isInternalMobileRole(userProfile?.role)) ? (
+          <StateBanner
+            variant="info"
+            title="Administração disponível no painel web"
+            description="Ativação de módulos, permissões, contratações e configurações administrativas não são feitas pelo aplicativo."
+          />
+        ) : null}
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Vínculo com organização pendente"
+            description="Peça ao responsável para vincular sua conta pelo painel web. Avisos e módulos municipais ficam indisponíveis até a confirmação."
+          />
+        ) : null}
         {visibleSections.length ? visibleSections.map(section => (
           <View key={section.key} style={styles.section}>
             <SectionHeader title={section.title} subtitle={section.description} />

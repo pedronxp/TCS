@@ -9,6 +9,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
+import { useSubscription } from '../../../context/SubscriptionContext';
+import { resolveMobileOrganizationAccess } from '../../../services/MobileAccessService';
 import { DashboardGuide } from '../../../components/DashboardGuide';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
@@ -36,6 +38,8 @@ export default function AdminDashboardScreen() {
   const bottomPad = useBottomTabPadding();
   const { profile } = useAuth();
   const { isConnected } = useConnectivity();
+  const { context: subscriptionContext } = useSubscription();
+  const access = resolveMobileOrganizationAccess(profile, subscriptionContext);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [erro, setErro] = useState(false);
@@ -174,6 +178,13 @@ export default function AdminDashboardScreen() {
       >
         <DashboardGuide role="admin" inline />
         <CustomerOnboardingChecklist />
+        {access.requiresOrganizationLink ? (
+          <StateBanner
+            variant="warning"
+            title="Organização ainda não vinculada"
+            description="Confirme a vinculação da sua conta pelo painel web para liberar avisos e recursos compartilhados."
+          />
+        ) : null}
         {!isConnected ? (
           <StateBanner
             title="Modo offline ativo"
@@ -371,8 +382,8 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 100 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
-  metricWide: { width: '100%', minHeight: 128 },
-  metricHalf: { width: '48%', flexGrow: 1, minHeight: 112 },
+  metricWide: { width: '100%', minHeight: 102 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 96 },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 14, marginTop: 4,

@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
 import {
-  buildInternalOwnerAppProfile,
+  buildInternalStaffAppProfile,
+  type InternalMobileRole,
   type InternalStaffProfilePayload,
 } from '../services/AppProfileService';
 
@@ -11,13 +13,15 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
-  role: 'master_admin' | 'admin' | 'supervisor' | 'agent' | 'owner';
+  role: 'master_admin' | 'admin' | 'supervisor' | 'agent' | InternalMobileRole;
   municipio: string;
   isApproved: boolean;
   createdAt?: string;
   nameChanged?: boolean;
   phone?: string | null;
   organizationId?: string | null;
+  accountKind?: 'individual' | 'organization' | 'internal';
+  permissions?: string[];
   tokenLimit?: number | null;
 }
 
@@ -71,41 +75,82 @@ async function fetchProfile(_userId: string): Promise<FetchProfileResult> {
 
     const { data, error } = result;
     if (error || !data) return null;
-    return data as UserProfile;
+    const profile = data as UserProfile;
+    return {
+      ...profile,
+      accountKind: profile.organizationId ? 'organization' : 'individual',
+    };
   } catch {
     return 'timeout';
   }
 }
 
 async function fetchAuthorizedProfile(session: Session): Promise<FetchProfileResult> {
-  const legacyProfile = await fetchProfile(session.user.id);
-  if (legacyProfile !== null) return legacyProfile;
+  const fetchInternalProfile = async (): Promise<FetchProfileResult> => {
+    try {
+      const queryPromise = supabase.rpc('get_internal_staff_profile');
+      const timeoutPromise = new Promise<'timeout'>(resolve =>
+        setTimeout(() => resolve('timeout'), 10000)
+      );
+      const result = await Promise.race([queryPromise, timeoutPromise]);
+      if (result === 'timeout') return 'timeout';
 
-  try {
-    const queryPromise = supabase.rpc('get_internal_staff_profile');
-    const timeoutPromise = new Promise<'timeout'>(resolve =>
-      setTimeout(() => resolve('timeout'), 10000)
-    );
-    const result = await Promise.race([queryPromise, timeoutPromise]);
-    if (result === 'timeout') return 'timeout';
+      const { data, error } = result;
+      if (error) return null;
+      return buildInternalStaffAppProfile(
+        session,
+        data as InternalStaffProfilePayload | null,
+      );
+    } catch {
+      return null;
+    }
+  };
 
-    const { data, error } = result;
-    if (error) return null;
-    return buildInternalOwnerAppProfile(
-      session,
-      data as InternalStaffProfilePayload | null,
-    );
-  } catch {
-    return null;
-  }
+  const [legacyProfile, internalProfile] = await Promise.all([
+    fetchProfile(session.user.id),
+    fetchInternalProfile(),
+  ]);
+
+  // Staff ativo pode coexistir com um cadastro legado em public.users.
+  // A identidade interna sempre prevalece para impedir perfil incorreto
+  // e desbloquear developer/support com cadastro municipal neutro.
+  if (internalProfile && internalProfile !== 'timeout') return internalProfile;
+  if (legacyProfile && legacyProfile !== 'timeout') return legacyProfile;
+  if (internalProfile === 'timeout' || legacyProfile === 'timeout') return 'timeout';
+  return null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const safetyTimer = setTimeout(() => setLoading(false), 14000);
+    if (Platform.OS === 'web') return;
+
+    const updateAutoRefresh = (state: string) => {
+      if (state === 'active') {
+        void supabase.auth.startAutoRefresh();
+      } else {
+        void supabase.auth.stopAutoRefresh();
+      }
+    };
+
+    updateAutoRefresh(AppState.currentState);
+    const subscription = AppState.addEventListener('change', updateAutoRefresh);
+    return () => {
+      subscription.remove();
+      void supabase.auth.stopAutoRefresh();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let authRevision = 0;
+    const isCurrent = (revision: number) => active && revision === authRevision;
+    const safetyTimer = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 14000);
 
     const getSessionTimeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('getSession timeout')), 8000)
@@ -124,12 +169,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let sess = result?.data?.session as Session | null;
         if (!sess) return;
 
+        const revision = authRevision;
         const profileResult = await fetchAuthorizedProfile(sess);
+        if (!isCurrent(revision)) return;
 
         if (profileResult === 'timeout') {
           // Offline ou rede indisponível — tentar cache
           const cached = await loadProfileFromCache(sess.user.id);
-          if (cached?.isApproved) {
+          if (isCurrent(revision) && cached?.isApproved) {
             setSession(sess);
             setProfile(cached);
           }
@@ -142,7 +189,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Identidades OAuth novas permanecem autenticadas, porém neutras,
           // para concluir o bootstrap server-side. A reconciliação nunca aprova.
           try { await supabase.rpc('reconcile_customer_identity'); } catch { /* mantém sessão neutra */ }
+          if (!isCurrent(revision)) return;
           const reconciled = await fetchProfile(sess.user.id);
+          if (!isCurrent(revision)) return;
           setSession(sess);
           if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
         }
@@ -157,60 +206,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .finally(() => {
         clearTimeout(safetyTimer);
-        setLoading(false);
+        if (active) setLoading(false);
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, sess) => {
-        if (event === 'SIGNED_IN' && sess) {
-          const profileResult = await fetchAuthorizedProfile(sess);
-          if (profileResult === 'timeout') {
-            const cached = await loadProfileFromCache(sess.user.id);
-            if (cached?.isApproved) {
-              setSession(sess);
-              setProfile(cached);
-            }
-          } else if (profileResult) {
-            setSession(sess);
-            setProfile(profileResult);
-            if (profileResult.isApproved) await saveProfileToCache(profileResult);
-          } else {
-            try { await supabase.rpc('reconcile_customer_identity'); } catch { /* mantém sessão neutra */ }
-            const reconciled = await fetchProfile(sess.user.id);
-            setSession(sess);
-            if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
-          }
-        } else if (event === 'SIGNED_OUT') {
+      (event, sess) => {
+        if (!active) return;
+        if (event === 'SIGNED_OUT') {
+          authRevision += 1;
           setSession(null);
           setProfile(null);
           AsyncStorage.removeItem('@sync_user_name').catch(() => {});
-        } else if (event === 'TOKEN_REFRESHED' && sess) {
-          setSession(sess);
-          const profileResult = await fetchAuthorizedProfile(sess);
-          if (profileResult === 'timeout') {
-            // Offline: manter perfil atual
-          } else if (profileResult) {
-            setProfile(profileResult);
-            if (profileResult.isApproved) await saveProfileToCache(profileResult);
-          } else {
-            setSession(sess);
-            setProfile(null);
-          }
+          return;
         }
+
+        if ((event !== 'SIGNED_IN' && event !== 'TOKEN_REFRESHED') || !sess) return;
+        const revision = ++authRevision;
+
+        // A documentação do Supabase alerta que aguardar chamadas da própria
+        // API dentro do callback de auth pode travar as requisições seguintes.
+        setTimeout(() => {
+          if (!isCurrent(revision)) return;
+          void (async () => {
+            if (event === 'SIGNED_IN') {
+              const profileResult = await fetchAuthorizedProfile(sess);
+              if (!isCurrent(revision)) return;
+              if (profileResult === 'timeout') {
+                const cached = await loadProfileFromCache(sess.user.id);
+                if (isCurrent(revision) && cached?.isApproved) {
+                  setSession(sess);
+                  setProfile(cached);
+                }
+              } else if (profileResult) {
+                setSession(sess);
+                setProfile(profileResult);
+                if (profileResult.isApproved) await saveProfileToCache(profileResult);
+              } else {
+                try { await supabase.rpc('reconcile_customer_identity'); } catch { /* mantém sessão neutra */ }
+                if (!isCurrent(revision)) return;
+                const reconciled = await fetchProfile(sess.user.id);
+                if (!isCurrent(revision)) return;
+                setSession(sess);
+                if (reconciled && reconciled !== 'timeout') setProfile(reconciled);
+              }
+              return;
+            }
+
+            setSession(sess);
+            const profileResult = await fetchAuthorizedProfile(sess);
+            if (!isCurrent(revision)) return;
+            if (profileResult === 'timeout') {
+              // Offline: manter perfil atual.
+            } else if (profileResult) {
+              setProfile(profileResult);
+              if (profileResult.isApproved) await saveProfileToCache(profileResult);
+            } else {
+              setProfile(null);
+            }
+          })().catch(() => {
+            // Uma indisponibilidade temporária não pode derrubar a sessão local.
+          });
+        }, 0);
       }
     );
 
     return () => {
+      active = false;
+      authRevision += 1;
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession) return;
     const profileResult = await fetchAuthorizedProfile(currentSession);
@@ -218,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(profileResult);
       if (profileResult.isApproved) await saveProfileToCache(profileResult);
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ session, profile, loading, signOut, refreshProfile }}>
