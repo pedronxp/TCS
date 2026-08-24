@@ -3,7 +3,7 @@ import { Bot, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { fetchBotOnline, fetchPortalBotRuntimeStatus, type BotOrganizationRuntime, type BotRuntimeState } from '@/lib/comunicados';
+import { fetchBotOnline, fetchOrgsComunicadosConsole, fetchPortalBotRuntimeStatus, type BotOrganizationRuntime, type BotRuntimeState } from '@/lib/comunicados';
 
 const runtimeCopy: Record<BotRuntimeState, { label: string; detail: string; variant: 'success' | 'warning' | 'destructive' | 'outline' | 'secondary' | 'info' }> = {
   online: { label: 'Online', detail: 'Números conectados e prontos para processar mensagens.', variant: 'success' },
@@ -33,7 +33,15 @@ export function BotServiceStatus({ workspace }: { workspace: 'internal' | 'organ
         setOnline(false);
       }
     } else {
-      setOnline(await fetchBotOnline());
+      try {
+        const organizations = await fetchOrgsComunicadosConsole();
+        const monitoredOrganizations = organizations.filter((organization) => organization.runtime !== null);
+        setOnline(monitoredOrganizations.length > 0
+          ? monitoredOrganizations.some((organization) => organization.runtime?.serviceOnline)
+          : await fetchBotOnline());
+      } catch {
+        setOnline(await fetchBotOnline());
+      }
     }
     setChecking(false);
   }, [workspace]);

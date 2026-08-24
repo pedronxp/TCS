@@ -18,17 +18,17 @@ export interface BotSessaoStatus {
   ultimoErro: string | null;
 }
 
-async function fetchComTimeout(url: string, ms = 6000, authenticated = true): Promise<Response> {
+async function fetchComTimeout(url: string, ms = 6000, authenticated = true, options?: RequestInit): Promise<Response> {
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), ms);
   try {
-    const headers = new Headers();
+    const headers = new Headers(options?.headers);
     if (authenticated) {
       const { data } = await supabase.auth.getSession();
       if (!data.session?.access_token) throw new Error('Sessão do painel não encontrada.');
       headers.set('Authorization', `Bearer ${data.session.access_token}`);
     }
-    return await fetch(url, { signal: controle.signal, headers });
+    return await fetch(url, { ...options, signal: controle.signal, headers });
   } finally {
     clearTimeout(timer);
   }
@@ -105,6 +105,31 @@ export async function criarGrupoPeloBot(sessaoId: string, nome: string, comunida
   } catch (erro) {
     throw erro instanceof Error ? erro : new Error('Falha ao criar o grupo pelo bot.');
   }
+}
+
+export interface BotSalaTransmissao {
+  chatId: string;
+  nome: string;
+  inviteUrl: string | null;
+}
+
+export async function criarSalaTransmissaoPeloBot(sessaoId: string, nome: string, descricao = ''): Promise<BotSalaTransmissao> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/transmissao`,
+    30_000,
+    true,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nome, description: descricao }),
+    },
+  );
+  const dados = record(await resposta.json());
+  const chatId = string(dados?.chat_id);
+  if (!resposta.ok || dados?.ok !== true || !chatId?.endsWith('@newsletter')) {
+    throw new Error(string(dados?.motivo) ?? 'O WhatsApp não confirmou a criação da sala de transmissão.');
+  }
+  return { chatId, nome: string(dados?.nome) ?? nome, inviteUrl: string(dados?.invite_url) };
 }
 
 export async function sincronizarChatsBot(sessaoId: string): Promise<boolean> {
@@ -498,6 +523,38 @@ export async function fetchBotQrObjectUrl(sessaoId: string): Promise<string> {
   return URL.createObjectURL(await resposta.blob());
 }
 
+export async function requestBotPairingCode(sessaoId: string, phone: string): Promise<string> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/pairing-code`,
+    30_000,
+    true,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    },
+  );
+  const dados = record(await resposta.json());
+  const codigo = string(dados?.code);
+  if (!resposta.ok || dados?.ok !== true || !codigo) {
+    throw new Error(string(dados?.motivo) ?? 'Não foi possível gerar o código de vinculação.');
+  }
+  return codigo;
+}
+
+export async function removerSessaoBot(sessaoId: string): Promise<void> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}`,
+    30_000,
+    true,
+    { method: 'DELETE' },
+  );
+  const dados = record(await resposta.json());
+  if (!resposta.ok || dados?.ok !== true) {
+    throw new Error(string(dados?.motivo) ?? 'Não foi possível remover a sessão do WhatsApp.');
+  }
+}
+
 export async function openBotQr(sessaoId: string): Promise<void> {
   const popup = window.open('about:blank', '_blank');
   if (popup) popup.opener = null;
@@ -826,8 +883,8 @@ export interface CanalDraft {
   telefoneAdmin?: string | null;
 }
 
-export async function saveCanal(draft: CanalDraft): Promise<void> {
-  const { error } = await rpc('portal_upsert_canal_externo', {
+export async function saveCanal(draft: CanalDraft): Promise<string> {
+  const { data, error } = await rpc('portal_upsert_canal_externo', {
     p_payload: {
       id: draft.id ?? null,
       nome: draft.nome,
@@ -837,6 +894,9 @@ export async function saveCanal(draft: CanalDraft): Promise<void> {
     },
   });
   if (error) throw new Error(error.message);
+  const id = string(data);
+  if (!id) throw new Error('O painel não confirmou o identificador do destino criado.');
+  return id;
 }
 
 export async function setCanalAtivo(id: string, ativo: boolean): Promise<void> {

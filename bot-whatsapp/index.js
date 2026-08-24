@@ -22,6 +22,7 @@ const {
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./supabase-auth-state');
 const { sameOrganization } = require('./organization-isolation');
+const { classifyDisconnect, normalizePairingPhone, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -44,6 +45,8 @@ const PORT = Number(process.env.PORT || 8787);
 const POLL_MS = Number(process.env.POLL_MS || 5000);
 const CHAT_SYNC_MS = Number(process.env.CHAT_SYNC_MS || 10 * 60 * 1000);
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 20_000);
+const MAX_RECONNECT_ATTEMPTS = 5;
+const PAIRING_CODE_COOLDOWN_MS = 30_000;
 const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
   || 'https://tcsvistoria.pages.dev,https://tcsvisto.netlify.app,https://tcsvistoria.netlify.app,http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
@@ -185,6 +188,7 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     ultimoErro: null,
     clearState,
     encerramentoSolicitado: false,
+    pairingCodeRequestedAt: 0,
   };
   sessoes.set(linha.id, sessao);
   await reportarSessao(sessao);
@@ -243,21 +247,35 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       const codigo = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
         ? lastDisconnect.error.output.statusCode
         : null;
-      const deslogado = codigo === DisconnectReason.loggedOut;
-      sessao.fase = deslogado ? 'banido' : 'reconectando';
-      sessao.ultimoErro = deslogado
-        ? 'Sessão encerrada pelo WhatsApp (número des conectado/banido) — vincule o número novamente.'
-        : `desconectado (código ${codigo})`;
-      log('sessao', `${sessao.orgNome}: conexão fechada — ${deslogado ? 'deslogado, requer novo QR' : 'vai reconectar'}`);
-      await reportarSessao(sessao, deslogado ? 'offline' : 'reconnecting');
-      if (deslogado) {
-        await atualizarSessaoDb(sessao.id, { status: 'desconectado', atualizado_em: agoraIso() });
+      const resultado = classifyDisconnect({
+        code: codigo,
+        loggedOutCode: DisconnectReason.loggedOut,
+        attempt: tentativaReconexao,
+        maxAttempts: MAX_RECONNECT_ATTEMPTS,
+      });
+      sessao.fase = resultado.state === 'awaiting_qr'
+        ? 'aguardando_qr'
+        : resultado.state === 'reconnecting' ? 'reconectando' : 'desconectado';
+      sessao.ultimoErro = resultado.clearCredentials
+        ? 'Sessão encerrada pelo WhatsApp. Vincule o número novamente com QR Code ou código.'
+        : resultado.retry
+          ? `Conexão interrompida (código ${codigo}). Tentativa ${tentativaReconexao + 1} de ${MAX_RECONNECT_ATTEMPTS}.`
+          : `Conexão interrompida (código ${codigo}). Limite de reconexões atingido; reconecte pelo painel.`;
+      log('sessao', `${sessao.orgNome}: conexão fechada — ${resultado.clearCredentials ? 'requer novo vínculo' : resultado.retry ? `tentativa ${tentativaReconexao + 1}/${MAX_RECONNECT_ATTEMPTS}` : 'reconexão automática encerrada'}`);
+      await reportarSessao(sessao, resultado.state);
+
+      if (resultado.databaseStatus) {
+        await atualizarSessaoDb(sessao.id, { status: resultado.databaseStatus, atualizado_em: agoraIso() });
+      }
+      if (resultado.clearCredentials) {
         await clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${linha.id}`, erro));
         sessoes.delete(sessao.id);
-      } else if (tentativaReconexao < 5) {
+      } else if (resultado.retry) {
         setTimeout(() => {
           iniciarSessao(linha, tentativaReconexao + 1).catch((erro) => log('sessao', `Reconexão falhou ${linha.id}`, erro));
-        }, 3_000 * (tentativaReconexao + 1));
+        }, resultado.delayMs);
+      } else {
+        sessoes.delete(sessao.id);
       }
     }
   });
@@ -395,13 +413,14 @@ async function processarFila() {
 
     const candidatos = await candidatosDoChat(canal.organization_id, canal.chat_id);
     if (candidatos.length === 0) {
-      await finalizarEnvio(item.id, null, 'falhou', 'Nenhum número vinculado desta prefeitura enxerga o chat da comunidade.', []);
+      await devolverEnvioParaFila(item.id, 'Aguardando um número desta organização reconectar ao WhatsApp.');
       continue;
     }
 
     const texto = textoComunicado(comunicado, org && org.display_name);
     const tentativas = [];
     let sucesso = null;
+    let enviosTentados = 0;
     for (const candidato of candidatos) {
       const sessao = sessoes.get(candidato.sessaoId);
       if (!sessao || sessao.fase !== 'vinculado' || !sameOrganization(canal.organization_id, sessao.orgId)) {
@@ -409,6 +428,7 @@ async function processarFila() {
         continue;
       }
       try {
+        enviosTentados += 1;
         await sessao.socket.sendMessage(canal.chat_id, { text: texto });
         sucesso = candidato;
         break;
@@ -419,13 +439,31 @@ async function processarFila() {
       }
     }
 
-    if (sucesso) {
+    const resultado = classifyDeliveryOutcome({ success: Boolean(sucesso), attemptedSends: enviosTentados });
+    if (resultado === 'enviado' && sucesso) {
       await finalizarEnvio(item.id, sucesso.sessaoId, 'enviado', null, tentativas);
       log('envio', `Enviado em "${canal.nome}" pelo número ${sucesso.telefone}${tentativas.length ? ` (após ${tentativas.length} falha${tentativas.length === 1 ? '' : 's'})` : ''}`);
+    } else if (resultado === 'pendente') {
+      await devolverEnvioParaFila(item.id, 'Aguardando a conexão de um número autorizado para este grupo.');
     } else {
       await finalizarEnvio(item.id, null, 'falhou', tentativas.map((t) => `${t.telefone}: ${t.erro}`).join(' | ').slice(0, 500), tentativas);
     }
   }
+}
+
+async function devolverEnvioParaFila(envioId, motivo) {
+  const { error } = await supabase
+    .from('canal_envios')
+    .update({
+      status: 'pendente',
+      erro: motivo,
+      processing_started_at: null,
+      worker_id: null,
+      bot_atualizado_em: agoraIso(),
+    })
+    .eq('id', envioId)
+    .eq('worker_id', WORKER_ID);
+  if (error) log('fila', `Falha ao devolver envio ${envioId} para a fila`, error);
 }
 
 async function finalizarEnvio(envioId, sessaoId, status, erro, tentativas) {
@@ -454,17 +492,18 @@ const app = express();
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   const origin = req.get('origin');
-  if (origin && DASHBOARD_ORIGINS.has(origin)) {
+  if (isAllowedDashboardOrigin(origin, DASHBOARD_ORIGINS)) {
     res.set('Access-Control-Allow-Origin', origin);
     res.set('Vary', 'Origin');
     res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   }
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'no-referrer');
   if (req.method === 'OPTIONS') res.sendStatus(204);
   else next();
 });
+app.use(express.json({ limit: '2kb' }));
 
 function authorizeSession({ manage = false } = {}) {
   return async (req, res, next) => {
@@ -522,6 +561,132 @@ app.get('/sessao/:id/status', canReadSession, (req, res) => {
     qrGeradoEm: sessao.qrGeradoEm ? sessao.qrGeradoEm.toISOString() : null,
     ultimoErro: sessao.ultimoErro,
   });
+});
+
+app.delete('/sessao/:id', canManageSession, async (req, res) => {
+  const sessionId = req.params.id;
+
+  try {
+    try {
+      await pararSessao(sessionId, { sair: true });
+    } catch (error) {
+      log('sessao', `Falha ao encerrar sessão ${sessionId}; a exclusão removerá as credenciais restantes.`, error);
+      const activeSession = sessoes.get(sessionId);
+      if (activeSession) {
+        activeSession.encerramentoSolicitado = true;
+        try { activeSession.socket?.end?.(new Error('sessão removida pelo painel')); } catch (_error) { /* socket encerrado */ }
+        sessoes.delete(sessionId);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('bot_sessoes')
+      .delete()
+      .eq('id', sessionId)
+      .select('id')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      res.status(404).json({ ok: false, motivo: 'Esta sessão já foi removida.' });
+      return;
+    }
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true });
+  } catch (error) {
+    log('sessao', `Falha ao remover sessão ${sessionId}`, error);
+    res.status(502).json({ ok: false, motivo: 'Não foi possível remover este número. Tente novamente.' });
+  }
+});
+
+app.post('/sessao/:id/pairing-code', canManageSession, async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao || !sessao.socket) {
+    res.status(404).json({ ok: false, motivo: 'Sessão não encontrada. Aguarde o serviço iniciar e tente novamente.' });
+    return;
+  }
+  if (sessao.fase === 'vinculado' || sessao.socket.authState?.creds?.registered) {
+    res.status(409).json({ ok: false, motivo: 'Este número já possui vínculo ativo.' });
+    return;
+  }
+
+  const telefone = normalizePairingPhone(req.body?.phone);
+  if (!telefone) {
+    res.status(400).json({ ok: false, motivo: 'Informe um telefone brasileiro válido com DDD.' });
+    return;
+  }
+  if (typeof sessao.socket.requestPairingCode !== 'function') {
+    res.status(501).json({ ok: false, motivo: 'Vinculação por código indisponível nesta versão do WhatsApp.' });
+    return;
+  }
+  if (Date.now() - sessao.pairingCodeRequestedAt < PAIRING_CODE_COOLDOWN_MS) {
+    res.status(429).json({ ok: false, motivo: 'Aguarde alguns segundos antes de solicitar outro código.' });
+    return;
+  }
+
+  try {
+    sessao.pairingCodeRequestedAt = Date.now();
+    const codigo = await sessao.socket.requestPairingCode(telefone);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, code: formatPairingCode(codigo) });
+  } catch (erro) {
+    sessao.pairingCodeRequestedAt = 0;
+    log('sessao', `Falha ao gerar código de vinculação para a sessão ${sessao.id}`, erro);
+    res.status(502).json({ ok: false, motivo: 'O WhatsApp não gerou o código. Aguarde o QR aparecer e tente novamente.' });
+  }
+});
+
+app.post('/sessao/:id/transmissao', canManageSession, async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao || sessao.fase !== 'vinculado' || !sessao.socket?.user?.id) {
+    res.status(409).json({ ok: false, motivo: 'Conecte um número da organização antes de criar a sala de transmissão.' });
+    return;
+  }
+
+  const nome = String(req.body?.name || '').trim();
+  const descricao = String(req.body?.description || '').trim();
+  if (nome.length < 3 || nome.length > 80 || descricao.length > 280) {
+    res.status(400).json({ ok: false, motivo: 'Informe um nome entre 3 e 80 caracteres e uma descrição de até 280 caracteres.' });
+    return;
+  }
+  if (typeof sessao.socket.newsletterCreate !== 'function') {
+    res.status(501).json({ ok: false, motivo: 'Esta versão do WhatsApp não permite criar canais oficiais de transmissão.' });
+    return;
+  }
+
+  try {
+    const canal = await sessao.socket.newsletterCreate(nome, descricao || undefined);
+    if (!isBroadcastRoomJid(canal?.id)) {
+      res.status(502).json({ ok: false, motivo: 'O WhatsApp não confirmou a criação de um canal oficial.' });
+      return;
+    }
+
+    const { error } = await supabase.from('bot_chats').upsert({
+      sessao_id: sessao.id,
+      chat_id: canal.id,
+      nome,
+      tipo: 'transmissao',
+      comunidade_id: null,
+      comunidade_nome: null,
+      total_admins: 1,
+      total_participantes: Number.isFinite(canal.subscribers) ? canal.subscribers : 0,
+      visto_em: agoraIso(),
+    }, { onConflict: 'sessao_id,chat_id' });
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ok: true,
+      chat_id: canal.id,
+      nome,
+      invite_url: typeof canal.invite === 'string' && canal.invite
+        ? `https://whatsapp.com/channel/${encodeURIComponent(canal.invite)}`
+        : null,
+    });
+  } catch (erro) {
+    log('transmissao', `Falha ao criar sala de transmissão na sessão ${sessao.id}`, erro);
+    res.status(502).json({ ok: false, motivo: 'O WhatsApp não conseguiu criar a sala de transmissão. Tente novamente.' });
+  }
 });
 
 // Verificação SEM falso positivo: conexão aberta + usuário autenticado + leitura
