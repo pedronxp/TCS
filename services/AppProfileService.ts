@@ -75,3 +75,9 @@ export function buildInternalOwnerAppProfile(
 export function isInternalMobileRole(role: string | null | undefined): role is InternalMobileRole {
   return INTERNAL_MOBILE_ROLES.has(role as InternalMobileRole);
 }
+
+export function isActiveInternalMobileStaff(
+  staff: Pick<InternalStaffProfilePayload, 'role' | 'status'> | null | undefined,
+): boolean {
+  return Boolean(staff && staff.status === 'active' && isInternalMobileRole(staff.role));
+}

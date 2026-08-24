@@ -16,7 +16,7 @@ import {
   getPublicAuthCapabilities,
   signInCustomerWithGoogle,
 } from '../../services/CustomerAuthService';
-import { isNeutralCustomerProfile } from '../../services/AppProfileService';
+import { isActiveInternalMobileStaff, isNeutralCustomerProfile } from '../../services/AppProfileService';
 
 export default function LoginScreen() {
   const { theme } = useTheme();
@@ -76,32 +76,34 @@ export default function LoginScreen() {
         throw authError;
       }
 
-      const { data: userData, error: userError } = await supabase.rpc('get_my_user_profile');
+      const [customerResult, staffResult] = await Promise.all([
+        supabase.rpc('get_my_user_profile'),
+        supabase.rpc('get_internal_staff_profile'),
+      ]);
+      const { data: userData, error: userError } = customerResult;
+      const { data: staffData, error: staffError } = staffResult;
+      const staff = staffData as { role?: string; status?: string } | null;
+      const activeInternalStaff = isActiveInternalMobileStaff(staff);
 
-      if (userError) {
+      if (userError && !activeInternalStaff) {
         await supabase.auth.signOut();
         throw new Error('Não foi possível validar o perfil desta conta. Tente novamente.');
       }
 
-      // Conta owner não requer aprovação manual — é aprovada pelo sistema de onboarding
-      const isOwnerRole = userData?.role === 'owner';
       const isNeutralCustomer = isNeutralCustomerProfile(userData);
 
-      // Proprietários criados no console web vivem em internal_staff e não
-      // precisam de uma linha duplicada em public.users. A autorização continua
-      // sendo validada pelo RPC seguro do próprio usuário autenticado.
-      if (!userData) {
-        const { data: staffData, error: staffError } = await supabase.rpc('get_internal_staff_profile');
-        const staff = staffData as { role?: string; status?: string } | null;
+      // Staff ativo e autorizado sempre prevalece sobre um perfil municipal
+      // legado. A validação usa apenas RPCs vinculados ao usuário autenticado.
+      if (!userData && !activeInternalStaff) {
         if (staffError) {
           await supabase.auth.signOut();
           throw new Error('Não foi possível validar o perfil desta conta. Tente novamente.');
         }
-        if (staff && (staff.role !== 'owner' || staff.status !== 'active')) {
+        if (staff) {
           await supabase.auth.signOut();
           throw new Error('Esta conta não possui acesso operacional ao aplicativo.');
         }
-      } else if (!userData.isApproved && !isOwnerRole && !isNeutralCustomer) {
+      } else if (!activeInternalStaff && userData && !userData.isApproved && !isNeutralCustomer) {
         await supabase.auth.signOut();
         await recordLoginAttempt(emailNorm);
         registrarAuditoria({
