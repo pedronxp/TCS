@@ -206,7 +206,11 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       sessao.fase = 'aguardando_qr';
       sessao.qr = qr;
       sessao.qrGeradoEm = new Date();
-      qrcodeTerminal.generate(qr, { small: true }, (codigo) => console.log(codigo));
+      // O QR contém credencial temporária e não deve aparecer nos logs do
+      // provedor. A impressão fica disponível apenas para depuração local opt-in.
+      if (process.env.PRINT_QR_TERMINAL === 'true') {
+        qrcodeTerminal.generate(qr, { small: true }, (codigo) => console.log(codigo));
+      }
       log('sessao', `${sessao.orgNome}: QR gerado às ${sessao.qrGeradoEm.toLocaleTimeString('pt-BR')} — painel em /sessao/${sessao.id}`);
       await reportarSessao(sessao, 'awaiting_qr');
     }
