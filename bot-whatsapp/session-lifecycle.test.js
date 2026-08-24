@@ -76,6 +76,23 @@ test('identifica somente canais oficiais do WhatsApp como salas de transmissão 
   assert.equal(lifecycle.isBroadcastRoomJid?.(null), false);
 });
 
+test('autoriza previews do Cloudflare pertencentes ao domínio de produção configurado', () => {
+  const allowedOrigins = new Set(['https://tcsvistoria.pages.dev']);
+
+  assert.equal(lifecycle.isAllowedDashboardOrigin?.('https://tcsvistoria.pages.dev', allowedOrigins), true);
+  assert.equal(lifecycle.isAllowedDashboardOrigin?.('https://707af5f2.tcsvistoria.pages.dev', allowedOrigins), true);
+  assert.equal(lifecycle.isAllowedDashboardOrigin?.('https://codex-whatsapp.tcsvistoria.pages.dev', allowedOrigins), true);
+});
+
+test('rejeita origens externas que tentam imitar um preview autorizado', () => {
+  const allowedOrigins = new Set(['https://tcsvistoria.pages.dev']);
+
+  assert.equal(lifecycle.isAllowedDashboardOrigin?.('https://outro.pages.dev', allowedOrigins), false);
+  assert.equal(lifecycle.isAllowedDashboardOrigin?.('https://tcsvistoria.pages.dev.exemplo.com', allowedOrigins), false);
+  assert.equal(lifecycle.isAllowedDashboardOrigin?.('http://707af5f2.tcsvistoria.pages.dev', allowedOrigins), false);
+  assert.equal(lifecycle.isAllowedDashboardOrigin?.('https://nested.preview.tcsvistoria.pages.dev', allowedOrigins), false);
+});
+
 test('exige autorização da organização e canal oficial para criar uma sala de transmissão', () => {
   const server = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
   assert.match(server, /app\.post\('\/sessao\/:id\/transmissao', canManageSession/);

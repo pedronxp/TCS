@@ -158,12 +158,12 @@ export function ConsoleWhatsAppCommunitiesPage() {
         <>
           <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo de comunidades">
             <Summary label="Comunidades no painel" value={organization.canais.length} icon={Megaphone} />
-            <Summary label="Destinos prontos" value={organization.canais.filter((channel) => channel.ativo && channel.chatId).length} icon={CheckCircle2} />
+            <Summary label="Destinos prontos" value={groupsVisible ? organization.canais.filter((channel) => channel.ativo && channel.chatId).length : 0} icon={CheckCircle2} />
             <Summary label="Grupos oficiais visíveis" value={groupsVisible ? hierarchy.communities.reduce((total, [, community]) => total + community.chats.length, hierarchy.standalone.length) : 0} icon={Users} />
           </section>
 
-          {groupsVisible && <section className="grid items-start gap-6 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
-            <div className="space-y-6"><Card data-tutorial="community-create">
+          <section className="grid items-start gap-6 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
+            <div className="space-y-6">{groupsVisible && <Card data-tutorial="community-create">
               <CardHeader><CardTitle className="flex items-center gap-2"><Plus />Nova comunidade</CardTitle></CardHeader>
               <CardContent>
                 <p className="mb-5 text-sm leading-6 text-muted-foreground">Cadastre o nome que aparecerá nos comunicados e associe o grupo oficial de anúncios.</p>
@@ -173,11 +173,11 @@ export function ConsoleWhatsAppCommunitiesPage() {
                   <Button type="submit" disabled={createCommunity.isPending || nome.trim().length < 3}><Plus />{createCommunity.isPending ? 'Cadastrando…' : 'Cadastrar comunidade'}</Button>
                 </form>
               </CardContent>
-            </Card>
+            </Card>}
 
-            <Card className="overflow-hidden"><CardHeader className="border-b bg-secondary/15"><CardTitle className="flex items-center gap-2"><Megaphone />Sala de transmissão</CardTitle></CardHeader><CardContent className="space-y-4 pt-5"><div className="flex gap-3 rounded-xl bg-primary/5 p-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><p className="text-xs leading-5 text-muted-foreground">Canais oficiais do WhatsApp não mostram os números dos seguidores para os demais participantes.</p></div><form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (broadcastName.trim().length >= 3) setConfirmation({ action: 'create_room', name: broadcastName.trim() }); }}><label className="block text-sm font-medium">Nome da sala<Input className="mt-1.5" value={broadcastName} onChange={(event) => setBroadcastName(event.target.value)} placeholder="Ex.: Alertas oficiais" minLength={3} maxLength={80} required /></label><label className="block text-sm font-medium">Descrição<Input className="mt-1.5" value={broadcastDescription} onChange={(event) => setBroadcastDescription(event.target.value)} placeholder="Opcional" maxLength={280} /></label><Button type="submit" disabled={!linkedSession || createBroadcastRoom.isPending || broadcastName.trim().length < 3}><Plus />{createBroadcastRoom.isPending ? 'Criando sala…' : 'Criar sala de transmissão'}</Button></form></CardContent></Card></div>
+            <Card className="overflow-hidden"><CardHeader className="border-b bg-secondary/15"><CardTitle className="flex items-center gap-2"><Megaphone />Sala de transmissão</CardTitle></CardHeader><CardContent className="space-y-4 pt-5"><div className="flex gap-3 rounded-xl bg-primary/5 p-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><p className="text-xs leading-5 text-muted-foreground">Canais oficiais do WhatsApp não mostram os números dos seguidores para os demais participantes.</p></div>{!linkedSession && <p className="rounded-xl border border-dashed bg-secondary/20 p-4 text-sm leading-6 text-muted-foreground">Conecte um número autorizado para criar e visualizar salas de transmissão.</p>}<form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (linkedSession && broadcastName.trim().length >= 3) setConfirmation({ action: 'create_room', name: broadcastName.trim() }); }}><label className="block text-sm font-medium">Nome da sala<Input className="mt-1.5" value={broadcastName} onChange={(event) => setBroadcastName(event.target.value)} placeholder="Ex.: Alertas oficiais" minLength={3} maxLength={80} disabled={!linkedSession} required /></label><label className="block text-sm font-medium">Descrição<Input className="mt-1.5" value={broadcastDescription} onChange={(event) => setBroadcastDescription(event.target.value)} placeholder="Opcional" maxLength={280} disabled={!linkedSession} /></label><Button type="submit" disabled={!linkedSession || createBroadcastRoom.isPending || broadcastName.trim().length < 3}><Plus />{createBroadcastRoom.isPending ? 'Criando sala…' : 'Criar sala de transmissão'}</Button></form></CardContent></Card></div>
 
-            <div className="space-y-6" data-tutorial="community-list">
+            {groupsVisible && <div className="space-y-6" data-tutorial="community-list">
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><Link2 />Destinos configurados</CardTitle></CardHeader>
                 <CardContent>
@@ -206,8 +206,8 @@ export function ConsoleWhatsAppCommunitiesPage() {
                   {organization.chats.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum grupo sincronizado ainda.</p>}
                 </CardContent>
               </Card>
-            </div>
-          </section>}
+            </div>}
+          </section>
         </>
       )}
 

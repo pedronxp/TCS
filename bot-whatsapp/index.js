@@ -22,7 +22,7 @@ const {
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./supabase-auth-state');
 const { sameOrganization } = require('./organization-isolation');
-const { classifyDisconnect, normalizePairingPhone, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid } = require('./session-lifecycle');
+const { classifyDisconnect, normalizePairingPhone, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -492,11 +492,11 @@ const app = express();
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   const origin = req.get('origin');
-  if (origin && DASHBOARD_ORIGINS.has(origin)) {
+  if (isAllowedDashboardOrigin(origin, DASHBOARD_ORIGINS)) {
     res.set('Access-Control-Allow-Origin', origin);
     res.set('Vary', 'Origin');
     res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   }
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'no-referrer');
@@ -561,6 +561,42 @@ app.get('/sessao/:id/status', canReadSession, (req, res) => {
     qrGeradoEm: sessao.qrGeradoEm ? sessao.qrGeradoEm.toISOString() : null,
     ultimoErro: sessao.ultimoErro,
   });
+});
+
+app.delete('/sessao/:id', canManageSession, async (req, res) => {
+  const sessionId = req.params.id;
+
+  try {
+    try {
+      await pararSessao(sessionId, { sair: true });
+    } catch (error) {
+      log('sessao', `Falha ao encerrar sessão ${sessionId}; a exclusão removerá as credenciais restantes.`, error);
+      const activeSession = sessoes.get(sessionId);
+      if (activeSession) {
+        activeSession.encerramentoSolicitado = true;
+        try { activeSession.socket?.end?.(new Error('sessão removida pelo painel')); } catch (_error) { /* socket encerrado */ }
+        sessoes.delete(sessionId);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('bot_sessoes')
+      .delete()
+      .eq('id', sessionId)
+      .select('id')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      res.status(404).json({ ok: false, motivo: 'Esta sessão já foi removida.' });
+      return;
+    }
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true });
+  } catch (error) {
+    log('sessao', `Falha ao remover sessão ${sessionId}`, error);
+    res.status(502).json({ ok: false, motivo: 'Não foi possível remover este número. Tente novamente.' });
+  }
 });
 
 app.post('/sessao/:id/pairing-code', canManageSession, async (req, res) => {

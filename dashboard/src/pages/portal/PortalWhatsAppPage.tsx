@@ -18,6 +18,7 @@ import {
   fetchCanais,
   fetchSessoesBot,
   operarSessaoBot,
+  removerSessaoBot,
   saveCanal,
   setCanalAtivo,
   vincularCanalChat,
@@ -31,6 +32,12 @@ type CommunityConfirmation =
   | { action: 'toggle'; id: string; name: string; active: boolean }
   | { action: 'delete'; id: string; name: string }
   | { action: 'unlink'; id: string; name: string };
+
+type SessionConfirmation = {
+  id: string;
+  action: SessaoBotAcao | 'remover';
+  phone: string;
+};
 
 const sessaoLabels: Record<SessaoBotStatus, string> = {
   aguardando_qr: 'Aguardando leitura do QR',
@@ -57,6 +64,7 @@ export function PortalWhatsAppPage() {
   const [error, setError] = useState<string | null>(null);
   const [pairingSessionId, setPairingSessionId] = useState<string | null>(null);
   const [communityConfirmation, setCommunityConfirmation] = useState<CommunityConfirmation | null>(null);
+  const [sessionConfirmation, setSessionConfirmation] = useState<SessionConfirmation | null>(null);
 
   const channelsQuery = useQuery({
     queryKey: ['portal', 'canais', organizationId],
@@ -169,8 +177,15 @@ export function PortalWhatsAppPage() {
     onError: (mutationError: Error) => setError(mutationError.message),
   });
   const updateSession = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: SessaoBotAcao }) => operarSessaoBot(id, action),
-    onSuccess: refresh,
+    mutationFn: ({ id, action }: { id: string; action: SessaoBotAcao | 'remover' }) => action === 'remover'
+      ? removerSessaoBot(id)
+      : operarSessaoBot(id, action),
+    onSuccess: async (_, { id, action }) => {
+      if (action === 'remover') setNotice('Número removido. Credenciais e grupos sincronizados foram apagados.');
+      if (action === 'reconectar') setPairingSessionId(id);
+      setSessionConfirmation(null);
+      await refresh();
+    },
     onError: (mutationError: Error) => setError(mutationError.message),
   });
   const confirmCommunityAction = () => {
@@ -237,7 +252,7 @@ export function PortalWhatsAppPage() {
         <Summary label="Serviço" value={!mayManage ? 'Restrito' : runtimeQuery.data?.serviceOnline ? 'Online' : 'Offline'} icon={runtimeQuery.data?.serviceOnline ? Wifi : WifiOff} />
         <Summary label="Números online" value={mayManage ? String(runtimeQuery.data?.sessionsOnline ?? 0) : '—'} icon={Smartphone} />
         <Summary label="Comunidades ativas" value={String(activeChannels.length)} icon={Users} />
-        <Summary label="Envio automático" value={mayManage ? `${linkedChannels.length}/${activeChannels.length}` : '—'} icon={Link2} />
+        <Summary label="Envio automático" value={mayManage ? `${groupsVisible ? linkedChannels.length : 0}/${activeChannels.length}` : '—'} icon={Link2} />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.3fr]">
@@ -266,17 +281,18 @@ export function PortalWhatsAppPage() {
                 return (
                 <li key={session.id} className="py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0"><p className="break-words text-sm font-semibold">{session.telefone ?? 'Número ainda não identificado'}</p><p className="mt-1 text-xs text-muted-foreground">{session.totalChats} grupo{session.totalChats === 1 ? '' : 's'} sincronizado{session.totalChats === 1 ? '' : 's'}{session.vinculadoPorNome ? ` · por ${session.vinculadoPorNome}` : ''}</p></div>
+                    <div className="min-w-0"><p className="break-words text-sm font-semibold">{session.telefone ?? 'Número ainda não identificado'}</p><p className="mt-1 text-xs text-muted-foreground">{liveSession?.runtimeState === 'online' ? `${session.totalChats} grupo${session.totalChats === 1 ? '' : 's'} sincronizado${session.totalChats === 1 ? '' : 's'}${session.vinculadoPorNome ? ` · por ${session.vinculadoPorNome}` : ''}` : session.status === 'banido' ? 'Sessão encerrada; remova este registro.' : 'Sem vínculo ativo com o WhatsApp.'}</p></div>
                     <Badge variant={liveSession?.runtimeState === 'online' ? 'success' : liveSession?.runtimeState === 'offline' || liveSession?.runtimeState === 'banned' ? 'destructive' : sessionVariant(session.status)}>{liveLabel}</Badge>
                   </div>
                   {liveSession?.lastSeenAt && <p className="mt-2 text-xs text-muted-foreground">Último sinal: {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(liveSession.lastSeenAt))}</p>}
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {(session.status === 'aguardando_qr' || liveSession?.runtimeState === 'awaiting_qr') && <Button size="sm" variant="outline" onClick={() => setPairingSessionId(session.id)}><QrCode />Vincular novamente</Button>}
-                    {session.status === 'vinculado' && liveSession?.runtimeState !== 'offline' && <Button size="sm" variant="outline" disabled={updateSession.isPending} onClick={() => updateSession.mutate({ id: session.id, action: 'desconectar' })}><Unplug />Desconectar</Button>}
+                    {session.status === 'vinculado' && liveSession?.runtimeState !== 'offline' && <Button size="sm" variant="outline" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'desconectar', phone: session.telefone ?? 'este número' })}><Unplug />Desconectar</Button>}
                     {session.status === 'desconectado' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
                     {session.status === 'vinculado' && liveSession?.runtimeState === 'offline' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
-                    {session.status !== 'banido' && session.status !== 'aguardando_qr' && <Button size="sm" variant="ghost" disabled={updateSession.isPending} onClick={() => window.confirm('Sair do WhatsApp removerá as credenciais deste número. Continuar?') && updateSession.mutate({ id: session.id, action: 'sair' })}><LogOut />Sair do WhatsApp</Button>}
-                    {session.status !== 'banido' && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={updateSession.isPending} onClick={() => window.confirm('Marcar este número como banido?') && updateSession.mutate({ id: session.id, action: 'banir' })}>Marcar como banido</Button>}
+                    {session.status !== 'banido' && session.status !== 'aguardando_qr' && <Button size="sm" variant="ghost" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'sair', phone: session.telefone ?? 'este número' })}><LogOut />Sair do WhatsApp</Button>}
+                    {session.status !== 'banido' && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'banir', phone: session.telefone ?? 'este número' })}>Marcar como banido</Button>}
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'remover', phone: session.telefone ?? 'este número' })}><Trash2 />{session.status === 'aguardando_qr' ? 'Cancelar vinculação' : 'Remover número'}</Button>
                   </div>
                 </li>
                 );
@@ -373,6 +389,38 @@ export function PortalWhatsAppPage() {
               {communityConfirmation?.action === 'toggle' && (communityConfirmation.active ? 'Confirmar ativação' : 'Confirmar desativação')}
               {communityConfirmation?.action === 'delete' && 'Confirmar exclusão'}
               {communityConfirmation?.action === 'unlink' && 'Confirmar desvinculação'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={sessionConfirmation !== null} onOpenChange={(open) => !open && setSessionConfirmation(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {sessionConfirmation?.action === 'desconectar' && 'Desconectar temporariamente?'}
+              {sessionConfirmation?.action === 'sair' && 'Sair do WhatsApp neste número?'}
+              {sessionConfirmation?.action === 'banir' && 'Marcar número como banido?'}
+              {sessionConfirmation?.action === 'remover' && 'Remover este número do painel?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {sessionConfirmation?.action === 'desconectar' && `O número ${sessionConfirmation.phone} ficará fora dos envios, mas poderá ser reconectado depois.`}
+              {sessionConfirmation?.action === 'sair' && `O número ${sessionConfirmation.phone} será desconectado e as credenciais salvas serão removidas.`}
+              {sessionConfirmation?.action === 'banir' && `O número ${sessionConfirmation.phone} será retirado do fallback e marcado como banido.`}
+              {sessionConfirmation?.action === 'remover' && `O número ${sessionConfirmation.phone} será removido definitivamente, junto das credenciais e dos grupos exclusivos desta sessão.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className={sessionConfirmation?.action !== 'desconectar' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}
+              disabled={updateSession.isPending}
+              onClick={() => sessionConfirmation && updateSession.mutate({ id: sessionConfirmation.id, action: sessionConfirmation.action })}
+            >
+              {sessionConfirmation?.action === 'remover' ? 'Confirmar remoção'
+                : sessionConfirmation?.action === 'desconectar' ? 'Confirmar desconexão'
+                  : sessionConfirmation?.action === 'sair' ? 'Confirmar saída'
+                    : 'Confirmar banimento'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

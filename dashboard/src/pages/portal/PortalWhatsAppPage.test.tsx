@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   deleteCanal: vi.fn(),
   vincularCanalChat: vi.fn(),
   operarSessaoBot: vi.fn(),
+  removerSessaoBot: vi.fn(),
   openBotQr: vi.fn(),
 }));
 
@@ -81,6 +82,7 @@ describe('operação segura do WhatsApp municipal', () => {
     mocks.deleteCanal.mockReset().mockResolvedValue(undefined);
     mocks.vincularCanalChat.mockReset().mockResolvedValue(undefined);
     mocks.operarSessaoBot.mockReset().mockResolvedValue(undefined);
+    mocks.removerSessaoBot.mockReset().mockResolvedValue(undefined);
     mocks.openBotQr.mockReset().mockResolvedValue(undefined);
   });
 
@@ -94,6 +96,8 @@ describe('operação segura do WhatsApp municipal', () => {
     expect(screen.queryByText('Comunidade Aurora')).not.toBeInTheDocument();
     expect(screen.queryByText('Grupo secreto Aurora')).not.toBeInTheDocument();
     expect(screen.getByText('Comunidades ativas')).toBeVisible();
+    expect(await screen.findByText('0/1')).toBeVisible();
+    expect(screen.queryByText(/2 grupos sincronizados/i)).not.toBeInTheDocument();
     expect(mocks.fetchBotChats).not.toHaveBeenCalled();
   });
 
@@ -113,6 +117,22 @@ describe('operação segura do WhatsApp municipal', () => {
 
     expect(await screen.findByText('ABCD-1234')).toBeVisible();
     expect(mocks.requestBotPairingCode).toHaveBeenCalledWith('session-new', '32984792322');
+  });
+
+  it('remove um número desconectado somente após confirmação explícita', async () => {
+    const user = userEvent.setup();
+    mocks.fetchSessoesBot.mockResolvedValue([{ ...session, status: 'desconectado' }]);
+    mocks.fetchPortalBotRuntimeStatus.mockResolvedValue(runtime(0));
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Remover número' }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('55****2322');
+    expect(mocks.removerSessaoBot).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar remoção' }));
+
+    await waitFor(() => expect(mocks.removerSessaoBot).toHaveBeenCalledWith('session-1'));
   });
 
   it('cria uma sala de transmissão oficial somente após confirmar a ação', async () => {

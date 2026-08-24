@@ -8,11 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { ConsoleComunicadosPage } from './ConsoleComunicadosPage';
 import { ConsoleComunicadoOrgPage } from './ConsoleComunicadoOrgPage';
+import { ConsoleWhatsAppCommunitiesPage } from './ConsoleWhatsAppCommunitiesPage';
 
 const mocks = vi.hoisted(() => ({
   fetchOrgsComunicadosConsole: vi.fn(),
   fetchComunicadosOrgConsole: vi.fn(),
   fetchBotOnline: vi.fn(),
+  removerSessaoBot: vi.fn(),
   salvarComunicadoConsole: vi.fn(),
   definirStatusComunicadoConsole: vi.fn(),
   dispararBotConsole: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock('@/lib/comunicados', async (importOriginal) => ({
   fetchOrgsComunicadosConsole: mocks.fetchOrgsComunicadosConsole,
   fetchComunicadosOrgConsole: mocks.fetchComunicadosOrgConsole,
   fetchBotOnline: mocks.fetchBotOnline,
+  removerSessaoBot: mocks.removerSessaoBot,
   salvarComunicadoConsole: mocks.salvarComunicadoConsole,
   definirStatusComunicadoConsole: mocks.definirStatusComunicadoConsole,
   dispararBotConsole: mocks.dispararBotConsole,
@@ -78,6 +81,7 @@ function renderPage(entry: string) {
           <Route path="/app/comunicacoes" element={<ConsoleComunicadosPage />} />
           <Route path="/app/comunicacoes/:orgId" element={<ConsoleComunicadoOrgPage />} />
           <Route path="/app/whatsapp/:orgId" element={<ConsoleComunicadoOrgPage mode="whatsapp" backTo="/app/whatsapp" backLabel="WhatsApp Bot" />} />
+          <Route path="/app/whatsapp/:orgId/comunidades" element={<ConsoleWhatsAppCommunitiesPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -89,6 +93,7 @@ describe('comunicados no console interno', () => {
     mocks.fetchOrgsComunicadosConsole.mockReset().mockResolvedValue([orgResumo]);
     mocks.fetchComunicadosOrgConsole.mockReset().mockResolvedValue(orgDetalhe);
     mocks.fetchBotOnline.mockReset().mockResolvedValue(true);
+    mocks.removerSessaoBot.mockReset().mockResolvedValue(undefined);
     mocks.salvarComunicadoConsole.mockReset().mockResolvedValue('com-new');
     mocks.definirStatusComunicadoConsole.mockReset().mockResolvedValue(undefined);
     mocks.dispararBotConsole.mockReset().mockResolvedValue(1);
@@ -143,6 +148,53 @@ describe('comunicados no console interno', () => {
     renderPage('/app/whatsapp/org-1');
 
     expect(await screen.findByText(/dados protegidos até um número reconectar/i)).toBeVisible();
+    expect(screen.queryByText('Comunidade Cataguases')).not.toBeInTheDocument();
+    expect(screen.queryByText('Avisos do Centro')).not.toBeInTheDocument();
+  });
+
+  it('usa o heartbeat real para não confundir bloqueio do navegador com serviço offline', async () => {
+    mocks.fetchBotOnline.mockResolvedValue(false);
+    mocks.fetchComunicadosOrgConsole.mockResolvedValue({
+      ...orgDetalhe,
+      runtime: { sessionsOnline: 0, sessionsTotal: 1, serviceOnline: true, state: 'paused', sessions: [] },
+      sessoes: [{ ...orgDetalhe.sessoes[0], status: 'desconectado', runtimeState: 'paused' }],
+    });
+    renderPage('/app/whatsapp/org-1');
+
+    expect(await screen.findByText('Serviço online')).toBeVisible();
+    expect(screen.queryByText('Serviço indisponível')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vincular número' })).toBeEnabled();
+  });
+
+  it('permite remover uma sessão pausada somente depois da confirmação', async () => {
+    const user = userEvent.setup();
+    mocks.fetchComunicadosOrgConsole.mockResolvedValue({
+      ...orgDetalhe,
+      runtime: { sessionsOnline: 0, sessionsTotal: 1, serviceOnline: true, state: 'paused', sessions: [] },
+      sessoes: [{ ...orgDetalhe.sessoes[0], status: 'desconectado', runtimeState: 'paused' }],
+    });
+    renderPage('/app/whatsapp/org-1');
+
+    await user.click(await screen.findByRole('button', { name: 'Remover número' }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('55****9001');
+    expect(mocks.removerSessaoBot).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar remoção' }));
+
+    await waitFor(() => expect(mocks.removerSessaoBot).toHaveBeenCalledWith('s-1'));
+  });
+
+  it('mantém a sala de transmissão visível sem expor grupos quando o WhatsApp está offline', async () => {
+    mocks.fetchComunicadosOrgConsole.mockResolvedValue({
+      ...orgDetalhe,
+      runtime: { sessionsOnline: 0, sessionsTotal: 1, serviceOnline: true, state: 'offline', sessions: [] },
+      sessoes: [{ ...orgDetalhe.sessoes[0], status: 'desconectado', runtimeState: 'offline' }],
+    });
+    renderPage('/app/whatsapp/org-1/comunidades');
+
+    expect(await screen.findByRole('heading', { name: 'Sala de transmissão' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Criar sala de transmissão' })).toBeDisabled();
     expect(screen.queryByText('Comunidade Cataguases')).not.toBeInTheDocument();
     expect(screen.queryByText('Avisos do Centro')).not.toBeInTheDocument();
   });

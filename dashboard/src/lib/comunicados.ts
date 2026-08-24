@@ -542,6 +542,19 @@ export async function requestBotPairingCode(sessaoId: string, phone: string): Pr
   return codigo;
 }
 
+export async function removerSessaoBot(sessaoId: string): Promise<void> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}`,
+    30_000,
+    true,
+    { method: 'DELETE' },
+  );
+  const dados = record(await resposta.json());
+  if (!resposta.ok || dados?.ok !== true) {
+    throw new Error(string(dados?.motivo) ?? 'Não foi possível remover a sessão do WhatsApp.');
+  }
+}
+
 export async function openBotQr(sessaoId: string): Promise<void> {
   const popup = window.open('about:blank', '_blank');
   if (popup) popup.opener = null;

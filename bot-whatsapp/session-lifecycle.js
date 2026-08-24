@@ -53,10 +53,42 @@ function isBroadcastRoomJid(value) {
   return typeof value === 'string' && /^\d+@newsletter$/.test(value);
 }
 
+function isAllowedDashboardOrigin(origin, allowedOrigins) {
+  if (!origin || !allowedOrigins) return false;
+  if (allowedOrigins.has(origin)) return true;
+
+  let requestedOrigin;
+  try {
+    requestedOrigin = new URL(origin);
+  } catch (_error) {
+    return false;
+  }
+  if (requestedOrigin.origin !== origin || requestedOrigin.protocol !== 'https:') return false;
+
+  for (const configuredOrigin of allowedOrigins) {
+    let productionOrigin;
+    try {
+      productionOrigin = new URL(configuredOrigin);
+    } catch (_error) {
+      continue;
+    }
+    if (productionOrigin.protocol !== requestedOrigin.protocol
+      || productionOrigin.port !== requestedOrigin.port
+      || !productionOrigin.hostname.endsWith('.pages.dev')) continue;
+
+    const expectedSuffix = `.${productionOrigin.hostname}`;
+    if (!requestedOrigin.hostname.endsWith(expectedSuffix)) continue;
+    const previewLabel = requestedOrigin.hostname.slice(0, -expectedSuffix.length);
+    if (/^[a-z0-9][a-z0-9-]*$/i.test(previewLabel)) return true;
+  }
+  return false;
+}
+
 module.exports = {
   classifyDisconnect,
   normalizePairingPhone,
   formatPairingCode,
   classifyDeliveryOutcome,
   isBroadcastRoomJid,
+  isAllowedDashboardOrigin,
 };

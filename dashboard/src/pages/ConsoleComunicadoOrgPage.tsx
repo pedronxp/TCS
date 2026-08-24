@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, LogOut, Megaphone, Power, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, LogOut, Megaphone, Power, QrCode, RefreshCw, ShieldCheck, Smartphone, Trash2, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +21,7 @@ import {
   fetchComunicadosOrgConsole,
   mascararTelefone,
   operarSessaoBotConsole,
+  removerSessaoBot,
   salvarCanalConsole,
   salvarComunicadoConsole,
   sincronizarChatsBot,
@@ -100,7 +101,7 @@ export function ConsoleComunicadoOrgPage({
   const queryClient = useQueryClient();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [acaoSessao, setAcaoSessao] = useState<{ id: string; acao: SessaoBotAcao; telefone: string } | null>(null);
+  const [acaoSessao, setAcaoSessao] = useState<{ id: string; acao: SessaoBotAcao | 'remover'; telefone: string } | null>(null);
   const [pairingModalOpen, setPairingModalOpen] = useState(false);
   const [communityAction, setCommunityAction] = useState<'create_group' | 'create_community' | null>(null);
   // Assistente de vinculação: qr -> verificando (sem falso positivo) -> comunidade -> pronto.
@@ -169,7 +170,7 @@ export function ConsoleComunicadoOrgPage({
     queryFn: fetchBotOnline,
     refetchInterval: 15_000,
   });
-  const botOnline = botOnlineQuery.data !== false;
+  const botOnline = org?.runtime?.serviceOnline ?? (botOnlineQuery.data !== false);
 
   const wizardAberto = wizard !== null;
   const botStatusQuery = useQuery({
@@ -350,16 +351,27 @@ export function ConsoleComunicadoOrgPage({
     }
   }
   const sessaoStatusMutation = useMutation({
-    mutationFn: ({ id, acao }: { id: string; acao: SessaoBotAcao }) => operarSessaoBotConsole(id, acao),
+    mutationFn: ({ id, acao }: { id: string; acao: SessaoBotAcao | 'remover' }) => acao === 'remover'
+      ? removerSessaoBot(id)
+      : operarSessaoBotConsole(id, acao),
     onSuccess: async (_, variables) => {
-      const mensagens: Record<SessaoBotAcao, string> = {
+      const mensagens: Record<SessaoBotAcao | 'remover', string> = {
         desconectar: 'Número desconectado. O vínculo foi preservado para uma retomada rápida.',
-        reconectar: 'Reconexão solicitada. O status será atualizado automaticamente.',
+        reconectar: 'Reconexão solicitada. Escolha QR Code ou código de vinculação.',
         sair: 'Saída do WhatsApp solicitada. As credenciais deste número serão removidas com segurança.',
         banir: 'Número marcado como banido e removido do fallback de envio.',
+        remover: 'Número removido. As credenciais, grupos sincronizados e vínculos da sessão foram apagados.',
       };
       setStatusMessage(mensagens[variables.acao]);
       setAcaoSessao(null);
+      if (variables.acao === 'reconectar') {
+        setWizard({ etapa: 'qr', sessaoId: variables.id });
+        setPairingModalOpen(true);
+      }
+      if (variables.acao === 'remover' && wizard?.sessaoId === variables.id) {
+        setWizard(null);
+        setPairingModalOpen(false);
+      }
       invalidate();
     },
     onError: (error: Error) => setErrorMessage(error.message),
@@ -419,7 +431,7 @@ export function ConsoleComunicadoOrgPage({
                     <CardTitle className="flex items-center gap-2"><Smartphone /> Números do bot</CardTitle>
                     <p className="mt-1.5 text-sm text-muted-foreground">Conexões oficiais usadas no envio e na contingência.</p>
                   </div>
-                  {botOnlineQuery.isLoading ? (
+                  {botOnlineQuery.isLoading && !org.runtime ? (
                     <Badge variant="info">Verificando serviço…</Badge>
                   ) : botOnline ? (
                     <Badge variant="success" className="gap-1.5"><Wifi className="h-3.5 w-3.5" /> Serviço online</Badge>
@@ -466,7 +478,7 @@ export function ConsoleComunicadoOrgPage({
                         )}
                         <p className="text-center text-xs text-muted-foreground">Aguardando a confirmação do vínculo pelo WhatsApp…</p>
                         <div className="flex justify-center">
-                          <Button size="sm" variant="ghost" onClick={() => { setWizard(null); setPairingModalOpen(false); }}>Cancelar</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setAcaoSessao({ id: wizard.sessaoId, acao: 'remover', telefone: org.sessoes.find((sessao) => sessao.id === wizard.sessaoId)?.telefone ?? 'este número' })}>Cancelar vinculação</Button>
                         </div>
                       </div>
                     )}
@@ -597,7 +609,11 @@ export function ConsoleComunicadoOrgPage({
                         <span className="min-w-0">
                           <span className="block break-words text-sm font-semibold">{sessao.telefone ?? 'Número ainda não identificado'}</span>
                           <span className="mt-1 block text-xs text-muted-foreground">
-                            {sessao.totalChats} grupo{sessao.totalChats === 1 ? '' : 's'} sincronizado{sessao.totalChats === 1 ? '' : 's'}
+                            {sessao.runtimeState === 'online' || (!org.runtime && sessao.status === 'vinculado')
+                              ? `${sessao.totalChats} grupo${sessao.totalChats === 1 ? '' : 's'} sincronizado${sessao.totalChats === 1 ? '' : 's'}`
+                              : sessao.status === 'banido'
+                                ? 'Sessão encerrada; remova este registro.'
+                                : 'Sem vínculo ativo com o WhatsApp.'}
                           </span>
                         </span>
                         <Badge variant={sessao.runtimeState === 'online' ? 'success' : sessao.runtimeState === 'reconnecting' || sessao.runtimeState === 'starting' ? 'warning' : sessao.runtimeState === 'banned' || sessao.runtimeState === 'offline' ? 'destructive' : sessao.status === 'aguardando_qr' ? 'info' : 'secondary'} className="gap-1.5">
@@ -637,6 +653,15 @@ export function ConsoleComunicadoOrgPage({
                             <Power />Marcar como banido
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          disabled={sessaoStatusMutation.isPending}
+                          onClick={() => setAcaoSessao({ id: sessao.id, acao: 'remover', telefone: sessao.telefone ?? 'este número' })}
+                        >
+                          <Trash2 />{sessao.status === 'aguardando_qr' ? 'Cancelar vinculação' : 'Remover número'}
+                        </Button>
                       </div>
                     </li>
                   ))}
@@ -650,14 +675,17 @@ export function ConsoleComunicadoOrgPage({
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="rounded-xl bg-primary/10 p-2.5 text-primary"><Users className="h-5 w-5" /></span>
                     <div>
-                      <h2 className="font-semibold">Comunidades e grupos</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">{org.canais.length} comunidade{org.canais.length === 1 ? '' : 's'} no painel · {org.canais.filter((canal) => canal.chatId).length} destino{org.canais.filter((canal) => canal.chatId).length === 1 ? '' : 's'} pronto{org.canais.filter((canal) => canal.chatId).length === 1 ? '' : 's'}</p>
+                      <h2 className="font-semibold">Comunidades e salas de transmissão</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">{org.canais.length} destino{org.canais.length === 1 ? '' : 's'} configurado{org.canais.length === 1 ? '' : 's'} · {groupsVisible ? org.canais.filter((canal) => canal.chatId).length : 0} pronto{org.canais.filter((canal) => canal.chatId).length === 1 && groupsVisible ? '' : 's'} para envio</p>
                     </div>
                   </div>
                   <Button asChild variant="outline">
                     <Link to={`/app/whatsapp/${orgId}/comunidades`}>Gerenciar comunidades<ChevronRight /></Link>
                   </Button>
                 </div>
+                <Link to={`/app/whatsapp/${orgId}/comunidades`} className="mt-5 flex items-center justify-between gap-4 rounded-xl border bg-secondary/15 p-4 transition-colors hover:bg-secondary/30">
+                  <span className="flex items-start gap-3"><Megaphone className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><span><span className="block text-sm font-semibold">Sala de transmissão</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Canal oficial do WhatsApp com os números dos participantes protegidos.</span></span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </Link>
                 {!groupsVisible && <p className="mt-5 rounded-xl border border-dashed bg-secondary/20 p-4 text-sm leading-6 text-muted-foreground" role="status"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />Dados protegidos até um número reconectar. Nomes, grupos e vínculos não são exibidos enquanto o WhatsApp estiver offline.</p>}
                 {groupsVisible && org.canais.some((canal) => !canal.chatId) && (
                   <p className="mt-4 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning-foreground">
@@ -866,21 +894,23 @@ export function ConsoleComunicadoOrgPage({
               {acaoSessao?.acao === 'desconectar' && 'Desconectar temporariamente?'}
               {acaoSessao?.acao === 'sair' && 'Sair do WhatsApp neste número?'}
               {acaoSessao?.acao === 'banir' && 'Marcar número como banido?'}
+              {acaoSessao?.acao === 'remover' && 'Remover este número do painel?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {acaoSessao?.acao === 'desconectar' && `O número ${acaoSessao.telefone} ficará fora dos envios, mas o vínculo será preservado para reconectar depois.`}
               {acaoSessao?.acao === 'sair' && `O número ${acaoSessao.telefone} será desconectado e as credenciais salvas serão removidas. Para voltar a usá-lo, será necessário ler um novo QR Code.`}
               {acaoSessao?.acao === 'banir' && `O número ${acaoSessao.telefone} será retirado do fallback e identificado como banido no histórico.`}
+              {acaoSessao?.acao === 'remover' && `O número ${acaoSessao.telefone} será desconectado e removido definitivamente. Credenciais, grupos sincronizados e vínculos exclusivos desta sessão serão apagados.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className={acaoSessao?.acao === 'banir' || acaoSessao?.acao === 'sair' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}
+              className={acaoSessao?.acao === 'banir' || acaoSessao?.acao === 'sair' || acaoSessao?.acao === 'remover' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}
               disabled={sessaoStatusMutation.isPending}
               onClick={() => acaoSessao && sessaoStatusMutation.mutate({ id: acaoSessao.id, acao: acaoSessao.acao })}
             >
-              {acaoSessao?.acao === 'desconectar' ? 'Desconectar' : acaoSessao?.acao === 'sair' ? 'Sair do WhatsApp' : 'Marcar como banido'}
+              {acaoSessao?.acao === 'desconectar' ? 'Desconectar' : acaoSessao?.acao === 'sair' ? 'Sair do WhatsApp' : acaoSessao?.acao === 'remover' ? 'Confirmar remoção' : 'Marcar como banido'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
