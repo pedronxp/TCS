@@ -37,7 +37,7 @@ painel como contingência.
 | `SUPABASE_URL` | sim | URL do projeto Supabase |
 | `SUPABASE_SECRET_KEY` | sim | Chave secreta do backend, **somente no Render** |
 | `BOT_SESSION_ENCRYPTION_KEY` | sim | Segredo com 24+ caracteres usado para AES-256-GCM; trocar exige novo pareamento |
-| `DASHBOARD_ORIGIN` | não | Origem autorizada no CORS (padrão `https://tcsvisto.netlify.app`) |
+| `DASHBOARD_ORIGIN` | não | Origens autorizadas no CORS, separadas por vírgula (inclua `https://tcsvistoria.pages.dev`) |
 | `PORT` | não | porta da tela de QR (padrão 8787) |
 | `POLL_MS` | não | intervalo da fila (padrão 5000) |
 

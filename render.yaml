@@ -14,7 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DASHBOARD_ORIGIN
-        value: https://tcsvisto.netlify.app,https://tcsvistoria.netlify.app
+        value: https://tcsvistoria.pages.dev,https://tcsvisto.netlify.app,https://tcsvistoria.netlify.app
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SECRET_KEY

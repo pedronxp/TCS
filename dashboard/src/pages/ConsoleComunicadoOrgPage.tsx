@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, ChevronRight, Clock, LogOut, Megaphone, Power, RefreshCw, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, LogOut, Megaphone, Power, RefreshCw, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -116,6 +116,7 @@ export function ConsoleComunicadoOrgPage({
   const [comunidadeDestino, setComunidadeDestino] = useState('');
   const [destinosWhatsApp, setDestinosWhatsApp] = useState<string[]>([]);
   const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
+  const [entregasVisiveis, setEntregasVisiveis] = useState(true);
 
   const orgQuery = useQuery({
     queryKey: ['console', 'comunicados', 'org', orgId],
@@ -790,12 +791,25 @@ export function ConsoleComunicadoOrgPage({
 
             {isWhatsAppMode && <Card data-tutorial="console-whatsapp-deliveries">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {entregas.some((entrega) => entrega.status === 'falhou') ? <XCircle /> : <CheckCircle2 />}
-                  Entregas
-                </CardTitle>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2">
+                    {entregas.some((entrega) => entrega.status === 'falhou') ? <XCircle /> : <CheckCircle2 />}
+                    Entregas
+                  </CardTitle>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-expanded={entregasVisiveis}
+                    aria-controls="console-whatsapp-deliveries-content"
+                    onClick={() => setEntregasVisiveis((visible) => !visible)}
+                  >
+                    {entregasVisiveis ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+                    {entregasVisiveis ? 'Ocultar' : 'Exibir'}
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent>
+              {entregasVisiveis && <CardContent id="console-whatsapp-deliveries-content">
                 {entregas.length === 0 && (
                   <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
                     Nenhum disparo ainda. Use "Disparar pelo bot" em um comunicado publicado.
@@ -835,7 +849,7 @@ export function ConsoleComunicadoOrgPage({
                     </li>
                   ))}
                 </ul>
-              </CardContent>
+              </CardContent>}
             </Card>}
 
             {!isWhatsAppMode && <Card data-tutorial="console-communication-history">

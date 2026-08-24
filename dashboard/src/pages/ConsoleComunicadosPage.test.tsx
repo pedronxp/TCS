@@ -114,6 +114,26 @@ describe('comunicados no console interno', () => {
     expect(screen.getByText('55****9001')).toBeInTheDocument();
   });
 
+  it('permite ocultar e exibir o histórico de entregas do WhatsApp', async () => {
+    const user = userEvent.setup();
+    renderPage('/app/whatsapp/org-1');
+
+    const toggle = await screen.findByRole('button', { name: 'Ocultar' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Entregue')).toBeVisible();
+
+    await user.click(toggle);
+
+    expect(screen.getByRole('heading', { name: 'Entregas' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Exibir' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Entregue')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Exibir' }));
+
+    expect(screen.getByText('Entregue')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Ocultar' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('rota de comunicados mantém o editor sem repetir a operação do WhatsApp', async () => {
     renderPage('/app/comunicacoes/org-1');
     expect(await screen.findByRole('heading', { name: 'Nova mensagem' })).toBeVisible();
