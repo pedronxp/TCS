@@ -45,7 +45,7 @@ const POLL_MS = Number(process.env.POLL_MS || 5000);
 const CHAT_SYNC_MS = Number(process.env.CHAT_SYNC_MS || 10 * 60 * 1000);
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 20_000);
 const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
-  || 'https://tcsvisto.netlify.app,http://localhost:5173,http://127.0.0.1:5173')
+  || 'https://tcsvistoria.pages.dev,https://tcsvisto.netlify.app,https://tcsvistoria.netlify.app,http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean));
