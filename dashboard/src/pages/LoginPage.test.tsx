@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe('Login interno', () => {
-  it('mantém os controles essenciais e permite exibir a senha', async () => {
+  it('mantém apenas as ações do Console e permite exibir a senha', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><LoginPage /></MemoryRouter>);
 
@@ -42,6 +42,8 @@ describe('Login interno', () => {
     await user.click(screen.getByRole('button', { name: 'Exibir senha' }));
     expect(password).toHaveAttribute('type', 'text');
     expect(screen.getByRole('button', { name: 'Entrar na TCS Console' })).toBeVisible();
+    expect(screen.queryByText('Não faz parte da equipe interna TCS?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Entrar no Portal TCS/ })).not.toBeInTheDocument();
     const google = screen.getByRole('button', { name: 'Entrar ou criar conta com Google' });
     await user.click(google);
     expect(authState.signInWithGoogle).toHaveBeenCalledOnce();
