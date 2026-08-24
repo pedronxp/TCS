@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, KeyRound, LogOut, Megaphone, Power, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, LogOut, Megaphone, Power, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ComunicadoMessageField, WhatsAppDestinationPicker } from '@/components/domain/ComunicadoComposerFields';
+import { WhatsAppPairingDialog } from '@/components/domain/WhatsAppPairingDialog';
 import { Input } from '@/components/ui/Input';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
-  fetchBotQrObjectUrl,
   criarGrupoPeloBot,
   criarSessaoBotConsole,
   definirStatusComunicadoConsole,
@@ -21,7 +21,6 @@ import {
   fetchComunicadosOrgConsole,
   mascararTelefone,
   operarSessaoBotConsole,
-  requestBotPairingCode,
   salvarCanalConsole,
   salvarComunicadoConsole,
   sincronizarChatsBot,
@@ -102,11 +101,7 @@ export function ConsoleComunicadoOrgPage({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [acaoSessao, setAcaoSessao] = useState<{ id: string; acao: SessaoBotAcao; telefone: string } | null>(null);
-  const [qrTick, setQrTick] = useState(0);
-  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
-  const [pairingMethod, setPairingMethod] = useState<'qr' | 'code'>('qr');
-  const [pairingPhone, setPairingPhone] = useState('');
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingModalOpen, setPairingModalOpen] = useState(false);
   const [communityAction, setCommunityAction] = useState<'create_group' | 'create_community' | null>(null);
   // Assistente de vinculação: qr -> verificando (sem falso positivo) -> comunidade -> pronto.
   const [wizard, setWizard] = useState<{ etapa: 'qr' | 'verificando' | 'comunidade' | 'pronto'; sessaoId: string } | null>(null);
@@ -228,6 +223,7 @@ export function ConsoleComunicadoOrgPage({
   useEffect(() => {
     if (!wizard) return;
     if (wizard.etapa === 'qr' && botStatus?.fase === 'vinculado') {
+      setPairingModalOpen(false);
       setWizard({ ...wizard, etapa: 'verificando' });
     }
   }, [wizard, botStatus?.fase]);
@@ -248,50 +244,14 @@ export function ConsoleComunicadoOrgPage({
     }
   }, [wizard, comunidadeAtiva]);
 
-  useEffect(() => {
-    if (!wizard || wizard.etapa !== 'qr' || pairingMethod !== 'qr') return undefined;
-    const timer = setInterval(() => setQrTick((atual) => atual + 1), 5_000);
-    return () => clearInterval(timer);
-  }, [pairingMethod, wizard]);
-
-  useEffect(() => {
-    if (!wizard || wizard.etapa !== 'qr' || pairingMethod !== 'qr') {
-      setQrImageUrl(null);
-      return undefined;
-    }
-    let active = true;
-    let objectUrl: string | null = null;
-    fetchBotQrObjectUrl(wizard.sessaoId)
-      .then((url) => {
-        objectUrl = url;
-        if (active) setQrImageUrl(url);
-        else URL.revokeObjectURL(url);
-      })
-      .catch(() => { if (active) setQrImageUrl(null); });
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [pairingMethod, qrTick, wizard]);
-
   const sessaoCriarMutation = useMutation({
     mutationFn: criarSessaoBotConsole,
     onSuccess: async (sessaoId) => {
       setStatusMessage(null);
       setErrorMessage(null);
-      setPairingMethod('qr');
-      setPairingCode(null);
       setWizard({ etapa: 'qr', sessaoId });
+      setPairingModalOpen(true);
       invalidate();
-    },
-    onError: (error: Error) => setErrorMessage(error.message),
-  });
-
-  const pairingCodeMutation = useMutation({
-    mutationFn: () => requestBotPairingCode(wizard?.sessaoId as string, pairingPhone),
-    onSuccess: (code) => {
-      setPairingCode(code);
-      setErrorMessage(null);
     },
     onError: (error: Error) => setErrorMessage(error.message),
   });
@@ -498,34 +458,7 @@ export function ConsoleComunicadoOrgPage({
 
                     {wizard.etapa === 'qr' && (
                       <div className="mt-4 space-y-4">
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="button" size="sm" variant={pairingMethod === 'qr' ? 'default' : 'outline'} onClick={() => setPairingMethod('qr')}><QrCode />Usar QR Code</Button>
-                          <Button type="button" size="sm" variant={pairingMethod === 'code' ? 'default' : 'outline'} onClick={() => setPairingMethod('code')}><KeyRound />Usar código de vinculação</Button>
-                        </div>
-                        {pairingMethod === 'qr' ? <>
-                        <div className="flex items-center justify-center rounded-md bg-white p-2">
-                          {qrImageUrl ? <img
-                            src={qrImageUrl}
-                            alt="QR Code de vinculação do WhatsApp — escaneie em até 20 segundos"
-                            className="h-56 w-56"
-                          /> : <div className="flex h-56 w-56 items-center justify-center text-center text-xs text-muted-foreground">Preparando QR Code seguro…</div>}
-                        </div>
-                        <p className="text-center text-xs text-muted-foreground">
-                          WhatsApp → Aparelhos conectados → Conectar aparelho → escaneie <b>em até 20 segundos</b>.
-                          O QR se renova a cada 5 segundos — espere trocar em vez de escanear um velho.
-                          Antes: WhatsApp atualizado, celular da prefeitura em mãos e menos de 4 aparelhos conectados.
-                        </p>
-                        </> : <form className="space-y-3" onSubmit={(event) => {
-                          event.preventDefault();
-                          setPairingCode(null);
-                          pairingCodeMutation.mutate();
-                        }}>
-                          <label className="block text-xs font-medium text-muted-foreground">Telefone do WhatsApp
-                            <Input className="mt-1.5" value={pairingPhone} onChange={(event) => setPairingPhone(event.target.value)} inputMode="tel" autoComplete="tel" placeholder="(32) 98479-2322" />
-                          </label>
-                          <Button type="submit" size="sm" disabled={pairingCodeMutation.isPending || pairingPhone.replace(/\D/g, '').length < 10}><KeyRound />{pairingCodeMutation.isPending ? 'Gerando código…' : 'Gerar código'}</Button>
-                          {pairingCode && <div className="rounded-lg border border-success/25 bg-success-soft p-3" role="status"><p className="text-xs text-muted-foreground">Digite em Aparelhos conectados → Vincular com número de telefone.</p><p className="mt-2 font-mono text-xl font-semibold tracking-[0.2em]">{pairingCode}</p></div>}
-                        </form>}
+                        <div className="rounded-xl border border-dashed bg-secondary/20 p-5 text-center"><Smartphone className="mx-auto h-6 w-6 text-primary" /><p className="mt-2 text-sm font-medium">Aguardando a vinculação do aparelho</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Abra a janela segura para ler o QR Code ou informar o código no celular.</p><Button className="mt-4" size="sm" variant="outline" onClick={() => setPairingModalOpen(true)}><QrCode />Abrir vinculação</Button></div>
                         {botStatus?.ultimoErro && (
                           <p className="rounded-md border border-destructive/30 bg-destructive-soft p-2 text-xs text-destructive" role="alert">
                             {explicarErroPareamento(botStatus.ultimoErro)}
@@ -533,7 +466,7 @@ export function ConsoleComunicadoOrgPage({
                         )}
                         <p className="text-center text-xs text-muted-foreground">Aguardando a confirmação do vínculo pelo WhatsApp…</p>
                         <div className="flex justify-center">
-                          <Button size="sm" variant="ghost" onClick={() => setWizard(null)}>Cancelar</Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setWizard(null); setPairingModalOpen(false); }}>Cancelar</Button>
                         </div>
                       </div>
                     )}
@@ -680,7 +613,7 @@ export function ConsoleComunicadoOrgPage({
                       )}
                       <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
                         {sessao.status === 'aguardando_qr' && (
-                          <Button variant="outline" size="sm" onClick={() => { setPairingMethod('qr'); setPairingCode(null); setWizard({ etapa: 'qr', sessaoId: sessao.id }); }}>
+                          <Button variant="outline" size="sm" onClick={() => { setWizard({ etapa: 'qr', sessaoId: sessao.id }); setPairingModalOpen(true); }}>
                             <QrCode />Vincular novamente
                           </Button>
                         )}
@@ -973,6 +906,8 @@ export function ConsoleComunicadoOrgPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <WhatsAppPairingDialog key={`${wizard?.sessaoId ?? 'none'}-${pairingModalOpen ? 'open' : 'closed'}`} sessionId={wizard?.etapa === 'qr' ? wizard.sessaoId : null} open={pairingModalOpen} onOpenChange={setPairingModalOpen} />
     </div>
   );
 }

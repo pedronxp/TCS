@@ -1,23 +1,23 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, CheckCircle2, ExternalLink, KeyRound, Link2, LogOut, MessageCircleMore, Plus, QrCode, RefreshCw, ShieldCheck, Smartphone, Trash2, Unplug, Users, Wifi, WifiOff } from 'lucide-react';
+import { Bot, CheckCircle2, ExternalLink, Link2, LogOut, Megaphone, MessageCircleMore, Plus, QrCode, RefreshCw, ShieldCheck, Smartphone, Trash2, Unplug, Users, Wifi, WifiOff } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { WhatsAppPairingDialog } from '@/components/domain/WhatsAppPairingDialog';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
-  openBotQr,
   criarSessaoBot,
+  criarSalaTransmissaoPeloBot,
   deleteCanal,
   fetchBotChats,
   fetchPortalBotRuntimeStatus,
   fetchCanais,
   fetchSessoesBot,
   operarSessaoBot,
-  requestBotPairingCode,
   saveCanal,
   setCanalAtivo,
   vincularCanalChat,
@@ -27,6 +27,7 @@ import {
 
 type CommunityConfirmation =
   | { action: 'create'; name: string; inviteUrl: string | null }
+  | { action: 'create_room'; name: string; description: string }
   | { action: 'toggle'; id: string; name: string; active: boolean }
   | { action: 'delete'; id: string; name: string }
   | { action: 'unlink'; id: string; name: string };
@@ -51,12 +52,10 @@ export function PortalWhatsAppPage() {
   const mayManage = can('whatsapp.write');
   const organizationId = access?.organizationId ?? null;
   const [newCommunity, setNewCommunity] = useState({ name: '', inviteUrl: '' });
+  const [newBroadcastRoom, setNewBroadcastRoom] = useState({ name: '', description: '' });
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pairingSessionId, setPairingSessionId] = useState<string | null>(null);
-  const [pairingMethod, setPairingMethod] = useState<'qr' | 'code'>('qr');
-  const [pairingPhone, setPairingPhone] = useState('');
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [communityConfirmation, setCommunityConfirmation] = useState<CommunityConfirmation | null>(null);
 
   const channelsQuery = useQuery({
@@ -91,7 +90,10 @@ export function PortalWhatsAppPage() {
   const approvedStandaloneChats = new Set(channels.map((channel) => channel.chatId).filter(Boolean));
   const chats = allChats.filter((chat) => Boolean(chat.comunidadeId) || approvedStandaloneChats.has(chat.chatId));
   const activeChannels = channels.filter((channel) => channel.ativo);
+  const broadcastRooms = channels.filter((channel) => channel.chatId?.endsWith('@newsletter'));
+  const communityChannels = channels.filter((channel) => !channel.chatId?.endsWith('@newsletter'));
   const linkedChannels = activeChannels.filter((channel) => channel.chatId);
+  const onlineSession = sessions.find((session) => runtimeQuery.data?.sessions.some((item) => item.id === session.id && item.runtimeState === 'online'));
   const awaitingSession = sessions.find((session) => session.status === 'aguardando_qr');
   const readiness = useMemo(() => {
     if (!mayManage) return null;
@@ -129,6 +131,21 @@ export function PortalWhatsAppPage() {
     onSuccess: refresh,
     onError: (mutationError: Error) => setError(mutationError.message),
   });
+  const createBroadcastRoom = useMutation({
+    mutationFn: async ({ name, description }: { name: string; description: string }) => {
+      if (!onlineSession) throw new Error('Conecte um número antes de criar uma sala de transmissão.');
+      const room = await criarSalaTransmissaoPeloBot(onlineSession.id, name, description);
+      const channelId = await saveCanal({ nome: room.nome, linkConvite: room.inviteUrl });
+      await vincularCanalChat(channelId, room.chatId);
+    },
+    onSuccess: async () => {
+      setNewBroadcastRoom({ name: '', description: '' });
+      setNotice('Sala de transmissão criada. Os participantes não visualizam os números uns dos outros.');
+      setError(null);
+      await refresh();
+    },
+    onError: (mutationError: Error) => setError(mutationError.message),
+  });
   const linkChat = useMutation({
     mutationFn: ({ channelId, chatId }: { channelId: string; chatId: string | null }) => vincularCanalChat(channelId, chatId),
     onSuccess: async () => {
@@ -146,8 +163,6 @@ export function PortalWhatsAppPage() {
     mutationFn: criarSessaoBot,
     onSuccess: async (sessionId) => {
       setPairingSessionId(sessionId);
-      setPairingMethod('qr');
-      setPairingCode(null);
       setNotice('Sessão criada. Escolha QR Code ou código de vinculação para conectar o número.');
       await refresh();
     },
@@ -158,19 +173,12 @@ export function PortalWhatsAppPage() {
     onSuccess: refresh,
     onError: (mutationError: Error) => setError(mutationError.message),
   });
-  const pairingCodeMutation = useMutation({
-    mutationFn: ({ id, phone }: { id: string; phone: string }) => requestBotPairingCode(id, phone),
-    onSuccess: (code) => {
-      setPairingCode(code);
-      setError(null);
-    },
-    onError: (mutationError: Error) => setError(mutationError.message),
-  });
-
   const confirmCommunityAction = () => {
     if (!communityConfirmation) return;
     if (communityConfirmation.action === 'create') {
       createChannel.mutate({ nome: communityConfirmation.name, linkConvite: communityConfirmation.inviteUrl });
+    } else if (communityConfirmation.action === 'create_room') {
+      createBroadcastRoom.mutate({ name: communityConfirmation.name, description: communityConfirmation.description });
     } else if (communityConfirmation.action === 'toggle') {
       toggleChannel.mutate({ id: communityConfirmation.id, active: communityConfirmation.active });
     } else if (communityConfirmation.action === 'delete') {
@@ -242,37 +250,6 @@ export function PortalWhatsAppPage() {
                 <Plus />{createSession.isPending ? 'Criando sessão…' : 'Conectar número'}
               </Button>
             )}
-            {mayManage && pairingSessionId && (
-              <div className="mt-5 space-y-4 rounded-xl border bg-secondary/20 p-4" aria-label="Método de vinculação do WhatsApp">
-                <div>
-                  <p className="text-sm font-semibold">Vincular número ao WhatsApp</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Escolha como deseja conectar o aparelho oficial da organização.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant={pairingMethod === 'qr' ? 'default' : 'outline'} onClick={() => setPairingMethod('qr')}><QrCode />Usar QR Code</Button>
-                  <Button type="button" size="sm" variant={pairingMethod === 'code' ? 'default' : 'outline'} onClick={() => setPairingMethod('code')}><KeyRound />Usar código de vinculação</Button>
-                </div>
-                {pairingMethod === 'qr' ? (
-                  <div className="space-y-3">
-                    <p className="text-xs leading-5 text-muted-foreground">No celular, abra WhatsApp → Aparelhos conectados → Conectar aparelho.</p>
-                    <Button type="button" size="sm" variant="outline" onClick={() => void openBotQr(pairingSessionId).catch((qrError: Error) => setError(qrError.message))}><ExternalLink />Abrir QR Code</Button>
-                  </div>
-                ) : (
-                  <form className="space-y-3" onSubmit={(event) => {
-                    event.preventDefault();
-                    setError(null);
-                    setPairingCode(null);
-                    pairingCodeMutation.mutate({ id: pairingSessionId, phone: pairingPhone });
-                  }}>
-                    <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">Telefone do WhatsApp
-                      <Input value={pairingPhone} onChange={(event) => setPairingPhone(event.target.value)} inputMode="tel" autoComplete="tel" placeholder="(32) 98479-2322" />
-                    </label>
-                    <Button type="submit" size="sm" disabled={pairingCodeMutation.isPending || pairingPhone.replace(/\D/g, '').length < 10}><KeyRound />{pairingCodeMutation.isPending ? 'Gerando código…' : 'Gerar código'}</Button>
-                    {pairingCode && <div className="rounded-lg border border-success/25 bg-success-soft p-3" role="status"><p className="text-xs text-muted-foreground">Digite este código em Aparelhos conectados → Vincular com número de telefone.</p><p className="mt-2 font-mono text-xl font-semibold tracking-[0.2em]">{pairingCode}</p></div>}
-                  </form>
-                )}
-              </div>
-            )}
             {mayManage && <ul className="mt-4 divide-y">
               {sessionsQuery.isLoading && <li className="py-4 text-sm text-muted-foreground">Carregando números…</li>}
               {!sessionsQuery.isLoading && sessions.length === 0 && <li className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhum número conectado.</li>}
@@ -294,7 +271,7 @@ export function PortalWhatsAppPage() {
                   </div>
                   {liveSession?.lastSeenAt && <p className="mt-2 text-xs text-muted-foreground">Último sinal: {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(liveSession.lastSeenAt))}</p>}
                   <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {(session.status === 'aguardando_qr' || liveSession?.runtimeState === 'awaiting_qr') && <Button size="sm" variant="outline" onClick={() => { setPairingSessionId(session.id); setPairingMethod('qr'); setPairingCode(null); }}><QrCode />Vincular novamente</Button>}
+                    {(session.status === 'aguardando_qr' || liveSession?.runtimeState === 'awaiting_qr') && <Button size="sm" variant="outline" onClick={() => setPairingSessionId(session.id)}><QrCode />Vincular novamente</Button>}
                     {session.status === 'vinculado' && liveSession?.runtimeState !== 'offline' && <Button size="sm" variant="outline" disabled={updateSession.isPending} onClick={() => updateSession.mutate({ id: session.id, action: 'desconectar' })}><Unplug />Desconectar</Button>}
                     {session.status === 'desconectado' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
                     {session.status === 'vinculado' && liveSession?.runtimeState === 'offline' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
@@ -323,8 +300,8 @@ export function PortalWhatsAppPage() {
             {!groupsVisible && <p className="mt-5 rounded-xl border border-dashed bg-secondary/20 p-5 text-sm leading-6 text-muted-foreground" role="status"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />Dados protegidos até um número reconectar. Os nomes, grupos, links de convite e vínculos permanecem ocultos.</p>}
             {groupsVisible && <ul className="mt-5 space-y-4">
               {channelsQuery.isLoading && <li className="text-sm text-muted-foreground">Carregando comunidades…</li>}
-              {!channelsQuery.isLoading && channels.length === 0 && <li className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma comunidade cadastrada.</li>}
-              {channels.map((channel) => (
+              {!channelsQuery.isLoading && communityChannels.length === 0 && <li className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma comunidade cadastrada.</li>}
+              {communityChannels.map((channel) => (
                 <li key={channel.id} className="rounded-xl border p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0"><p className="break-words text-sm font-semibold">{channel.nome}</p><p className="mt-1 text-xs text-muted-foreground">{channel.totalEnvios} envio{channel.totalEnvios === 1 ? '' : 's'} · {channel.chatId ? 'grupo vinculado' : 'aguardando vínculo'}{!channel.ativo ? ' · inativa' : ''}</p></div>
@@ -334,7 +311,7 @@ export function PortalWhatsAppPage() {
                     <label className="text-xs font-medium text-muted-foreground">Grupo sincronizado
                       <select className="mt-1.5 h-10 w-full rounded-md border bg-card px-3 text-sm text-foreground" value={channel.chatId ?? ''} aria-label={`Grupo vinculado a ${channel.nome}`} onChange={(event) => event.target.value ? linkChat.mutate({ channelId: channel.id, chatId: event.target.value }) : setCommunityConfirmation({ action: 'unlink', id: channel.id, name: channel.nome })}>
                         <option value="">{chatsQuery.isError ? 'Bot offline ou indisponível' : chats.length === 0 ? 'Nenhum grupo sincronizado' : 'Selecionar grupo…'}</option>
-                        {chats.map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome}{chat.sessaoTelefone ? ` · ${chat.sessaoTelefone}` : ''}</option>)}
+                        {chats.filter((chat) => !chat.chatId.endsWith('@newsletter')).map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome}{chat.sessaoTelefone ? ` · ${chat.sessaoTelefone}` : ''}</option>)}
                       </select>
                     </label>
                     <div className="flex items-end gap-2"><Button size="sm" variant="ghost" disabled={toggleChannel.isPending} onClick={() => setCommunityConfirmation({ action: 'toggle', id: channel.id, name: channel.nome, active: !channel.ativo })}>{channel.ativo ? 'Desativar' : 'Ativar'}</Button>{channel.totalEnvios === 0 && <Button size="sm" variant="ghost" aria-label={`Remover ${channel.nome}`} disabled={removeChannel.isPending} onClick={() => setCommunityConfirmation({ action: 'delete', id: channel.id, name: channel.nome })}><Trash2 /></Button>}</div>
@@ -347,9 +324,27 @@ export function PortalWhatsAppPage() {
         </Card>
       </section>
 
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-secondary/15"><CardTitle className="flex items-center gap-2"><Megaphone />Salas de transmissão</CardTitle><p className="pt-2 text-sm leading-6 text-muted-foreground">Crie um Canal oficial do WhatsApp para publicar comunicados sem expor os números dos participantes.</p></CardHeader>
+        <CardContent className="space-y-5 pt-5">
+          {!groupsVisible && <p className="rounded-xl border border-dashed bg-secondary/20 p-5 text-sm leading-6 text-muted-foreground"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />As salas de transmissão ficam ocultas até que um número autorizado esteja conectado.</p>}
+          {mayManage && groupsVisible && <form className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]" onSubmit={(event) => {
+            event.preventDefault();
+            setError(null);
+            if (newBroadcastRoom.name.trim().length >= 3) setCommunityConfirmation({ action: 'create_room', name: newBroadcastRoom.name.trim(), description: newBroadcastRoom.description.trim() });
+          }}>
+            <Input value={newBroadcastRoom.name} onChange={(event) => setNewBroadcastRoom((current) => ({ ...current, name: event.target.value }))} placeholder="Nome da sala de transmissão" aria-label="Nome da sala de transmissão" minLength={3} maxLength={80} />
+            <Input value={newBroadcastRoom.description} onChange={(event) => setNewBroadcastRoom((current) => ({ ...current, description: event.target.value }))} placeholder="Descrição da sala (opcional)" aria-label="Descrição da sala de transmissão" maxLength={280} />
+            <Button type="submit" disabled={!onlineSession || createBroadcastRoom.isPending}><Plus />{createBroadcastRoom.isPending ? 'Criando sala…' : 'Criar sala de transmissão'}</Button>
+          </form>}
+          {groupsVisible && broadcastRooms.length === 0 && <div className="rounded-xl border border-dashed p-5 text-center"><ShieldCheck className="mx-auto h-6 w-6 text-primary" /><p className="mt-2 text-sm font-medium">Privacidade dos participantes preservada</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Nos canais oficiais, seguidores não visualizam os números uns dos outros.</p></div>}
+          {groupsVisible && broadcastRooms.length > 0 && <ul className="grid gap-3 md:grid-cols-2">{broadcastRooms.map((room) => <li key={room.id} className="rounded-xl border p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{room.nome}</p><p className="mt-1 text-xs text-muted-foreground">Canal privado · {room.totalEnvios} envio{room.totalEnvios === 1 ? '' : 's'}</p></div><Badge variant={room.ativo ? 'success' : 'secondary'}>{room.ativo ? 'Pronta' : 'Inativa'}</Badge></div>{room.linkConvite && <a className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline" href={room.linkConvite} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" />Abrir sala de transmissão</a>}{mayManage && <div className="mt-3 flex gap-2"><Button size="sm" variant="ghost" onClick={() => setCommunityConfirmation({ action: 'toggle', id: room.id, name: room.nome, active: !room.ativo })}>{room.ativo ? 'Desativar' : 'Ativar'}</Button>{room.totalEnvios === 0 && <Button size="sm" variant="ghost" aria-label={`Remover ${room.nome}`} onClick={() => setCommunityConfirmation({ action: 'delete', id: room.id, name: room.nome })}><Trash2 /></Button>}</div>}</li>)}</ul>}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Bot />Como o envio funciona</CardTitle></CardHeader>
-        <CardContent><ol className="grid gap-4 md:grid-cols-3"><Step number="1" title="Conecte o número" detail="Leia o QR Code ou informe o código de vinculação no WhatsApp da organização." /><Step number="2" title="Vincule os grupos" detail="Associe cada comunidade cadastrada ao grupo sincronizado correspondente." /><Step number="3" title="Publique e envie" detail="Em Comunicados, publique a mensagem e escolha o disparo automático ou manual." /></ol></CardContent>
+        <CardContent><ol className="grid gap-4 md:grid-cols-3"><Step number="1" title="Conecte o número" detail="Leia o QR Code ou informe o código de vinculação no WhatsApp da organização." /><Step number="2" title="Escolha os destinos" detail="Vincule grupos às comunidades ou crie canais de transmissão com privacidade." /><Step number="3" title="Publique e envie" detail="Em Comunicados, publique a mensagem e escolha o disparo automático ou manual." /></ol></CardContent>
       </Card>
 
       <AlertDialog open={communityConfirmation !== null} onOpenChange={(open) => !open && setCommunityConfirmation(null)}>
@@ -357,12 +352,14 @@ export function PortalWhatsAppPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {communityConfirmation?.action === 'create' && 'Criar comunidade?'}
+              {communityConfirmation?.action === 'create_room' && 'Criar sala de transmissão?'}
               {communityConfirmation?.action === 'toggle' && (communityConfirmation.active ? 'Ativar comunidade?' : 'Desativar comunidade?')}
               {communityConfirmation?.action === 'delete' && 'Excluir comunidade?'}
               {communityConfirmation?.action === 'unlink' && 'Desvincular grupo do WhatsApp?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {communityConfirmation?.action === 'create' && `A comunidade “${communityConfirmation.name}” será adicionada ao painel desta organização.`}
+              {communityConfirmation?.action === 'create_room' && `A sala “${communityConfirmation.name}” será criada como um Canal oficial do WhatsApp. Os participantes não visualizam os números uns dos outros.`}
               {communityConfirmation?.action === 'toggle' && `A comunidade “${communityConfirmation.name}” será ${communityConfirmation.active ? 'reativada para os envios' : 'desativada e deixará de receber novos envios'}.`}
               {communityConfirmation?.action === 'delete' && `A comunidade “${communityConfirmation.name}” será removida definitivamente do painel.`}
               {communityConfirmation?.action === 'unlink' && `O grupo associado a “${communityConfirmation.name}” será desvinculado e os envios automáticos serão interrompidos.`}
@@ -372,6 +369,7 @@ export function PortalWhatsAppPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction className={communityConfirmation?.action === 'delete' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined} onClick={confirmCommunityAction}>
               {communityConfirmation?.action === 'create' && 'Confirmar criação'}
+              {communityConfirmation?.action === 'create_room' && 'Confirmar criação'}
               {communityConfirmation?.action === 'toggle' && (communityConfirmation.active ? 'Confirmar ativação' : 'Confirmar desativação')}
               {communityConfirmation?.action === 'delete' && 'Confirmar exclusão'}
               {communityConfirmation?.action === 'unlink' && 'Confirmar desvinculação'}
@@ -379,6 +377,8 @@ export function PortalWhatsAppPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <WhatsAppPairingDialog key={pairingSessionId ?? 'closed'} sessionId={pairingSessionId} open={mayManage && pairingSessionId !== null} onOpenChange={(open) => !open && setPairingSessionId(null)} />
     </div>
   );
 }

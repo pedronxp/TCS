@@ -49,9 +49,14 @@ function classifyDeliveryOutcome({ success, attemptedSends }) {
   return attemptedSends > 0 ? 'falhou' : 'pendente';
 }
 
+function isBroadcastRoomJid(value) {
+  return typeof value === 'string' && /^\d+@newsletter$/.test(value);
+}
+
 module.exports = {
   classifyDisconnect,
   normalizePairingPhone,
   formatPairingCode,
   classifyDeliveryOutcome,
+  isBroadcastRoomJid,
 };

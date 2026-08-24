@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   fetchSessoesBot: vi.fn(),
   fetchPortalBotRuntimeStatus: vi.fn(),
   criarSessaoBot: vi.fn(),
+  criarSalaTransmissaoPeloBot: vi.fn(),
+  fetchBotQrObjectUrl: vi.fn(),
   requestBotPairingCode: vi.fn(),
   saveCanal: vi.fn(),
   setCanalAtivo: vi.fn(),
@@ -71,6 +73,8 @@ describe('operação segura do WhatsApp municipal', () => {
     mocks.fetchSessoesBot.mockReset().mockResolvedValue([session]);
     mocks.fetchPortalBotRuntimeStatus.mockReset().mockResolvedValue(runtime(1));
     mocks.criarSessaoBot.mockReset().mockResolvedValue('session-new');
+    mocks.criarSalaTransmissaoPeloBot.mockReset().mockResolvedValue({ chatId: '120363000000000001@newsletter', nome: 'Alertas Aurora', inviteUrl: 'https://whatsapp.com/channel/aurora' });
+    mocks.fetchBotQrObjectUrl.mockReset().mockResolvedValue('blob:whatsapp-qr');
     mocks.requestBotPairingCode.mockReset().mockResolvedValue('ABCD-1234');
     mocks.saveCanal.mockReset().mockResolvedValue('channel-new');
     mocks.setCanalAtivo.mockReset().mockResolvedValue(undefined);
@@ -99,6 +103,9 @@ describe('operação segura do WhatsApp municipal', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Conectar número' }));
 
+    expect(await screen.findByRole('dialog', { name: /vincular número ao whatsapp/i })).toBeVisible();
+    expect(await screen.findByRole('img', { name: /qr code de vinculação/i })).toBeVisible();
+    expect(mocks.openBotQr).not.toHaveBeenCalled();
     expect(await screen.findByRole('button', { name: /usar qr code/i })).toBeVisible();
     await user.click(screen.getByRole('button', { name: /usar código de vinculação/i }));
     await user.type(screen.getByLabelText(/telefone do whatsapp/i), '32984792322');
@@ -106,6 +113,41 @@ describe('operação segura do WhatsApp municipal', () => {
 
     expect(await screen.findByText('ABCD-1234')).toBeVisible();
     expect(mocks.requestBotPairingCode).toHaveBeenCalledWith('session-new', '32984792322');
+  });
+
+  it('cria uma sala de transmissão oficial somente após confirmar a ação', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(await screen.findByLabelText('Nome da sala de transmissão'), 'Alertas Aurora');
+    await user.click(screen.getByRole('button', { name: 'Criar sala de transmissão' }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Alertas Aurora');
+    expect(mocks.criarSalaTransmissaoPeloBot).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar criação' }));
+
+    await waitFor(() => expect(mocks.criarSalaTransmissaoPeloBot).toHaveBeenCalledWith('session-1', 'Alertas Aurora', ''));
+    expect(mocks.saveCanal).toHaveBeenCalledWith({ nome: 'Alertas Aurora', linkConvite: 'https://whatsapp.com/channel/aurora' });
+    expect(mocks.vincularCanalChat).toHaveBeenCalledWith('channel-new', '120363000000000001@newsletter');
+  });
+
+  it('mantém a sala oficial separada dos grupos e identifica a proteção dos participantes', async () => {
+    mocks.fetchCanais.mockResolvedValue([
+      channel,
+      { ...channel, id: 'broadcast-1', nome: 'Avisos protegidos', chatId: '120363000000000001@newsletter' },
+    ]);
+    mocks.fetchBotChats.mockResolvedValue([
+      { chatId: '1203@g.us', nome: 'Grupo secreto Aurora', tipo: 'grupo', comunidadeId: null,
+        comunidadeNome: null, sessaoTelefone: '55****2322', totalAdmins: 1, totalParticipantes: 20, vistoEm: null },
+      { chatId: '120363000000000001@newsletter', nome: 'Avisos protegidos', tipo: 'transmissao', comunidadeId: null,
+        comunidadeNome: null, sessaoTelefone: '55****2322', totalAdmins: 1, totalParticipantes: 20, vistoEm: null },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Avisos protegidos')).toBeVisible();
+    expect(screen.getByText(/canal privado/i)).toBeVisible();
+    expect(screen.getByRole('combobox', { name: 'Grupo vinculado a Comunidade Aurora' })).not.toHaveTextContent('Avisos protegidos');
   });
 
   it('exige confirmação antes de criar uma comunidade', async () => {

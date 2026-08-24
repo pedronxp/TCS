@@ -69,6 +69,21 @@ test('mantém o comunicado pendente quando não existe sessão realmente conecta
   assert.equal(lifecycle.classifyDeliveryOutcome?.({ success: true, attemptedSends: 1 }), 'enviado');
 });
 
+test('identifica somente canais oficiais do WhatsApp como salas de transmissão privadas', () => {
+  assert.equal(lifecycle.isBroadcastRoomJid?.('120363000000000001@newsletter'), true);
+  assert.equal(lifecycle.isBroadcastRoomJid?.('120363000000000001@g.us'), false);
+  assert.equal(lifecycle.isBroadcastRoomJid?.('status@broadcast'), false);
+  assert.equal(lifecycle.isBroadcastRoomJid?.(null), false);
+});
+
+test('exige autorização da organização e canal oficial para criar uma sala de transmissão', () => {
+  const server = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
+  assert.match(server, /app\.post\('\/sessao\/:id\/transmissao', canManageSession/);
+  assert.match(server, /sessao\.socket\.newsletterCreate\(nome, descricao \|\| undefined\)/);
+  assert.match(server, /isBroadcastRoomJid\(canal\?\.id\)/);
+  assert.match(server, /tipo:\s*'transmissao'/);
+});
+
 test('inclui o ciclo de vida das sessões na imagem publicada no Render', () => {
   const dockerfile = fs.readFileSync(path.join(__dirname, 'Dockerfile'), 'utf8');
   assert.match(dockerfile, /^COPY\s+.*session-lifecycle\.js.*\s+\.\/$/m);

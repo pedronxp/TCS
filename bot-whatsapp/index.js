@@ -22,7 +22,7 @@ const {
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./supabase-auth-state');
 const { sameOrganization } = require('./organization-isolation');
-const { classifyDisconnect, normalizePairingPhone, formatPairingCode, classifyDeliveryOutcome } = require('./session-lifecycle');
+const { classifyDisconnect, normalizePairingPhone, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -597,6 +597,59 @@ app.post('/sessao/:id/pairing-code', canManageSession, async (req, res) => {
     sessao.pairingCodeRequestedAt = 0;
     log('sessao', `Falha ao gerar código de vinculação para a sessão ${sessao.id}`, erro);
     res.status(502).json({ ok: false, motivo: 'O WhatsApp não gerou o código. Aguarde o QR aparecer e tente novamente.' });
+  }
+});
+
+app.post('/sessao/:id/transmissao', canManageSession, async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao || sessao.fase !== 'vinculado' || !sessao.socket?.user?.id) {
+    res.status(409).json({ ok: false, motivo: 'Conecte um número da organização antes de criar a sala de transmissão.' });
+    return;
+  }
+
+  const nome = String(req.body?.name || '').trim();
+  const descricao = String(req.body?.description || '').trim();
+  if (nome.length < 3 || nome.length > 80 || descricao.length > 280) {
+    res.status(400).json({ ok: false, motivo: 'Informe um nome entre 3 e 80 caracteres e uma descrição de até 280 caracteres.' });
+    return;
+  }
+  if (typeof sessao.socket.newsletterCreate !== 'function') {
+    res.status(501).json({ ok: false, motivo: 'Esta versão do WhatsApp não permite criar canais oficiais de transmissão.' });
+    return;
+  }
+
+  try {
+    const canal = await sessao.socket.newsletterCreate(nome, descricao || undefined);
+    if (!isBroadcastRoomJid(canal?.id)) {
+      res.status(502).json({ ok: false, motivo: 'O WhatsApp não confirmou a criação de um canal oficial.' });
+      return;
+    }
+
+    const { error } = await supabase.from('bot_chats').upsert({
+      sessao_id: sessao.id,
+      chat_id: canal.id,
+      nome,
+      tipo: 'transmissao',
+      comunidade_id: null,
+      comunidade_nome: null,
+      total_admins: 1,
+      total_participantes: Number.isFinite(canal.subscribers) ? canal.subscribers : 0,
+      visto_em: agoraIso(),
+    }, { onConflict: 'sessao_id,chat_id' });
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ok: true,
+      chat_id: canal.id,
+      nome,
+      invite_url: typeof canal.invite === 'string' && canal.invite
+        ? `https://whatsapp.com/channel/${encodeURIComponent(canal.invite)}`
+        : null,
+    });
+  } catch (erro) {
+    log('transmissao', `Falha ao criar sala de transmissão na sessão ${sessao.id}`, erro);
+    res.status(502).json({ ok: false, motivo: 'O WhatsApp não conseguiu criar a sala de transmissão. Tente novamente.' });
   }
 });
 

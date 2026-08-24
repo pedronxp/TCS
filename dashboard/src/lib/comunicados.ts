@@ -107,6 +107,31 @@ export async function criarGrupoPeloBot(sessaoId: string, nome: string, comunida
   }
 }
 
+export interface BotSalaTransmissao {
+  chatId: string;
+  nome: string;
+  inviteUrl: string | null;
+}
+
+export async function criarSalaTransmissaoPeloBot(sessaoId: string, nome: string, descricao = ''): Promise<BotSalaTransmissao> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/transmissao`,
+    30_000,
+    true,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nome, description: descricao }),
+    },
+  );
+  const dados = record(await resposta.json());
+  const chatId = string(dados?.chat_id);
+  if (!resposta.ok || dados?.ok !== true || !chatId?.endsWith('@newsletter')) {
+    throw new Error(string(dados?.motivo) ?? 'O WhatsApp não confirmou a criação da sala de transmissão.');
+  }
+  return { chatId, nome: string(dados?.nome) ?? nome, inviteUrl: string(dados?.invite_url) };
+}
+
 export async function sincronizarChatsBot(sessaoId: string): Promise<boolean> {
   try {
     const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/sessao/${sessaoId}/sincronizar`, 30_000);
@@ -845,8 +870,8 @@ export interface CanalDraft {
   telefoneAdmin?: string | null;
 }
 
-export async function saveCanal(draft: CanalDraft): Promise<void> {
-  const { error } = await rpc('portal_upsert_canal_externo', {
+export async function saveCanal(draft: CanalDraft): Promise<string> {
+  const { data, error } = await rpc('portal_upsert_canal_externo', {
     p_payload: {
       id: draft.id ?? null,
       nome: draft.nome,
@@ -856,6 +881,9 @@ export async function saveCanal(draft: CanalDraft): Promise<void> {
     },
   });
   if (error) throw new Error(error.message);
+  const id = string(data);
+  if (!id) throw new Error('O painel não confirmou o identificador do destino criado.');
+  return id;
 }
 
 export async function setCanalAtivo(id: string, ativo: boolean): Promise<void> {
