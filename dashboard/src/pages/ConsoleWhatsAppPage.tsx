@@ -26,7 +26,7 @@ export function ConsoleWhatsAppPage() {
   });
   const organizations = organizationsQuery.data ?? [];
   const connected = organizations.filter((item) => item.runtime && ['online', 'degraded'].includes(item.runtime.state)).length;
-  const needsAttention = organizations.filter((item) => item.enviosFalhas > 0 || !item.runtime || !['online'].includes(item.runtime.state)).length;
+  const needsAttention = organizations.filter((item) => item.enviosFalhas > 0 || (item.runtime && item.runtime.state !== 'online')).length;
   const communities = organizations.reduce((total, item) => total + item.comunidadesAtivas, 0);
 
   return (
@@ -64,11 +64,15 @@ export function ConsoleWhatsAppPage() {
                       <span className="min-w-0">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="break-words text-sm font-semibold">{organization.organizationName}</span>
-                          <Badge variant={runtimeBadge?.variant ?? 'outline'}>{runtimeBadge?.label ?? 'Sem leitura'}</Badge>
+                          <Badge variant={runtimeBadge?.variant ?? 'outline'}>{runtimeBadge?.label ?? 'Módulo não habilitado'}</Badge>
                           {failing && <Badge variant="destructive">Falha no envio</Badge>}
-                          {!configured && !failing && <Badge variant="outline">Configuração pendente</Badge>}
+                          {organization.runtime && !configured && !failing && <Badge variant="outline">Configuração pendente</Badge>}
                         </span>
-                        <span className="mt-1 block text-xs text-muted-foreground">{organization.municipality ?? 'Município não informado'} · {organization.runtime?.sessionsOnline ?? 0}/{organization.runtime?.sessionsTotal ?? organization.numerosVinculados} número(s) online · {organization.comunidadesAtivas} comunidade{organization.comunidadesAtivas === 1 ? '' : 's'}{organization.enviosPendentes > 0 ? ` · ${organization.enviosPendentes} na fila` : ''}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {organization.municipality ?? 'Município não informado'} · {organization.runtime
+                            ? `${organization.runtime.sessionsOnline}/${organization.runtime.sessionsTotal} número(s) online · ${organization.comunidadesAtivas} comunidade${organization.comunidadesAtivas === 1 ? '' : 's'}${organization.enviosPendentes > 0 ? ` · ${organization.enviosPendentes} na fila` : ''}`
+                            : 'WhatsApp ainda não contratado ou liberado'}
+                        </span>
                       </span>
                     </span>
                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
