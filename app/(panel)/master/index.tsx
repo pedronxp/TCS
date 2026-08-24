@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl, Modal, FlatList,
-  TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { countAgendamentosPendentes } from '../../../utils/database';
 import { Feather } from '@expo/vector-icons';
@@ -20,8 +19,6 @@ import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { VistoriaNormalizada } from '../../../types/vistoria';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
-import { excluirVistoriaComNotificacao } from '../../../services/NotificationService';
-import { registrarAuditoria } from '../../../utils/auditLogger';
 import { isTrainingClassEnded, listTrainingClasses } from '../../../services/TrainingService';
 import { MetricCard, SectionHeader, StateBanner } from '../../../components/ui';
 import { TCSPalette } from '../../../constants/Colors';
@@ -46,9 +43,6 @@ export default function MasterDashboardScreen() {
   const [riskModalVisible, setRiskModalVisible] = useState(false);
   const [riskByCidade, setRiskByCidade] = useState<{ municipio: string; alto: number; baixo: number }[]>([]);
   const [riskLoading, setRiskLoading] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<VistoriaNormalizada | null>(null);
-  const [deleteMotivo, setDeleteMotivo] = useState('');
-  const [deletando, setDeletando] = useState(false);
   const [trainingSummary, setTrainingSummary] = useState({
     classes: 0,
     participants: 0,
@@ -146,35 +140,6 @@ export default function MasterDashboardScreen() {
     }
   };
 
-  const confirmarDelete = async () => {
-    if (!deleteTarget || !deleteMotivo.trim()) return;
-    setDeletando(true);
-    try {
-      await excluirVistoriaComNotificacao(deleteTarget.id, deleteMotivo.trim());
-
-      // Auditoria
-      registrarAuditoria({
-        acao: 'vistoria_excluida',
-        adminUid: profile?.uid || '',
-        adminNome: profile?.name || 'Master Admin',
-        adminRole: 'master_admin',
-        municipio: deleteTarget.municipio || '',
-        alvoId: deleteTarget.id,
-        detalhes: { motivo: deleteMotivo.trim(), endereco: deleteTarget.endereco },
-      });
-
-      setDeleteTarget(null);
-      setDeleteMotivo('');
-      // Recarregar dashboard completo para manter KPIs, ranking e distribuição consistentes
-      await carregar(true);
-    } catch (e) {
-      Alert.alert('Erro', 'Não foi possível excluir a vistoria. Tente novamente.');
-      logger.error('system', 'Erro ao excluir vistoria', { erro: String(e) });
-    } finally {
-      setDeletando(false);
-    }
-  };
-
   useFocusEffect(useCallback(() => {
     carregar();
     if (profile?.municipio) {
@@ -199,7 +164,7 @@ export default function MasterDashboardScreen() {
             <View style={[styles.chipBadge, { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}25` }]}>
               <Feather name="shield" size={10} color={theme.primary} />
               <Text style={[styles.chipText, { color: theme.primary }]}>
-                Master
+                {profile?.organizationId ? 'Master municipal' : 'Master operacional'}
               </Text>
             </View>
             {isConnected ? (
@@ -284,14 +249,17 @@ export default function MasterDashboardScreen() {
           <MetricCard value={stats.altoRisco} label="Alto risco" tone="danger" style={styles.metricHalf} />
           <MetricCard value={stats.totalUsuarios} label="Usuários ativos" tone="success" style={styles.metricHalf} />
           <MetricCard value={stats.totalMunicipios} label="Municípios" tone="primary" style={styles.metricHalf} />
-          <MetricCard value={trainingSummary.classes} label="Turmas abertas" tone="warning" style={styles.metricHalf} />
+          {trainingSummary.classes > 0 ? (
+            <MetricCard value={trainingSummary.classes} label="Turmas abertas" tone="warning" style={styles.metricHalf} />
+          ) : null}
         </View>
 
-        <TouchableOpacity
-          style={[styles.trainingCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-          onPress={() => router.push('/(panel)/master/treinamentos')}
-          activeOpacity={0.85}
-        >
+        {trainingSummary.classes > 0 ? (
+          <TouchableOpacity
+            style={[styles.trainingCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+            onPress={() => router.push('/(panel)/master/treinamentos')}
+            activeOpacity={0.85}
+          >
           <View style={[styles.trainingIcon, { backgroundColor: theme.successLight }]}>
             <Feather name="users" size={20} color={theme.success} />
           </View>
@@ -311,7 +279,8 @@ export default function MasterDashboardScreen() {
             )}
           </View>
           <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-        </TouchableOpacity>
+          </TouchableOpacity>
+        ) : null}
 
         {/* Módulo de Equipe Unificado */}
         <View style={[styles.sectionRow, { marginTop: 8 }]}>
@@ -328,7 +297,7 @@ export default function MasterDashboardScreen() {
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Sem registros recentes.</Text>
           </View>
         ) : (
-          recentLogs.map(v => {
+          recentLogs.slice(0, 5).map(v => {
             const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
             const nivel = String(v.nivelRisco || '').toLowerCase();
             const cor = ['r3', 'r4', 'alto', 'critico', 'iminente'].includes(nivel)
@@ -363,13 +332,6 @@ export default function MasterDashboardScreen() {
                       {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
                     </Text>
                   </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.deleteBtn, { backgroundColor: theme.errorLight }]}
-                  onPress={() => { setDeleteTarget(v); setDeleteMotivo(''); }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Feather name="trash-2" size={16} color={theme.error} />
                 </TouchableOpacity>
               </View>
             );
@@ -491,7 +453,7 @@ export default function MasterDashboardScreen() {
 
         {/* Top municípios */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Top Municípios</Text>
-        {municipios.map((m, i) => {
+        {municipios.slice(0, 4).map((m, i) => {
           const maxCount = municipios[0]?.count || 1;
           return (
             <View key={m.nome} style={[styles.munCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
@@ -513,7 +475,7 @@ export default function MasterDashboardScreen() {
         {rankingGlobal.length > 0 && (
           <>
             <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 12 }]}>Top Agentes do Mês</Text>
-            {rankingGlobal.map(({ nome, municipio, count }, i) => (
+            {rankingGlobal.slice(0, 4).map(({ nome, municipio, count }, i) => (
               <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
                 <Text style={[styles.rankPos, { color: i < 3 ? theme.primary : theme.textSecondary }]}>#{i + 1}</Text>
                 <View style={{ flex: 1, marginLeft: 12 }}>
@@ -544,85 +506,6 @@ export default function MasterDashboardScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Modal de confirmação de exclusão */}
-      <Modal
-        visible={!!deleteTarget}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { if (!deletando) { setDeleteTarget(null); setDeleteMotivo(''); } }}
-      >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.deleteOverlay}>
-            <View style={[styles.deleteSheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              {/* Ícone */}
-              <View style={[styles.deleteIconWrap, { backgroundColor: theme.errorLight }]}>
-                <Feather name="trash-2" size={28} color={theme.error} />
-              </View>
-              <Text style={[styles.deleteTitle, { color: theme.text }]}>Excluir Vistoria</Text>
-              <Text style={[styles.deleteSubtitle, { color: theme.textSecondary }]}>
-                Esta ação é irreversível. O agente, supervisor e administrador do município serão notificados.
-              </Text>
-
-              {/* Info da vistoria */}
-              {deleteTarget && (
-                <View style={[styles.deleteInfo, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}>
-                  <Text style={[{ fontSize: 13, fontWeight: '700', color: theme.text }]} numberOfLines={2}>
-                    {deleteTarget.endereco || 'Endereço não informado'}
-                  </Text>
-                  <Text style={[{ fontSize: 12, color: theme.textSecondary, marginTop: 4 }]}>
-                    {(deleteTarget as any).agenteNome || '—'} · {deleteTarget.municipio} · {['r3', 'r4', 'alto', 'critico', 'iminente'].includes(String(deleteTarget.nivelRisco || '').toLowerCase()) ? 'CRÍTICO' : deleteTarget.nivelRisco?.toUpperCase()}
-                  </Text>
-                </View>
-              )}
-
-              {/* Campo motivo */}
-              <Text style={[styles.deleteLabel, { color: theme.textSecondary }]}>Motivo da exclusão *</Text>
-              <TextInput
-                style={[styles.deleteInput, {
-                  backgroundColor: theme.iconBackground,
-                  borderColor: deleteMotivo.trim() ? theme.primary : theme.border,
-                  color: theme.text,
-                }]}
-                placeholder="Descreva o motivo (ex: duplicidade, erro de cadastro...)"
-                placeholderTextColor={theme.textSecondary}
-                value={deleteMotivo}
-                onChangeText={setDeleteMotivo}
-                multiline
-                numberOfLines={3}
-                maxLength={300}
-                editable={!deletando}
-              />
-              <Text style={[{ fontSize: 11, color: theme.textSecondary, alignSelf: 'flex-end', marginTop: 4 }]}>
-                {deleteMotivo.length}/300
-              </Text>
-
-              {/* Botões */}
-              <View style={styles.deleteActions}>
-                <TouchableOpacity
-                  style={[styles.deleteCancelBtn, { borderColor: theme.border }]}
-                  onPress={() => { setDeleteTarget(null); setDeleteMotivo(''); }}
-                  disabled={deletando}
-                >
-                  <Text style={[{ fontSize: 15, fontWeight: '600', color: theme.textSecondary }]}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.deleteConfirmBtn, { opacity: deleteMotivo.trim() ? 1 : 0.45 }]}
-                  onPress={confirmarDelete}
-                  disabled={!deleteMotivo.trim() || deletando}
-                >
-                  {deletando
-                    ? <ActivityIndicator size="small" color="#FFF" />
-                    : <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Confirmar exclusão</Text>
-                  }
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
@@ -655,8 +538,8 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 100 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
-  metricWide: { width: '100%', minHeight: 128 },
-  metricHalf: { width: '48%', flexGrow: 1, minHeight: 112 },
+  metricWide: { width: '100%', minHeight: 102 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 96 },
   developerBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 18,
@@ -767,47 +650,6 @@ const styles = StyleSheet.create({
   guiaBtnDesc: { fontSize: 12, marginTop: 1 },
   riskTapHint: {
     fontSize: 11, fontWeight: '600', marginTop: 10, textAlign: 'right',
-  },
-  deleteBtn: {
-    width: 34, height: 34, borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center',
-    marginLeft: 8,
-  },
-  deleteOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center', alignItems: 'center', padding: 24,
-  },
-  deleteSheet: {
-    width: '100%', borderRadius: 24, borderWidth: 1,
-    padding: 24, alignItems: 'center',
-  },
-  deleteIconWrap: {
-    width: 60, height: 60, borderRadius: 18,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
-  },
-  deleteTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
-  deleteSubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
-  deleteInfo: {
-    width: '100%', borderRadius: 12, borderWidth: 1,
-    padding: 12, marginBottom: 20,
-  },
-  deleteLabel: { fontSize: 12, fontWeight: '700', alignSelf: 'flex-start', marginBottom: 8, letterSpacing: 0.3 },
-  deleteInput: {
-    width: '100%', borderRadius: 12, borderWidth: 1.5,
-    padding: 12, fontSize: 14, minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  deleteActions: {
-    flexDirection: 'row', gap: 12, marginTop: 20, width: '100%',
-  },
-  deleteCancelBtn: {
-    flex: 1, height: 48, borderRadius: 14, borderWidth: 1,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  deleteConfirmBtn: {
-    flex: 2, height: 48, borderRadius: 14,
-    backgroundColor: TCSPalette.danger,
-    justifyContent: 'center', alignItems: 'center',
   },
   riskModalOverlay: {
     flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)',

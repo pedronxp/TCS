@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../utils/supabase';
 import {
-  buildInternalOwnerAppProfile,
+  buildInternalStaffAppProfile,
+  type InternalMobileRole,
   type InternalStaffProfilePayload,
 } from '../services/AppProfileService';
 
@@ -11,13 +12,15 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
-  role: 'master_admin' | 'admin' | 'supervisor' | 'agent' | 'owner';
+  role: 'master_admin' | 'admin' | 'supervisor' | 'agent' | InternalMobileRole;
   municipio: string;
   isApproved: boolean;
   createdAt?: string;
   nameChanged?: boolean;
   phone?: string | null;
   organizationId?: string | null;
+  accountKind?: 'individual' | 'organization' | 'internal';
+  permissions?: string[];
   tokenLimit?: number | null;
 }
 
@@ -71,7 +74,11 @@ async function fetchProfile(_userId: string): Promise<FetchProfileResult> {
 
     const { data, error } = result;
     if (error || !data) return null;
-    return data as UserProfile;
+    const profile = data as UserProfile;
+    return {
+      ...profile,
+      accountKind: profile.organizationId ? 'organization' : 'individual',
+    };
   } catch {
     return 'timeout';
   }
@@ -91,7 +98,7 @@ async function fetchAuthorizedProfile(session: Session): Promise<FetchProfileRes
 
     const { data, error } = result;
     if (error) return null;
-    return buildInternalOwnerAppProfile(
+    return buildInternalStaffAppProfile(
       session,
       data as InternalStaffProfilePayload | null,
     );
@@ -206,11 +213,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession) return;
     const profileResult = await fetchAuthorizedProfile(currentSession);
@@ -218,7 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(profileResult);
       if (profileResult.isApproved) await saveProfileToCache(profileResult);
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ session, profile, loading, signOut, refreshProfile }}>

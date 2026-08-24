@@ -11,11 +11,15 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
+import { useNotifications } from '../../../context/NotificationContext';
+import { useSubscription } from '../../../context/SubscriptionContext';
+import { isInternalMobileRole } from '../../../services/AppProfileService';
 import { logger } from '../../../utils/logger';
 import { supabase } from '../../../utils/supabase';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
@@ -25,7 +29,8 @@ import { Spacing } from '../../../constants/Spacing';
 
 // Comunicados municipais: lista publicados pela prefeitura (RPC decide escopo
 // por organização do usuário). Leitura é registrada ao abrir o comunicado.
-// Avisos exigem conexão: não há cache local nesta v1.
+// O cache é isolado por usuário e organização para impedir vazamentos entre contas.
+const NOTICE_REFRESH_INTERVAL_MS = 45_000;
 
 type Severidade = 'informacao' | 'alerta' | 'emergencia';
 
@@ -34,7 +39,7 @@ interface ComunicadoApp {
   titulo: string;
   conteudo: string;
   severidade: Severidade;
-  status: 'rascunho' | 'publicado' | 'arquivado';
+  status: 'rascunho' | 'agendado' | 'publicado' | 'arquivado';
   publicado_em: string | null;
   expira_em: string | null;
   criado_em: string | null;
@@ -68,6 +73,16 @@ export default function AvisosScreen() {
   const { theme } = useTheme();
   const { profile } = useAuth();
   const { isOnlineReal } = useConnectivity();
+  const { context: subscriptionContext, loading: subscriptionLoading, hasFeature } = useSubscription();
+  const { atualizarBadge } = useNotifications();
+  const organizationId = profile?.organizationId || subscriptionContext?.organization?.id || null;
+  const internalProfile = isInternalMobileRole(profile?.role);
+  const noticesEnabled = !subscriptionContext?.features
+    || !('comunicados' in subscriptionContext.features)
+    || hasFeature('comunicados');
+  const noticeCacheKey = profile?.uid && organizationId
+    ? `@tcs_avisos_${profile.uid}_${organizationId}`
+    : null;
   // Cadastro de comunicado é exclusivo do painel web; no app apenas
   // admin/master podem disparar um aviso já publicado nas comunidades.
   const podeDisparar = profile?.role === 'admin' || profile?.role === 'master_admin' || profile?.role === 'owner';
@@ -80,31 +95,81 @@ export default function AvisosScreen() {
   const [comunicados, setComunicados] = useState<ComunicadoApp[]>([]);
   const [selecionado, setSelecionado] = useState<ComunicadoApp | null>(null);
 
+  const persistirComunicados = useCallback(async (lista: ComunicadoApp[]) => {
+    if (!noticeCacheKey) return;
+    try {
+      await AsyncStorage.setItem(noticeCacheKey, JSON.stringify(lista));
+    } catch (excecao) {
+      logger.warn('notifications', 'Não foi possível atualizar o cache dos avisos', excecao);
+    }
+  }, [noticeCacheKey]);
+
+  const carregarCache = useCallback(async () => {
+    if (!noticeCacheKey) return false;
+    try {
+      const raw = await AsyncStorage.getItem(noticeCacheKey);
+      const cached = raw ? JSON.parse(raw) as unknown : null;
+      if (!Array.isArray(cached)) return false;
+      const lista = cached as ComunicadoApp[];
+      setComunicados(lista);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [noticeCacheKey]);
+
   const carregar = useCallback(async (mostrarSpinner: boolean) => {
+    if (!organizationId || !noticesEnabled) {
+      setComunicados([]);
+      setCarregando(false);
+      setAtualizando(false);
+      return;
+    }
     if (mostrarSpinner) setCarregando(true);
     setErro(null);
     try {
       const { data, error: rpcError } = await supabase.rpc('portal_list_comunicados');
       if (rpcError) throw rpcError;
       const lista = Array.isArray(data) ? data as ComunicadoApp[] : [];
-      setComunicados(lista.filter((item) => item.status === 'publicado'));
+      const publicados = lista.filter((item) => (
+        item.status === 'publicado'
+        && (!item.expira_em || new Date(item.expira_em).getTime() > Date.now())
+      ));
+      setComunicados(publicados);
+      await persistirComunicados(publicados);
+      await atualizarBadge(publicados.filter((item) => !item.lido).length).catch(() => null);
     } catch (excecao) {
       logger.warn('notifications', 'Falha ao carregar comunicados', excecao);
-      setErro('Não foi possível carregar os avisos agora.');
+      const cached = await carregarCache();
+      if (!cached) setErro('Não foi possível carregar os avisos agora.');
     } finally {
       setCarregando(false);
       setAtualizando(false);
     }
-  }, []);
+  }, [atualizarBadge, carregarCache, noticesEnabled, organizationId, persistirComunicados]);
 
   useFocusEffect(
     useCallback(() => {
-      if (isOnlineReal) void carregar(true);
-      else {
+      if (subscriptionLoading) return;
+
+      if (!organizationId || !noticesEnabled) {
+        setComunicados([]);
+        setErro(null);
         setCarregando(false);
-        setErro('Os avisos precisam de conexão com a internet.');
+        return;
       }
-    }, [carregar, isOnlineReal]),
+
+      if (isOnlineReal) {
+        void carregar(true);
+        const refreshTimer = setInterval(() => void carregar(false), NOTICE_REFRESH_INTERVAL_MS);
+        return () => clearInterval(refreshTimer);
+      }
+
+      void carregarCache().then((cached) => {
+        setCarregando(false);
+        if (!cached) setErro('Conecte-se à internet para carregar os comunicados da sua organização.');
+      });
+    }, [carregar, carregarCache, isOnlineReal, noticesEnabled, organizationId, subscriptionLoading]),
   );
 
   const naoLidos = comunicados.filter((item) => !item.lido).length;
@@ -112,11 +177,17 @@ export default function AvisosScreen() {
   async function abrir(comunicado: ComunicadoApp) {
     setSelecionado(comunicado);
     if (comunicado.lido) return;
-    setComunicados((atual) =>
-      atual.map((item) => (item.id === comunicado.id ? { ...item, lido: true } : item)),
-    );
+    const atualizados = comunicados.map((item) => (
+      item.id === comunicado.id ? { ...item, lido: true } : item
+    ));
+    setComunicados(atualizados);
+    await persistirComunicados(atualizados);
+    await atualizarBadge(atualizados.filter((item) => !item.lido).length).catch(() => null);
     try {
-      await supabase.rpc('portal_register_comunicado_leitura', { p_comunicado_id: comunicado.id });
+      const { error: leituraError } = await supabase.rpc('portal_register_comunicado_leitura', {
+        p_comunicado_id: comunicado.id,
+      });
+      if (leituraError) throw leituraError;
     } catch (excecao) {
       logger.warn('notifications', 'Falha ao registrar leitura', excecao);
     }
@@ -152,7 +223,9 @@ export default function AvisosScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
       <AppHeader
         title="Avisos"
-        subtitle={naoLidos > 0 ? `${naoLidos} não lido${naoLidos === 1 ? '' : 's'}` : 'Comunicados da prefeitura'}
+        subtitle={naoLidos > 0
+          ? `${naoLidos} não lido${naoLidos === 1 ? '' : 's'}`
+          : subscriptionContext?.organization?.display_name || 'Comunicados da organização'}
       />
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -179,7 +252,23 @@ export default function AvisosScreen() {
             onAction={isOnlineReal ? () => void carregar(true) : undefined}
           />
         )}
-        {!carregando && !erro && comunicados.length === 0 && (
+        {!carregando && !erro && !organizationId && (
+          <EmptyState
+            icon={internalProfile ? 'briefcase' : 'user'}
+            title={internalProfile ? 'Selecione uma organização no painel web' : 'Sua conta é individual'}
+            description={internalProfile
+              ? 'Comunicados municipais pertencem a uma organização. Consulte e administre os avisos pelo painel web da TCS.'
+              : 'Comunicados municipais são disponibilizados apenas para contas vinculadas a uma organização.'}
+          />
+        )}
+        {!carregando && !erro && organizationId && !noticesEnabled && (
+          <EmptyState
+            icon="bell-off"
+            title="Avisos indisponíveis para sua conta"
+            description="A organização pode administrar os módulos disponíveis exclusivamente pelo painel web."
+          />
+        )}
+        {!carregando && !erro && organizationId && noticesEnabled && comunicados.length === 0 && (
           <EmptyState
             icon="bell-off"
             title="Nenhum aviso publicado"

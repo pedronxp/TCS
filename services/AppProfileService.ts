@@ -5,7 +5,17 @@ export interface InternalStaffProfilePayload {
   role?: string;
   status?: string;
   display_name?: string;
+  permissions?: string[];
 }
+
+export type InternalMobileRole = 'owner' | 'developer' | 'support' | 'auditor';
+
+const INTERNAL_MOBILE_ROLES = new Set<InternalMobileRole>([
+  'owner',
+  'developer',
+  'support',
+  'auditor',
+]);
 
 export interface LegacyAccessProfile {
   role?: string | null;
@@ -24,25 +34,44 @@ export function isNeutralCustomerProfile(profile: LegacyAccessProfile | null): b
   );
 }
 
-export function buildInternalOwnerAppProfile(
+export function buildInternalStaffAppProfile(
   session: Session,
   staff: InternalStaffProfilePayload | null,
 ) {
   if (
     !staff
     || staff.user_id !== session.user.id
-    || staff.role !== 'owner'
+    || !INTERNAL_MOBILE_ROLES.has(staff.role as InternalMobileRole)
     || staff.status !== 'active'
   ) {
     return null;
   }
 
+  const role = staff.role as InternalMobileRole;
+
   return {
     uid: session.user.id,
-    name: staff.display_name?.trim() || session.user.email?.split('@')[0] || 'Proprietário TCS',
+    name: staff.display_name?.trim() || session.user.email?.split('@')[0] || 'Equipe TCS',
     email: session.user.email || '',
-    role: 'owner' as const,
+    role,
     municipio: '',
+    organizationId: null,
+    accountKind: 'internal' as const,
+    permissions: Array.isArray(staff.permissions)
+      ? staff.permissions.filter((permission): permission is string => typeof permission === 'string')
+      : [],
     isApproved: true,
   };
+}
+
+export function buildInternalOwnerAppProfile(
+  session: Session,
+  staff: InternalStaffProfilePayload | null,
+) {
+  if (staff?.role !== 'owner') return null;
+  return buildInternalStaffAppProfile(session, staff);
+}
+
+export function isInternalMobileRole(role: string | null | undefined): role is InternalMobileRole {
+  return INTERNAL_MOBILE_ROLES.has(role as InternalMobileRole);
 }

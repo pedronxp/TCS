@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { countAgendamentosPendentesAgente } from '../../utils/database';
+import { countAgendamentosPendentesAgente, getVistoriasNaoSincronizadas } from '../../utils/database';
 import { verificarLaudosExpirando } from '../../utils/laudoExpiracaoNotif';
 import { supabase } from '../../utils/supabase';
 import { logger } from '../../utils/logger';
+import { isInternalMobileRole } from '../../services/AppProfileService';
+import { syncPendentes } from '../../services/SyncService';
 import { resolveInstitutionalIdentity } from '../../utils/institutionalIdentity';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -34,6 +36,8 @@ export default function DashboardScreen() {
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingAppointments, setPendingAppointments] = useState(0);
+  const [pendingSync, setPendingSync] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const cacheTimestamp = useRef(0);
 
   const dateLabel = useMemo(() => {
@@ -69,7 +73,7 @@ export default function DashboardScreen() {
     }
     if (!profile) return;
     if (profile.role === 'master_admin') { router.replace('/(panel)/master'); return; }
-    if (profile.role === 'owner') { router.replace('/(panel)/master'); return; }
+    if (isInternalMobileRole(profile.role)) { router.replace('/(panel)/internal'); return; }
     if (profile.role === 'admin') { router.replace('/(panel)/admin'); return; }
     if (profile.role === 'supervisor') { router.replace('/(panel)/supervisor'); return; }
     setPendingAppointments(countAgendamentosPendentesAgente(profile.uid));
@@ -84,6 +88,32 @@ export default function DashboardScreen() {
     fetchMetrics(profile.uid);
   }, [fetchMetrics, profile]);
 
+  const updatePendingSync = useCallback(() => {
+    if (!profile?.uid) return;
+    try {
+      setPendingSync(getVistoriasNaoSincronizadas()
+        .filter((vistoria) => vistoria.agente_uid === profile.uid).length);
+    } catch (error) {
+      logger.warn('sync', 'Não foi possível verificar a fila local', { erro: String(error) });
+    }
+  }, [profile?.uid]);
+
+  useFocusEffect(useCallback(() => {
+    updatePendingSync();
+  }, [updatePendingSync]));
+
+  const syncNow = useCallback(async () => {
+    if (!isOnlineReal || syncing) return;
+    setSyncing(true);
+    try {
+      await syncPendentes();
+      updatePendingSync();
+      if (profile?.uid) await fetchMetrics(profile.uid);
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchMetrics, isOnlineReal, profile?.uid, syncing, updatePendingSync]);
+
   if (authLoading || isTrainingActive) {
     return (
       <View style={[styles.loading, { backgroundColor: theme.background }]}>
@@ -96,6 +126,7 @@ export default function DashboardScreen() {
   const initial = firstName[0]?.toUpperCase() ?? '?';
   const institutionalIdentity = resolveInstitutionalIdentity(subscriptionContext);
   const organizationLabel = institutionalIdentity?.organizationName || profile?.municipio || null;
+  const individualAccount = !profile?.organizationId && !organizationLabel;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
@@ -111,7 +142,9 @@ export default function DashboardScreen() {
               </View>
             ) : null}
             <View style={[styles.contextChip, { backgroundColor: theme.secondary }]}>
-              <Text style={[styles.contextText, { color: theme.primary }]}>Agente</Text>
+              <Text style={[styles.contextText, { color: theme.primary }]}>
+                {individualAccount ? 'Conta profissional' : 'Agente'}
+              </Text>
             </View>
           </View>
         </View>
@@ -150,8 +183,23 @@ export default function DashboardScreen() {
           <StateBanner title="Modo offline ativo" description="Você pode criar vistorias normalmente. A sincronização retorna com a conexão." variant="warning" />
         ) : null}
 
+        {pendingSync > 0 ? (
+          <StateBanner
+            variant="warning"
+            title={`${pendingSync} vistoria${pendingSync === 1 ? '' : 's'} aguardando envio`}
+            description={isOnlineReal
+              ? 'Os registros locais podem ser enviados agora para o painel web.'
+              : 'Os registros permanecem protegidos no aparelho até a conexão retornar.'}
+            actionLabel={isOnlineReal ? syncing ? 'Sincronizando…' : 'Sincronizar' : undefined}
+            onAction={isOnlineReal && !syncing ? () => void syncNow() : undefined}
+          />
+        ) : null}
+
         <View>
-          <SectionHeader title="Seu turno" subtitle="Resumo da atividade de hoje" />
+          <SectionHeader
+            title={individualAccount ? 'Sua atividade' : 'Seu turno'}
+            subtitle={individualAccount ? 'Resumo das suas vistorias profissionais' : 'Resumo da atividade de hoje'}
+          />
           {metricsError ? <ErrorState message={metricsError} onRetry={onRefresh} /> : (
             <View style={styles.metricGrid}>
               <MetricCard
@@ -195,7 +243,9 @@ export default function DashboardScreen() {
               { title: 'Vistorias', description: 'Histórico e laudos', icon: 'clipboard' as const, route: '/(panel)/inspecoes' },
               { title: 'Mapa tático', description: 'Ocorrências no território', icon: 'map-pin' as const, route: '/(panel)/mapas' },
               { title: 'Agenda', description: 'Tarefas atribuídas', icon: 'calendar' as const, route: '/(panel)/agendamentos' },
-              { title: 'Módulos', description: 'Todas as ferramentas', icon: 'grid' as const, route: '/(panel)/modulos' },
+              ...(individualAccount
+                ? [{ title: 'Minha conta', description: 'Plano e preferências', icon: 'user' as const, route: '/(panel)/perfil' }]
+                : [{ title: 'Avisos', description: 'Comunicados da organização', icon: 'bell' as const, route: '/(panel)/avisos' }]),
             ].map(item => (
               <View key={item.title} style={styles.moduleCell}>
                 <ModuleCard {...item} onPress={() => router.push(item.route as any)} />
@@ -226,8 +276,8 @@ const styles = StyleSheet.create({
   notificationText: { color: '#FFFFFF', fontSize: 9, fontWeight: FontWeight.extrabold },
   content: { paddingHorizontal: Spacing[5], gap: Spacing[8] },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[3] },
-  metricWide: { width: '100%', minHeight: 128 },
-  metricHalf: { width: '48%', flexGrow: 1, minHeight: 116 },
+  metricWide: { width: '100%', minHeight: 102 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 96 },
   primaryPanel: { borderRadius: SpacingAlias.radiusXl, padding: Spacing[5], gap: Spacing[5] },
   primaryPanelTop: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[4] },
   primaryIcon: { width: 48, height: 48, borderRadius: SpacingAlias.radiusMd, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },

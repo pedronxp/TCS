@@ -52,6 +52,8 @@ function RootNavigator() {
     const data = lastResponse.notification.request.content.data as Record<string, any>;
     if (data?.tipo === 'atribuicao' || data?.tipo === 'vistoria_salva' || data?.tipo === 'sync') {
       router.push('/(panel)/inspecoes');
+    } else if (data?.tipo === 'comunicado' || data?.tipo === 'aviso' || data?.tipo === 'emergencia') {
+      router.push('/(panel)/avisos');
     }
   }, [lastResponse]);
 
@@ -108,7 +110,7 @@ function RootNavigator() {
       if (cancelled) return;
       const done = val === '1';
       const segs = segmentsRef.current;          // sempre atualizado via ref
-      const isAuthenticated = !!session && (profile?.isApproved === true || profile?.role === 'owner');
+      const isAuthenticated = !!session && profile?.isApproved === true;
       const hasPendingCustomerSession = !!session && !isAuthenticated;
       const hasExpiredTrainingSession = !!trainingSession && isExpired();
       const hasTrainingSession = !!trainingSession && isTrainingActive && !hasExpiredTrainingSession;

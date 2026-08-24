@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
+import { useAuth } from './AuthContext';
 import { logger } from '../utils/logger';
 import {
   hasNotificationPermission,
@@ -30,6 +31,7 @@ interface NotificationContextValue {
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { profile } = useAuth();
   const [hasPermission, setHasPermission] = useState(false);
   const [badgeCount, setBadgeState] = useState(0);
   const [lastResponse, setLastResponse] = useState<Notifications.NotificationResponse | null>(null);
@@ -41,16 +43,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // de uma ação contextual do usuário, nunca do cadastro ou da abertura.
     hasNotificationPermission().then(granted => {
       setHasPermission(granted);
-      if (granted) {
-        registrarPushToken();
-        getBadgeCount().then(setBadgeState);
-      }
+      if (granted) getBadgeCount().then(setBadgeState);
     });
 
     // Listener: notificação recebida com app em foreground
     receivedRef.current = addNotificationReceivedListener(notification => {
       const data = notification.request.content.data as Record<string, any>;
       logger.info('system', 'Notificação recebida', { tipo: data?.tipo });
+      if (data?.tipo === 'comunicado' || data?.tipo === 'aviso' || data?.tipo === 'emergencia') {
+        setBadgeState((current) => current + 1);
+      }
     });
 
     // Listener: usuário tocou — armazena resposta para RootNavigator navegar
@@ -64,10 +66,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  const atualizarBadge = async (count: number) => {
+  useEffect(() => {
+    if (!profile?.uid) {
+      setBadgeState(0);
+      setLastResponse(null);
+      return;
+    }
+    if (!hasPermission) return;
+    registrarPushToken().catch(() => null);
+  }, [hasPermission, profile?.uid]);
+
+  const atualizarBadge = useCallback(async (count: number) => {
     await setBadgeCount(count);
     setBadgeState(count);
-  };
+  }, []);
 
   const value: NotificationContextValue = {
     hasPermission,

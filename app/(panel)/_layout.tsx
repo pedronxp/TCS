@@ -1,6 +1,6 @@
 import { Stack, useSegments, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import {
   syncPendentes,
@@ -14,6 +14,7 @@ import { SessionGuardProvider, useSessionGuard } from '../../context/SessionGuar
 import { SessionLockScreen } from '../../components/SessionLockScreen';
 import { pingSupabaseKeepAlive } from '../../services/KeepAliveService';
 import { useAuth } from '../../context/AuthContext';
+import { useSubscription } from '../../context/SubscriptionContext';
 import { useTraining } from '../../context/TrainingContext';
 
 // Rotas que exigem papel mínimo para acesso.
@@ -22,7 +23,19 @@ const ROUTE_ROLES: Record<string, readonly string[]> = {
   'admin':        ['admin', 'master_admin'],
   'supervisor':   ['supervisor', 'admin', 'master_admin'],
   'master':       ['master_admin'],
+  'internal':     ['owner', 'developer', 'support', 'auditor'],
 };
+
+const WEB_ONLY_ROUTES = new Set([
+  'master/contratacoes',
+  'master/municipios',
+  'master/logs',
+  'admin/form-editor',
+  'admin/editor-perguntas',
+  'admin/risco-config',
+  'admin/tokens',
+  'admin/gerar-token',
+]);
 
 function useRouteGuard() {
   const segments = useSegments() as string[];
@@ -34,6 +47,13 @@ function useRouteGuard() {
     // segments[0] = "(panel)", segments[1] = section (admin/supervisor/master/...)
     const section = segments[1] as string | undefined;
     if (!section) return;
+
+    const nestedRoute = `${section}/${segments[2] || ''}`;
+    if (WEB_ONLY_ROUTES.has(nestedRoute)) {
+      logger.info('auth', `Ação administrativa disponível apenas no painel web: ${nestedRoute}`);
+      router.replace('/(panel)/modulos');
+      return;
+    }
 
     const allowed = ROUTE_ROLES[section];
     if (!allowed) return; // Rota sem restrição de papel
@@ -47,7 +67,9 @@ function useRouteGuard() {
 }
 
 function PanelContent() {
-  const { isLocked } = useSessionGuard();
+  const { isLocked, ready } = useSessionGuard();
+  const { refreshProfile } = useAuth();
+  const { refresh: refreshSubscription } = useSubscription();
   const { isOnlineReal } = useConnectivity();
   const { isTrainingActive } = useTraining();
   const isolatedMode = isTrainingActive;
@@ -69,11 +91,17 @@ function PanelContent() {
     if (isOnlineReal && !prevConnected.current) {
       logger.info('network', 'Conectividade restaurada — iniciando sync automático');
       syncPendentes().catch(() => null);
+      refreshProfile().catch(() => null);
+      refreshSubscription().catch(() => null);
     } else if (!isOnlineReal && prevConnected.current) {
       logger.warn('network', 'Sem conexão com a internet — modo offline ativo');
     }
     prevConnected.current = isOnlineReal;
-  }, [isOnlineReal, isolatedMode]);
+  }, [isOnlineReal, isolatedMode, refreshProfile, refreshSubscription]);
+
+  if (!ready && !isolatedMode) {
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator /></View>;
+  }
 
   if (isLocked && !isolatedMode) {
     return <SessionLockScreen />;
@@ -115,6 +143,7 @@ function PanelContent() {
         <Stack.Screen name="master/treinamentos" />
         <Stack.Screen name="master/logs" />
         <Stack.Screen name="master/contratacoes" />
+        <Stack.Screen name="internal/index" />
         <Stack.Screen name="modulos" />
         <Stack.Screen name="avisos/index" />
         <Stack.Screen name="assinatura" />

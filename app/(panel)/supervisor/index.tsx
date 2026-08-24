@@ -30,6 +30,7 @@ export default function SupervisorDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [vistorias, setVistorias] = useState<VistoriaNormalizada[]>([]);
   const [agentesAtivos, setAgentesAtivos] = useState(0);
+  const [totais, setTotais] = useState({ vistorias: 0, altoRisco: 0 });
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
 
   const carregar = async (showRefresh = false) => {
@@ -37,7 +38,7 @@ export default function SupervisorDashboardScreen() {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [vistoriasRes, agentesRes] = await Promise.all([
+      const [vistoriasRes, agentesRes, totalRes, riscoRes] = await Promise.all([
         supabase
           .from('vistorias')
           .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, municipio, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, status')
@@ -45,12 +46,25 @@ export default function SupervisorDashboardScreen() {
           .order('dataVistoria', { ascending: false })
           .limit(20),
         supabase.rpc('list_operational_users', {
-          p_role: 'agent', p_municipio: null, p_include_unapproved: false, p_offset: 0, p_limit: 500,
+          p_role: 'agent', p_municipio: profile.municipio, p_include_unapproved: false, p_offset: 0, p_limit: 500,
         }),
+        supabase.from('vistorias')
+          .select('id', { count: 'exact', head: true })
+          .eq('municipio', profile.municipio),
+        supabase.from('vistorias')
+          .select('id', { count: 'exact', head: true })
+          .eq('municipio', profile.municipio)
+          .in('nivelRisco', ['r3', 'r4']),
       ]);
 
       setVistorias(vistoriasRes.data || []);
       setAgentesAtivos((agentesRes.data || []).length);
+      setTotais({
+        vistorias: totalRes.count ?? (vistoriasRes.data || []).length,
+        altoRisco: riscoRes.count ?? (vistoriasRes.data || []).filter((item) => (
+          item.nivelRisco === 'r3' || item.nivelRisco === 'r4'
+        )).length,
+      });
     } catch (e) {
       logger.error('system', 'Erro supervisor dashboard', { erro: String(e) });
     } finally {
@@ -66,10 +80,8 @@ export default function SupervisorDashboardScreen() {
     }
   }, [profile?.municipio]));
 
-  const totalVistorias = vistorias.length;
-  const altoRisco = vistorias.filter(v =>
-    v.nivelRisco === 'r3' || v.nivelRisco === 'r4'
-  ).length;
+  const totalVistorias = totais.vistorias;
+  const altoRisco = totais.altoRisco;
 
   // Ranking de agentes (mês atual)
   const agora = new Date();
@@ -176,7 +188,7 @@ export default function SupervisorDashboardScreen() {
         {/* KPIs */}
         <SectionHeader title="Visão geral" subtitle="Operação municipal acompanhada pela supervisão" />
         <View style={styles.metricGrid}>
-          <MetricCard value={totalVistorias} label="Vistorias recentes" detail="Últimos registros" tone="primary" style={styles.metricWide} />
+          <MetricCard value={totalVistorias} label="Vistorias da organização" detail="Total confirmado no backend" tone="primary" style={styles.metricWide} />
           <MetricCard value={altoRisco} label="Alertas críticos" tone="danger" style={styles.metricHalf} />
           <MetricCard value={agentesAtivos} label="Agentes ativos" tone="success" style={styles.metricHalf} />
         </View>
@@ -218,7 +230,7 @@ export default function SupervisorDashboardScreen() {
 
         {/* Atividade recente */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Registro de Operações</Text>
-        {vistorias.slice(0, 8).map(v => {
+        {vistorias.slice(0, 5).map(v => {
           const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
           const nivel = String(v.nivelRisco || '').toLowerCase();
           const cor = ['r3', 'r4', 'alto', 'critico', 'iminente'].includes(nivel)
@@ -278,8 +290,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: { padding: 20, paddingBottom: 100 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  metricWide: { width: '100%', minHeight: 128 },
-  metricHalf: { width: '48%', flexGrow: 1, minHeight: 112 },
+  metricWide: { width: '100%', minHeight: 102 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 96 },
 
   alertBanner: {
     flexDirection: 'row', alignItems: 'center',

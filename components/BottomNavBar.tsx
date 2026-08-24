@@ -5,6 +5,8 @@ import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import { navSystemBottom } from '../utils/useBottomTabPadding';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Spacing, SpacingAlias } from '../constants/Spacing';
@@ -20,58 +22,77 @@ interface NavTab {
 const TABS_AGENT: NavTab[] = [
   { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/dashboard', matchPaths: ['/dashboard'] },
   { key: 'inspecoes', label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
-  { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'avisos', label: 'Avisos', icon: 'bell', route: '/(panel)/avisos', matchPaths: ['/avisos'] },
   { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const TABS_SUPERVISOR: NavTab[] = [
   { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/supervisor', matchPaths: ['/supervisor'] },
   { key: 'inspecoes', label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
-  { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
+  { key: 'avisos', label: 'Avisos', icon: 'bell', route: '/(panel)/avisos', matchPaths: ['/avisos'] },
   { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const TABS_ADMIN: NavTab[] = [
   { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/admin', matchPaths: ['/admin'] },
   { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
-  { key: 'formularios', label: 'Formulários', icon: 'edit-3', route: '/(panel)/admin/form-editor', matchPaths: ['/admin/form-editor', '/admin/editor-perguntas'] },
-  { key: 'relatorios', label: 'Relatórios', icon: 'bar-chart-2', route: '/(panel)/admin/relatorios', matchPaths: ['/admin/relatorios'] },
+  { key: 'avisos', label: 'Avisos', icon: 'bell', route: '/(panel)/avisos', matchPaths: ['/avisos'] },
   { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
 const TABS_MASTER: NavTab[] = [
   { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/master', matchPaths: ['/master'] },
   { key: 'inspecoes', label: 'Vistorias', icon: 'clipboard', route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] },
-  { key: 'mapas', label: 'Mapa', icon: 'map-pin', route: '/(panel)/mapas', matchPaths: ['/mapas'] },
-  { key: 'formularios', label: 'Formulários', icon: 'edit-3', route: '/(panel)/admin/form-editor', matchPaths: ['/admin/form-editor', '/admin/editor-perguntas'] },
+  { key: 'avisos', label: 'Avisos', icon: 'bell', route: '/(panel)/avisos', matchPaths: ['/avisos'] },
   { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
 ];
 
+const TABS_INTERNAL: NavTab[] = [
+  { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/internal', matchPaths: ['/internal'] },
+  { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
+  { key: 'perfil', label: 'Perfil', icon: 'user', route: '/(panel)/perfil', matchPaths: ['/perfil'] },
+];
+
 const NAVBAR_VISIBLE_PATHS = [
-  '/dashboard', '/inspecoes', '/perfil', '/modulos', '/mapas',
+  '/dashboard', '/inspecoes', '/perfil', '/modulos', '/mapas', '/avisos', '/internal',
   '/admin', '/supervisor', '/master', '/admin/relatorios', '/admin/estatisticas', '/admin/form-editor', '/admin/editor-perguntas',
 ];
 
 interface BottomNavBarInnerProps {
   role: string;
   pathname: string;
+  hasOrganization?: boolean;
+  noticesEnabled?: boolean;
 }
 
-export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname }: BottomNavBarInnerProps) {
+export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname, hasOrganization = true, noticesEnabled = true }: BottomNavBarInnerProps) {
   const { theme } = useTheme();
+  const { badgeCount } = useNotifications();
   const insets = useSafeAreaInsets();
   const normalizedPath = pathname.replace(/\/+$/, '');
   const shouldShow = NAVBAR_VISIBLE_PATHS.some(path => normalizedPath === path || normalizedPath.endsWith(path));
 
   if (!shouldShow) return null;
 
-  const tabs = role === 'master_admin'
+  const baseTabs = ['owner', 'developer', 'support', 'auditor'].includes(role)
+    ? TABS_INTERNAL
+    : role === 'master_admin'
     ? TABS_MASTER
     : role === 'admin'
       ? TABS_ADMIN
       : role === 'supervisor'
         ? TABS_SUPERVISOR
         : TABS_AGENT;
+
+  const tabs = hasOrganization && noticesEnabled
+    ? baseTabs
+    : baseTabs.map((tab) => {
+      if (tab.key !== 'avisos') return tab;
+      if (baseTabs.some((item) => item.key === 'mapas')) {
+        return { key: 'perfil', label: 'Perfil', icon: 'user' as const, route: '/(panel)/perfil', matchPaths: ['/perfil'] };
+      }
+      return { key: 'mapas', label: 'Mapa', icon: 'map-pin' as const, route: '/(panel)/mapas', matchPaths: ['/mapas'] };
+    });
 
   const isActive = (tab: NavTab) => (
     (tab.matchPaths ?? [tab.route]).some(path => normalizedPath === path || normalizedPath.endsWith(path))
@@ -102,6 +123,11 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
             >
               <View style={[styles.iconTile, active && { backgroundColor: theme.secondary }]}>
                 <Feather name={tab.icon} size={21} color={active ? theme.primary : theme.textSecondary} />
+                {tab.key === 'avisos' && badgeCount > 0 ? (
+                  <View style={[styles.badge, { backgroundColor: theme.error }]}>
+                    <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={[styles.label, { color: active ? theme.primary : theme.textSecondary }, active && styles.labelActive]}>
                 {tab.label}
@@ -117,9 +143,17 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
 
 export function BottomNavBar() {
   const { profile } = useAuth();
+  const { context, hasFeature } = useSubscription();
   const pathname = usePathname();
   if (!profile) return null;
-  return <BottomNavBarInner role={profile.role} pathname={pathname} />;
+  return (
+    <BottomNavBarInner
+      role={profile.role}
+      pathname={pathname}
+      hasOrganization={Boolean(profile.organizationId || context?.organization?.id)}
+      noticesEnabled={!context?.features || !('comunicados' in context.features) || hasFeature('comunicados')}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -139,6 +173,8 @@ const styles = StyleSheet.create({
   tab: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 3 },
   pressed: { opacity: 0.72 },
   iconTile: { width: 40, height: 30, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: -5, right: -3, minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: FontWeight.extrabold },
   label: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
   labelActive: { fontWeight: FontWeight.bold },
   dot: { width: 4, height: 4, borderRadius: 2 },

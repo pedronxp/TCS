@@ -371,8 +371,8 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   scrollContent: { padding: 20, paddingBottom: 100 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
-  metricWide: { width: '100%', minHeight: 128 },
-  metricHalf: { width: '48%', flexGrow: 1, minHeight: 112 },
+  metricWide: { width: '100%', minHeight: 102 },
+  metricHalf: { width: '48%', flexGrow: 1, minHeight: 96 },
   sectionTitle: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 14, marginTop: 4,

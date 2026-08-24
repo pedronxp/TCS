@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
+import { useSessionGuard } from '../../context/SessionGuardContext';
 import { supabase } from '../../utils/supabase';
 import { AppHeader, Badge, StateBanner } from '../../components/ui';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
@@ -30,7 +31,10 @@ const ROLE_LABELS: Record<string, string> = {
   supervisor: 'Supervisor',
   admin: 'Administrador',
   master_admin: 'Master Admin',
-  owner: 'Responsável pela conta',
+  owner: 'Proprietário TCS',
+  developer: 'Desenvolvimento TCS',
+  support: 'Suporte TCS',
+  auditor: 'Auditoria TCS',
 };
 
 const THEME_OPTIONS: {
@@ -79,6 +83,7 @@ export default function PerfilScreen() {
     refreshProfile,
   } = useAuth();
   const { isOnlineReal } = useConnectivity();
+  const { biometricAvailable, biometricEnabled, biometricLabel, setBiometricEnabled } = useSessionGuard();
 
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -91,6 +96,7 @@ export default function PerfilScreen() {
   const [resetLoading, setResetLoading] = useState(false);
   const [googleLinking, setGoogleLinking] = useState(false);
   const [googleLinkedLocally, setGoogleLinkedLocally] = useState(false);
+  const [biometricUpdating, setBiometricUpdating] = useState(false);
 
   useEffect(() => {
     setNewName(authProfile?.name || '');
@@ -170,6 +176,21 @@ export default function PerfilScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Sair', style: 'destructive', onPress: async () => signOut() },
     ]);
+  };
+
+  const toggleBiometric = async () => {
+    if (biometricUpdating || !biometricAvailable) return;
+    setBiometricUpdating(true);
+    try {
+      const changed = await setBiometricEnabled(!biometricEnabled);
+      if (!changed) {
+        Alert.alert('Não foi possível confirmar', `Confira se ${biometricLabel} está configurado neste aparelho e tente novamente.`);
+      }
+    } catch {
+      Alert.alert('Não foi possível atualizar', 'Tente novamente em alguns instantes.');
+    } finally {
+      setBiometricUpdating(false);
+    }
   };
 
   if (authLoading) {
@@ -338,6 +359,25 @@ export default function PerfilScreen() {
               theme={theme}
             />
           )}
+
+          <Divider color={theme.border} />
+
+          <SettingsRow
+            icon="shield"
+            title={biometricAvailable ? `Acesso com ${biometricLabel}` : 'Acesso biométrico'}
+            description={
+              !biometricAvailable
+                ? 'Indisponível ou não configurado neste aparelho'
+                : biometricEnabled
+                  ? 'Ativado — toque para desativar'
+                  : 'Desativado — toque para ativar'
+            }
+            onPress={toggleBiometric}
+            loading={biometricUpdating}
+            disabled={!biometricAvailable || biometricUpdating}
+            success={biometricEnabled}
+            theme={theme}
+          />
 
           <Divider color={theme.border} />
 
