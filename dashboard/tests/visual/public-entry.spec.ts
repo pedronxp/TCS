@@ -39,3 +39,18 @@ for (const route of routes) {
     await expect(page).toHaveScreenshot(`${route.id}.png`, { fullPage: true });
   });
 }
+
+test('callback de autenticação mostra uma tela e nunca permanece em branco', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await page.goto('/auth/callback?source=console&returnTo=%2Fapp', {
+    waitUntil: 'domcontentloaded',
+  });
+
+  await expect(page.locator('main')).toBeVisible();
+  await expect(page.getByRole('heading', {
+    name: /Autenticando sua conta TCS|Não foi possível concluir o acesso/,
+  })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});

@@ -60,7 +60,6 @@ export function AuthCallbackPage() {
         setCurrentStep(2);
         await waitForVisibleStep(DESTINATION_STEP_MS);
         if (!active) return;
-        window.history.replaceState({}, '', '/auth/callback');
         navigate(entry.destination, { replace: true });
       } catch (cause) {
         if (!active) return;
