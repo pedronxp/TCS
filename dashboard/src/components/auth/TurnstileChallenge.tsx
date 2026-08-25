@@ -22,9 +22,10 @@ declare global {
 }
 
 const SCRIPT_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-// A Site Key é pública. O fallback mantém o widget presente caso uma execução
-// local ou um preview do Cloudflare Pages não injete a variável no Vite.
-const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || '0x4AAAAAAEZrvk6QszB6lWKY';
+// O widget só é obrigatório quando a hospedagem injeta a Site Key. Assim,
+// testes, desenvolvimento local e execuções offline não ficam bloqueados por
+// um desafio externo, enquanto produção e previews continuam protegidos.
+const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || '';
 let scriptReady: Promise<void> | null = null;
 
 export const turnstileEnabled = siteKey.length > 0;
