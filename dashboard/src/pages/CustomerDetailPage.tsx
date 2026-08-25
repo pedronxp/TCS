@@ -29,6 +29,7 @@ import { CustomerMap } from '@/components/customers/CustomerMap';
 import { AccountPermissionBadge, StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary, AsyncEmpty, AsyncError, AsyncLoading } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/AsyncState';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
@@ -1233,23 +1234,54 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
   const [role, setRole] = useState('agent');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ count: number; firstAt: string | null; lastAt: string | null } | null>(null);
+  const [checkingHistory, setCheckingHistory] = useState(false);
+  const [importHistory, setImportHistory] = useState(false);
+  const [transferExisting, setTransferExisting] = useState(false);
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    const valid = /^[0-9a-f-]{36}$/i.test(userId.trim());
+    if (!open || !valid) { setHistory(null); setImportHistory(false); return undefined; }
+    const timer = window.setTimeout(() => {
+      setCheckingHistory(true);
+      const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+      void rpc('preview_individual_inspection_import', { p_user_id: userId.trim() }).then(({ data, error }) => {
+        setCheckingHistory(false);
+        if (error || !data || typeof data !== 'object' || Array.isArray(data)) { setHistory(null); return; }
+        const value = data as { count?: number; first_at?: string; last_at?: string };
+        setHistory({ count: Number(value.count ?? 0), firstAt: value.first_at ?? null, lastAt: value.last_at ?? null });
+      });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [open, userId]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setMessage(null);
-    const { error } = await supabase.rpc('internal_link_customer_to_organization', {
+    const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+    const { data, error } = await rpc('internal_assign_customer_to_organization', {
       p_user_id: userId.trim(),
       p_organization_id: organizationId,
       p_role: role,
+      p_import_individual_inspections: importHistory,
+      p_transfer_existing_membership: transferExisting,
+      p_reason: reason.trim() || null,
     });
     setSaving(false);
     if (error) {
-      setMessage('Não foi possível concluir o vínculo. Confira o ID da conta e tente novamente.');
+      setMessage(error.message.includes('membership_conflict')
+        ? 'Este usuário já pertence a outra organização. Ative o remanejamento e informe uma justificativa.'
+        : 'Não foi possível concluir o vínculo. Confira os dados e tente novamente.');
       return;
     }
-    toast.success('Agente vinculado à prefeitura e registro auditado.');
+    const result = data && typeof data === 'object' && !Array.isArray(data) ? data as { imported_inspections?: number; transferred?: boolean } : null;
+    toast.success(`${result?.transferred ? 'Agente remanejado' : 'Agente vinculado'} com registro auditado${result?.imported_inspections ? `; ${result.imported_inspections} vistorias importadas` : ''}.`);
     setUserId('');
+    setImportHistory(false);
+    setTransferExisting(false);
+    setReason('');
     onOpenChange(false);
     onLinked?.();
   }
@@ -1266,6 +1298,16 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
             <Label htmlFor="existing-agent-user-id">ID da conta individual</Label>
             <Input id="existing-agent-user-id" value={userId} onChange={(event) => setUserId(event.target.value)} placeholder="UUID do usuário" required />
           </div>
+          <section className="rounded-xl border bg-secondary/30 p-4" aria-live="polite">
+            <p className="text-sm font-semibold">Vistorias feitas como agente individual</p>
+            {checkingHistory ? <p className="mt-2 text-xs text-muted-foreground">Consultando histórico…</p>
+              : history ? <>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{history.count === 0 ? 'Nenhuma vistoria individual disponível para importar.' : `${history.count} vistoria${history.count === 1 ? '' : 's'} sem organização entre ${formatImportDate(history.firstAt)} e ${formatImportDate(history.lastAt)}.`}</p>
+                {history.count > 0 && <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-3 text-sm"><Checkbox className="mt-1" checked={importHistory} onCheckedChange={(checked) => setImportHistory(checked === true)} /><span><strong>Trazer todas para esta prefeitura</strong><span className="mt-1 block text-xs text-muted-foreground">A autoria e os protocolos originais serão preservados.</span></span></label>}
+              </> : <p className="mt-2 text-xs text-muted-foreground">Informe um ID válido para consultar o histórico disponível.</p>}
+          </section>
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm"><Checkbox className="mt-1" checked={transferExisting} onCheckedChange={(checked) => setTransferExisting(checked === true)} /><span><strong>Remanejar de outra organização, se necessário</strong><span className="mt-1 block text-xs text-muted-foreground">O vínculo anterior será encerrado e as sessões serão revogadas.</span></span></label>
+          {transferExisting && <div><Label htmlFor="existing-agent-transfer-reason">Justificativa do remanejamento</Label><Input id="existing-agent-transfer-reason" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} placeholder="Explique o motivo do remanejamento" required /></div>}
           <div>
             <Label htmlFor="existing-agent-role">Papel municipal</Label>
             <Select value={role} onValueChange={setRole}>
@@ -1281,12 +1323,18 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
           {message && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive">{message}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={saving}>{saving ? 'Vinculando…' : 'Confirmar vínculo'}</Button>
+            <Button type="submit" disabled={saving || (transferExisting && reason.trim().length < 10)}>{saving ? 'Salvando vínculo…' : transferExisting ? 'Confirmar remanejamento' : 'Confirmar vínculo'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
+}
+
+function formatImportDate(value: string | null) {
+  if (!value) return 'data não informada';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 'data não informada' : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(parsed);
 }
 
 function MemberAccessSheet({ customerId, user, onOpenChange }: {

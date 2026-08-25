@@ -59,6 +59,12 @@ test('normaliza telefone brasileiro para o pareamento por código', () => {
   assert.equal(lifecycle.normalizePairingPhone?.('123'), null);
 });
 
+test('confirma somente a conta realmente esperada no pareamento', () => {
+  assert.equal(lifecycle.pairingPhoneMatches?.('32 98479-2322', '5532984792322'), true);
+  assert.equal(lifecycle.pairingPhoneMatches?.('32 98479-2322', '5532999999999'), false);
+  assert.equal(lifecycle.pairingPhoneMatches?.('', '5532984792322'), false);
+});
+
 test('formata o código de vinculação sem alterar seus caracteres', () => {
   assert.equal(lifecycle.formatPairingCode?.('ABCD1234'), 'ABCD-1234');
 });

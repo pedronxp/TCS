@@ -7,7 +7,6 @@ import { TurnstileChallenge, turnstileEnabled } from '@/components/auth/Turnstil
 import { TermsPrivacyDialog } from '@/components/auth/TermsPrivacyDialog';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { safePortalDestination } from '@/lib/portal';
@@ -384,39 +383,6 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                   {mode === 'sign-in' ? 'Criar conta' : 'Entrar'}
                 </Link>
               </p>
-              <Dialog>
-                <button
-                  type="button"
-                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center text-center text-[12px] font-medium text-muted-foreground hover:text-foreground hover:underline lg:min-h-0"
-                >
-                  É da equipe interna TCS? Entrar no Console
-                </button>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Acesso ao Console TCS</DialogTitle>
-                    <DialogDescription>O Console é a área administrativa reservada aos administradores da TCS.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3 text-sm leading-6 text-muted-foreground">
-                    <p>
-                      Use o Console apenas se você for membro da equipe interna TCS (administrador, suporte ou técnico).
-                      Contas de clientes e municípios não têm acesso a essa área.
-                    </p>
-                    <p>
-                      Contas municipais continuam acessando por aqui, no Portal, em <strong className="text-foreground">/entrar</strong>.
-                      Não é necessário usar o Console.
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Se você tentar o Console com uma conta de cliente, será redirecionado de volta ao Portal.
-                    </p>
-                  </div>
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <DialogClose asChild>
-                      <Button variant="outline" type="button">Continuar no Portal</Button>
-                    </DialogClose>
-                    <Button asChild type="button"><Link to="/login">Ir para o Console</Link></Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
             </>
           )}
         </CardContent>

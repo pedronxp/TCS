@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, CheckCircle2, ExternalLink, Link2, LogOut, Megaphone, MessageCircleMore, Plus, QrCode, RefreshCw, ShieldCheck, Smartphone, Trash2, Unplug, Users, Wifi, WifiOff } from 'lucide-react';
+import { Bot, CheckCircle2, ExternalLink, Link2, LogOut, Megaphone, MessageCircleMore, MoreHorizontal, Plus, QrCode, RefreshCw, ShieldCheck, Smartphone, Trash2, Unplug, Users, Wifi, WifiOff } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { WhatsAppPairingDialog } from '@/components/domain/WhatsAppPairingDialog';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
@@ -272,27 +273,30 @@ export function PortalWhatsAppPage() {
                 const liveSession = runtimeQuery.data?.sessions.find((item) => item.id === session.id);
                 const liveLabel = liveSession?.runtimeState === 'online' ? 'Online'
                   : liveSession?.runtimeState === 'reconnecting' ? 'Reconectando'
-                    : liveSession?.runtimeState === 'starting' ? 'Iniciando'
+                    : liveSession?.runtimeState === 'starting' ? 'Verificando conexão'
                       : liveSession?.runtimeState === 'paused' ? 'Pausado'
                         : liveSession?.runtimeState === 'offline' ? 'Fora do ar'
                           : liveSession?.runtimeState === 'banned' ? 'Banido'
-                            : liveSession?.runtimeState === 'awaiting_qr' ? 'Aguardando QR'
+                            : liveSession?.runtimeState === 'awaiting_qr' ? session.pairingMethod === 'code' ? 'Aguardando código' : 'Aguardando QR Code'
+                              : session.status === 'aguardando_qr' && session.pairingReady === false ? 'Aguardando identificação'
                               : sessaoLabels[session.status];
                 return (
                 <li key={session.id} className="py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0"><p className="break-words text-sm font-semibold">{session.telefone ?? 'Número ainda não identificado'}</p><p className="mt-1 text-xs text-muted-foreground">{liveSession?.runtimeState === 'online' ? `${session.totalChats} grupo${session.totalChats === 1 ? '' : 's'} sincronizado${session.totalChats === 1 ? '' : 's'}${session.vinculadoPorNome ? ` · por ${session.vinculadoPorNome}` : ''}` : session.status === 'banido' ? 'Sessão encerrada; remova este registro.' : 'Sem vínculo ativo com o WhatsApp.'}</p></div>
+                    <div className="min-w-0"><p className="break-words text-sm font-semibold">{session.identification ?? session.telefone ?? session.expectedPhone ?? 'Número ainda não identificado'}</p><p className="mt-1 text-xs text-muted-foreground">{session.identification && (session.telefone ?? session.expectedPhone) ? `${session.telefone ?? session.expectedPhone} · ` : ''}{liveSession?.runtimeState === 'online' ? `${session.totalChats} grupo${session.totalChats === 1 ? '' : 's'} sincronizado${session.totalChats === 1 ? '' : 's'}${session.vinculadoPorNome ? ` · por ${session.vinculadoPorNome}` : ''}` : session.status === 'banido' ? 'Sessão encerrada; remova este registro.' : session.pairingReady === false ? 'Informe a conta esperada para iniciar a conexão.' : 'Sem vínculo ativo com o WhatsApp.'}</p></div>
                     <Badge variant={liveSession?.runtimeState === 'online' ? 'success' : liveSession?.runtimeState === 'offline' || liveSession?.runtimeState === 'banned' ? 'destructive' : sessionVariant(session.status)}>{liveLabel}</Badge>
                   </div>
                   {liveSession?.lastSeenAt && <p className="mt-2 text-xs text-muted-foreground">Último sinal: {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(liveSession.lastSeenAt))}</p>}
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {(session.status === 'aguardando_qr' || liveSession?.runtimeState === 'awaiting_qr') && <Button size="sm" variant="outline" onClick={() => setPairingSessionId(session.id)}><QrCode />Vincular novamente</Button>}
+                  <div className="mt-3 flex items-center gap-2">
+                    {(session.status === 'aguardando_qr' || liveSession?.runtimeState === 'awaiting_qr') && <Button size="sm" onClick={() => setPairingSessionId(session.id)}><QrCode />Identificar e vincular</Button>}
+                    {(session.status === 'desconectado' || (session.status === 'vinculado' && liveSession?.runtimeState === 'offline')) && <Button size="sm" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
                     {session.status === 'vinculado' && liveSession?.runtimeState !== 'offline' && <Button size="sm" variant="outline" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'desconectar', phone: session.telefone ?? 'este número' })}><Unplug />Desconectar</Button>}
-                    {session.status === 'desconectado' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
-                    {session.status === 'vinculado' && liveSession?.runtimeState === 'offline' && <Button size="sm" variant="outline" disabled={updateSession.isPending || !runtimeQuery.data?.serviceOnline} onClick={() => updateSession.mutate({ id: session.id, action: 'reconectar' })}><RefreshCw />Reconectar</Button>}
-                    {session.status !== 'banido' && session.status !== 'aguardando_qr' && <Button size="sm" variant="ghost" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'sair', phone: session.telefone ?? 'este número' })}><LogOut />Sair do WhatsApp</Button>}
-                    {session.status !== 'banido' && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'banir', phone: session.telefone ?? 'este número' })}>Marcar como banido</Button>}
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'remover', phone: session.telefone ?? 'este número' })}><Trash2 />{session.status === 'aguardando_qr' ? 'Cancelar vinculação' : 'Remover número'}</Button>
+                    <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" aria-label={`Mais ações para ${session.telefone ?? 'sessão sem número'}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+                      {session.status !== 'banido' && session.status !== 'aguardando_qr' && <DropdownMenuItem disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'sair', phone: session.telefone ?? 'este número' })}><LogOut />Sair do WhatsApp</DropdownMenuItem>}
+                      {session.status !== 'banido' && <DropdownMenuItem className="text-destructive" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'banir', phone: session.telefone ?? 'este número' })}>Marcar como banido</DropdownMenuItem>}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-destructive" disabled={updateSession.isPending} onClick={() => setSessionConfirmation({ id: session.id, action: 'remover', phone: session.telefone ?? 'este número' })}><Trash2 />{session.status === 'aguardando_qr' ? 'Cancelar vinculação' : 'Remover número'}</DropdownMenuItem>
+                    </DropdownMenuContent></DropdownMenu>
                   </div>
                 </li>
                 );

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, Building2, CalendarClock, CheckCircle2, LoaderCircle, Mail, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/lib/supabase';
@@ -23,7 +24,7 @@ type InviteState =
   | { kind: 'used' }
   | { kind: 'revoked' }
   | { kind: 'error'; preview: InvitePreview; message: string }
-  | { kind: 'success'; preview: InvitePreview; accessRefreshFailed: boolean };
+  | { kind: 'success'; preview: InvitePreview; accessRefreshFailed: boolean; importedInspections: number };
 
 type PortalRpc = (
   name: string,
@@ -54,6 +55,10 @@ export function InviteAcceptancePage() {
   const { session, refreshAccess } = usePortalAuth();
   const navigate = useNavigate();
   const [state, setState] = useState<InviteState>({ kind: 'loading' });
+  const [history, setHistory] = useState<{ count: number; firstAt: string | null; lastAt: string | null } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyChecked, setHistoryChecked] = useState(false);
+  const [importHistory, setImportHistory] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -79,12 +84,28 @@ export function InviteAcceptancePage() {
     return () => { active = false; };
   }, [token]);
 
+  useEffect(() => {
+    if (!session || !['ready', 'error'].includes(state.kind) || historyChecked || historyLoading) return;
+    setHistoryLoading(true);
+    setHistoryChecked(true);
+    const portalRpc = supabase.rpc.bind(supabase) as unknown as PortalRpc;
+    void portalRpc('preview_individual_inspection_import', { p_user_id: null }).then(({ data, error }) => {
+      setHistoryLoading(false);
+      if (error || !data || typeof data !== 'object' || Array.isArray(data)) return;
+      const value = data as { count?: number; first_at?: string; last_at?: string };
+      setHistory({ count: Number(value.count ?? 0), firstAt: value.first_at ?? null, lastAt: value.last_at ?? null });
+    });
+  }, [historyChecked, historyLoading, session, state.kind]);
+
   async function accept(preview: InvitePreview) {
     if (!token) return;
     setState({ kind: 'accepting', preview });
     const portalRpc = supabase.rpc.bind(supabase) as unknown as PortalRpc;
     try {
-      const { data, error } = await portalRpc('portal_accept_organization_invite', { p_token: token });
+      const { data, error } = await portalRpc('portal_accept_organization_invite_with_history', {
+        p_token: token,
+        p_import_individual_inspections: importHistory,
+      });
       if (error) {
         setState({
           kind: 'error',
@@ -96,7 +117,7 @@ export function InviteAcceptancePage() {
         return;
       }
       const result = data && typeof data === 'object' && !Array.isArray(data)
-        ? data as { accepted?: boolean; reason?: string }
+        ? data as { accepted?: boolean; reason?: string; imported_inspections?: number }
         : null;
       if (result?.accepted !== true) {
         if (result?.reason === 'expired') setState({ kind: 'expired' });
@@ -111,7 +132,7 @@ export function InviteAcceptancePage() {
       } catch {
         accessRefreshFailed = true;
       }
-      setState({ kind: 'success', preview, accessRefreshFailed });
+      setState({ kind: 'success', preview, accessRefreshFailed, importedInspections: Number(result.imported_inspections ?? 0) });
     } catch {
       setState({ kind: 'error', preview, message: 'Não foi possível aceitar este convite. Tente novamente.' });
     }
@@ -160,6 +181,7 @@ export function InviteAcceptancePage() {
               <CheckCircle2 className="mx-auto h-9 w-9 text-primary" aria-hidden="true" />
               <h2 className="mt-3 text-xl font-semibold">Convite aceito</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">Seu vínculo com {state.preview.organization_name || 'a organização'} foi confirmado pelo servidor.</p>
+              {state.importedInspections > 0 && <p className="mt-2 text-sm font-medium">{state.importedInspections} {state.importedInspections === 1 ? 'vistoria individual também foi importada' : 'vistorias individuais também foram importadas'}, sem alterar autoria ou protocolo.</p>}
               {state.accessRefreshFailed ? (
                 <div className="mt-4 rounded-lg border border-warning/30 bg-warning-soft p-3 text-left text-sm" role="alert">
                   <p className="font-semibold">O vínculo foi confirmado, mas este navegador ainda não atualizou o acesso.</p>
@@ -176,6 +198,7 @@ export function InviteAcceptancePage() {
 
           {(state.kind === 'ready' || state.kind === 'accepting' || state.kind === 'error') && (
             <div className="space-y-3">
+              {session && <section className="rounded-xl border bg-secondary/40 p-4 text-left" aria-live="polite"><p className="text-sm font-semibold">Histórico feito sem organização</p>{historyLoading ? <p className="mt-2 text-xs text-muted-foreground">Consultando suas vistorias…</p> : history?.count ? <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-3 text-sm"><Checkbox className="mt-1" checked={importHistory} onCheckedChange={(checked) => setImportHistory(checked === true)} /><span><strong>Trazer {history.count} vistoria{history.count === 1 ? '' : 's'} para esta organização</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">Período: {formatHistoryDate(history.firstAt)} a {formatHistoryDate(history.lastAt)}. Autoria e protocolos serão preservados.</span></span></label> : <p className="mt-2 text-xs text-muted-foreground">Nenhuma vistoria individual disponível para importar.</p>}</section>}
               {!session ? (
                 <Button asChild className="w-full"><Link to={`/entrar?returnTo=${encodeURIComponent(`/convite/${token}`)}`}>Entrar com o e-mail do convite</Link></Button>
               ) : (
@@ -192,6 +215,12 @@ export function InviteAcceptancePage() {
       </Card>
     </main>
   );
+}
+
+function formatHistoryDate(value: string | null) {
+  if (!value) return 'não informado';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'não informado' : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date);
 }
 
 function InviteDetails({ preview }: { preview: InvitePreview }) {

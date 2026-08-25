@@ -22,7 +22,7 @@ const {
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./supabase-auth-state');
 const { sameOrganization } = require('./organization-isolation');
-const { classifyDisconnect, normalizePairingPhone, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
+const { classifyDisconnect, normalizePairingPhone, pairingPhoneMatches, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -185,6 +185,9 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     qr: null,
     qrGeradoEm: null,
     telefone: linha.telefone || null,
+    expectedPhone: linha.expected_phone || null,
+    identification: linha.identification || null,
+    pairingMethod: linha.pairing_method || null,
     ultimoErro: null,
     clearState,
     encerramentoSolicitado: false,
@@ -223,12 +226,31 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       await reportarSessao(sessao);
     }
     if (connection === 'open') {
-      sessao.fase = 'vinculado';
       sessao.qr = null;
-      sessao.ultimoErro = null;
+      let connectedPhone = sessao.telefone;
       try {
-        sessao.telefone = socket.user && socket.user.id ? socket.user.id.split(':')[0].split('@')[0] : sessao.telefone;
+        connectedPhone = socket.user && socket.user.id ? socket.user.id.split(':')[0].split('@')[0] : connectedPhone;
       } catch (_erro) { /* mantém telefone anterior */ }
+      if (!pairingPhoneMatches(sessao.expectedPhone, connectedPhone)) {
+        sessao.fase = 'desconectado';
+        sessao.encerramentoSolicitado = true;
+        sessao.telefone = connectedPhone;
+        sessao.ultimoErro = 'A conta conectada não corresponde ao número esperado. A sessão foi encerrada por segurança.';
+        await atualizarSessaoDb(sessao.id, {
+          status: 'desconectado',
+          telefone: connectedPhone,
+          pairing_ready: false,
+          atualizado_em: agoraIso(),
+        });
+        await reportarSessao(sessao, 'offline', sessao.ultimoErro);
+        await clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais divergentes ${linha.id}`, erro));
+        try { await socket.logout(); } catch (_erro) { socket.end(new Error('conta divergente')); }
+        sessoes.delete(sessao.id);
+        return;
+      }
+      sessao.fase = 'vinculado';
+      sessao.telefone = connectedPhone;
+      sessao.ultimoErro = null;
       log('sessao', `${sessao.orgNome}: conta vinculada${sessao.telefone ? ` (${sessao.telefone})` : ''}`);
       await atualizarSessaoDb(sessao.id, {
         status: 'vinculado',
@@ -310,7 +332,7 @@ async function pararSessao(id, { sair = false, runtimeState = 'paused' } = {}) {
 async function gerenciarSessoes() {
   const { data: linhas, error } = await supabase
     .from('bot_sessoes')
-    .select('id, organization_id, telefone, status, acao_pendente, organizations(display_name)');
+    .select('id, organization_id, telefone, status, acao_pendente, expected_phone, identification, pairing_method, pairing_ready, organizations(display_name)');
   if (error) {
     log('db', 'Falha ao listar sessoes', error);
     return;
@@ -332,12 +354,19 @@ async function gerenciarSessoes() {
       }
       continue;
     }
+    if (!linha.pairing_ready && linha.status !== 'vinculado') {
+      if (sessoes.has(linha.id)) await pararSessao(linha.id, { runtimeState: 'paused' });
+      continue;
+    }
     ativas.add(linha.id);
     const orgNome = linha.organizations && linha.organizations.display_name;
     const existente = sessoes.get(linha.id);
     if (existente) {
       if (orgNome) existente.orgNome = orgNome;
       if (linha.telefone) existente.telefone = linha.telefone;
+      existente.expectedPhone = linha.expected_phone || existente.expectedPhone;
+      existente.identification = linha.identification || existente.identification;
+      existente.pairingMethod = linha.pairing_method || existente.pairingMethod;
     } else {
       iniciarSessao({ ...linha, org_nome: orgNome }).catch((erro) => {
         log('startup', `Falha ao iniciar sessao ${linha.id}`, erro);
@@ -827,8 +856,20 @@ ${sessao.qr ? `<img src="/qr/${sessao.id}" alt="QR Code do WhatsApp"><p>QR gerad
 
 app.get('/qr/:id', canReadSession, async (req, res) => {
   const sessao = sessoes.get(req.params.id);
-  if (!sessao || !sessao.qr) {
-    res.status(404).type('text').send('QR indisponível');
+  if (!sessao) {
+    res.status(404).json({ ok: false, code: 'session_not_found', motivo: 'A sessão ainda não foi iniciada pelo serviço.' });
+    return;
+  }
+  if (sessao.fase === 'vinculado') {
+    res.status(409).json({ ok: false, code: 'already_linked', motivo: 'A conta já está conectada.' });
+    return;
+  }
+  if (sessao.qrGeradoEm && Date.now() - sessao.qrGeradoEm.getTime() > 30_000) {
+    res.status(410).json({ ok: false, code: 'qr_expired', motivo: 'O QR Code expirou e será renovado.' });
+    return;
+  }
+  if (!sessao.qr) {
+    res.status(425).json({ ok: false, code: 'qr_pending', motivo: 'O WhatsApp ainda está preparando o QR Code.' });
     return;
   }
   try {
@@ -837,7 +878,7 @@ app.get('/qr/:id', canReadSession, async (req, res) => {
     res.type('img/png');
     res.end(Buffer.from(base64, 'base64'));
   } catch (_erro) {
-    res.status(500).type('text').send('falha ao gerar QR');
+    res.status(502).json({ ok: false, code: 'qr_generation_failed', motivo: 'O serviço não conseguiu renderizar o QR Code.' });
   }
 });
 

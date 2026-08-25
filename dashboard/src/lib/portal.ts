@@ -230,7 +230,9 @@ export async function fetchPortalDashboard(): Promise<PortalDashboardData> {
 export async function fetchPortalWorkspace(section: string): Promise<PortalWorkspaceData> {
   const { data, error } = section === 'ciencias'
     ? await rpc('portal_list_acknowledgements')
-    : await rpc('portal_get_workspace', { p_section: section });
+    : section === 'mapa'
+      ? await rpc('portal_get_map_workspace')
+      : await rpc('portal_get_workspace', { p_section: section });
   if (error) throw new Error(error.message);
   if (section === 'ciencias') {
     return {

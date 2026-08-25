@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Layers, MapPin, Calendar, RotateCcw, Loader2, Search, X, Navigation } from 'lucide-react';
@@ -135,8 +135,40 @@ export function MapaPage() {
   const [erroBusca, setErroBusca] = useState('');
 
   const [geolocalizando, setGeolocalizando] = useState(false);
+  const [filtroTexto, setFiltroTexto] = useState('');
+  const [filtroRisco, setFiltroRisco] = useState('all');
+  const [filtroResponsavel, setFiltroResponsavel] = useState('all');
+  const [filtroInicio, setFiltroInicio] = useState('');
+  const [filtroFim, setFiltroFim] = useState('');
 
   const { vistorias, agendamentos } = useMapaDados();
+
+  const responsaveis = useMemo(() => Array.from(new Set([
+    ...(vistorias.data ?? []).map((item) => item.agenteNome),
+    ...(agendamentos.data ?? []).map((item) => item.agente_nome),
+  ].filter((value): value is string => Boolean(value)))).sort((left, right) => left.localeCompare(right, 'pt-BR')), [agendamentos.data, vistorias.data]);
+
+  const textoNormalizado = filtroTexto.trim().toLocaleLowerCase('pt-BR');
+  const dentroDoPeriodo = useCallback((value: string | null) => {
+    if (!value) return !filtroInicio && !filtroFim;
+    const date = value.slice(0, 10);
+    return (!filtroInicio || date >= filtroInicio) && (!filtroFim || date <= filtroFim);
+  }, [filtroFim, filtroInicio]);
+  const vistoriasFiltradas = useMemo(() => (vistorias.data ?? []).filter((item) => {
+    const text = [item.protocolo, item.endereco, item.municipio, item.agenteNome].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+    return (!textoNormalizado || text.includes(textoNormalizado))
+      && (filtroRisco === 'all' || item.nivelRisco === filtroRisco)
+      && (filtroResponsavel === 'all' || item.agenteNome === filtroResponsavel)
+      && dentroDoPeriodo(item.dataVistoria);
+  }), [dentroDoPeriodo, filtroResponsavel, filtroRisco, textoNormalizado, vistorias.data]);
+  const agendamentosFiltrados = useMemo(() => (agendamentos.data ?? []).filter((item) => {
+    const text = [item.titulo, item.endereco, item.municipio, item.agente_nome].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+    return (!textoNormalizado || text.includes(textoNormalizado))
+      && filtroRisco === 'all'
+      && (filtroResponsavel === 'all' || item.agente_nome === filtroResponsavel)
+      && dentroDoPeriodo(item.data_agendada);
+  }), [agendamentos.data, dentroDoPeriodo, filtroResponsavel, filtroRisco, textoNormalizado]);
+  const filtrosAtivos = Boolean(filtroTexto || filtroRisco !== 'all' || filtroResponsavel !== 'all' || filtroInicio || filtroFim);
 
   // Inicializa o mapa
   useEffect(() => {
@@ -183,8 +215,8 @@ export function MapaPage() {
     const popup = (html: string) =>
       new maplibregl.Popup({ offset: 28, closeButton: true, maxWidth: '280px' }).setHTML(html);
 
-    if (mostrarVistorias && vistorias.data) {
-      vistorias.data.forEach((v) => {
+    if (mostrarVistorias) {
+      vistoriasFiltradas.forEach((v) => {
         const marker = new maplibregl.Marker({ element: criarElementoMarker(RISCO_COR[v.nivelRisco] ?? '#94a3b8') })
           .setLngLat([v.lng, v.lat])
           .setPopup(popup(popupVistoria(v)))
@@ -193,8 +225,8 @@ export function MapaPage() {
       });
     }
 
-    if (mostrarAgendamentos && agendamentos.data) {
-      agendamentos.data.forEach((a) => {
+    if (mostrarAgendamentos) {
+      agendamentosFiltrados.forEach((a) => {
         const marker = new maplibregl.Marker({ element: criarElementoMarker('hsl(var(--info))') })
           .setLngLat([a.lng, a.lat])
           .setPopup(popup(popupAgendamento(a)))
@@ -202,7 +234,7 @@ export function MapaPage() {
         markersRef.current.push(marker);
       });
     }
-  }, [mapPronto, mostrarVistorias, mostrarAgendamentos, vistorias.data, agendamentos.data]);
+  }, [agendamentosFiltrados, mapPronto, mostrarAgendamentos, mostrarVistorias, vistoriasFiltradas]);
 
   // Busca cidade / CEP
   const handleBusca = useCallback(async (e: React.FormEvent) => {
@@ -217,7 +249,7 @@ export function MapaPage() {
       return;
     }
     const map = mapRef.current;
-    map.flyTo({ center: coords, zoom: ZOOM, duration: 1200 });
+    map.flyTo({ center: coords, zoom: ZOOM, duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600 });
 
     // Marker temporário do local buscado
     geoMarkerRef.current?.remove();
@@ -237,7 +269,7 @@ export function MapaPage() {
       (pos) => {
         setGeolocalizando(false);
         const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
-        mapRef.current!.flyTo({ center: coords, zoom: ZOOM, duration: 1200 });
+        mapRef.current!.flyTo({ center: coords, zoom: ZOOM, duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600 });
 
         geoMarkerRef.current?.remove();
         const el = document.createElement('div');
@@ -253,9 +285,9 @@ export function MapaPage() {
 
   const statsRisco = ['r4', 'r3', 'r2', 'r1'].map((r) => ({
     nivel: r,
-    count: vistorias.data?.filter((v) => v.nivelRisco === r).length ?? 0,
+    count: vistoriasFiltradas.filter((v) => v.nivelRisco === r).length,
   }));
-  const totalAgendados = agendamentos.data?.length ?? 0;
+  const totalAgendados = agendamentosFiltrados.length;
   const isLoading = vistorias.isLoading || agendamentos.isLoading;
 
   return (
@@ -305,6 +337,19 @@ export function MapaPage() {
         <p className="text-xs text-destructive -mt-2">{erroBusca}</p>
       )}
 
+      <section className="grid gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_repeat(4,minmax(150px,1fr))_auto]" aria-label="Filtros dos registros do mapa">
+        <label className="relative">
+          <span className="sr-only">Pesquisar registros</span>
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input value={filtroTexto} onChange={(event) => setFiltroTexto(event.target.value)} placeholder="Protocolo, endereço ou usuário" className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+        </label>
+        <label><span className="sr-only">Filtrar por risco</span><select value={filtroRisco} onChange={(event) => setFiltroRisco(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"><option value="all">Todos os riscos</option>{Object.entries(RISCO_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label><span className="sr-only">Filtrar por responsável</span><select value={filtroResponsavel} onChange={(event) => setFiltroResponsavel(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"><option value="all">Todos os usuários</option>{responsaveis.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
+        <label><span className="sr-only">Data inicial</span><input type="date" value={filtroInicio} onChange={(event) => setFiltroInicio(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm" /></label>
+        <label><span className="sr-only">Data final</span><input type="date" value={filtroFim} onChange={(event) => setFiltroFim(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm" /></label>
+        <button type="button" disabled={!filtrosAtivos} onClick={() => { setFiltroTexto(''); setFiltroRisco('all'); setFiltroResponsavel('all'); setFiltroInicio(''); setFiltroFim(''); }} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-secondary disabled:opacity-40"><X className="h-4 w-4" />Limpar</button>
+      </section>
+
       {/* Corpo: mapa + painel — coluna no mobile, linha no desktop */}
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Mapa */}
@@ -345,7 +390,7 @@ export function MapaPage() {
             ))}
             <div className="border-t border-border mt-2 pt-2 flex justify-between">
               <span className="text-xs text-muted-foreground">Total</span>
-              <span className="text-xs font-bold">{vistorias.data?.length ?? 0}</span>
+              <span className="text-xs font-bold">{vistoriasFiltradas.length}</span>
             </div>
           </div>
 
@@ -358,10 +403,10 @@ export function MapaPage() {
             </div>
           </div>
 
-          {!isLoading && (vistorias.data?.length ?? 0) === 0 && totalAgendados === 0 && (
+          {!isLoading && vistoriasFiltradas.length === 0 && totalAgendados === 0 && (
             <div className={cn('flex-1 lg:flex-none bg-secondary border border-dashed border-border rounded-lg p-4 text-center')}>
               <MapPin className="w-6 h-6 mx-auto mb-2 text-muted-foreground/60" />
-              <p className="text-xs text-muted-foreground">Nenhum ponto georreferenciado ainda.</p>
+              <p className="text-xs text-muted-foreground">{filtrosAtivos ? 'Nenhum ponto corresponde aos filtros.' : 'Nenhum ponto georreferenciado ainda.'}</p>
             </div>
           )}
 

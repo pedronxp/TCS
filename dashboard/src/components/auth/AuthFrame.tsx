@@ -82,16 +82,16 @@ export function AuthFrame({
       <main
         id="auth-content"
         tabIndex={-1}
-        className={`flex min-h-screen min-w-0 flex-col ${compact ? 'p-4 sm:p-6 lg:p-6' : 'p-4 sm:p-8'}`}
+        className={`relative flex min-h-[100svh] min-w-0 items-center justify-center overflow-y-auto ${compact ? 'px-4 py-20 sm:px-6 sm:py-24 lg:px-6' : 'px-4 py-20 sm:px-8 sm:py-24'}`}
       >
-        <div>
+        <div className="absolute left-4 top-4 sm:left-6 sm:top-6 lg:left-8 lg:top-8">
           <Button asChild variant="ghost">
             <Link to="/">
               <ArrowLeft /> {backLabel}
             </Link>
           </Button>
         </div>
-        <div className={`flex flex-1 justify-center ${compact ? 'items-start py-4 lg:items-center lg:py-2' : 'items-center py-8'}`}>
+        <div className="flex w-full items-center justify-center">
           {children}
         </div>
       </main>

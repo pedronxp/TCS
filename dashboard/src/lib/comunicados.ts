@@ -258,6 +258,10 @@ export interface SessaoBot {
   criadoEm: string | null;
   vinculadoEm: string | null;
   totalChats: number;
+  expectedPhone: string | null;
+  identification: string | null;
+  pairingMethod: 'qr' | 'code' | null;
+  pairingReady: boolean;
 }
 
 export interface Bairro {
@@ -399,6 +403,10 @@ function parseSessaoBot(value: unknown): SessaoBot | null {
     criadoEm: string(source.criado_em),
     vinculadoEm: string(source.vinculado_em),
     totalChats: typeof source.total_chats === 'number' ? source.total_chats : 0,
+    expectedPhone: string(source.expected_phone),
+    identification: string(source.identification),
+    pairingMethod: ['qr', 'code'].includes(string(source.pairing_method) ?? '') ? string(source.pairing_method) as 'qr' | 'code' : null,
+    pairingReady: source.pairing_ready === true,
   };
 }
 
@@ -444,9 +452,19 @@ export async function fetchBotChats(): Promise<BotChat[]> {
 }
 
 export async function fetchSessoesBot(): Promise<SessaoBot[]> {
-  const { data, error } = await rpc('portal_listar_sessoes_bot');
+  const [{ data, error }, metadataResponse] = await Promise.all([
+    rpc('portal_listar_sessoes_bot'),
+    rpc('portal_bot_session_pairing_metadata'),
+  ]);
   if (error) throw new Error(error.message);
-  return parseArray(data, parseSessaoBot);
+  if (metadataResponse.error) throw new Error(metadataResponse.error.message);
+  const metadata = new Map(parseArray(metadataResponse.data, (value) => {
+    const source = record(value); const id = string(source?.id); return source && id ? [id, source] as const : null;
+  }));
+  return parseArray(data, (value) => {
+    const source = record(value); const id = string(source?.id);
+    return parseSessaoBot(source && id ? { ...source, ...metadata.get(id) } : value);
+  });
 }
 
 // Cria a sessão no banco; o QR aparece no painel do bot (/sessao/<id>).
@@ -519,8 +537,32 @@ export async function fetchPortalBotRuntimeStatus(): Promise<BotOrganizationRunt
 
 export async function fetchBotQrObjectUrl(sessaoId: string): Promise<string> {
   const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/qr/${sessaoId}`);
-  if (!resposta.ok) throw new Error('QR Code indisponível. Aguarde a renovação e tente novamente.');
+  if (!resposta.ok) {
+    const payload = record(await resposta.json().catch(() => null));
+    const reason = string(payload?.motivo);
+    if (resposta.status === 401) throw new Error('Sua sessão expirou. Entre novamente para continuar.');
+    if (resposta.status === 403) throw new Error('Você não tem autorização para acessar este número.');
+    if (resposta.status === 404) throw new Error(reason ?? 'A sessão não existe ou ainda não iniciou no serviço.');
+    if (resposta.status === 410) throw new Error(reason ?? 'O QR Code expirou. Solicite uma nova tentativa.');
+    if (resposta.status === 425) throw new Error(reason ?? 'O QR Code ainda está sendo preparado.');
+    if (resposta.status >= 500) throw new Error(reason ?? 'O serviço do WhatsApp está indisponível.');
+    throw new Error(reason ?? 'Não foi possível obter o QR Code.');
+  }
   return URL.createObjectURL(await resposta.blob());
+}
+
+export async function prepareBotSessionPairing(input: { sessionId: string; phone: string; identification: string; method: 'qr' | 'code' }): Promise<void> {
+  const { error } = await rpc('prepare_bot_session_pairing', {
+    p_session_id: input.sessionId,
+    p_phone: input.phone,
+    p_identification: input.identification,
+    p_method: input.method,
+  });
+  if (!error) return;
+  if (error.message.includes('invalid_phone')) throw new Error('Informe um número de WhatsApp válido com DDD.');
+  if (error.message.includes('session_not_found')) throw new Error('A sessão não existe mais. Feche esta janela e tente novamente.');
+  if (error.message.includes('forbidden')) throw new Error('Você não tem autorização para vincular este número.');
+  throw new Error(error.message);
 }
 
 export async function requestBotPairingCode(sessaoId: string, phone: string): Promise<string> {
@@ -593,7 +635,7 @@ export interface OrgComunicadosResumo {
 export interface ConsoleComunicadosOrg {
   organization: { id: string; name: string; municipality: string | null };
   runtime: BotOrganizationRuntime | null;
-  sessoes: Array<{ id: string; telefone: string | null; status: SessaoBotStatus; runtimeState: BotOrganizationRuntime['sessions'][number]['runtimeState']; lastSeenAt: string | null; lastError: string | null; vinculadoPorNome: string | null; vinculadoEm: string | null; totalChats: number }>;
+  sessoes: Array<{ id: string; telefone: string | null; status: SessaoBotStatus; runtimeState: BotOrganizationRuntime['sessions'][number]['runtimeState']; lastSeenAt: string | null; lastError: string | null; vinculadoPorNome: string | null; vinculadoEm: string | null; totalChats: number; expectedPhone: string | null; identification: string | null; pairingMethod: 'qr' | 'code' | null; pairingReady: boolean }>;
   chats: BotChat[];
   canais: Array<{ id: string; nome: string; chatId: string | null; ativo: boolean; totalEnvios: number }>;
   comunicados: Array<{
@@ -637,13 +679,18 @@ export async function fetchOrgsComunicadosConsole(): Promise<OrgComunicadosResum
 }
 
 export async function fetchComunicadosOrgConsole(organizationId: string): Promise<ConsoleComunicadosOrg | null> {
-  const [{ data, error }, runtimeResponse] = await Promise.all([
+  const [{ data, error }, runtimeResponse, metadataResponse] = await Promise.all([
     rpc('internal_comunicados_org', { p_organization_id: organizationId }),
     rpc('internal_bot_runtime_status', { p_organization_id: organizationId }),
+    rpc('internal_bot_session_pairing_metadata', { p_organization_id: organizationId }),
   ]);
   if (error) throw new Error(error.message);
   if (runtimeResponse.error) throw new Error(runtimeResponse.error.message);
+  if (metadataResponse.error) throw new Error(metadataResponse.error.message);
   const runtime = parseBotOrganizationRuntime(runtimeResponse.data);
+  const pairingMetadata = new Map(parseArray(metadataResponse.data, (value) => {
+    const item = record(value); const id = string(item?.id); return item && id ? [id, item] as const : null;
+  }));
   const source = record(data);
   if (!source) return null;
   const org = record(source.organization);
@@ -660,6 +707,7 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
       const sessao = record(value);
       if (!sessao || !string(sessao.id)) return null;
       const sessaoStatus = string(sessao.status);
+      const pairing = pairingMetadata.get(sessao.id as string);
       return {
         id: sessao.id as string,
         telefone: string(sessao.telefone),
@@ -672,6 +720,10 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
         vinculadoPorNome: string(sessao.vinculado_por_nome),
         vinculadoEm: string(sessao.vinculado_em),
         totalChats: typeof sessao.total_chats === 'number' ? sessao.total_chats : 0,
+        expectedPhone: string(pairing?.expected_phone),
+        identification: string(pairing?.identification),
+        pairingMethod: ['qr', 'code'].includes(string(pairing?.pairing_method) ?? '') ? string(pairing?.pairing_method) as 'qr' | 'code' : null,
+        pairingReady: pairing?.pairing_ready === true,
       };
     }),
     chats: parseArray(source.chats, parseBotChat),
