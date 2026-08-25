@@ -26,6 +26,7 @@ test('login mantém ordem de foco lógica no mobile', async ({ page }, testInfo)
 
   const focusOrder = [
     page.getByRole('link', { name: 'Pular para o conteúdo' }),
+    page.getByRole('link', { name: 'TCS', exact: true }),
     page.getByRole('link', { name: 'Voltar ao site' }),
     page.getByRole('textbox', { name: 'E-mail' }),
     page.getByLabel('Senha', { exact: true }),
@@ -33,7 +34,6 @@ test('login mantém ordem de foco lógica no mobile', async ({ page }, testInfo)
     page.getByRole('button', { name: 'Entrar no portal', exact: true }),
     page.getByRole('link', { name: 'Esqueci minha senha' }),
     page.getByRole('button', { name: 'Continuar com Google' }),
-    page.getByRole('link', { name: 'Criar conta' }),
   ];
 
   for (const target of focusOrder) {
@@ -96,7 +96,7 @@ test('vínculo municipal inativo oferece saída por teclado', async ({ page }, t
   await page.keyboard.press('Enter');
   await expect(page.locator('#auth-content')).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('link', { name: 'Voltar ao site' }).first()).toBeFocused();
-  await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Sair e usar outra conta' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Voltar ao site' }).last()).toBeFocused();
 });
