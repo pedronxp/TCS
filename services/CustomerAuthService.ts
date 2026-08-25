@@ -18,7 +18,7 @@ function currentWebOrigin(): string {
   const origin = (globalThis as typeof globalThis & {
     location?: { origin?: string };
   }).location?.origin;
-  return origin || 'https://tcsvisto.netlify.app';
+  return origin || 'https://tcsvistoria.pages.dev';
 }
 
 export function buildCustomerAuthCallback(

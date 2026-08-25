@@ -7,14 +7,14 @@ services:
     dockerfilePath: ./bot-whatsapp/Dockerfile
     dockerContext: ./bot-whatsapp
     healthCheckPath: /healthz
-    autoDeployTrigger: off
+    autoDeployTrigger: checksPass
     envVars:
       - key: PORT
         value: 10000
       - key: NODE_ENV
         value: production
       - key: DASHBOARD_ORIGIN
-        value: https://tcsvistoria.pages.dev,https://tcsvisto.netlify.app,https://tcsvistoria.netlify.app
+        value: https://tcsvistoria.pages.dev
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SECRET_KEY

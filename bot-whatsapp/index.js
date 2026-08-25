@@ -48,7 +48,7 @@ const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 20_000);
 const MAX_RECONNECT_ATTEMPTS = 5;
 const PAIRING_CODE_COOLDOWN_MS = 30_000;
 const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
-  || 'https://tcsvistoria.pages.dev,https://tcsvisto.netlify.app,https://tcsvistoria.netlify.app,http://localhost:5173,http://127.0.0.1:5173')
+  || 'https://tcsvistoria.pages.dev,http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean));

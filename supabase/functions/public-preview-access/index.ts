@@ -7,8 +7,8 @@ const admin = createClient(supabaseUrl, serviceKey, {
 });
 
 const allowedOrigins = [
-  /^https:\/\/tcsvisto\.netlify\.app$/,
-  /^https:\/\/deploy-preview-\d+--tcsvisto\.netlify\.app$/,
+  /^https:\/\/tcsvistoria\.pages\.dev$/,
+  /^https:\/\/[a-z0-9-]+\.tcsvistoria\.pages\.dev$/,
   /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
 ];
 
@@ -16,7 +16,7 @@ function corsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('origin') ?? '';
   const allowedOrigin = allowedOrigins.some((pattern) => pattern.test(origin))
     ? origin
-    : 'https://tcsvisto.netlify.app';
+    : 'https://tcsvistoria.pages.dev';
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

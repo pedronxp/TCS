@@ -4,7 +4,7 @@ export interface TurnstileConfiguration {
   origin: string;
 }
 
-const DEFAULT_TURNSTILE_ORIGIN = 'https://tcsvisto.netlify.app';
+const DEFAULT_TURNSTILE_ORIGIN = 'https://tcsvistoria.pages.dev';
 // A Site Key do Turnstile é pública por definição. Mantê-la como fallback
 // evita que o Expo local omita o captchaToken quando a proteção global do
 // Supabase está ativa. A Secret Key permanece somente no servidor.
