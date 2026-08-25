@@ -37,7 +37,7 @@ export function AuthFrame({
       </a>
 
       <header className="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between px-4 sm:h-20 sm:px-8 [@media(max-height:760px)]:h-14">
-        <Link to="/" className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link to="/" className="flex min-h-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <TcsMark decorative />
           <span className="text-sm font-bold">TCS</span>
         </Link>

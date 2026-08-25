@@ -23,7 +23,7 @@ const environment = {
   VITE_SUPABASE_ANON_KEY:
     process.env.VITE_SUPABASE_ANON_KEY ?? publicConfig.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   VITE_TURNSTILE_SITE_KEY:
-    process.env.VITE_TURNSTILE_SITE_KEY ?? '0x4AAAAAAEZrvk6QszB6lWKY',
+    process.env.VITE_TURNSTILE_SITE_KEY ?? '',
 };
 
 const vite = spawn(process.execPath, [viteEntry, ...process.argv.slice(2)], {
