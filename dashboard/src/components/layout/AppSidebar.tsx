@@ -1,10 +1,12 @@
+import { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ChevronsLeft, ChevronsRight, LogOut } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, LogOut, Search, X } from 'lucide-react';
 import { TcsMark } from '@/components/brand/TcsMark';
 import { RoleBadge } from '@/components/domain/Badges';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveNavigation } from '@/config/navigation';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 
@@ -19,11 +21,19 @@ type AppSidebarProps = {
 // fundo success-soft e texto primary (verde). Funciona em light e dark.
 export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = false }: AppSidebarProps) {
   const { profile, signOut } = useAuth();
+  const [query, setQuery] = useState('');
   const groups = resolveNavigation(
     profile?.role === 'developer' ? 'developer' : 'owner',
     profile?.permissions ?? [],
   );
   const compact = collapsed && !mobile;
+  const normalizedQuery = normalizeNavigationQuery(query);
+  const visibleGroups = useMemo(() => groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => normalizeNavigationQuery(item.label).includes(normalizedQuery)),
+    }))
+    .filter((group) => group.items.length > 0), [groups, normalizedQuery]);
   const consoleLabel = profile?.role === 'developer' ? 'Saúde técnica' : 'Visão executiva';
   const initials = profile?.displayName
     ?.split(/\s+/)
@@ -71,13 +81,54 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
           </Button>
         )}
 
+        <div className={cn('px-3 pb-2', compact && 'flex justify-center px-0')}>
+          {compact ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  onClick={() => onCollapsedChange(false)}
+                  aria-label="Pesquisar no menu"
+                >
+                  <Search aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Pesquisar no menu</TooltipContent>
+            </Tooltip>
+          ) : (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Pesquisar no menu"
+                aria-label="Pesquisar no menu"
+                className="h-10 bg-background pl-9 pr-9 text-sm"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Limpar pesquisa do menu"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 pb-5 pt-2">
-          {groups.length === 0 && !compact && (
+          {visibleGroups.length === 0 && !compact && (
             <p className="rounded-md border border-dashed border-border px-3 py-4 text-xs leading-5 text-muted-foreground">
-              Nenhum módulo foi liberado para este perfil.
+              {normalizedQuery ? 'Nenhum módulo corresponde à pesquisa.' : 'Nenhum módulo foi liberado para este perfil.'}
             </p>
           )}
-          {groups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label} className="mb-6">
               {!compact && (
                 <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -172,4 +223,8 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
       </aside>
     </TooltipProvider>
   );
+}
+
+function normalizeNavigationQuery(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
 }

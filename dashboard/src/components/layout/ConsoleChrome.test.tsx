@@ -123,6 +123,20 @@ describe('Chrome do console', () => {
     expect(screen.getByRole('link', { name: 'Visão executiva' })).toHaveClass('h-12', 'w-12');
   });
 
+  it('filtra os módulos diretamente no menu lateral', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/app']}>
+        <AppSidebar collapsed={false} onCollapsedChange={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByRole('textbox', { name: 'Pesquisar no menu' }), 'auditoria');
+
+    expect(screen.getByRole('link', { name: 'Auditoria' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument();
+  });
+
   it('não apresenta violações automatizadas de acessibilidade', async () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/app/clientes']}>

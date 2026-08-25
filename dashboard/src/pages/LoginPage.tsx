@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { GoogleMark } from '@/components/brand/GoogleMark';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { AuthFrame, AuthLoadingCard } from '@/components/auth/AuthFrame';
 import { TurnstileChallenge, turnstileEnabled } from '@/components/auth/TurnstileChallenge';
 import { useAuth } from '@/contexts/AuthContext';
@@ -98,14 +99,15 @@ export function LoginPage() {
 
   return (
     <AuthFrame {...consoleAside} compact>
-      <div className="w-full max-w-[420px]">
-        <div>
+      <Card className="w-full shadow-lg shadow-black/5">
+        <CardHeader className="pb-2">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Console TCS</p>
           <h1 className="mt-1.5 text-[24px] font-semibold leading-[1.25] tracking-[-0.02em] sm:text-[26px]">Entre no Console</h1>
           <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
             Use seu e-mail corporativo. Você voltará ao ponto em que estava.
           </p>
-        </div>
+        </CardHeader>
+        <CardContent>
 
         <form onSubmit={handleSubmit} className="mt-6" aria-busy={submitting}>
           {!supabaseConfigurationAvailable && (
@@ -215,7 +217,8 @@ export function LoginPage() {
         <p className="mt-4 text-center text-[11px] leading-4 text-muted-foreground">
           Primeiro acesso com Google? A equipe TCS revisará a conta antes de liberar o Console. Permissões existentes não mudam.
         </p>
-      </div>
+        </CardContent>
+      </Card>
     </AuthFrame>
   );
 }
