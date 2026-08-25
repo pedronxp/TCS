@@ -36,7 +36,7 @@ export function AuthFrame({
         Pular para o conteúdo
       </a>
 
-      <header className="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between px-4 sm:h-20 sm:px-8">
+      <header className="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between px-4 sm:h-20 sm:px-8 [@media(max-height:760px)]:h-14">
         <Link to="/" className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <TcsMark decorative />
           <span className="text-sm font-bold">TCS</span>
@@ -48,15 +48,15 @@ export function AuthFrame({
         </Button>
       </header>
 
-      <main id="auth-content" tabIndex={-1} className="flex flex-1 items-center justify-center px-4 py-24 sm:px-6 sm:py-28">
+      <main id="auth-content" tabIndex={-1} className="flex flex-1 items-center justify-center px-4 pb-8 pt-20 max-[480px]:items-start max-[480px]:pb-3 max-[480px]:pt-16 sm:px-6 sm:pb-10 sm:pt-24 [@media(max-height:760px)]:items-start [@media(max-height:760px)]:pb-3 [@media(max-height:760px)]:pt-14">
         <div className={compact ? 'w-full max-w-[460px]' : 'w-full max-w-[480px]'}>
-          <div className="mb-5 text-center sm:mb-6">
+          <div className="mb-4 text-center max-[480px]:hidden sm:mb-5 [@media(max-height:760px)]:hidden">
             {asideLabel && <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">{asideLabel}</p>}
-            <p className="mt-2 text-balance text-xl font-semibold tracking-[-0.02em] sm:text-2xl">{asideHeadline}</p>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{asideDescription}</p>
+            <p className="mt-1.5 text-balance text-lg font-semibold leading-tight tracking-[-0.02em] sm:text-xl">{asideHeadline}</p>
+            <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-5 text-muted-foreground [@media(max-height:760px)]:hidden">{asideDescription}</p>
           </div>
           {children}
-          <div className="mx-auto mt-5 flex max-w-md flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[11px] leading-5 text-muted-foreground">
+          <div className="mx-auto mt-4 flex max-w-md flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[11px] leading-5 text-muted-foreground max-[480px]:hidden [@media(max-height:760px)]:hidden">
             <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
             <span className="text-muted-foreground">{asideFooter}</span>
             <span aria-hidden="true">·</span>
