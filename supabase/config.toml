@@ -33,8 +33,8 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "https://tcsvisto.netlify.app"
-additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5173/**", "https://tcsvisto.netlify.app/**", "tcs://auth/callback", "tcs://auth/reset-password"]
+site_url = "https://tcsvistoria.pages.dev"
+additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5173/**", "https://tcsvistoria.pages.dev/**", "https://*.tcsvistoria.pages.dev/**", "tcs://auth/callback", "tcs://auth/reset-password", "exp://**/--/auth/callback", "exp://**/--/auth/reset-password"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MoreHorizontal, Plus, ShieldCheck } from 'lucide-react';
+import { MoreHorizontal, Plus, Search, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
@@ -43,6 +43,7 @@ type PermissionEffect = 'grant' | 'revoke';
 interface PermissionDraft {
   userId: string;
   displayName: string | null;
+  role: string;
   overrides: Partial<Record<InternalPermission, PermissionEffect>>;
 }
 
@@ -67,11 +68,29 @@ const permissionGroups: ReadonlyArray<{ label: string; permissions: ReadonlyArra
   ] },
 ];
 
+const permissionDescriptions: Partial<Record<InternalPermission, string>> = {
+  'customer.sensitive.read': 'Exibe documentos, contatos e outros dados protegidos dos clientes.',
+  'customer.write': 'Permite alterar cadastro, vínculo e configuração de clientes.',
+  'commercial.write': 'Permite alterar planos, assinaturas e condições comerciais.',
+  'session.terminate': 'Permite encerrar sessões ativas de outros usuários.',
+  'communication.manage': 'Libera criação e gestão de comunicados das organizações.',
+  'whatsapp.read': 'Exibe o estado do serviço e dos números, sem permitir mudanças.',
+  'whatsapp.recover': 'Libera ações de reconexão e recuperação de sessões.',
+  'whatsapp.manage': 'Libera vínculo, remoção e administração completa dos números.',
+  'staff.manage': 'Permite alterar papéis e exceções de acesso da equipe interna.',
+  'audit.read': 'Exibe a trilha de ações administrativas e eventos de segurança.',
+  'account.lock': 'Permite bloquear contas e revogar sessões ativas.',
+  'configuration.publish': 'Permite publicar configurações para uso em produção.',
+};
+
 export function StaffPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
   const [confirmingPermissions, setConfirmingPermissions] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberRole, setMemberRole] = useState('all');
+  const [memberStatus, setMemberStatus] = useState('all');
   const { user, profile, can } = useAuth();
   const query = useQuery({
     queryKey: ['internal-staff', user?.id, profile?.role],
@@ -127,6 +146,12 @@ export function StaffPage() {
   });
 
   const rows = useMemo(() => query.data ?? [], [query.data]);
+  const filteredRows = useMemo(() => {
+    const search = memberSearch.trim().toLocaleLowerCase('pt-BR');
+    return rows.filter((member) => (!search || `${member.display_name ?? ''} ${member.user_id}`.toLocaleLowerCase('pt-BR').includes(search))
+      && (memberRole === 'all' || member.role === memberRole)
+      && (memberStatus === 'all' || member.status === memberStatus));
+  }, [memberRole, memberSearch, memberStatus, rows]);
   const stats = useMemo(() => staffStats(rows), [rows]);
 
   function openNewMember() {
@@ -140,7 +165,7 @@ export function StaffPage() {
         .filter((item) => item.staff_user_id === member.user_id)
         .map((item) => [item.permission, item.effect]),
     ) as PermissionDraft['overrides'];
-    setPermissionDraft({ userId: member.user_id, displayName: member.display_name, overrides });
+    setPermissionDraft({ userId: member.user_id, displayName: member.display_name, role: member.role, overrides });
     setConfirmingPermissions(false);
   }
 
@@ -204,11 +229,16 @@ export function StaffPage() {
           <Card className="shadow-none">
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
               <h2 className="text-[17px] font-semibold">Diretório</h2>
-              <span className="text-xs text-muted-foreground">{rows.length} membros</span>
+              <span className="text-xs text-muted-foreground">{filteredRows.length} de {rows.length} membros</span>
             </CardHeader>
             <CardContent className="px-6 pb-4">
+              <div className="mb-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_150px_150px]">
+                <label className="relative"><span className="sr-only">Buscar pessoa</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Buscar por nome ou ID" /></label>
+                <Select value={memberRole} onValueChange={setMemberRole}><SelectTrigger aria-label="Filtrar por papel"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os papéis</SelectItem><SelectItem value="owner">Owner</SelectItem><SelectItem value="developer">Developer</SelectItem><SelectItem value="support">Suporte</SelectItem><SelectItem value="auditor">Auditor</SelectItem></SelectContent></Select>
+                <Select value={memberStatus} onValueChange={setMemberStatus}><SelectTrigger aria-label="Filtrar por situação"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as situações</SelectItem><SelectItem value="active">Ativos</SelectItem><SelectItem value="suspended">Suspensos</SelectItem><SelectItem value="removed">Removidos</SelectItem></SelectContent></Select>
+              </div>
               <ul>
-                {rows.map((member) => (
+                {filteredRows.map((member) => (
                   <li
                     key={member.user_id}
                     className="grid min-h-[82px] grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b py-3 last:border-0"
@@ -249,6 +279,7 @@ export function StaffPage() {
                     </Button>
                   </li>
                 ))}
+                {filteredRows.length === 0 && <li className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma pessoa corresponde aos filtros.</li>}
               </ul>
             </CardContent>
           </Card>
@@ -337,8 +368,17 @@ function StaffPermissionDialog({
   onClose: () => void;
   onContinue: () => void;
 }) {
+  const [search, setSearch] = useState('');
+  const [groupFilter, setGroupFilter] = useState('all');
   if (!draft) return null;
   const currentDraft = draft;
+  const normalizedSearch = search.trim().toLocaleLowerCase('pt-BR');
+  const visibleGroups = permissionGroups.map((group) => ({
+    ...group,
+    permissions: group.permissions.filter(([permission, label]) => (!normalizedSearch || `${permission} ${label} ${permissionDescriptions[permission] ?? ''}`.toLocaleLowerCase('pt-BR').includes(normalizedSearch))),
+  })).filter((group) => (groupFilter === 'all' || group.label === groupFilter) && group.permissions.length > 0);
+  const grants = Object.values(currentDraft.overrides).filter((effect) => effect === 'grant').length;
+  const revokes = Object.values(currentDraft.overrides).filter((effect) => effect === 'revoke').length;
   function setEffect(permission: InternalPermission, value: string) {
     const overrides = { ...currentDraft.overrides };
     if (value === 'inherit') delete overrides[permission];
@@ -347,22 +387,33 @@ function StaffPermissionDialog({
   }
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Permissões de {currentDraft.displayName || 'membro interno'}</DialogTitle>
           <DialogDescription>
-            “Herdar” aplica o papel atual. “Conceder” adiciona uma exceção e “remover” bloqueia uma permissão que o papel concederia.
+            O papel {currentDraft.role} continua sendo a base. As opções abaixo criam apenas exceções individuais, com auditoria.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-6">
-          {permissionGroups.map((group) => (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border bg-secondary/25 p-3"><p className="text-xs text-muted-foreground">Papel base</p><p className="mt-1 text-sm font-semibold capitalize">{currentDraft.role}</p></div>
+          <div className="rounded-xl border bg-success-soft p-3"><p className="text-xs text-muted-foreground">Concessões individuais</p><p className="mt-1 text-lg font-semibold">{grants}</p></div>
+          <div className="rounded-xl border bg-destructive-soft p-3"><p className="text-xs text-muted-foreground">Bloqueios individuais</p><p className="mt-1 text-lg font-semibold">{revokes}</p></div>
+        </div>
+        <div className="mt-4 rounded-xl border bg-secondary/20 p-3 text-xs leading-5 text-muted-foreground"><SlidersHorizontal className="mr-2 inline h-4 w-4 text-primary" />Ativar um módulo para a organização define o que ela pode usar. Uma permissão individual define quem, dentro desse escopo, pode visualizar ou administrar o recurso.</div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
+          <label className="relative"><span className="sr-only">Filtrar permissões</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar permissão ou impacto" /></label>
+          <Select value={groupFilter} onValueChange={setGroupFilter}><SelectTrigger aria-label="Filtrar por grupo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os grupos</SelectItem>{permissionGroups.map((group) => <SelectItem key={group.label} value={group.label}>{group.label}</SelectItem>)}</SelectContent></Select>
+        </div>
+        <div className="mt-6 space-y-6">
+          {visibleGroups.map((group) => (
             <section key={group.label} className="space-y-3">
               <h3 className="text-sm font-semibold">{group.label}</h3>
               <div className="divide-y rounded-lg border">
                 {group.permissions.map(([permission, label]) => (
-                  <div key={permission} className="grid grid-cols-[minmax(0,1fr)_160px] items-center gap-4 p-3">
+                  <div key={permission} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
                     <div>
                       <p className="text-sm font-medium">{label}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{permissionDescriptions[permission] ?? 'Controla o acesso a esta ação dentro do console interno.'}</p>
                       <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{permission}</p>
                     </div>
                     <Select value={currentDraft.overrides[permission] ?? 'inherit'} onValueChange={(value) => setEffect(permission, value)}>
@@ -378,6 +429,7 @@ function StaffPermissionDialog({
               </div>
             </section>
           ))}
+          {visibleGroups.length === 0 && <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma permissão corresponde ao filtro.</div>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

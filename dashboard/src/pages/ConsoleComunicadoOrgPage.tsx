@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, LogOut, Megaphone, Power, QrCode, RefreshCw, ShieldCheck, Smartphone, Trash2, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, LogOut, Megaphone, MoreHorizontal, Power, QrCode, RefreshCw, ShieldCheck, Smartphone, Trash2, Unplug, Users, Wifi, WifiOff, XCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ComunicadoMessageField, WhatsAppDestinationPicker } from '@/components/domain/ComunicadoComposerFields';
 import { WhatsAppPairingDialog } from '@/components/domain/WhatsAppPairingDialog';
 import { Input } from '@/components/ui/Input';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
 import {
   criarGrupoPeloBot,
@@ -607,8 +608,9 @@ export function ConsoleComunicadoOrgPage({
                     <li key={sessao.id} className="rounded-xl border bg-card p-4">
                       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                         <span className="min-w-0">
-                          <span className="block break-words text-sm font-semibold">{sessao.telefone ?? 'Número ainda não identificado'}</span>
+                          <span className="block break-words text-sm font-semibold">{sessao.identification ?? sessao.telefone ?? sessao.expectedPhone ?? 'Número ainda não identificado'}</span>
                           <span className="mt-1 block text-xs text-muted-foreground">
+                            {sessao.identification && (sessao.telefone ?? sessao.expectedPhone) ? `${sessao.telefone ?? sessao.expectedPhone} · ` : ''}
                             {sessao.runtimeState === 'online' || (!org.runtime && sessao.status === 'vinculado')
                               ? `${sessao.totalChats} grupo${sessao.totalChats === 1 ? '' : 's'} sincronizado${sessao.totalChats === 1 ? '' : 's'}`
                               : sessao.status === 'banido'
@@ -618,7 +620,7 @@ export function ConsoleComunicadoOrgPage({
                         </span>
                         <Badge variant={sessao.runtimeState === 'online' ? 'success' : sessao.runtimeState === 'reconnecting' || sessao.runtimeState === 'starting' ? 'warning' : sessao.runtimeState === 'banned' || sessao.runtimeState === 'offline' ? 'destructive' : sessao.status === 'aguardando_qr' ? 'info' : 'secondary'} className="gap-1.5">
                           {sessao.runtimeState === 'online' && <span className="h-2 w-2 rounded-full bg-success" />}
-                          {sessao.runtimeState ? runtimeSessionLabels[sessao.runtimeState] : sessaoLabels[sessao.status]}
+                          {sessao.runtimeState === 'awaiting_qr' && sessao.pairingMethod === 'code' ? 'Aguardando código' : sessao.runtimeState === 'starting' ? 'Verificando conexão' : sessao.runtimeState ? runtimeSessionLabels[sessao.runtimeState] : sessao.status === 'aguardando_qr' && sessao.pairingReady === false ? 'Aguardando identificação' : sessaoLabels[sessao.status]}
                         </Badge>
                       </div>
                       {(sessao.lastSeenAt || sessao.lastError) && (
@@ -627,10 +629,10 @@ export function ConsoleComunicadoOrgPage({
                           {sessao.lastError ? ` · ${sessao.lastError}` : ''}
                         </p>
                       )}
-                      <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
+                      <div className="mt-3 flex items-center gap-2 border-t pt-3">
                         {sessao.status === 'aguardando_qr' && (
-                          <Button variant="outline" size="sm" onClick={() => { setWizard({ etapa: 'qr', sessaoId: sessao.id }); setPairingModalOpen(true); }}>
-                            <QrCode />Vincular novamente
+                          <Button size="sm" onClick={() => { setWizard({ etapa: 'qr', sessaoId: sessao.id }); setPairingModalOpen(true); }}>
+                            <QrCode />Identificar e vincular
                           </Button>
                         )}
                         {sessao.status === 'vinculado' && sessao.runtimeState !== 'offline' && (
@@ -639,29 +641,16 @@ export function ConsoleComunicadoOrgPage({
                           </Button>
                         )}
                         {(sessao.status === 'desconectado' || (sessao.status === 'vinculado' && sessao.runtimeState === 'offline')) && (
-                          <Button variant="outline" size="sm" disabled={sessaoStatusMutation.isPending || !botOnline} onClick={() => sessaoStatusMutation.mutate({ id: sessao.id, acao: 'reconectar' })}>
+                          <Button size="sm" disabled={sessaoStatusMutation.isPending || !botOnline} onClick={() => sessaoStatusMutation.mutate({ id: sessao.id, acao: 'reconectar' })}>
                             <RefreshCw />Reconectar
                           </Button>
                         )}
-                        {sessao.status !== 'banido' && sessao.status !== 'aguardando_qr' && (
-                          <Button variant="ghost" size="sm" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'sair', telefone: sessao.telefone ?? 'este número' })}>
-                            <LogOut />Sair do WhatsApp
-                          </Button>
-                        )}
-                        {sessao.status !== 'banido' && (
-                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'banir', telefone: sessao.telefone ?? 'este número' })}>
-                            <Power />Marcar como banido
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          disabled={sessaoStatusMutation.isPending}
-                          onClick={() => setAcaoSessao({ id: sessao.id, acao: 'remover', telefone: sessao.telefone ?? 'este número' })}
-                        >
-                          <Trash2 />{sessao.status === 'aguardando_qr' ? 'Cancelar vinculação' : 'Remover número'}
-                        </Button>
+                        <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" aria-label={`Mais ações para ${sessao.telefone ?? 'sessão sem número'}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+                          {sessao.status !== 'banido' && sessao.status !== 'aguardando_qr' && <DropdownMenuItem disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'sair', telefone: sessao.telefone ?? 'este número' })}><LogOut />Sair do WhatsApp</DropdownMenuItem>}
+                          {sessao.status !== 'banido' && <DropdownMenuItem className="text-destructive" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'banir', telefone: sessao.telefone ?? 'este número' })}><Power />Marcar como banido</DropdownMenuItem>}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-destructive" disabled={sessaoStatusMutation.isPending} onClick={() => setAcaoSessao({ id: sessao.id, acao: 'remover', telefone: sessao.telefone ?? 'este número' })}><Trash2 />{sessao.status === 'aguardando_qr' ? 'Cancelar vinculação' : 'Remover número'}</DropdownMenuItem>
+                        </DropdownMenuContent></DropdownMenu>
                       </div>
                     </li>
                   ))}

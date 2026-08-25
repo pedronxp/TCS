@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, Search, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { TcsMark } from '@/components/brand/TcsMark';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import {
   getPortalNavigation,
@@ -172,36 +173,74 @@ function PortalBrand({ audienceLabel }: { audienceLabel: string }) {
 }
 
 function PortalNavigation({ items, home, onNavigate }: { items: PortalNavigationItem[]; home: string; onNavigate?: () => void }) {
-  const groups = (['work', 'management', 'account'] as PortalNavigationGroup[])
-    .map((group) => ({ group, items: items.filter((item) => item.group === group) }))
-    .filter(({ items: groupItems }) => groupItems.length > 0);
+  const [query, setQuery] = useState('');
+  const normalizedQuery = normalizeNavigationQuery(query);
+  const groups = useMemo(() => (['work', 'management', 'account'] as PortalNavigationGroup[])
+    .map((group) => ({
+      group,
+      items: items.filter((item) => item.group === group && normalizeNavigationQuery(item.label).includes(normalizedQuery)),
+    }))
+    .filter(({ items: groupItems }) => groupItems.length > 0), [items, normalizedQuery]);
 
   return (
-    <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4" aria-label="Módulos do portal">
-      {groups.map(({ group, items: groupItems }, index) => (
-        <div key={group} className={cn(index > 0 && 'mt-6')}>
-          <p className="px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{portalNavigationGroupLabels[group]}</p>
-          <div className="mt-2 space-y-1">
-            {groupItems.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.path === home}
-                onClick={onNavigate}
-                className={({ isActive }) => cn(
-                  'flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
-                  isActive && 'bg-success-soft text-foreground',
-                )}
-              >
-                <item.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                {item.label}
-              </NavLink>
-            ))}
-          </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="px-3 pb-1 pt-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Pesquisar no menu"
+            aria-label="Pesquisar no menu"
+            className="h-10 bg-background pl-9 pr-9 text-sm"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Limpar pesquisa do menu"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
-      ))}
-    </nav>
+      </div>
+      <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4" aria-label="Módulos do portal">
+        {groups.length === 0 && (
+          <p className="rounded-md border border-dashed border-border px-3 py-4 text-xs leading-5 text-muted-foreground">
+            Nenhum módulo corresponde à pesquisa.
+          </p>
+        )}
+        {groups.map(({ group, items: groupItems }, index) => (
+          <div key={group} className={cn(index > 0 && 'mt-6')}>
+            <p className="px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{portalNavigationGroupLabels[group]}</p>
+            <div className="mt-2 space-y-1">
+              {groupItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  end={item.path === home}
+                  onClick={onNavigate}
+                  className={({ isActive }) => cn(
+                    'flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
+                    isActive && 'bg-success-soft text-foreground',
+                  )}
+                >
+                  <item.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </div>
   );
+}
+
+function normalizeNavigationQuery(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
 }
 
 function PortalIdentity({

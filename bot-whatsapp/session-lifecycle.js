@@ -37,6 +37,13 @@ function normalizePairingPhone(value) {
   return null;
 }
 
+function pairingPhoneMatches(expected, connected) {
+  const expectedPhone = normalizePairingPhone(expected);
+  const connectedPhone = normalizePairingPhone(connected);
+  if (!expectedPhone || !connectedPhone) return false;
+  return expectedPhone === connectedPhone;
+}
+
 function formatPairingCode(value) {
   const normalized = String(value || '').replace(/-/g, '');
   return normalized.length === 8
@@ -87,6 +94,7 @@ function isAllowedDashboardOrigin(origin, allowedOrigins) {
 module.exports = {
   classifyDisconnect,
   normalizePairingPhone,
+  pairingPhoneMatches,
   formatPairingCode,
   classifyDeliveryOutcome,
   isBroadcastRoomJid,

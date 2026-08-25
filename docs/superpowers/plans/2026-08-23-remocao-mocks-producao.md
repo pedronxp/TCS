@@ -312,7 +312,7 @@ git commit -m "test: atualizar contratos e snapshots visuais"
 - Update remotely: descrição do PR #82 e branch `feat/producao-gradual-e-comunidades`
 
 **Interfaces:**
-- Consumes: commits das Tasks 1–4 e checks do GitHub Actions/Netlify.
+- Consumes: commits das Tasks 1–4 e checks do GitHub Actions/Cloudflare Pages.
 - Produces: PR com descrição fiel, branch enviada e checks obrigatórios verdes.
 
 - [ ] **Step 1: Verificar limpeza e escopo do diff**

@@ -297,6 +297,10 @@ function rpcResponse(
       return options.emptyWorkspaceSections?.includes(String(body.p_section ?? ''))
         ? { section: String(body.p_section ?? ''), items: [], summary: {} }
         : workspace(String(body.p_section ?? ''));
+    case 'portal_get_map_workspace':
+      return options.emptyWorkspaceSections?.includes('mapa')
+        ? { section: 'mapa', items: [], summary: {} }
+        : workspace('mapa');
     case 'portal_get_inspection':
       if (options.emptyInspection) return null;
       return {

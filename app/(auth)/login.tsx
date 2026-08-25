@@ -19,9 +19,11 @@ import {
 } from '../../services/CustomerAuthService';
 import { isActiveInternalMobileStaff, isNeutralCustomerProfile } from '../../services/AppProfileService';
 import { getTurnstileConfiguration } from '../../services/TurnstileService';
+import { useConnectivity } from '../../context/ConnectivityContext';
 
 export default function LoginScreen() {
   const { theme } = useTheme();
+  const { isOnlineReal } = useConnectivity();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -40,18 +42,29 @@ export default function LoginScreen() {
   }, []);
 
   const handleGoogle = async () => {
+    if (!isOnlineReal) {
+      setError('O primeiro acesso com Google precisa de internet. Se esta conta já entrou antes, reabra o aplicativo para usar a sessão salva.');
+      return;
+    }
     setGoogleLoading(true);
     setError(null);
     try {
-      await signInCustomerWithGoogle();
-    } catch {
-      setError('Não foi possível entrar com o Google. Tente novamente.');
+      const result = await signInCustomerWithGoogle();
+      if (result === 'cancelled') {
+        setError('A entrada com Google foi cancelada antes da confirmação.');
+      }
+    } catch (cause: any) {
+      setError(traduzirErroAuth(cause?.message) || 'Não foi possível entrar com o Google. Tente novamente.');
     } finally {
       setGoogleLoading(false);
     }
   };
 
   const handleLoginEmail = async () => {
+    if (!isOnlineReal) {
+      setError('O login precisa de internet. Uma sessão já validada continua disponível offline ao reabrir o aplicativo.');
+      return;
+    }
     if (!email || !password) {
       setError('Preencha o e-mail e a senha para continuar.');
       return;

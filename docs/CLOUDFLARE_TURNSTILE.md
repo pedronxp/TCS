@@ -5,11 +5,9 @@
 1. Acesse https://dash.cloudflare.com/sign-up e crie uma conta gratuita.
 2. No painel, abra **Turnstile** e selecione **Add widget**.
 3. Nomeie o widget como `TCS - Login e cadastro`.
-4. Cadastre o hostname `tcsvisto.netlify.app`, sem `https://` e sem caminho.
-5. Se utilizar outros projetos ou previews, adicione seus hostnames exatos,
-   como `tcsvistoria.netlify.app` e
-   `deploy-preview-83--tcsvisto.netlify.app`. Hostnames irmãos no Netlify não
-   são autorizados automaticamente, e caracteres `*` não são aceitos.
+4. Cadastre o hostname `tcsvistoria.pages.dev`, sem `https://` e sem caminho.
+5. O Turnstile autoriza também os subdomínios de preview desse projeto. Não
+   cadastre o projeto duplicado `tcsvisotria.pages.dev` como origem oficial.
 6. Selecione o modo **Managed** e crie o widget.
 7. Guarde a **Site Key** e a **Secret Key** separadamente.
 
@@ -22,12 +20,16 @@ Configure somente a chave pública no ambiente do aplicativo:
 
 ```dotenv
 EXPO_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAAEZrvk6QszB6lWKY
-EXPO_PUBLIC_TURNSTILE_ORIGIN=https://tcsvisto.netlify.app
+EXPO_PUBLIC_TURNSTILE_ORIGIN=https://tcsvistoria.pages.dev
 ```
 
 A configuração pode ser definida no ambiente do EAS Build ou no arquivo
 `.env.local` do projeto. A **Secret Key nunca deve ser colocada** em variáveis
 `EXPO_PUBLIC_*`, arquivos do aplicativo ou repositório Git.
+
+A Site Key pública também possui fallback no aplicativo e está declarada nos
+perfis do `eas.json`. Assim, o Expo local não omite o `captchaToken` quando o
+Supabase está com a proteção global ativa.
 
 Depois de configurar as variáveis, gere uma nova versão do aplicativo. Login,
 cadastro e recuperação de senha passam a mostrar o desafio automaticamente.
@@ -44,8 +46,8 @@ O dashboard Vite utiliza a mesma **Site Key pública**, com outro prefixo:
 VITE_TURNSTILE_SITE_KEY=0x4AAAAAAEZrvk6QszB6lWKY
 ```
 
-A variável pública também está configurada no `netlify.toml` para os builds do
-portal. Os acessos `/entrar` e `/login`, a criação de conta e a solicitação de
+A variável pública está configurada nos ambientes de preview e produção do
+Cloudflare Pages. Os acessos `/entrar` e `/login`, a criação de conta e a solicitação de
 recuperação apresentam automaticamente o desafio. A Edge Function
 `password-recovery-request` encaminha o token ao Supabase Auth e precisa ser
 publicada junto com esta alteração para a recuperação protegida funcionar.
@@ -56,7 +58,7 @@ individual ou à escolha de vínculo. Cadastre esse endereço na lista de URLs
 autorizadas do Supabase Auth:
 
 ```text
-https://tcsvisto.netlify.app/auth/callback
+https://tcsvistoria.pages.dev/auth/callback
 ```
 
 Se houver outros domínios ou previews autorizados, cadastre também os respectivos

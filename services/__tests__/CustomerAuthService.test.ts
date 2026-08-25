@@ -66,8 +66,8 @@ describe('CustomerAuthService Google', () => {
     expect(buildCustomerAuthCallback(
       'auth/callback',
       'web',
-      'https://deploy-preview-32--tcsvisto.netlify.app/',
-    )).toBe('https://deploy-preview-32--tcsvisto.netlify.app/auth/callback');
+      'https://codex-auth.tcsvistoria.pages.dev/',
+    )).toBe('https://codex-auth.tcsvistoria.pages.dev/auth/callback');
   });
 
   it('mantém o esquema do aplicativo no retorno nativo', () => {

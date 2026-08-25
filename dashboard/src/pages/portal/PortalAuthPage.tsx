@@ -7,7 +7,6 @@ import { TurnstileChallenge, turnstileEnabled } from '@/components/auth/Turnstil
 import { TermsPrivacyDialog } from '@/components/auth/TermsPrivacyDialog';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/Card';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { safePortalDestination } from '@/lib/portal';
@@ -270,21 +269,21 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
 
   return (
     <AuthFrame {...portalAside}>
-      <Card className="w-full max-w-[460px]">
-        <CardHeader>
+      <Card className="w-full max-w-[460px] shadow-lg shadow-black/5">
+        <CardHeader className="px-5 pb-2 pt-5 sm:px-6 sm:pt-6 [@media(max-height:760px)]:pb-1 [@media(max-height:760px)]:pt-4">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
             {mode === 'sign-in' ? 'Portal TCS' : 'Etapa 1 de 2'}
           </p>
-          <h1 className="min-w-0 text-[28px] font-semibold leading-[1.3] tracking-[-0.02em]">
+          <h1 className="min-w-0 text-[26px] font-semibold leading-[1.25] tracking-[-0.02em] [@media(max-height:760px)]:text-[23px]">
             {mode === 'sign-in' ? 'Acesse seu portal' : 'Crie seu acesso'}
           </h1>
-          <CardDescription>
+          <CardDescription className="max-[480px]:hidden [@media(max-height:760px)]:hidden">
             {mode === 'sign-in'
               ? 'Entre com sua conta individual ou com o e-mail do seu vínculo municipal.'
               : 'Informe seus dados de acesso. Depois de confirmar o e-mail, você escolherá o tipo de uso.'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-5 pb-5 sm:px-6 sm:pb-6 [@media(max-height:760px)]:pb-4">
           {success ? (
             <div className="space-y-5" role="status">
               <div className="flex gap-3 rounded-md border border-primary/25 bg-success-soft p-4">
@@ -301,7 +300,7 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
             </div>
           ) : (
             <>
-              <form className="space-y-4" onSubmit={submit} aria-busy={submitting}>
+              <form className="space-y-3" onSubmit={submit} aria-busy={submitting}>
                 {mode === 'sign-up' && (
                   <label className="block text-sm font-medium" htmlFor="portal-name">
                     Nome completo
@@ -310,12 +309,12 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                 )}
                 <label className="block text-sm font-medium" htmlFor="portal-email">
                   E-mail
-                  <Input id="portal-email" className="mt-2" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                  <Input id="portal-email" className="mt-1.5 [@media(max-height:760px)]:h-10" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
                 </label>
                 <div>
                   <label className="block text-sm font-medium" htmlFor="portal-password">Senha</label>
-                  <span className="relative mt-2 block">
-                    <Input id="portal-password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} maxLength={SENHA_MAX} required />
+                  <span className="relative mt-1.5 block">
+                    <Input id="portal-password" className="[@media(max-height:760px)]:h-10" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} maxLength={SENHA_MAX} required />
                     <button type="button" className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-lg:h-11 max-lg:w-11" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                       {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                     </button>
@@ -371,52 +370,19 @@ export function PortalAuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                   {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                   {submitting ? 'Aguarde…' : mode === 'sign-in' ? 'Entrar no portal' : 'Criar conta'}
                 </Button>
-                {mode === 'sign-in' && <Link className="inline-flex min-h-11 w-full items-center justify-center text-sm font-semibold text-primary hover:underline lg:min-h-0" to={`/recuperar-senha${location.search}`}>Esqueci minha senha</Link>}
+                {mode === 'sign-in' && <Link className="inline-flex min-h-11 w-full items-center justify-center text-sm font-semibold text-primary hover:underline lg:min-h-0 [@media(max-height:760px)]:min-h-8" to={`/recuperar-senha${location.search}`}>Esqueci minha senha</Link>}
               </form>
-              <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
+              <div className="my-3 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" /></div>
               <Button variant="outline" className="w-full" onClick={() => void google()} disabled={submitting || (mode === 'sign-up' && !termsAccepted)} aria-busy={submitting}>
                 <GoogleMark />
                 Continuar com Google
               </Button>
-              <p className="mt-6 text-center text-sm text-muted-foreground">
+              <p className="mt-3 text-center text-sm text-muted-foreground max-[480px]:hidden [@media(max-height:760px)]:hidden">
                 {mode === 'sign-in' ? 'Ainda não tem uma conta? ' : 'Já possui uma conta? '}
                 <Link className="font-semibold text-primary hover:underline" to={`${mode === 'sign-in' ? '/criar-conta' : '/entrar'}${location.search}`}>
                   {mode === 'sign-in' ? 'Criar conta' : 'Entrar'}
                 </Link>
               </p>
-              <Dialog>
-                <button
-                  type="button"
-                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center text-center text-[12px] font-medium text-muted-foreground hover:text-foreground hover:underline lg:min-h-0"
-                >
-                  É da equipe interna TCS? Entrar no Console
-                </button>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Acesso ao Console TCS</DialogTitle>
-                    <DialogDescription>O Console é a área administrativa reservada aos administradores da TCS.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3 text-sm leading-6 text-muted-foreground">
-                    <p>
-                      Use o Console apenas se você for membro da equipe interna TCS (administrador, suporte ou técnico).
-                      Contas de clientes e municípios não têm acesso a essa área.
-                    </p>
-                    <p>
-                      Contas municipais continuam acessando por aqui, no Portal, em <strong className="text-foreground">/entrar</strong>.
-                      Não é necessário usar o Console.
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Se você tentar o Console com uma conta de cliente, será redirecionado de volta ao Portal.
-                    </p>
-                  </div>
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <DialogClose asChild>
-                      <Button variant="outline" type="button">Continuar no Portal</Button>
-                    </DialogClose>
-                    <Button asChild type="button"><Link to="/login">Ir para o Console</Link></Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
             </>
           )}
         </CardContent>

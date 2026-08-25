@@ -91,6 +91,7 @@ describe('aceite público de convite municipal', () => {
     mocks.session = { user: { id: 'user-1' } };
     mocks.rpc
       .mockResolvedValueOnce({ data: readyPreview, error: null })
+      .mockResolvedValueOnce({ data: { count: 0, first_at: null, last_at: null }, error: null })
       .mockReturnValueOnce(new Promise(() => undefined));
     const { container } = renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Aceitar convite e criar vínculo' }));
@@ -102,6 +103,7 @@ describe('aceite público de convite municipal', () => {
     mocks.session = { user: { id: 'user-1' } };
     mocks.rpc
       .mockResolvedValueOnce({ data: readyPreview, error: null })
+      .mockResolvedValueOnce({ data: { count: 0, first_at: null, last_at: null }, error: null })
       .mockResolvedValueOnce({ data: { accepted: true }, error: null });
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Aceitar convite e criar vínculo' }));
@@ -115,6 +117,7 @@ describe('aceite público de convite municipal', () => {
     mocks.session = { user: { id: 'user-1' } };
     mocks.rpc
       .mockResolvedValueOnce({ data: readyPreview, error: null })
+      .mockResolvedValueOnce({ data: { count: 0, first_at: null, last_at: null }, error: null })
       .mockResolvedValueOnce({ data: { accepted: true }, error: null });
     mocks.refreshAccess.mockRejectedValueOnce(new Error('refresh_failed'));
     renderPage();

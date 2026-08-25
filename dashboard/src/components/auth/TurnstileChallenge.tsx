@@ -22,6 +22,9 @@ declare global {
 }
 
 const SCRIPT_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+// O widget só é obrigatório quando a hospedagem injeta a Site Key. Assim,
+// testes, desenvolvimento local e execuções offline não ficam bloqueados por
+// um desafio externo, enquanto produção e previews continuam protegidos.
 const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || '';
 let scriptReady: Promise<void> | null = null;
 

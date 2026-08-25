@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Filter, MapPin, RefreshCw, Search } from 'lucide-react';
+import { CalendarDays, Filter, MapPin, RefreshCw, Search, UserRound, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -27,28 +27,47 @@ export function PortalMapPage() {
   const search = searchParams.get('busca') ?? '';
   const status = searchParams.get('status') ?? 'all';
   const formulario = searchParams.get('formulario') ?? 'all';
-  const points: PortalMapPoint[] = useMemo(() => (query.data?.items ?? []).map((item) => ({
+  const risk = searchParams.get('risco') ?? 'all';
+  const agent = searchParams.get('usuario') ?? 'all';
+  const from = searchParams.get('de') ?? '';
+  const to = searchParams.get('ate') ?? '';
+  type FilterableMapPoint = PortalMapPoint & { riskLevel: string; agentUserId: string | null; agentName: string; occurredAt: string | null; municipality: string };
+  const points: FilterableMapPoint[] = useMemo(() => (query.data?.items ?? []).map((item) => ({
     id: String(item.id),
     protocol: String(item.protocol ?? item.title ?? 'Vistoria'),
     status: String(item.status ?? 'Sem status'),
     address: String(item.address ?? item.subtitle ?? 'Endereço não informado'),
     formularioId: typeof item.formulario_id === 'string' ? item.formulario_id : null,
+    riskLevel: String(item.risk_level ?? 'Sem risco'),
+    agentUserId: typeof item.agent_user_id === 'string' ? item.agent_user_id : null,
+    agentName: String(item.agent_name ?? 'Usuário não identificado'),
+    occurredAt: typeof item.occurred_at === 'string' ? item.occurred_at : null,
+    municipality: String(item.municipality ?? ''),
     latitude: coordinateOrNull(item.latitude, -90, 90),
     longitude: coordinateOrNull(item.longitude, -180, 180),
   })), [query.data?.items]);
   const statusOptions = useMemo(() => Array.from(new Set(points.map((point) => point.status))).filter(Boolean), [points]);
   const formularioOptions = useMemo(() => Array.from(new Set(points.map((point) => point.formularioId).filter((value): value is string => Boolean(value)))), [points]);
+  const riskOptions = useMemo(() => Array.from(new Set(points.map((point) => point.riskLevel))).filter(Boolean), [points]);
+  const agentOptions = useMemo(() => Array.from(new Map(points.filter((point) => point.agentUserId).map((point) => [point.agentUserId as string, point.agentName])).entries()), [points]);
   const visiblePoints = points.filter((point) => {
     const term = search.trim().toLocaleLowerCase('pt-BR');
-    const matchesSearch = `${point.protocol} ${point.address}`.toLocaleLowerCase('pt-BR').includes(term);
-    return matchesSearch && (status === 'all' || point.status === status) && (formulario === 'all' || point.formularioId === formulario);
+    const matchesSearch = `${point.protocol} ${point.address} ${point.municipality} ${point.agentName}`.toLocaleLowerCase('pt-BR').includes(term);
+    const date = point.occurredAt?.slice(0, 10) ?? '';
+    return matchesSearch
+      && (status === 'all' || point.status === status)
+      && (formulario === 'all' || point.formularioId === formulario)
+      && (risk === 'all' || point.riskLevel === risk)
+      && (agent === 'all' || point.agentUserId === agent)
+      && (!from || (date && date >= from))
+      && (!to || (date && date <= to));
   });
   const locatedCount = visiblePoints.filter((point) => point.latitude !== null && point.longitude !== null).length;
 
-  function updateFilter(key: 'busca' | 'status' | 'formulario', value: string) {
+  function updateFilter(key: 'busca' | 'status' | 'formulario' | 'risco' | 'usuario' | 'de' | 'ate', value: string) {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
-      if (!value || ((key === 'status' || key === 'formulario') && value === 'all')) next.delete(key);
+      if (!value || (['status', 'formulario', 'risco', 'usuario'].includes(key) && value === 'all')) next.delete(key);
       else next.set(key, value);
       return next;
     }, { replace: true });
@@ -56,17 +75,17 @@ export function PortalMapPage() {
 
   return (
     <div className="page-stack">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header>
         <div className="max-w-3xl">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Território</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.025em]">Mapa de vistorias</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">Localize os registros autorizados para seu escopo. A lista abaixo oferece a mesma informação sem depender do mapa.</p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row" aria-label="Filtros do mapa">
+        <div className="mt-5 grid gap-2 rounded-2xl border bg-card p-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8" aria-label="Filtros do mapa">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <span className="sr-only">Buscar vistoria ou endereço</span>
-            <Input className="pl-9 sm:w-64" placeholder="Buscar vistoria ou endereço" value={search} onChange={(event) => updateFilter('busca', event.target.value)} />
+            <Input className="pl-9" placeholder="Buscar vistoria ou endereço" value={search} onChange={(event) => updateFilter('busca', event.target.value)} />
           </label>
           <label className="relative">
             <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -84,6 +103,11 @@ export function PortalMapPage() {
               {statusOptions.map((option) => <option key={option} value={option}>{humanize(option)}</option>)}
             </select>
           </label>
+          <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><span className="sr-only">Filtrar mapa por risco</span><select className="h-11 w-full rounded-md border bg-card pl-9 pr-8 text-sm" value={risk} onChange={(event) => updateFilter('risco', event.target.value)}><option value="all">Todos os riscos</option>{riskOptions.map((option) => <option key={option} value={option}>{humanize(option)}</option>)}</select></label>
+          <label className="relative"><UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><span className="sr-only">Filtrar mapa por usuário</span><select className="h-11 w-full rounded-md border bg-card pl-9 pr-8 text-sm" value={agent} onChange={(event) => updateFilter('usuario', event.target.value)}><option value="all">Todos os usuários</option>{agentOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+          <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><span className="sr-only">Data inicial</span><Input type="date" className="pl-9" value={from} onChange={(event) => updateFilter('de', event.target.value)} /></label>
+          <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><span className="sr-only">Data final</span><Input type="date" className="pl-9" value={to} onChange={(event) => updateFilter('ate', event.target.value)} /></label>
+          <Button type="button" variant="ghost" className="min-h-11" disabled={!location.search} onClick={() => setSearchParams({}, { replace: true })}><X />Limpar</Button>
         </div>
       </header>
 
@@ -115,7 +139,7 @@ export function PortalMapPage() {
             <ul className="divide-y divide-border">
               {visiblePoints.map((point) => (
                 <li key={point.id} className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <div><p className="font-semibold">{point.protocol}</p><p className="mt-1 leading-5 text-muted-foreground">{humanize(point.status)} · {point.address}{point.latitude !== null && point.longitude !== null ? ` · ${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}` : ' · Sem coordenadas'}</p></div>
+                  <div><p className="font-semibold">{point.protocol}</p><p className="mt-1 leading-5 text-muted-foreground">{humanize(point.status)} · {humanize(point.riskLevel)} · {point.agentName}</p><p className="mt-1 text-xs text-muted-foreground">{point.address}{point.occurredAt ? ` · ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(point.occurredAt))}` : ''}{point.latitude !== null && point.longitude !== null ? ` · ${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}` : ' · Sem coordenadas'}</p></div>
                   <Button asChild variant="ghost" size="sm" className="min-h-11"><Link to={`${root}/vistorias/${encodeURIComponent(point.id)}?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}>Ver vistoria</Link></Button>
                 </li>
               ))}

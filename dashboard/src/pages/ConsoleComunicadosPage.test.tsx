@@ -175,7 +175,8 @@ describe('comunicados no console interno', () => {
     });
     renderPage('/app/whatsapp/org-1');
 
-    await user.click(await screen.findByRole('button', { name: 'Remover número' }));
+    await user.click(await screen.findByRole('button', { name: /mais ações para 55\*\*\*\*9001/i }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Remover número' }));
 
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('55****9001');
     expect(mocks.removerSessaoBot).not.toHaveBeenCalled();

@@ -153,7 +153,7 @@ O repositório também possui testes direcionados para concorrência de assinatu
 
 ## Backend e implantação
 
-O histórico do banco está em `supabase/migrations/`; as Edge Functions ficam em `supabase/functions/` e os testes de segurança/contrato em `supabase/tests/`. A aplicação web possui configuração de deploy no Netlify em [`netlify.toml`](./netlify.toml), mas URLs, chaves, segredos de pagamento, e-mail e credenciais administrativas devem ser configurados no ambiente de implantação — nunca no repositório.
+O histórico do banco está em `supabase/migrations/`; as Edge Functions ficam em `supabase/functions/` e os testes de segurança/contrato em `supabase/tests/`. A aplicação web é publicada pelo Cloudflare Pages a partir de `main`, usando `dashboard` como diretório raiz e `dist` como saída. URLs, chaves, segredos de pagamento, e-mail e credenciais administrativas devem ser configurados no ambiente de implantação — nunca no repositório.
 
 Antes de aplicar migrations ou publicar funções em um ambiente compartilhado, revise a documentação em `docs/` e valide a sequência em um projeto Supabase local ou de homologação.
 

@@ -28,9 +28,7 @@ export function AuthFrame({
   children,
 }: AuthFrameProps) {
   return (
-    <div className={compact
-      ? 'grid min-h-screen bg-background lg:grid-cols-[minmax(0,1fr)_minmax(420px,0.68fr)] xl:grid-cols-[minmax(0,1fr)_minmax(460px,0.62fr)]'
-      : 'grid min-h-screen bg-background lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.72fr)]'}>
+    <div className="relative flex min-h-[100svh] min-w-0 flex-col overflow-x-hidden bg-background text-foreground">
       <a
         href="#auth-content"
         className="sr-only z-50 rounded-md bg-primary px-4 py-3 font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
@@ -38,61 +36,32 @@ export function AuthFrame({
         Pular para o conteúdo
       </a>
 
-      <aside
-        aria-label="Apresentação de acesso TCS"
-        className={`glass relative hidden overflow-hidden text-foreground lg:flex lg:flex-col ${compact ? 'p-8 xl:p-10' : 'p-12'}`}
-      >
-        <Link to="/" className="flex items-center gap-3">
+      <header className="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between px-4 sm:h-20 sm:px-8 [@media(max-height:760px)]:h-14">
+        <Link to="/" className="flex min-h-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <TcsMark decorative />
-          <span className="font-bold">TCS</span>
+          <span className="text-sm font-bold">TCS</span>
         </Link>
-        <div className={`my-auto max-w-xl ${compact ? 'py-6' : ''}`}>
-          {asideLabel && (
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">{asideLabel}</p>
-          )}
-          <p className={compact
-            ? 'mt-4 max-w-[560px] text-[30px] font-semibold leading-[1.18] tracking-[-0.02em] xl:text-[34px]'
-            : 'mt-5 text-4xl font-semibold leading-tight tracking-[-0.02em]'}>
-            {asideHeadline}
-          </p>
-          <p className={compact
-            ? 'mt-4 max-w-lg text-[14px] leading-6 text-muted-foreground'
-            : 'mt-5 max-w-lg text-base leading-7 text-muted-foreground'}>
-            {asideDescription}
-          </p>
-          <ul className={compact
-            ? 'mt-6 space-y-3 text-[13px] text-muted-foreground'
-            : 'mt-8 space-y-4 text-sm text-muted-foreground'}>
-            {asideBullets.map((item) => (
-              <li key={item} className="flex items-center gap-3">
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-success-soft" aria-hidden="true">
-                  <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                </span>
-                <span className="text-foreground">{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
-          {asideFooter}
-        </p>
-      </aside>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/">
+            <ArrowLeft aria-hidden="true" /> {backLabel}
+          </Link>
+        </Button>
+      </header>
 
-      <main
-        id="auth-content"
-        tabIndex={-1}
-        className={`flex min-h-screen min-w-0 flex-col ${compact ? 'p-4 sm:p-6 lg:p-6' : 'p-4 sm:p-8'}`}
-      >
-        <div>
-          <Button asChild variant="ghost">
-            <Link to="/">
-              <ArrowLeft /> {backLabel}
-            </Link>
-          </Button>
-        </div>
-        <div className={`flex flex-1 justify-center ${compact ? 'items-start py-4 lg:items-center lg:py-2' : 'items-center py-8'}`}>
+      <main id="auth-content" tabIndex={-1} className="flex flex-1 items-center justify-center px-4 pb-8 pt-20 max-[480px]:items-start max-[480px]:pb-3 max-[480px]:pt-16 sm:px-6 sm:pb-10 sm:pt-24 [@media(max-height:760px)]:items-start [@media(max-height:760px)]:pb-3 [@media(max-height:760px)]:pt-14">
+        <div className={compact ? 'w-full max-w-[460px]' : 'w-full max-w-[480px]'}>
+          <div className="mb-4 text-center max-[480px]:hidden sm:mb-5 [@media(max-height:760px)]:hidden">
+            {asideLabel && <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">{asideLabel}</p>}
+            <p className="mt-1.5 text-balance text-lg font-semibold leading-tight tracking-[-0.02em] sm:text-xl">{asideHeadline}</p>
+            <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-5 text-muted-foreground [@media(max-height:760px)]:hidden">{asideDescription}</p>
+          </div>
           {children}
+          <div className="mx-auto mt-4 flex max-w-md flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[11px] leading-5 text-muted-foreground max-[480px]:hidden [@media(max-height:760px)]:hidden">
+            <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            <span className="text-muted-foreground">{asideFooter}</span>
+            <span aria-hidden="true">·</span>
+            <span>{asideBullets[0]}</span>
+          </div>
         </div>
       </main>
     </div>

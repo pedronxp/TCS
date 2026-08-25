@@ -4,18 +4,26 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-const allowedOrigins = new Set(['https://tcsvisto.netlify.app', 'http://localhost:5173', 'http://127.0.0.1:5173']);
+const allowedOriginPatterns = [
+  /^https:\/\/tcsvistoria\.pages\.dev$/,
+  /^https:\/\/[a-z0-9-]+\.tcsvistoria\.pages\.dev$/,
+  /^http:\/\/(localhost|127\.0\.0\.1):5173$/,
+];
+
+function isAllowedOrigin(origin: string): boolean {
+  return allowedOriginPatterns.some((pattern) => pattern.test(origin));
+}
 
 function response(body: Record<string, unknown>, status: number, origin?: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', Vary: 'Origin' };
-  if (origin && allowedOrigins.has(origin)) headers['Access-Control-Allow-Origin'] = origin;
+  if (origin && isAllowedOrigin(origin)) headers['Access-Control-Allow-Origin'] = origin;
   return new Response(JSON.stringify(body), { status, headers });
 }
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('Origin') ?? '';
-  if (request.method === 'OPTIONS') return response({}, allowedOrigins.has(origin) ? 204 : 403, origin);
-  if (request.method !== 'POST' || !allowedOrigins.has(origin)) return response({ error: 'not_found' }, 404);
+  if (request.method === 'OPTIONS') return response({}, isAllowedOrigin(origin) ? 204 : 403, origin);
+  if (request.method !== 'POST' || !isAllowedOrigin(origin)) return response({ error: 'not_found' }, 404);
   let email = '';
   let captchaToken: string | null = null;
   try {

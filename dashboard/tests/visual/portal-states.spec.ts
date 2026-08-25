@@ -248,7 +248,7 @@ const asyncRoutes: AsyncRouteState[] = [
   ].map(([id, path]) => ({
     id,
     path,
-    rpc: 'portal_get_workspace',
+    rpc: 'portal_get_map_workspace',
     kind: id.startsWith('municipal-') ? 'organization' as const : 'individual' as const,
     loadingSelector: 'main .animate-pulse',
     errorText: 'Não foi possível carregar as vistorias do mapa',

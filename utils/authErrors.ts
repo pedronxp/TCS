@@ -14,6 +14,14 @@ export function traduzirErroAuth(msg: string): string {
     return 'E-mail ou senha inválidos.';
   }
 
+  if (m.includes('no captcha_token found') || m.includes('captcha protection')) {
+    return 'A verificação de segurança não foi concluída. Aguarde o CAPTCHA carregar e tente novamente.';
+  }
+
+  if (m.includes('captcha') || m.includes('challenge')) {
+    return 'A verificação de segurança expirou ou falhou. Faça a verificação novamente.';
+  }
+
   if (m.includes('email not confirmed')) {
     return 'E-mail ainda não confirmado. Verifique sua caixa de entrada.';
   }

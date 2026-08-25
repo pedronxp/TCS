@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { GoogleMark } from '@/components/brand/GoogleMark';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { AuthFrame, AuthLoadingCard } from '@/components/auth/AuthFrame';
 import { TurnstileChallenge, turnstileEnabled } from '@/components/auth/TurnstileChallenge';
 import { useAuth } from '@/contexts/AuthContext';
@@ -98,16 +99,17 @@ export function LoginPage() {
 
   return (
     <AuthFrame {...consoleAside} compact>
-      <div className="w-full max-w-[420px]">
-        <div>
+      <Card className="w-full shadow-lg shadow-black/5">
+        <CardHeader className="px-5 pb-2 pt-5 sm:px-6 sm:pt-6 [@media(max-height:760px)]:pb-1 [@media(max-height:760px)]:pt-4">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Console TCS</p>
           <h1 className="mt-1.5 text-[24px] font-semibold leading-[1.25] tracking-[-0.02em] sm:text-[26px]">Entre no Console</h1>
-          <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+          <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground max-[480px]:hidden [@media(max-height:760px)]:hidden">
             Use seu e-mail corporativo. Você voltará ao ponto em que estava.
           </p>
-        </div>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 sm:px-6 sm:pb-6 [@media(max-height:760px)]:pb-4">
 
-        <form onSubmit={handleSubmit} className="mt-6" aria-busy={submitting}>
+        <form onSubmit={handleSubmit} className="mt-4" aria-busy={submitting}>
           {!supabaseConfigurationAvailable && (
             <Alert variant="destructive" className="mb-5">
               <AlertTitle>Autenticação indisponível</AlertTitle>
@@ -117,7 +119,7 @@ export function LoginPage() {
             </Alert>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="internal-email">E-mail</Label>
             <Input
               id="internal-email"
@@ -128,11 +130,11 @@ export function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               disabled={submitting || !supabaseConfigurationAvailable}
               placeholder="nome@empresa.com.br"
-              className="h-11 bg-background"
+              className="h-11 bg-background [@media(max-height:760px)]:h-10"
             />
           </div>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-3 space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="internal-password">Senha</Label>
               <button
@@ -153,11 +155,11 @@ export function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={submitting || !supabaseConfigurationAvailable}
-              className="h-11 bg-background"
+              className="h-11 bg-background [@media(max-height:760px)]:h-10"
             />
           </div>
 
-          <div className="mt-4 flex justify-end">
+          <div className="mt-2 flex justify-end">
             <a
               href="mailto:suporte@tcs.app?subject=Recuperação%20de%20acesso"
               className="text-[13px] font-medium text-primary hover:underline"
@@ -167,21 +169,21 @@ export function LoginPage() {
           </div>
 
           {error && (
-            <Alert variant="destructive" className="mt-5" role="alert">
+            <Alert variant="destructive" className="mt-3 p-3" role="alert">
               <AlertTitle>Não foi possível entrar</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
           {authMessage && !error && (
-            <Alert className="mt-5" role="status">
+            <Alert className="mt-3 p-3" role="status">
               <AlertTitle>Atenção ao acesso</AlertTitle>
               <AlertDescription>{authMessage}</AlertDescription>
             </Alert>
           )}
 
           {turnstileEnabled && (
-            <div className="mt-4">
+            <div className="mt-2">
               <TurnstileChallenge key={captchaRevision} onToken={setCaptchaToken} />
             </div>
           )}
@@ -189,14 +191,14 @@ export function LoginPage() {
           <Button
             type="submit"
             disabled={submitting || !supabaseConfigurationAvailable || (turnstileEnabled && !captchaToken)}
-            className="mt-5 h-11 w-full"
+            className="mt-3 h-11 w-full [@media(max-height:760px)]:h-10"
           >
             {submitting && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
             {submitting ? 'Entrando…' : 'Entrar na TCS Console'}
           </Button>
         </form>
 
-        <div className="my-5 flex items-center gap-4">
+        <div className="my-3 flex items-center gap-4">
           <div className="h-px flex-1 bg-border" />
           <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Ou continue com</span>
           <div className="h-px flex-1 bg-border" />
@@ -205,17 +207,18 @@ export function LoginPage() {
         <Button
           type="button"
           variant="outline"
-          className="h-11 w-full"
+          className="h-11 w-full [@media(max-height:760px)]:h-10"
           disabled={googleSubmitting || !supabaseConfigurationAvailable}
           onClick={() => void handleGoogle()}
         >
           {googleSubmitting ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <GoogleMark />}
           {googleSubmitting ? 'Abrindo Google…' : 'Entrar ou criar conta com Google'}
         </Button>
-        <p className="mt-4 text-center text-[11px] leading-4 text-muted-foreground">
+        <p className="mt-3 text-center text-[11px] leading-4 text-muted-foreground max-[480px]:hidden [@media(max-height:760px)]:hidden">
           Primeiro acesso com Google? A equipe TCS revisará a conta antes de liberar o Console. Permissões existentes não mudam.
         </p>
-      </div>
+        </CardContent>
+      </Card>
     </AuthFrame>
   );
 }
