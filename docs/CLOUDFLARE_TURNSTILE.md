@@ -8,8 +8,10 @@
 4. Cadastre o hostname `tcsvisto.netlify.app`, sem `https://` e sem caminho.
 5. Se utilizar outros projetos ou previews, adicione seus hostnames exatos,
    como `tcsvistoria.netlify.app` e
-   `deploy-preview-83--tcsvisto.netlify.app`. Hostnames irmãos no Netlify não
-   são autorizados automaticamente, e caracteres `*` não são aceitos.
+   `deploy-preview-83--tcsvisto.netlify.app`. Adicione também o domínio real
+   publicado no Cloudflare Pages (`tcsvsitoria.pages.dev`, se este continuar
+   sendo o endereço do projeto). Hostnames irmãos não são autorizados
+   automaticamente, e caracteres `*` não são aceitos.
 6. Selecione o modo **Managed** e crie o widget.
 7. Guarde a **Site Key** e a **Secret Key** separadamente.
 
@@ -28,6 +30,10 @@ EXPO_PUBLIC_TURNSTILE_ORIGIN=https://tcsvisto.netlify.app
 A configuração pode ser definida no ambiente do EAS Build ou no arquivo
 `.env.local` do projeto. A **Secret Key nunca deve ser colocada** em variáveis
 `EXPO_PUBLIC_*`, arquivos do aplicativo ou repositório Git.
+
+A Site Key pública também possui fallback no aplicativo e está declarada nos
+perfis do `eas.json`. Assim, o Expo local não omite o `captchaToken` quando o
+Supabase está com a proteção global ativa.
 
 Depois de configurar as variáveis, gere uma nova versão do aplicativo. Login,
 cadastro e recuperação de senha passam a mostrar o desafio automaticamente.

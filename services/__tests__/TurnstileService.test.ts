@@ -1,5 +1,6 @@
 import {
   buildTurnstileChallengeHtml,
+  getTurnstileConfiguration,
   parseTurnstileMessage,
   resolveTurnstileConfiguration,
 } from '../TurnstileService';
@@ -9,6 +10,14 @@ describe('TurnstileService', () => {
     const config = resolveTurnstileConfiguration(null, null);
     expect(config.enabled).toBe(false);
     expect(config.siteKey).toBeNull();
+  });
+
+  it('mantém a chave pública disponível no Expo local quando não há arquivo de ambiente', () => {
+    expect(getTurnstileConfiguration()).toMatchObject({
+      enabled: true,
+      siteKey: '0x4AAAAAAEZrvk6QszB6lWKY',
+      origin: 'https://tcsvisto.netlify.app',
+    });
   });
 
   it('aceita somente uma chave pública válida e uma origem segura', () => {

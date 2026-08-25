@@ -22,7 +22,10 @@ declare global {
 }
 
 const SCRIPT_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || '';
+// A Site Key é pública. O fallback mantém o widget presente em builds feitos
+// fora do Netlify (por exemplo, Cloudflare Pages), onde netlify.toml não injeta
+// variáveis no Vite.
+const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || '0x4AAAAAAEZrvk6QszB6lWKY';
 let scriptReady: Promise<void> | null = null;
 
 export const turnstileEnabled = siteKey.length > 0;

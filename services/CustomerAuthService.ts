@@ -29,7 +29,10 @@ export function buildCustomerAuthCallback(
   if (targetPlatform === 'web') {
     return `${webOrigin.replace(/\/$/, '')}/${path}`;
   }
-  return Linking.createURL(path, { scheme: 'tcs' });
+  // O Expo resolve o destino correto para cada execução: `tcs://` em builds
+  // nativos e `exp://.../--/` no Expo Go. Forçar o scheme `tcs` impedia o
+  // navegador do Expo Go de devolver o controle ao aplicativo.
+  return Linking.createURL(path);
 }
 
 export const CUSTOMER_AUTH_CALLBACK = buildCustomerAuthCallback('auth/callback');

@@ -39,6 +39,8 @@ Antes de ligar as flags:
    - `https://<portal-homologacao>/entrar`
    - `https://<portal-homologacao>/redefinir-senha`
    - equivalentes exatos de produção, sem wildcard amplo.
+   - para uma validação temporária no Expo Go, adicionar a URL `exp://.../--/auth/callback`
+     exibida pelo Metro; remover após o teste e usar development build para o fluxo estável.
 5. Confirmar que o callback autorizado no cliente Google é o callback do projeto Supabase exibido no painel do provider.
 6. Configurar templates de recuperação e confirmação sem expor se a conta existe.
 

@@ -5,6 +5,10 @@ export interface TurnstileConfiguration {
 }
 
 const DEFAULT_TURNSTILE_ORIGIN = 'https://tcsvisto.netlify.app';
+// A Site Key do Turnstile é pública por definição. Mantê-la como fallback
+// evita que o Expo local omita o captchaToken quando a proteção global do
+// Supabase está ativa. A Secret Key permanece somente no servidor.
+const DEFAULT_TURNSTILE_SITE_KEY = '0x4AAAAAAEZrvk6QszB6lWKY';
 const SITE_KEY_FORMAT = /^[A-Za-z0-9_-]{10,200}$/;
 
 export function resolveTurnstileConfiguration(
@@ -34,7 +38,7 @@ export function resolveTurnstileConfiguration(
 
 export function getTurnstileConfiguration(): TurnstileConfiguration {
   return resolveTurnstileConfiguration(
-    process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY,
+    process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY || DEFAULT_TURNSTILE_SITE_KEY,
     process.env.EXPO_PUBLIC_TURNSTILE_ORIGIN,
   );
 }
