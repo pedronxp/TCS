@@ -94,10 +94,13 @@ export function PortalAcknowledgementsPage() {
   }
 
   async function runLinkAction(item: AcknowledgementItem, action: 'generate' | 'revoke' | 'collect') {
+    const collectionWindow = action === 'collect' ? window.open('about:blank', '_blank') : null;
+    if (collectionWindow) collectionWindow.opener = null;
     setError(null);
     setNotice(null);
     setBusy(`${action}-${String(item.id)}`);
     try {
+      if (action === 'collect' && !collectionWindow) throw new Error('popup_blocked');
       const rpc = supabase.rpc as unknown as (
         name: string,
         args: Record<string, unknown>,
@@ -127,7 +130,7 @@ export function PortalAcknowledgementsPage() {
       setIssuedLinks((current) => ({ ...current, [item.id]: { url, expiresAt: result.expiresAt } }));
 
       if (action === 'collect') {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        collectionWindow!.location.href = url;
         setNotice('Coleta aberta em uma nova aba. O destinatário deve ler o documento e registrar o próprio resultado.');
       } else {
         try {
@@ -138,6 +141,7 @@ export function PortalAcknowledgementsPage() {
         }
       }
     } catch (actionError) {
+      collectionWindow?.close();
       setActionError(linkActionErrorMessage(actionError));
     } finally {
       setBusy(null);
@@ -377,6 +381,9 @@ function formatExpiry(value: string) {
 
 function linkActionErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
+  if (/popup_blocked/i.test(message)) {
+    return 'O navegador bloqueou a nova aba. Permita pop-ups para este portal e tente novamente.';
+  }
   if (/creation_not_allowed|subscription|document_link_creation_not_allowed/i.test(message)) {
     return 'A assinatura ou sua permissão não permite emitir um novo link neste momento.';
   }

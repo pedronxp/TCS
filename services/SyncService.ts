@@ -22,7 +22,10 @@ import { uploadImageFromLocalUri, uploadLaudoPdf } from './StorageService';
 import { checkRealInternet } from '../context/ConnectivityContext';
 import { isRecoverableSubscriptionPeriodError, isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
 import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
-import { syncPendingDocumentAcknowledgements } from './DocumentAcknowledgementService';
+import {
+  syncPendingDocumentAcknowledgements,
+  syncPreparedGeneratedDocuments,
+} from './DocumentAcknowledgementService';
 
 // ─── Configuração ──────────────────────────────────────────────────────────
 
@@ -249,9 +252,15 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
       }
     }
 
-    // Uma ciência referencia uma vistoria já existente no servidor. Portanto,
-    // ela é processada apenas após a fila de vistorias, inclusive quando não há
-    // nenhuma vistoria pendente nesta execução.
+    // Publica toda versão imutável preparada após garantir que sua vistoria já
+    // existe no servidor. Assim o Portal pode iniciar a ciência mesmo quando o
+    // agente escolheu concluir depois.
+    const documentSync = await syncPreparedGeneratedDocuments();
+    sucesso += documentSync.success;
+    falha += documentSync.failed;
+
+    // Uma ciência referencia uma versão já publicada. Portanto, ela é
+    // processada depois das filas de vistorias e documentos.
     const acknowledgementSync = await syncPendingDocumentAcknowledgements();
     sucesso += acknowledgementSync.success;
     falha += acknowledgementSync.failed;

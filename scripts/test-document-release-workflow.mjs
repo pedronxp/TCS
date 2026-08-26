@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  documentReleaseMessage,
-  resolveDocumentRelease,
-} from '../services/DocumentReleaseWorkflow.ts';
+import * as workflow from '../services/DocumentReleaseWorkflow.ts';
+
+const { documentReleaseMessage, resolveDocumentRelease } = workflow;
 
 test('encaminha para ciência antes de liberar uma versão preparada', () => {
   assert.equal(resolveDocumentRelease({ documentId: 'document-1', enabled: true, errorMessage: null }), 'collect_acknowledgement');
@@ -21,4 +20,39 @@ test('bloqueia a liberação quando a ciência está habilitada e a versão falh
     title: 'Laudo não liberado',
     message: 'A versão usada na ciência não foi preservada. Tente gerar novamente antes de compartilhar.',
   });
+});
+
+test('libera documento e comprovante somente após confirmação e protocolo do servidor', () => {
+  assert.equal(typeof workflow.canReleaseAcknowledgementEvidence, 'function');
+  const canReleaseAcknowledgementEvidence = workflow.canReleaseAcknowledgementEvidence;
+  assert.equal(canReleaseAcknowledgementEvidence({ syncStatus: 'pending', protocol: null }), false);
+  assert.equal(canReleaseAcknowledgementEvidence({ syncStatus: 'failed', protocol: null }), false);
+  assert.equal(canReleaseAcknowledgementEvidence({ syncStatus: 'confirmed', protocol: null }), false);
+  assert.equal(canReleaseAcknowledgementEvidence({ syncStatus: 'confirmed', protocol: 'TCS-CIE-1' }), true);
+});
+
+test('publica todas as versões preparadas para ficarem disponíveis no portal', async () => {
+  assert.equal(typeof workflow.syncPreparedDocumentBatch, 'function');
+  const syncPreparedDocumentBatch = workflow.syncPreparedDocumentBatch;
+  const published = [];
+  const result = await syncPreparedDocumentBatch(
+    [{ id: 'doc-1' }, { id: 'doc-2' }],
+    async (document) => { published.push(document.id); },
+  );
+
+  assert.deepEqual(published, ['doc-1', 'doc-2']);
+  assert.deepEqual(result, { success: 2, failed: 0 });
+});
+
+test('mantém versão preparada na fila quando a publicação falha', async () => {
+  assert.equal(typeof workflow.syncPreparedDocumentBatch, 'function');
+  const syncPreparedDocumentBatch = workflow.syncPreparedDocumentBatch;
+  const result = await syncPreparedDocumentBatch(
+    [{ id: 'doc-ok' }, { id: 'doc-fail' }],
+    async (document) => {
+      if (document.id === 'doc-fail') throw new Error('network_error');
+    },
+  );
+
+  assert.deepEqual(result, { success: 1, failed: 1 });
 });

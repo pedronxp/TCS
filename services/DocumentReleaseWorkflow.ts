@@ -6,6 +6,11 @@ export type DocumentPreparationResult = {
 
 export type DocumentReleaseDecision = 'collect_acknowledgement' | 'share' | 'blocked';
 
+export type AcknowledgementEvidenceState = {
+  syncStatus: 'pending' | 'syncing' | 'confirmed' | 'failed';
+  protocol: string | null;
+};
+
 export function resolveDocumentRelease(preparation: DocumentPreparationResult): DocumentReleaseDecision {
   if (preparation.documentId) return 'collect_acknowledgement';
   if (!preparation.enabled) return 'share';
@@ -30,4 +35,25 @@ export function documentReleaseMessage(preparation: DocumentPreparationResult, d
     title: `${documentLabel} não liberado`,
     message: 'A versão usada na ciência não foi preservada. Tente gerar novamente antes de compartilhar.',
   };
+}
+
+export function canReleaseAcknowledgementEvidence(event: AcknowledgementEvidenceState): boolean {
+  return event.syncStatus === 'confirmed' && Boolean(event.protocol?.trim());
+}
+
+export async function syncPreparedDocumentBatch<T>(
+  documents: readonly T[],
+  publish: (document: T) => Promise<void>,
+): Promise<{ success: number; failed: number }> {
+  let success = 0;
+  let failed = 0;
+  for (const document of documents) {
+    try {
+      await publish(document);
+      success += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { success, failed };
 }

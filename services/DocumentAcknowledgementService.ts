@@ -19,6 +19,7 @@ import {
   getGeneratedDocument,
   getNextDocumentVersion,
   listPendingAcknowledgementEvents,
+  listPendingGeneratedDocuments,
   markAcknowledgementConfirmed,
   markAcknowledgementFailed,
   markAcknowledgementSignatureUploaded,
@@ -27,6 +28,7 @@ import {
   saveGeneratedDocument,
   updateGeneratedDocumentRemote,
 } from '../utils/documentAcknowledgementDatabase';
+import { syncPreparedDocumentBatch } from './DocumentReleaseWorkflow';
 import {
   CreateAcknowledgementInput,
   DocumentContentSnapshot,
@@ -260,6 +262,21 @@ export async function publishGeneratedDocument(document: LocalGeneratedDocument)
   });
   if (error) throw error;
   updateGeneratedDocumentRemote(document.id, storagePath, 'available');
+}
+
+export async function syncPreparedGeneratedDocuments(): Promise<{ success: number; failed: number }> {
+  return syncPreparedDocumentBatch(listPendingGeneratedDocuments(), async (document) => {
+    try {
+      await publishGeneratedDocument(document);
+    } catch (error) {
+      logger.warn('sync', 'Falha ao publicar versão documental preparada', {
+        documentId: document.id,
+        vistoriaId: document.vistoriaId,
+        erro: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  });
 }
 
 export async function createRemoteAcknowledgementLink(

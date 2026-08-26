@@ -1,6 +1,14 @@
 -- Habilita gestão de links de ciência no Portal TCS.
 -- O token puro continua efêmero: somente seu SHA-256 é persistido.
 
+ALTER TABLE public.document_acknowledgement_requests
+  ADD COLUMN IF NOT EXISTS revoked_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS revoked_at timestamptz;
+
+CREATE UNIQUE INDEX IF NOT EXISTS document_acknowledgement_events_one_outcome_idx
+  ON public.document_acknowledgement_events(document_id)
+  WHERE event_kind = 'outcome';
+
 CREATE OR REPLACE FUNCTION public.create_document_acknowledgement_link(
   p_document_id uuid,
   p_expires_in_hours integer DEFAULT 72
@@ -12,7 +20,6 @@ SET search_path = ''
 AS $$
 DECLARE
   v_user uuid := auth.uid();
-  v_context jsonb;
   v_document public.generated_documents%ROWTYPE;
   v_token text;
 BEGIN
@@ -23,13 +30,9 @@ BEGIN
     RAISE EXCEPTION 'invalid_expiration' USING ERRCODE = '22023';
   END IF;
 
-  v_context := public.get_portal_access_context();
-  IF v_context IS NULL
-     OR NOT ((v_context->'permissions') ? 'document.read')
-     OR NOT COALESCE((v_context->>'creation_allowed')::boolean, false)
-  THEN
-    RAISE EXCEPTION 'document_link_creation_not_allowed' USING ERRCODE = '42501';
-  END IF;
+  -- O mesmo lock é usado pelos dois finalizadores públicos abaixo. Assim a
+  -- emissão nunca atravessa a confirmação de um resultado para esta versão.
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_document_id::text, 0));
 
   SELECT * INTO v_document
   FROM public.generated_documents
@@ -53,7 +56,9 @@ BEGIN
   END IF;
 
   UPDATE public.document_acknowledgement_requests
-  SET status = 'revoked'
+  SET status = 'revoked',
+      revoked_by = v_user,
+      revoked_at = clock_timestamp()
   WHERE document_id = p_document_id
     AND status = 'open';
 
@@ -96,6 +101,7 @@ DECLARE
   v_document public.generated_documents%ROWTYPE;
   v_token text;
   v_expires_at timestamptz;
+  v_org uuid;
 BEGIN
   IF v_user IS NULL THEN
     RAISE EXCEPTION 'authentication_required' USING ERRCODE = '42501';
@@ -108,16 +114,20 @@ BEGIN
   THEN
     RAISE EXCEPTION 'document_link_creation_not_allowed' USING ERRCODE = '42501';
   END IF;
+  v_org := NULLIF(v_context->>'organization_id', '')::uuid;
 
   SELECT * INTO v_document
   FROM public.generated_documents
   WHERE id = p_document_id;
 
-  IF NOT FOUND
-     OR v_document.training_mode
-     OR v_document.status <> 'available'
-     OR NOT private.can_access_document_scope(v_document.organization_id, v_document.owner_user_id, v_user)
-  THEN
+  IF NOT FOUND OR v_document.training_mode OR v_document.status <> 'available' OR NOT (
+    (v_org IS NULL AND v_document.organization_id IS NULL AND v_document.owner_user_id = v_user)
+    OR (
+      v_org IS NOT NULL
+      AND v_document.organization_id = v_org
+      AND private.portal_agent_allowed(v_org, v_document.owner_user_id::text, v_user)
+    )
+  ) THEN
     RAISE EXCEPTION 'document_scope_denied' USING ERRCODE = '42501';
   END IF;
 
@@ -186,7 +196,9 @@ BEGIN
   END IF;
 
   UPDATE public.document_acknowledgement_requests
-  SET status = 'revoked'
+  SET status = 'revoked',
+      revoked_by = v_user,
+      revoked_at = clock_timestamp()
   WHERE document_id = p_document_id
     AND status = 'open';
   GET DIAGNOSTICS v_revoked = ROW_COUNT;
@@ -196,6 +208,53 @@ BEGIN
     'document_id', p_document_id,
     'revoked', v_revoked > 0
   );
+END;
+$$;
+
+-- Serializa os dois canais de conclusão com a emissão de link. A validação
+-- idempotente continua nas funções privadas existentes; o índice parcial é a
+-- última defesa contra resultados finais concorrentes.
+CREATE OR REPLACE FUNCTION public.finalize_document_acknowledgement(p_payload jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_document_id uuid := NULLIF(p_payload->>'document_id', '')::uuid;
+BEGIN
+  IF v_document_id IS NULL THEN
+    RAISE EXCEPTION 'invalid_identifiers' USING ERRCODE = '22023';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_document_id::text, 0));
+  RETURN private.finalize_document_acknowledgement(p_payload);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.finalize_remote_document_acknowledgement(
+  p_token_hash text,
+  p_payload jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_document_id uuid;
+BEGIN
+  IF COALESCE(p_token_hash, '') !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'invalid_link' USING ERRCODE = '22023';
+  END IF;
+  SELECT request.document_id
+  INTO v_document_id
+  FROM public.document_acknowledgement_requests AS request
+  WHERE request.token_hash = p_token_hash;
+  IF v_document_id IS NULL THEN
+    RAISE EXCEPTION 'link_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_document_id::text, 0));
+  RETURN private.finalize_remote_document_acknowledgement(p_token_hash, p_payload);
 END;
 $$;
 
@@ -288,9 +347,15 @@ $$;
 REVOKE ALL ON FUNCTION public.create_document_acknowledgement_link(uuid, integer) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.portal_create_document_acknowledgement_link(uuid, integer) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.portal_revoke_document_acknowledgement_link(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION private.finalize_document_acknowledgement(jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.finalize_remote_document_acknowledgement(text, jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.finalize_document_acknowledgement(jsonb) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.finalize_remote_document_acknowledgement(text, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_document_acknowledgement_link(uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.portal_create_document_acknowledgement_link(uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.portal_revoke_document_acknowledgement_link(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.finalize_document_acknowledgement(jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.finalize_remote_document_acknowledgement(text, jsonb) TO service_role;
 
 COMMENT ON FUNCTION public.portal_create_document_acknowledgement_link(uuid, integer) IS
   'Cria link efêmero de ciência para uma versão acessível no Portal; a assinatura deve permitir novas operações.';

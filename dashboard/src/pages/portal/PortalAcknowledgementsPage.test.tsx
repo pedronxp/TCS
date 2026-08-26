@@ -182,15 +182,28 @@ describe('gestão municipal de ciências', () => {
 
   it('abre a coleta presencial em nova aba sem marcar ciência pelo agente', async () => {
     const token = 'b'.repeat(64);
-    state.rpc.mockResolvedValue({ data: { ok: true, token, expires_at: '2026-08-29T12:00:00.000Z' }, error: null });
+    let resolveRpc!: (value: unknown) => void;
+    state.rpc.mockReturnValue(new Promise((resolve) => { resolveRpc = resolve; }));
+    const popup = { location: { href: '' }, close: vi.fn() };
+    state.open.mockReturnValue(popup);
     state.queryData.items = [{ id: 'ack-web', title: 'TCS-WEB', subtitle: 'Pendente', status: 'pending' }];
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: /Coletar pela web/i }));
-    await waitFor(() => expect(state.open).toHaveBeenCalledWith(
-      `${window.location.origin}/ciencia/${token}`,
+    expect(state.open).toHaveBeenCalledWith(
+      'about:blank',
       '_blank',
-      'noopener,noreferrer',
-    ));
+    );
+    resolveRpc({ data: { ok: true, token, expires_at: '2026-08-29T12:00:00.000Z' }, error: null });
+    await waitFor(() => expect(popup.location.href).toBe(`${window.location.origin}/ciencia/${token}`));
+  });
+
+  it('não cria o link quando o navegador bloqueia a aba de coleta', async () => {
+    state.open.mockReturnValue(null);
+    state.queryData.items = [{ id: 'ack-popup', title: 'TCS-POP', subtitle: 'Pendente', status: 'pending' }];
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Coletar pela web/i }));
+    expect(state.rpc).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Permita pop-ups para este portal/i)).toBeVisible();
   });
 
   it('revoga um link aberto mesmo sem guardar o token puro na listagem', async () => {

@@ -31,3 +31,22 @@ test('editable report freezes the edited snapshot before release', async () => {
     'the editable report must be prepared before it is released',
   );
 });
+
+test('prepared versions are synchronized before pending acknowledgement events', async () => {
+  const source = await readFile(new URL('../services/SyncService.ts', import.meta.url), 'utf8');
+  const preparedIndex = source.indexOf('syncPreparedGeneratedDocuments()');
+  const acknowledgementIndex = source.indexOf('syncPendingDocumentAcknowledgements()');
+
+  assert.ok(preparedIndex >= 0, 'prepared document sync must be part of the regular queue');
+  assert.ok(
+    acknowledgementIndex > preparedIndex,
+    'prepared documents must be published before their acknowledgement events',
+  );
+});
+
+test('each generation screen requests publication of the prepared version', async () => {
+  for (const path of screens) {
+    const source = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+    assert.match(source, /syncPendentes\(\)/, `${path} must request document publication`);
+  }
+});

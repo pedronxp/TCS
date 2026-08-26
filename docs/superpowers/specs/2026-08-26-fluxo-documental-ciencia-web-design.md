@@ -28,6 +28,8 @@ O editor de modelos, brasão, logotipo e preview organizacional será implementa
 
 Quando a ciência estiver desabilitada para o tipo ou organização, o compartilhamento continua disponível sem simular uma coleta. Quando a ciência estiver habilitada, mas a preparação da versão falhar, a liberação fica bloqueada e o usuário recebe uma ação de tentativa novamente.
 
+A publicação da versão preparada no armazenamento privado é interna e autenticada: ela permite que o portal autorizado liste e visualize o documento, mas não equivale à liberação para o destinatário. O app sincroniza versões preparadas mesmo antes de existir um evento de ciência; o compartilhamento externo do documento ou do comprovante continua bloqueado até a confirmação do servidor e a emissão do protocolo.
+
 ## Ciência web
 
 O painel lista os documentos disponíveis no escopo do usuário. Para uma versão sem resultado final, o usuário autorizado pode:
@@ -71,6 +73,7 @@ Somente `pending` e `link_sent` aceitam gerenciamento de link. `acknowledged`, `
 - Falha ao criar link: manter o documento pendente e mostrar mensagem acionável.
 - Link expirado ou revogado: negar prévia e conclusão.
 - Duas conclusões simultâneas: o bloqueio transacional do banco aceita no máximo uma.
+- Criação de link concorrente com uma conclusão: ambas usam o mesmo bloqueio por documento, e o índice único de resultado final impede resultados duplicados.
 - Perda de autorização: negar a operação sem alterar o documento ou o evento.
 
 ## Verificação
@@ -80,4 +83,3 @@ Somente `pending` e `link_sent` aceitam gerenciamento de link. `acknowledged`, `
 - testes SQL positivos e negativos para autorização, assinatura bloqueada, escopo cruzado, versão finalizada e idempotência;
 - TypeScript, testes do app, testes do dashboard, build e advisors do Supabase;
 - validação manual das rotas móvel e `/portal/municipal/ciencias` em preview.
-

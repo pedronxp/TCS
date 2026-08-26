@@ -184,6 +184,14 @@ export function listGeneratedDocuments(vistoriaId: string): LocalGeneratedDocume
   ).map(mapDocument);
 }
 
+export function listPendingGeneratedDocuments(): LocalGeneratedDocument[] {
+  return ensureDocumentAcknowledgementSchema().getAllSync<DocumentRow>(
+    `SELECT * FROM generated_documents_local
+      WHERE status = 'pending_upload' AND training_mode = 0
+      ORDER BY created_at_device ASC`,
+  ).map(mapDocument);
+}
+
 export function updateGeneratedDocumentRemote(
   id: string,
   remotePath: string,

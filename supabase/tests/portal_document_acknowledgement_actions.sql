@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(10);
+SELECT extensions.plan(16);
 
 SELECT extensions.has_function(
   'public',
@@ -50,6 +50,40 @@ SELECT extensions.ok(
   AND pg_get_functiondef('public.portal_list_acknowledgements()'::regprocedure) LIKE '%can_revoke%'
   AND pg_get_functiondef('public.portal_list_acknowledgements()'::regprocedure) LIKE '%expires_at%',
   'portal listing returns server-derived capabilities without exposing a raw token'
+);
+SELECT extensions.ok(
+  pg_get_functiondef('public.portal_create_document_acknowledgement_link(uuid,integer)'::regprocedure) LIKE '%portal_agent_allowed%',
+  'portal link creation enforces the same agent scope as listing and revocation'
+);
+SELECT extensions.ok(
+  pg_get_functiondef('public.create_document_acknowledgement_link(uuid,integer)'::regprocedure) NOT LIKE '%get_portal_access_context%'
+  AND pg_get_functiondef('public.create_document_acknowledgement_link(uuid,integer)'::regprocedure) LIKE '%pg_advisory_xact_lock%',
+  'mobile link creation keeps its own authorization contract and serializes final state'
+);
+SELECT extensions.ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'document_acknowledgement_events_one_outcome_idx'
+      AND indexdef LIKE '%UNIQUE%'
+      AND indexdef LIKE '%event_kind%outcome%'
+  ),
+  'database enforces one final outcome per immutable document version'
+);
+SELECT extensions.has_column(
+  'public', 'document_acknowledgement_requests', 'revoked_by',
+  'link revocation records its author'
+);
+SELECT extensions.has_column(
+  'public', 'document_acknowledgement_requests', 'revoked_at',
+  'link revocation records its timestamp'
+);
+SELECT extensions.ok(
+  pg_get_functiondef('public.finalize_document_acknowledgement(jsonb)'::regprocedure) LIKE '%pg_advisory_xact_lock%'
+  AND pg_get_functiondef('public.finalize_remote_document_acknowledgement(text,jsonb)'::regprocedure) LIKE '%pg_advisory_xact_lock%'
+  AND NOT has_function_privilege('authenticated', 'private.finalize_document_acknowledgement(jsonb)', 'EXECUTE'),
+  'all exposed finalization channels share the document lock and private core is not directly callable'
 );
 
 SELECT * FROM extensions.finish();

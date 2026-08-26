@@ -55,6 +55,7 @@ import {
   remoteAcknowledgementUrl,
 } from '../../../services/DocumentAcknowledgementService';
 import { syncPendentes } from '../../../services/SyncService';
+import { canReleaseAcknowledgementEvidence } from '../../../services/DocumentReleaseWorkflow';
 import {
   buildAcknowledgementReceiptHtml,
   buildCombinedDocumentHtml,
@@ -176,6 +177,13 @@ export default function ElectronicAcknowledgementScreen() {
 
   const shareReceipt = async (combined: boolean) => {
     if (!document || !event) return;
+    if (!canReleaseAcknowledgementEvidence(event)) {
+      Alert.alert(
+        'Exportação aguardando confirmação',
+        'Sincronize a ciência e aguarde o protocolo definitivo antes de liberar o documento ou o comprovante.',
+      );
+      return;
+    }
     if (combined && !(await verifyDocumentIntegrity(document))) {
       Alert.alert(
         'Exportação bloqueada',
@@ -335,10 +343,18 @@ export default function ElectronicAcknowledgementScreen() {
                 fullWidth
               />
             )}
-            <View style={styles.rowButtons}>
-              <Button label="Comprovante" variant="secondary" onPress={() => shareReceipt(false)} style={styles.rowButton} />
-              <Button label="Documento + comprovante" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
-            </View>
+            {canReleaseAcknowledgementEvidence(event) ? (
+              <View style={styles.rowButtons}>
+                <Button label="Comprovante" variant="secondary" onPress={() => shareReceipt(false)} style={styles.rowButton} />
+                <Button label="Documento + comprovante" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
+              </View>
+            ) : (
+              <StateBanner
+                variant="warning"
+                title="Documento ainda não liberado"
+                description="Aguarde a confirmação do servidor e o protocolo definitivo. Até lá, nenhuma cópia pode ser exportada."
+              />
+            )}
             {remoteHistory.length > 1 && (
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>HISTÓRICO DO REGISTRO</Text>

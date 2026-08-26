@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { getSignedUrl, uploadLaudoPdf } from '../../../services/StorageService';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { syncPendentes } from '../../../services/SyncService';
 import { documentReleaseMessage, resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
 import {
@@ -183,6 +184,7 @@ export default function LaudoScreen() {
         previewHtml: html,
         createdBy: profile.uid,
       });
+      void syncPendentes().catch(() => null);
       return { documentId: document.id, enabled: true, errorMessage: null };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

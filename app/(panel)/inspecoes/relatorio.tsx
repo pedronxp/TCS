@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../utils/supabase';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { syncPendentes } from '../../../services/SyncService';
 import { documentReleaseMessage, resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
 import {
@@ -291,6 +292,7 @@ export default function RelatorioScreen() {
         previewHtml: html,
         createdBy: profile.uid,
       });
+      void syncPendentes().catch(() => null);
       return { documentId: document.id, enabled: true, errorMessage: null };
     } catch (error) {
       return {
