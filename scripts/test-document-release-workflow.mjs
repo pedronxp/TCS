@@ -56,3 +56,11 @@ test('mantém versão preparada na fila quando a publicação falha', async () =
 
   assert.deepEqual(result, { success: 1, failed: 1 });
 });
+
+test('reconhece somente conflito terminal de resultado já finalizado', () => {
+  assert.equal(typeof workflow.isFinalOutcomeConflict, 'function');
+  assert.equal(workflow.isFinalOutcomeConflict({ code: '23505', message: 'document_already_acknowledged' }), true);
+  assert.equal(workflow.isFinalOutcomeConflict({ code: '23505', message: 'duplicate key document_acknowledgement_events_one_outcome_idx' }), true);
+  assert.equal(workflow.isFinalOutcomeConflict({ code: '23505', message: 'document_identity_conflict' }), false);
+  assert.equal(workflow.isFinalOutcomeConflict({ code: '42501', message: 'document_scope_denied' }), false);
+});

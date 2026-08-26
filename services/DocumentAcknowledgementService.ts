@@ -22,13 +22,14 @@ import {
   listPendingGeneratedDocuments,
   markAcknowledgementConfirmed,
   markAcknowledgementFailed,
+  markAcknowledgementSuperseded,
   markAcknowledgementSignatureUploaded,
   markAcknowledgementSyncing,
   saveAcknowledgementEvent,
   saveGeneratedDocument,
   updateGeneratedDocumentRemote,
 } from '../utils/documentAcknowledgementDatabase';
-import { syncPreparedDocumentBatch } from './DocumentReleaseWorkflow';
+import { isFinalOutcomeConflict, syncPreparedDocumentBatch } from './DocumentReleaseWorkflow';
 import {
   CreateAcknowledgementInput,
   DocumentContentSnapshot,
@@ -377,6 +378,14 @@ export async function syncPendingDocumentAcknowledgements(): Promise<{ success: 
       await cleanupConfirmedDocument(document, storagePath);
       success += 1;
     } catch (error) {
+      if (isFinalOutcomeConflict(error)) {
+        markAcknowledgementSuperseded(event.id);
+        logger.warn('sync', 'Tentativa local encerrada porque a versão já possui resultado no servidor', {
+          eventId: event.id,
+          documentId: document.id,
+        });
+        continue;
+      }
       const errorCode = classifySyncError(error);
       markAcknowledgementFailed(event.id, errorCode);
       logger.warn('sync', 'Falha ao sincronizar ciência eletrônica', {

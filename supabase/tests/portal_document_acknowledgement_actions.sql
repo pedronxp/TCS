@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(16);
+SELECT extensions.plan(17);
 
 SELECT extensions.has_function(
   'public',
@@ -78,6 +78,20 @@ SELECT extensions.has_column(
 SELECT extensions.has_column(
   'public', 'document_acknowledgement_requests', 'revoked_at',
   'link revocation records its timestamp'
+);
+SELECT extensions.ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_constraint AS constraint_definition
+    JOIN pg_attribute AS column_definition
+      ON column_definition.attrelid = constraint_definition.conrelid
+     AND column_definition.attnum = ANY (constraint_definition.conkey)
+    WHERE constraint_definition.conrelid = 'public.document_acknowledgement_requests'::regclass
+      AND constraint_definition.contype = 'f'
+      AND constraint_definition.confdeltype = 'r'
+      AND column_definition.attname = 'revoked_by'
+  ),
+  'revocation author cannot be erased from the audit trail'
 );
 SELECT extensions.ok(
   pg_get_functiondef('public.finalize_document_acknowledgement(jsonb)'::regprocedure) LIKE '%pg_advisory_xact_lock%'

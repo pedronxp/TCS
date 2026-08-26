@@ -2,7 +2,7 @@
 -- O token puro continua efêmero: somente seu SHA-256 é persistido.
 
 ALTER TABLE public.document_acknowledgement_requests
-  ADD COLUMN IF NOT EXISTS revoked_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS revoked_by uuid REFERENCES auth.users(id) ON DELETE RESTRICT,
   ADD COLUMN IF NOT EXISTS revoked_at timestamptz;
 
 CREATE UNIQUE INDEX IF NOT EXISTS document_acknowledgement_events_one_outcome_idx
@@ -227,6 +227,15 @@ BEGIN
     RAISE EXCEPTION 'invalid_identifiers' USING ERRCODE = '22023';
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(v_document_id::text, 0));
+  IF EXISTS (
+    SELECT 1
+    FROM public.document_acknowledgement_events AS outcome
+    WHERE outcome.document_id = v_document_id
+      AND outcome.event_kind = 'outcome'
+      AND outcome.client_event_id IS DISTINCT FROM NULLIF(p_payload->>'client_event_id', '')::uuid
+  ) THEN
+    RAISE EXCEPTION 'document_already_acknowledged' USING ERRCODE = '23505';
+  END IF;
   RETURN private.finalize_document_acknowledgement(p_payload);
 END;
 $$;

@@ -43,6 +43,8 @@ const checks = [
   ['portal restringe o documento ao agente permitido', /portal_create_document_acknowledgement_link[\s\S]*portal_agent_allowed/i],
   ['um documento aceita somente um resultado final', /CREATE UNIQUE INDEX[\s\S]*document_acknowledgement_events\s*\(document_id\)[\s\S]*event_kind\s*=\s*'outcome'/i],
   ['revogação registra autor e horário', /SET status\s*=\s*'revoked'[\s\S]*revoked_by\s*=\s*v_user[\s\S]*revoked_at\s*=\s*clock_timestamp\(\)/i],
+  ['autoria da revogação é retida', /revoked_by uuid REFERENCES auth\.users\(id\) ON DELETE RESTRICT/i],
+  ['finalização local sinaliza conflito autoritativo', /finalize_document_acknowledgement\(p_payload jsonb\)[\s\S]*document_already_acknowledged/i],
 ];
 
 const failed = checks.filter(([, pattern]) => !pattern.test(migrationSql));

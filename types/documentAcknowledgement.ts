@@ -11,6 +11,7 @@ export type AcknowledgementSyncStatus =
   | 'pending'
   | 'syncing'
   | 'confirmed'
+  | 'superseded'
   | 'failed';
 
 export type AcknowledgementHistoryStatus =
@@ -19,6 +20,7 @@ export type AcknowledgementHistoryStatus =
   | 'confirmed'
   | 'refused'
   | 'unable_to_sign'
+  | 'superseded'
   | 'sync_failed';
 
 export interface SignaturePoint {

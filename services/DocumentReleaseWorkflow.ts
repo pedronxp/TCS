@@ -7,7 +7,7 @@ export type DocumentPreparationResult = {
 export type DocumentReleaseDecision = 'collect_acknowledgement' | 'share' | 'blocked';
 
 export type AcknowledgementEvidenceState = {
-  syncStatus: 'pending' | 'syncing' | 'confirmed' | 'failed';
+  syncStatus: 'pending' | 'syncing' | 'confirmed' | 'superseded' | 'failed';
   protocol: string | null;
 };
 
@@ -39,6 +39,13 @@ export function documentReleaseMessage(preparation: DocumentPreparationResult, d
 
 export function canReleaseAcknowledgementEvidence(event: AcknowledgementEvidenceState): boolean {
   return event.syncStatus === 'confirmed' && Boolean(event.protocol?.trim());
+}
+
+export function isFinalOutcomeConflict(error: unknown): boolean {
+  const candidate = error as { code?: string; message?: string } | null;
+  if (candidate?.code !== '23505') return false;
+  return /document_already_acknowledged|document_already_finalized|document_acknowledgement_events_one_outcome_idx/i
+    .test(candidate.message || '');
 }
 
 export async function syncPreparedDocumentBatch<T>(
