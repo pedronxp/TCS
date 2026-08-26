@@ -337,7 +337,7 @@ export default function ElectronicAcknowledgementScreen() {
             )}
             <View style={styles.rowButtons}>
               <Button label="Comprovante" variant="secondary" onPress={() => shareReceipt(false)} style={styles.rowButton} />
-              <Button label="Documento" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
+              <Button label="Documento + comprovante" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
             </View>
             {remoteHistory.length > 1 && (
               <View style={{ marginTop: 16 }}>

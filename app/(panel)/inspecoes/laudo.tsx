@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
 import { getSignedUrl, uploadLaudoPdf } from '../../../services/StorageService';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { documentReleaseMessage, resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
 import {
   ASSETS,
@@ -194,20 +195,25 @@ export default function LaudoScreen() {
     }
   };
 
-  const concluirOfertaCiencia = (result: Awaited<ReturnType<typeof prepararCiencia>>, titulo: string) => {
-    if (result.documentId) {
-      Alert.alert(`${titulo} preparado`, 'Deseja coletar a ciência eletrônica agora?', [
+  const liberarDocumento = async (
+    result: Awaited<ReturnType<typeof prepararCiencia>>,
+    titulo: string,
+    liberarSemCiencia: () => Promise<unknown>,
+  ) => {
+    const decision = resolveDocumentRelease(result);
+    if (decision === 'share') {
+      await liberarSemCiencia();
+      return;
+    }
+    const copy = documentReleaseMessage(result, titulo);
+    if (decision === 'collect_acknowledgement' && result.documentId) {
+      Alert.alert(copy.title, copy.message, [
         { text: 'Depois', style: 'cancel' },
         { text: 'Coletar ciência', onPress: () => router.push(`/(panel)/inspecoes/ciencia?documentId=${result.documentId}`) },
       ]);
       return;
     }
-    if (result.enabled && result.errorMessage) {
-      Alert.alert(
-        `${titulo} gerado sem ciência eletrônica`,
-        `O PDF foi emitido, mas a versão para ciência não foi salva. Detalhe: ${result.errorMessage}`,
-      );
-    }
+    Alert.alert(copy.title, `${copy.message}\n\nDetalhe: ${result.errorMessage || 'erro desconhecido'}`);
   };
 
   const gerarPDF = async () => {
@@ -265,14 +271,15 @@ export default function LaudoScreen() {
       });
       if (updateError) throw updateError;
       setVistoria((v: any) => v ? { ...v, laudo_url: laudoUrl, laudo_gerado_em: agora } : v);
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Laudo Técnico' });
-      } else {
-        Alert.alert('PDF Gerado', `Arquivo salvo em: ${uri}`);
-      }
       notificarDocumentoGerado('laudo', vistoria.endereco || '').catch(() => null);
-      concluirOfertaCiencia(acknowledgementDocument, 'Laudo');
+      await liberarDocumento(acknowledgementDocument, 'Laudo', async () => {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Laudo Técnico' });
+        } else {
+          Alert.alert('PDF Gerado', `Arquivo salvo em: ${uri}`);
+        }
+      });
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o PDF.');
       logger.error('vistoria', 'Erro PDF', { erro: String(e) });
@@ -326,12 +333,6 @@ export default function LaudoScreen() {
         html,
         uri,
       );
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Termo de Interdição', UTI: 'com.adobe.pdf' });
-      } else {
-        Alert.alert('PDF Gerado', `Arquivo salvo em: ${uri}`);
-      }
       // Registrar geração no Supabase
       const agora = new Date().toISOString();
       supabase.rpc('mark_inspection_document_generated', {
@@ -340,7 +341,14 @@ export default function LaudoScreen() {
       }).then(() => {});
       setVistoria((v: any) => v ? { ...v, termo_gerado_em: agora } : v);
       notificarDocumentoGerado('termo', vistoria.endereco || '').catch(() => null);
-      concluirOfertaCiencia(acknowledgementDocument, 'Termo');
+      await liberarDocumento(acknowledgementDocument, 'Termo', async () => {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar Termo de Interdição', UTI: 'com.adobe.pdf' });
+        } else {
+          Alert.alert('PDF Gerado', `Arquivo salvo em: ${uri}`);
+        }
+      });
     } catch (e: any) {
       Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
       logger.error('vistoria', 'Erro PDF Interdição', { erro: String(e) });

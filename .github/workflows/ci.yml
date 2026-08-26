@@ -113,6 +113,9 @@ jobs:
       - name: Validate document release order
         run: npm run test:document-release-workflow
 
+      - name: Validate document release integration
+        run: npm run test:document-release-integration
+
   dashboard-visual-regression:
     name: Dashboard visual regression
     runs-on: windows-latest
