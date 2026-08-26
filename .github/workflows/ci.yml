@@ -107,6 +107,9 @@ jobs:
       - name: Validate web acknowledgement contracts
         run: npm run test:document-acknowledgement-web
 
+      - name: Validate acknowledgement link safety
+        run: npm run test:document-acknowledgement-links
+
   dashboard-visual-regression:
     name: Dashboard visual regression
     runs-on: windows-latest
