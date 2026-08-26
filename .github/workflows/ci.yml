@@ -104,6 +104,9 @@ jobs:
       - name: Validate archive and restore security
         run: npm run test:archive-restore
 
+      - name: Validate web acknowledgement contracts
+        run: npm run test:document-acknowledgement-web
+
   dashboard-visual-regression:
     name: Dashboard visual regression
     runs-on: windows-latest
