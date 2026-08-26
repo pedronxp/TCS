@@ -110,6 +110,9 @@ jobs:
       - name: Validate acknowledgement link safety
         run: npm run test:document-acknowledgement-links
 
+      - name: Validate document release order
+        run: npm run test:document-release-workflow
+
   dashboard-visual-regression:
     name: Dashboard visual regression
     runs-on: windows-latest
