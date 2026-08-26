@@ -19,7 +19,8 @@
     "test:document-acknowledgement-web": "node scripts/test-document-acknowledgement-web-contract.mjs",
     "test:document-acknowledgement-links": "node --experimental-strip-types --test scripts/test-document-acknowledgement-links.mjs",
     "test:document-release-workflow": "node --no-warnings --experimental-strip-types --test scripts/test-document-release-workflow.mjs",
-    "test:document-release-integration": "node --test scripts/test-document-release-integration.mjs"
+    "test:document-release-integration": "node --test scripts/test-document-release-integration.mjs",
+    "test:document-acknowledgement-sqlite": "node --no-warnings --experimental-strip-types --test scripts/test-document-acknowledgement-sqlite-migration.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

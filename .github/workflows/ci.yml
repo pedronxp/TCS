@@ -116,6 +116,9 @@ jobs:
       - name: Validate document release integration
         run: npm run test:document-release-integration
 
+      - name: Validate local acknowledgement migration
+        run: npm run test:document-acknowledgement-sqlite
+
   dashboard-visual-regression:
     name: Dashboard visual regression
     runs-on: windows-latest
