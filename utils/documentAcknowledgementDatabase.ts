@@ -184,6 +184,14 @@ export function listGeneratedDocuments(vistoriaId: string): LocalGeneratedDocume
   ).map(mapDocument);
 }
 
+export function listPendingGeneratedDocuments(): LocalGeneratedDocument[] {
+  return ensureDocumentAcknowledgementSchema().getAllSync<DocumentRow>(
+    `SELECT * FROM generated_documents_local
+      WHERE status = 'pending_upload' AND training_mode = 0
+      ORDER BY created_at_device ASC`,
+  ).map(mapDocument);
+}
+
 export function updateGeneratedDocumentRemote(
   id: string,
   remotePath: string,
@@ -248,7 +256,8 @@ export function listAcknowledgementHistory(vistoriaId: string): Array<{
   return listGeneratedDocuments(vistoriaId).map(document => {
     const event = listAcknowledgementEventsForDocument(document.id)[0] ?? null;
     let historyStatus: AcknowledgementHistoryStatus = 'not_collected';
-    if (event?.syncStatus === 'failed') historyStatus = 'sync_failed';
+    if (event?.syncStatus === 'superseded') historyStatus = 'superseded';
+    else if (event?.syncStatus === 'failed') historyStatus = 'sync_failed';
     else if (event && event.syncStatus !== 'confirmed') historyStatus = 'pending_sync';
     else if (event?.outcome === 'acknowledged') historyStatus = 'confirmed';
     else if (event?.outcome === 'refused') historyStatus = 'refused';
@@ -279,6 +288,15 @@ export function markAcknowledgementFailed(id: string, errorCode: string): void {
   ensureDocumentAcknowledgementSchema().runSync(
     `UPDATE document_ack_events_local SET sync_status = 'failed', error_code = ? WHERE id = ?`,
     [errorCode.slice(0, 120), id]
+  );
+}
+
+export function markAcknowledgementSuperseded(id: string): void {
+  ensureDocumentAcknowledgementSchema().runSync(
+    `UPDATE document_ack_events_local
+        SET sync_status = 'superseded', error_code = 'already_finalized'
+      WHERE id = ?`,
+    [id]
   );
 }
 

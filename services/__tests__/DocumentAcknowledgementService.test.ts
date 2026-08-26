@@ -56,8 +56,10 @@ jest.mock('../../utils/documentAcknowledgementDatabase', () => ({
   getGeneratedDocument: jest.fn(),
   getNextDocumentVersion: jest.fn().mockReturnValue({ version: 1, supersedesId: null }),
   listPendingAcknowledgementEvents: jest.fn(),
+  listPendingGeneratedDocuments: jest.fn(),
   markAcknowledgementConfirmed: jest.fn(),
   markAcknowledgementFailed: jest.fn(),
+  markAcknowledgementSuperseded: jest.fn(),
   markAcknowledgementSignatureUploaded: jest.fn(),
   markAcknowledgementSyncing: jest.fn(),
   saveAcknowledgementEvent: jest.fn(),
@@ -86,6 +88,7 @@ import {
   createAcknowledgementEvent,
   prepareGeneratedDocument,
   syncPendingDocumentAcknowledgements,
+  syncPreparedGeneratedDocuments,
   verifyDocumentIntegrity,
 } from '../DocumentAcknowledgementService';
 import { INITIAL_ACKNOWLEDGEMENT_DECLARATION, LocalAcknowledgementEvent, LocalGeneratedDocument } from '../../types/documentAcknowledgement';
@@ -148,6 +151,7 @@ describe('DocumentAcknowledgementService', () => {
     databaseMock.findReusableGeneratedDocument.mockReturnValue(null);
     databaseMock.getNextDocumentVersion.mockReturnValue({ version: 1, supersedesId: null });
     databaseMock.listPendingAcknowledgementEvents.mockReturnValue([]);
+    databaseMock.listPendingGeneratedDocuments.mockReturnValue([]);
   });
 
   it('cria nova versão vinculada à versão anterior sem substituir seu pacote local', async () => {
@@ -286,6 +290,21 @@ describe('DocumentAcknowledgementService', () => {
     expect(databaseMock.clearGeneratedDocumentLocalFile).toHaveBeenCalledWith(document.id);
   });
 
+  it('publica versão preparada mesmo quando ainda não existe evento de ciência', async () => {
+    databaseMock.listPendingGeneratedDocuments.mockReturnValue([document]);
+    mockRpc.mockResolvedValue({ data: { document_id: document.id, status: 'available' }, error: null });
+
+    await expect(syncPreparedGeneratedDocuments()).resolves.toEqual({ success: 1, failed: 0 });
+    expect(mockRpc).toHaveBeenCalledWith('register_generated_document', expect.objectContaining({
+      p_payload: expect.objectContaining({ document_id: document.id }),
+    }));
+    expect(databaseMock.updateGeneratedDocumentRemote).toHaveBeenLastCalledWith(
+      document.id,
+      'user/vistoria/document/document.pdf',
+      'available',
+    );
+  });
+
   it('retoma upload parcial sem reenviar o PDF e conserva a chave do evento', async () => {
     const partialDocument = { ...document, remotePath: 'user/vistoria/document/document.pdf' };
     databaseMock.getGeneratedDocument.mockReturnValue(partialDocument);
@@ -346,6 +365,16 @@ describe('DocumentAcknowledgementService', () => {
     await expect(syncPendingDocumentAcknowledgements()).resolves.toEqual({ success: 0, failed: 1 });
 
     expect(databaseMock.markAcknowledgementFailed).toHaveBeenCalledWith(pendingEvent.id, 'inspection_not_synced');
+  });
+
+  it('encerra a tentativa local quando a mesma versão já foi finalizada pela web', async () => {
+    databaseMock.listPendingAcknowledgementEvents.mockReturnValue([pendingEvent]);
+    mockRpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'document_already_acknowledged' } });
+
+    await expect(syncPendingDocumentAcknowledgements()).resolves.toEqual({ success: 0, failed: 0 });
+
+    expect(databaseMock.markAcknowledgementSuperseded).toHaveBeenCalledWith(pendingEvent.id);
+    expect(databaseMock.markAcknowledgementFailed).not.toHaveBeenCalled();
   });
 
   it('persiste a assinatura enviada mesmo quando a finalização falha', async () => {

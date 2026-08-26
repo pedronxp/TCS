@@ -23,6 +23,10 @@ import { useTraining } from '../../../context/TrainingContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../utils/supabase';
 import { notificarDocumentoGerado } from '../../../services/NotificationService';
+import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { syncPendentes } from '../../../services/SyncService';
+import { documentReleaseMessage, resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
+import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled } from '../../../types/documentAcknowledgement';
 import {
   ASSETS,
   getObservacaoCondicionalRiscoKey,
@@ -265,6 +269,61 @@ export default function RelatorioScreen() {
     return false;
   };
 
+  const prepararCiencia = async (
+    documentType: GeneratedDocumentType,
+    payload: object,
+    html: string,
+    pdfUri: string,
+  ) => {
+    if (
+      !draft?.vistoriaId
+      || !profile?.uid
+      || !isAcknowledgementEnabled(documentType, profile.organizationId, isTrainingReport)
+    ) {
+      return { documentId: null, enabled: false, errorMessage: null };
+    }
+    try {
+      const document = await prepareGeneratedDocument({
+        vistoriaId: draft.vistoriaId,
+        documentType,
+        templateVersion: DOCUMENT_TEMPLATE_VERSIONS[documentType],
+        payload,
+        pdfUri,
+        previewHtml: html,
+        createdBy: profile.uid,
+      });
+      void syncPendentes().catch(() => null);
+      return { documentId: document.id, enabled: true, errorMessage: null };
+    } catch (error) {
+      return {
+        documentId: null,
+        enabled: true,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
+
+  const liberarDocumento = async (
+    result: Awaited<ReturnType<typeof prepararCiencia>>,
+    titulo: string,
+    liberarSemCiencia: () => Promise<unknown>,
+  ) => {
+    const decision = resolveDocumentRelease(result);
+    if (decision === 'share') {
+      await liberarSemCiencia();
+      return;
+    }
+    const copy = documentReleaseMessage(result, titulo);
+    if (decision === 'collect_acknowledgement' && result.documentId) {
+      Alert.alert(copy.title, copy.message, [
+        { text: 'Depois', style: 'cancel' },
+        { text: 'Coletar ciência', onPress: () => router.push(`/(panel)/inspecoes/ciencia?documentId=${result.documentId}`) },
+      ]);
+      return;
+    }
+    Alert.alert(copy.title, `${copy.message}\n\nDetalhe: ${result.errorMessage || 'erro desconhecido'}`);
+  };
+
   const abrirModalTermo = async () => {
     if (!(await ensureTrainingActionsAllowed())) return;
 
@@ -373,30 +432,8 @@ export default function RelatorioScreen() {
       };
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
       const protocolo = draft.protocolo || '';
-      const ok = await Sharing.isAvailableAsync();
-      if (ok) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: protocolo ? `TCS — ${protocolo}` : 'TCS — Relatório de Risco',
-          UTI: 'com.adobe.pdf',
-        });
-      } else {
-        const { Share } = require('react-native');
-        const mensagem = buildShareMessage({
-          protocolo,
-          endereco: draft.endereco || 'Endereço não informado',
-          municipio: draft.municipio || '',
-          nivelRisco: draft.nivelRisco || 'r1',
-          formularioId: draft.formularioId,
-          formularioTitulo: isAvaliacaoArvore ? 'Avaliação de Árvore de Risco - CBMMG' : undefined,
-          pontuacaoTotal: draft.pontuacaoTotal,
-          calculoRisco: draft.calculoRisco,
-          agenteNome: draft.agenteNome || profile?.name || 'Agente',
-          dataVistoria: draft.dataVistoria || new Date().toISOString(),
-        });
-        await Share.share({ message: mensagem, title: 'TCS — Relatório de Risco' });
-      }
       // Registrar geração
       if (!isTrainingReport && draft.vistoriaId) {
         const agora = new Date().toISOString();
@@ -407,6 +444,31 @@ export default function RelatorioScreen() {
         setDocTracking(t => ({ ...t, relatorio_gerado_em: agora }));
         notificarDocumentoGerado('relatorio', draft.endereco || '').catch(() => null);
       }
+      await liberarDocumento(acknowledgementDocument, 'Relatório', async () => {
+        const ok = await Sharing.isAvailableAsync();
+        if (ok) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: protocolo ? `TCS — ${protocolo}` : 'TCS — Relatório de Risco',
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          const { Share } = require('react-native');
+          const mensagem = buildShareMessage({
+            protocolo,
+            endereco: draft.endereco || 'Endereço não informado',
+            municipio: draft.municipio || '',
+            nivelRisco: draft.nivelRisco || 'r1',
+            formularioId: draft.formularioId,
+            formularioTitulo: isAvaliacaoArvore ? 'Avaliação de Árvore de Risco - CBMMG' : undefined,
+            pontuacaoTotal: draft.pontuacaoTotal,
+            calculoRisco: draft.calculoRisco,
+            agenteNome: draft.agenteNome || profile?.name || 'Agente',
+            dataVistoria: draft.dataVistoria || new Date().toISOString(),
+          });
+          await Share.share({ message: mensagem, title: 'TCS — Relatório de Risco' });
+        }
+      });
     } catch {
       Alert.alert('Erro', 'Não foi possível gerar o PDF.');
     } finally {
@@ -438,12 +500,12 @@ export default function RelatorioScreen() {
       const html = buildTermoInterdicaoHtml(laudoData, termoForm);
 
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const ok = await Sharing.isAvailableAsync();
-      if (ok) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Termo de Interdição', UTI: 'com.adobe.pdf' });
-      } else {
-        Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
-      }
+      const acknowledgementDocument = await prepararCiencia(
+        'interdiction_term',
+        { ...laudoData, notified: termoForm },
+        html,
+        uri,
+      );
       // Registrar geração
       if (!isTrainingReport && draft?.vistoriaId) {
         const agora = new Date().toISOString();
@@ -454,6 +516,14 @@ export default function RelatorioScreen() {
         setDocTracking(t => ({ ...t, termo_gerado_em: agora }));
         notificarDocumentoGerado('termo', draft?.endereco || '').catch(() => null);
       }
+      await liberarDocumento(acknowledgementDocument, 'Termo', async () => {
+        const ok = await Sharing.isAvailableAsync();
+        if (ok) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Termo de Interdição', UTI: 'com.adobe.pdf' });
+        } else {
+          Alert.alert('PDF Gerado', `Salvo em:\n${uri}`);
+        }
+      });
     } catch {
       Alert.alert('Erro', 'Não foi possível gerar o Termo de Interdição.');
     } finally {
@@ -504,7 +574,9 @@ export default function RelatorioScreen() {
       };
 
       const html = await buildLaudoHtml(dados);
-      await Print.printAsync({ html });
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
+      await liberarDocumento(acknowledgementDocument, 'Relatório', () => Print.printAsync({ html }));
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
     } finally {

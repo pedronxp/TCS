@@ -55,6 +55,7 @@ import {
   remoteAcknowledgementUrl,
 } from '../../../services/DocumentAcknowledgementService';
 import { syncPendentes } from '../../../services/SyncService';
+import { canReleaseAcknowledgementEvidence } from '../../../services/DocumentReleaseWorkflow';
 import {
   buildAcknowledgementReceiptHtml,
   buildCombinedDocumentHtml,
@@ -81,6 +82,7 @@ const DOCUMENT_LABELS: Record<LocalGeneratedDocument['documentType'], string> = 
 };
 
 const SYNC_ERROR_MESSAGES: Record<string, string> = {
+  already_finalized: 'Esta versão já recebeu um resultado no servidor. A tentativa local foi encerrada e não será reenviada.',
   inspection_not_synced: 'A vistoria ainda não foi sincronizada. Conecte-se e sincronize a vistoria antes de registrar a ciência.',
   authorization_denied: 'Sua sessão não tem permissão para concluir esta ciência. Entre novamente ou procure o suporte.',
   document_not_found: 'Não foi possível localizar esta versão do documento. Atualize a tela e tente novamente.',
@@ -176,6 +178,13 @@ export default function ElectronicAcknowledgementScreen() {
 
   const shareReceipt = async (combined: boolean) => {
     if (!document || !event) return;
+    if (!canReleaseAcknowledgementEvidence(event)) {
+      Alert.alert(
+        'Exportação aguardando confirmação',
+        'Sincronize a ciência e aguarde o protocolo definitivo antes de liberar o documento ou o comprovante.',
+      );
+      return;
+    }
     if (combined && !(await verifyDocumentIntegrity(document))) {
       Alert.alert(
         'Exportação bloqueada',
@@ -262,7 +271,7 @@ export default function ElectronicAcknowledgementScreen() {
     );
   }
 
-  const pending = event && event.syncStatus !== 'confirmed';
+  const pending = event && !['confirmed', 'superseded'].includes(event.syncStatus);
   const statusVariant = event?.syncStatus === 'confirmed' ? 'success' : event?.syncStatus === 'failed' ? 'error' : 'warning';
 
   return (
@@ -313,7 +322,13 @@ export default function ElectronicAcknowledgementScreen() {
         {event ? (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Badge
-              label={event.syncStatus === 'confirmed' ? 'Registro confirmado' : event.syncStatus === 'failed' ? 'Falha de sincronização' : 'Pendente de sincronização'}
+              label={event.syncStatus === 'confirmed'
+                ? 'Registro confirmado'
+                : event.syncStatus === 'superseded'
+                  ? 'Resultado já registrado no servidor'
+                  : event.syncStatus === 'failed'
+                    ? 'Falha de sincronização'
+                    : 'Pendente de sincronização'}
               variant={statusVariant}
               showDot
             />
@@ -326,6 +341,13 @@ export default function ElectronicAcknowledgementScreen() {
                 {SYNC_ERROR_MESSAGES[event.errorCode] || 'Não foi possível concluir a sincronização. Tente novamente.'}
               </Text>
             )}
+            {event.syncStatus === 'superseded' && (
+              <StateBanner
+                variant="warning"
+                title="Vale o resultado do servidor"
+                description="Outra coleta concluiu esta versão primeiro. A tentativa deste aparelho foi encerrada e o resultado autoritativo aparece no histórico quando a conexão estiver disponível."
+              />
+            )}
             {pending && event.syncStatus === 'failed' && (
               <Button
                 label="Tentar sincronizar novamente"
@@ -335,16 +357,28 @@ export default function ElectronicAcknowledgementScreen() {
                 fullWidth
               />
             )}
-            <View style={styles.rowButtons}>
-              <Button label="Comprovante" variant="secondary" onPress={() => shareReceipt(false)} style={styles.rowButton} />
-              <Button label="Documento" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
-            </View>
-            {remoteHistory.length > 1 && (
+            {canReleaseAcknowledgementEvidence(event) ? (
+              <View style={styles.rowButtons}>
+                <Button label="Comprovante" variant="secondary" onPress={() => shareReceipt(false)} style={styles.rowButton} />
+                <Button label="Documento + comprovante" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
+              </View>
+            ) : (
+              <StateBanner
+                variant="warning"
+                title="Documento ainda não liberado"
+                description="Aguarde a confirmação do servidor e o protocolo definitivo. Até lá, nenhuma cópia pode ser exportada."
+              />
+            )}
+            {(remoteHistory.length > 1 || (event.syncStatus === 'superseded' && remoteHistory.length > 0)) && (
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>HISTÓRICO DO REGISTRO</Text>
                 {remoteHistory.map(item => (
                   <View key={item.id} style={{ paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.border }}>
-                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>{item.event_kind} · {item.protocol}</Text>
+                    <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>
+                      {item.event_kind === 'outcome' && item.outcome && item.outcome in OUTCOME_LABELS
+                        ? OUTCOME_LABELS[item.outcome as AcknowledgementOutcome]
+                        : item.event_kind} · {item.protocol}
+                    </Text>
                     {item.correction_reason && <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{item.correction_reason}</Text>}
                     <Text style={{ color: theme.textSecondary, fontSize: 11 }}>{formatarDataHora(item.recorded_at_server)}</Text>
                   </View>

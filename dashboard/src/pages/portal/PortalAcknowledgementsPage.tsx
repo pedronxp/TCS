@@ -7,13 +7,12 @@ import {
   Copy,
   Download,
   Eye,
-  ExternalLink,
   FileCheck2,
   Link2,
   LoaderCircle,
+  MonitorUp,
   RefreshCw,
   Send,
-  Undo2,
   X,
   XCircle,
 } from 'lucide-react';
@@ -22,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalRestrictionMessage } from '@/lib/portal';
+import { buildAcknowledgementUrl, parseAcknowledgementLinkResult } from '@/lib/documentAcknowledgementLinks';
 import { supabase } from '@/lib/supabase';
 
 type AcknowledgementStatus = 'pending' | 'link_sent' | 'acknowledged' | 'refused' | 'unable_to_sign';
@@ -84,6 +84,7 @@ export function PortalAcknowledgementsPage() {
   const [error, setError] = useState<string | null>(null);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
   const [authorizedEvidence, setAuthorizedEvidence] = useState<AuthorizedEvidence | null>(null);
+  const [issuedLinks, setIssuedLinks] = useState<Record<string, { url: string; expiresAt: string }>>({});
   const subscriptionBlocks = access ? !access.creationAllowed : false;
   const items = (query.data?.items ?? []) as AcknowledgementItem[];
 
@@ -92,16 +93,59 @@ export function PortalAcknowledgementsPage() {
     setNotice(null);
   }
 
-  async function runLinkAction(item: AcknowledgementItem, action: 'generate' | 'revoke' | 'new') {
+  async function runLinkAction(item: AcknowledgementItem, action: 'generate' | 'revoke' | 'collect') {
+    const collectionWindow = action === 'collect' ? window.open('about:blank', '_blank') : null;
+    if (collectionWindow) collectionWindow.opener = null;
     setError(null);
     setNotice(null);
     setBusy(`${action}-${String(item.id)}`);
-    // Ações de geração/revogação de link dependem de contrato de ciência municipal ainda indisponível.
-    // Estado visual mantém a intenção e registra a pendência no relatório final.
-    window.setTimeout(() => {
+    try {
+      if (action === 'collect' && !collectionWindow) throw new Error('popup_blocked');
+      const rpc = supabase.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+      if (action === 'revoke') {
+        const { data, error: rpcError } = await rpc('portal_revoke_document_acknowledgement_link', {
+          p_document_id: item.id,
+        });
+        if (rpcError || !isSuccessfulRevocation(data)) throw new Error(rpcError?.message || 'revoke_failed');
+        setIssuedLinks((current) => {
+          const next = { ...current };
+          delete next[item.id];
+          return next;
+        });
+        setNotice('Link de ciência revogado. Ele não pode mais abrir o documento nem registrar resultado.');
+        await query.refetch();
+        return;
+      }
+
+      const { data, error: rpcError } = await rpc('portal_create_document_acknowledgement_link', {
+        p_document_id: item.id,
+        p_expires_in_hours: 72,
+      });
+      const result = parseAcknowledgementLinkResult(data);
+      if (rpcError || !result) throw new Error(rpcError?.message || 'link_creation_failed');
+      const url = buildAcknowledgementUrl(result.token, window.location.origin);
+      setIssuedLinks((current) => ({ ...current, [item.id]: { url, expiresAt: result.expiresAt } }));
+
+      if (action === 'collect') {
+        collectionWindow!.location.href = url;
+        setNotice('Coleta aberta em uma nova aba. O destinatário deve ler o documento e registrar o próprio resultado.');
+      } else {
+        try {
+          await navigator.clipboard.writeText(url);
+          setNotice(`Link remoto criado e copiado. Validade: ${formatExpiry(result.expiresAt)}.`);
+        } catch {
+          setNotice(`Link remoto criado. Copie-o na linha do documento. Validade: ${formatExpiry(result.expiresAt)}.`);
+        }
+      }
+    } catch (actionError) {
+      collectionWindow?.close();
+      setActionError(linkActionErrorMessage(actionError));
+    } finally {
       setBusy(null);
-      setActionError('A geração e revogação de links de ciência ainda não estão disponíveis no backend. Solicite o endpoint no relatório de pendências.');
-    }, 0);
+    }
   }
 
   async function copyLink(item: AcknowledgementItem) {
@@ -201,22 +245,31 @@ export function PortalAcknowledgementsPage() {
           )}
           {query.data && items.length > 0 && (
             <ul className="divide-y divide-border">
-              {items.map((item, index) => (
+              {items.map((item, index) => {
+                const issued = issuedLinks[item.id];
+                const displayItem = issued ? {
+                  ...item,
+                  status: 'link_sent',
+                  link_url: issued.url,
+                  expires_at: issued.expiresAt,
+                  can_revoke: true,
+                } : item;
+                return (
                 <AcknowledgementRow
                   key={String(item.id ?? index)}
-                  item={item}
+                  item={displayItem}
                   busy={busy}
-                  disabled={subscriptionBlocks}
+                  creationDisabled={subscriptionBlocks}
                   onGenerate={() => void runLinkAction(item, 'generate')}
                   onRevoke={() => void runLinkAction(item, 'revoke')}
-                  onNewLink={() => void runLinkAction(item, 'new')}
-                  onResume={() => void runLinkAction(item, 'generate')}
-                  onCopy={() => void copyLink(item)}
+                  onCollect={() => void runLinkAction(item, 'collect')}
+                  onCopy={() => void copyLink(displayItem)}
                   evidenceBusy={evidenceBusy}
                   authorizedEvidence={authorizedEvidence}
                   onEvidence={(asset, mode) => void openEvidence(item, asset, mode)}
                 />
-              ))}
+                );
+              })}
             </ul>
           )}
         </CardContent>
@@ -228,11 +281,10 @@ export function PortalAcknowledgementsPage() {
 function AcknowledgementRow({
   item,
   busy,
-  disabled,
+  creationDisabled,
   onGenerate,
   onRevoke,
-  onNewLink,
-  onResume,
+  onCollect,
   onCopy,
   evidenceBusy,
   authorizedEvidence,
@@ -240,11 +292,10 @@ function AcknowledgementRow({
 }: {
   item: AcknowledgementItem;
   busy: string | null;
-  disabled: boolean;
+  creationDisabled: boolean;
   onGenerate: () => void;
   onRevoke: () => void;
-  onNewLink: () => void;
-  onResume: () => void;
+  onCollect: () => void;
   onCopy: () => void;
   evidenceBusy: string | null;
   authorizedEvidence: AuthorizedEvidence | null;
@@ -256,7 +307,7 @@ function AcknowledgementRow({
   const title = String(item.title ?? item.inspection_protocol ?? `Ciência ${item.id}`);
   const subtitle = String(item.subtitle ?? item.recipient_name ?? item.recipient_relationship ?? 'Destinatário não informado');
   const concluded = status === 'acknowledged';
-  const revoked = status === 'refused' || status === 'unable_to_sign';
+  const finalOutcome = status === 'refused' || status === 'unable_to_sign';
   const id = String(item.id);
   const eventId = item.acknowledgement_id;
   const evidenceAction = (asset: EvidenceAsset, mode: 'view' | 'download') => `${eventId}-${asset}-${mode}`;
@@ -293,35 +344,56 @@ function AcknowledgementRow({
         )}
       </div>
       <div className="flex flex-wrap gap-2 sm:justify-end">
-        {!concluded && !revoked && (item.can_resume ?? true) && (
-          <Button variant="outline" size="sm" onClick={onResume} disabled={Boolean(busy) || disabled} title={disabled ? portalRestrictionCause(disabled) : 'Retomar ciência interrompida'}>
-            {busy === `generate-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Undo2 aria-hidden="true" />}Retomar ciência
+        {!concluded && !finalOutcome && (item.can_resume ?? true) && (
+          <Button variant="outline" size="sm" onClick={onCollect} disabled={Boolean(busy) || creationDisabled} title={creationDisabled ? portalRestrictionCause(creationDisabled) : 'Abrir coleta presencial em uma nova aba'}>
+            {busy === `collect-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <MonitorUp aria-hidden="true" />}Coletar pela web
           </Button>
         )}
-        {!concluded && !revoked && (item.can_generate ?? true) && (
-          <Button variant="outline" size="sm" onClick={onGenerate} disabled={Boolean(busy) || disabled} title={disabled ? portalRestrictionCause(disabled) : 'Gerar link externo de recebimento'}>
+        {!concluded && !finalOutcome && (item.can_generate ?? true) && (
+          <Button variant="outline" size="sm" onClick={onGenerate} disabled={Boolean(busy) || creationDisabled} title={creationDisabled ? portalRestrictionCause(creationDisabled) : 'Gerar link externo de recebimento'}>
             {busy === `generate-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Link2 aria-hidden="true" />}Gerar link externo
           </Button>
         )}
-        {item.link_url && status !== 'pending' && (item.can_copy ?? true) && (
+        {item.link_url && (item.can_copy ?? true) && (
           <Button variant="ghost" size="sm" onClick={onCopy} disabled={Boolean(busy)}>
             {busy === `copy-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Copy aria-hidden="true" />}Copiar link
           </Button>
         )}
-        {item.link_url && !concluded && !revoked && (item.can_revoke ?? true) && (
-          <Button variant="outline" size="sm" onClick={onRevoke} disabled={Boolean(busy) || disabled} title={disabled ? portalRestrictionCause(disabled) : 'Revogar link aberto'}>
+        {!concluded && !finalOutcome && item.can_revoke === true && (
+          <Button variant="outline" size="sm" onClick={onRevoke} disabled={Boolean(busy)} title="Revogar link aberto">
             {busy === `revoke-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <X aria-hidden="true" />}Revogar link
           </Button>
         )}
         {concluded && null}
-        {revoked && (
-          <Button variant="outline" size="sm" onClick={onNewLink} disabled={Boolean(busy)} title="Emitir novo link para tentar novamente">
-            {busy === `new-${id}` ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ExternalLink aria-hidden="true" />}Emitir novo link
-          </Button>
-        )}
+        {finalOutcome && <span className="max-w-56 text-xs leading-5 text-muted-foreground">Para outra apresentação, gere uma nova versão do documento.</span>}
       </div>
     </li>
   );
+}
+
+function isSuccessfulRevocation(value: unknown) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && (value as Record<string, unknown>).ok === true);
+}
+
+function formatExpiry(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+}
+
+function linkActionErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/popup_blocked/i.test(message)) {
+    return 'O navegador bloqueou a nova aba. Permita pop-ups para este portal e tente novamente.';
+  }
+  if (/creation_not_allowed|subscription|document_link_creation_not_allowed/i.test(message)) {
+    return 'A assinatura ou sua permissão não permite emitir um novo link neste momento.';
+  }
+  if (/already_finalized|already_acknowledged/i.test(message)) {
+    return 'Esta versão já possui um resultado final. Gere uma nova versão para realizar outra apresentação.';
+  }
+  if (/scope|permission|not_allowed|denied/i.test(message)) {
+    return 'Sua sessão não possui permissão sobre este documento.';
+  }
+  return 'Não foi possível concluir a ação de ciência. Atualize a página e tente novamente.';
 }
 
 function secureEvidenceUrl(value: unknown, asset: EvidenceAsset, mode: 'view' | 'download') {

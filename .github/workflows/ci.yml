@@ -104,6 +104,21 @@ jobs:
       - name: Validate archive and restore security
         run: npm run test:archive-restore
 
+      - name: Validate web acknowledgement contracts
+        run: npm run test:document-acknowledgement-web
+
+      - name: Validate acknowledgement link safety
+        run: npm run test:document-acknowledgement-links
+
+      - name: Validate document release order
+        run: npm run test:document-release-workflow
+
+      - name: Validate document release integration
+        run: npm run test:document-release-integration
+
+      - name: Validate local acknowledgement migration
+        run: npm run test:document-acknowledgement-sqlite
+
   dashboard-visual-regression:
     name: Dashboard visual regression
     runs-on: windows-latest

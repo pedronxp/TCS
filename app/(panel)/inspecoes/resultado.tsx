@@ -30,6 +30,7 @@ import { registrarAuditoria } from '../../../utils/auditLogger';
 import { safeBack } from '../../../utils/navigationUtils';
 import { logger } from '../../../utils/logger';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { documentReleaseMessage, resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled, SignatureStroke } from '../../../types/documentAcknowledgement';
 import { listAcknowledgementEventsForDocument, listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
 import { SignaturePad } from '../../../components/SignaturePad';
@@ -358,8 +359,6 @@ export default function ResultadoScreen() {
       refreshAcknowledgementHistory();
       return { documentId: document.id, errorCode: null, errorMessage: null, enabled: true };
     } catch (error) {
-      // A evidência eletrônica é complementar: uma falha local nela nunca pode
-      // impedir a emissão do relatório ou termo oficial já gerado.
       logger.warn('vistoria', 'Documento gerado sem preparar ciência eletrônica', {
         documentType,
         vistoriaId: vistoria.id,
@@ -374,19 +373,18 @@ export default function ResultadoScreen() {
     }
   };
 
-  const oferecerCiencia = (documentId: string) => {
-    Alert.alert(
-      'Documento preparado',
-      'Deseja registrar agora a ciência eletrônica do morador ou responsável?',
-      [
-        { text: 'Depois', style: 'cancel' },
-        { text: 'Coletar ciência', onPress: () => router.push(`/(panel)/inspecoes/ciencia?documentId=${documentId}`) },
-      ]
-    );
-  };
-
-  const concluirOfertaCiencia = (result: Awaited<ReturnType<typeof prepararCiencia>>) => {
-    if (result.documentId) {
+  const liberarDocumento = async (
+    result: Awaited<ReturnType<typeof prepararCiencia>>,
+    titulo: string,
+    liberarSemCiencia: () => Promise<unknown>,
+  ) => {
+    const decision = resolveDocumentRelease(result);
+    if (decision === 'share') {
+      await liberarSemCiencia();
+      return;
+    }
+    const copy = documentReleaseMessage(result, titulo);
+    if (decision === 'collect_acknowledgement' && result.documentId) {
       const existingEvent = listAcknowledgementEventsForDocument(result.documentId)[0] ?? null;
       if (existingEvent) {
         Alert.alert(
@@ -399,15 +397,13 @@ export default function ResultadoScreen() {
         );
         return;
       }
-      oferecerCiencia(result.documentId);
+      Alert.alert(copy.title, copy.message, [
+        { text: 'Depois', style: 'cancel' },
+        { text: 'Coletar ciência', onPress: () => router.push(`/(panel)/inspecoes/ciencia?documentId=${result.documentId}`) },
+      ]);
       return;
     }
-    if (result.enabled && result.errorCode) {
-      Alert.alert(
-        'PDF gerado sem ciência eletrônica',
-        `O documento foi emitido, mas o pacote de ciência não pôde ser salvo neste aparelho. Detalhe: ${result.errorMessage || result.errorCode}`
-      );
-    }
+    Alert.alert(copy.title, `${copy.message}\n\nDetalhe: ${result.errorMessage || result.errorCode || 'erro desconhecido'}`);
   };
 
   const gerarPdf = async (agentSignatureStrokes?: SignatureStroke[]) => {
@@ -445,17 +441,18 @@ export default function ResultadoScreen() {
         });
       }
 
-      const disponivel = await Sharing.isAvailableAsync();
-      if (disponivel) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'TCS — Relatório de Risco',
-          UTI: 'com.adobe.pdf',
-        });
-      } else {
-        Alert.alert('PDF Gerado', `Arquivo salvo em:\n${uri}`);
-      }
-      concluirOfertaCiencia(acknowledgementDocument);
+      await liberarDocumento(acknowledgementDocument, 'Relatório', async () => {
+        const disponivel = await Sharing.isAvailableAsync();
+        if (disponivel) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'TCS — Relatório de Risco',
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          Alert.alert('PDF Gerado', `Arquivo salvo em:\n${uri}`);
+        }
+      });
     } catch {
       Alert.alert('Erro', 'Não foi possível gerar o PDF. Tente novamente.');
     } finally {
@@ -469,8 +466,11 @@ export default function ResultadoScreen() {
 
     setGerando(true);
     try {
-      const html = await buildLaudoHtml(buildDados(agentSignatureStrokes));
-      await Print.printAsync({ html });
+      const dados = buildDados(agentSignatureStrokes);
+      const html = await buildLaudoHtml(dados);
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
+      await liberarDocumento(acknowledgementDocument, 'Relatório', () => Print.printAsync({ html }));
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
     } finally {
@@ -506,20 +506,18 @@ export default function ResultadoScreen() {
       // Upload para Storage em background
       salvarLaudoNoStorage(uri).catch(() => null);
 
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `TCS — ${protocolo}`,
-          UTI: 'com.adobe.pdf',
-        });
-      } else {
-        await Share.share({
-          message: mensagem,
-          title: 'TCS — Relatório de Risco',
-        });
-      }
-      concluirOfertaCiencia(acknowledgementDocument);
+      await liberarDocumento(acknowledgementDocument, 'Relatório', async () => {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `TCS — ${protocolo}`,
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          await Share.share({ message: mensagem, title: 'TCS — Relatório de Risco' });
+        }
+      });
     } catch {
       Alert.alert('Erro', 'Não foi possível compartilhar o laudo.');
     } finally {
@@ -546,17 +544,18 @@ export default function ResultadoScreen() {
       const html = buildTermoInterdicaoHtml(dados, termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('interdiction_term', { ...dados, notified: termoForm }, html, uri);
-      const disponivel = await Sharing.isAvailableAsync();
-      if (disponivel) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'TCS — Termo de Interdição',
-          UTI: 'com.adobe.pdf',
-        });
-      } else {
-        Alert.alert('PDF Gerado', `Termo de Interdição salvo em:\n${uri}`);
-      }
-      concluirOfertaCiencia(acknowledgementDocument);
+      await liberarDocumento(acknowledgementDocument, 'Termo', async () => {
+        const disponivel = await Sharing.isAvailableAsync();
+        if (disponivel) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'TCS — Termo de Interdição',
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          Alert.alert('PDF Gerado', `Termo de Interdição salvo em:\n${uri}`);
+        }
+      });
     } catch (error) {
       logger.error('vistoria', 'Erro ao gerar Termo de Interdição', {
         vistoriaId: vistoria?.id,
@@ -805,6 +804,7 @@ export default function ResultadoScreen() {
                 confirmed: 'Confirmada · comprovante disponível',
                 refused: 'Recusa registrada',
                 unable_to_sign: 'Impossibilidade registrada',
+                superseded: 'Resultado já registrado no servidor',
                 sync_failed: 'Falha de sincronização · toque para revisar',
               }[historyStatus];
               const documentLabel = {

@@ -19,14 +19,17 @@ import {
   getGeneratedDocument,
   getNextDocumentVersion,
   listPendingAcknowledgementEvents,
+  listPendingGeneratedDocuments,
   markAcknowledgementConfirmed,
   markAcknowledgementFailed,
+  markAcknowledgementSuperseded,
   markAcknowledgementSignatureUploaded,
   markAcknowledgementSyncing,
   saveAcknowledgementEvent,
   saveGeneratedDocument,
   updateGeneratedDocumentRemote,
 } from '../utils/documentAcknowledgementDatabase';
+import { isFinalOutcomeConflict, syncPreparedDocumentBatch } from './DocumentReleaseWorkflow';
 import {
   CreateAcknowledgementInput,
   DocumentContentSnapshot,
@@ -262,6 +265,21 @@ export async function publishGeneratedDocument(document: LocalGeneratedDocument)
   updateGeneratedDocumentRemote(document.id, storagePath, 'available');
 }
 
+export async function syncPreparedGeneratedDocuments(): Promise<{ success: number; failed: number }> {
+  return syncPreparedDocumentBatch(listPendingGeneratedDocuments(), async (document) => {
+    try {
+      await publishGeneratedDocument(document);
+    } catch (error) {
+      logger.warn('sync', 'Falha ao publicar versão documental preparada', {
+        documentId: document.id,
+        vistoriaId: document.vistoriaId,
+        erro: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  });
+}
+
 export async function createRemoteAcknowledgementLink(
   document: LocalGeneratedDocument,
   expiresInHours = 72,
@@ -360,6 +378,14 @@ export async function syncPendingDocumentAcknowledgements(): Promise<{ success: 
       await cleanupConfirmedDocument(document, storagePath);
       success += 1;
     } catch (error) {
+      if (isFinalOutcomeConflict(error)) {
+        markAcknowledgementSuperseded(event.id);
+        logger.warn('sync', 'Tentativa local encerrada porque a versão já possui resultado no servidor', {
+          eventId: event.id,
+          documentId: document.id,
+        });
+        continue;
+      }
       const errorCode = classifySyncError(error);
       markAcknowledgementFailed(event.id, errorCode);
       logger.warn('sync', 'Falha ao sincronizar ciência eletrônica', {

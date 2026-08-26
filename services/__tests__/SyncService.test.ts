@@ -55,6 +55,7 @@ jest.mock('../../services/NotificationService', () => ({
 }));
 
 jest.mock('../../services/DocumentAcknowledgementService', () => ({
+  syncPreparedGeneratedDocuments: jest.fn().mockResolvedValue({ success: 0, failed: 0 }),
   syncPendingDocumentAcknowledgements: jest.fn().mockResolvedValue({ success: 0, failed: 0 }),
 }));
 
@@ -97,6 +98,7 @@ let mockGetVistoriasNaoSincronizadas: jest.Mock;
 let mockGetAgendamentosNaoSincronizados: jest.Mock;
 let mockMarkAgendamentoSincronizado: jest.Mock;
 let mockDeleteAgendamento: jest.Mock;
+let mockSyncPreparedGeneratedDocuments: jest.Mock;
 let mockSyncPendingDocumentAcknowledgements: jest.Mock;
 
 // ─── Import do módulo em teste (uma única vez) ────────────────────────────────
@@ -184,7 +186,11 @@ beforeEach(() => {
 
   // Obter referência ao mock de checkRealInternet
   mockCheckRealInternet = jest.requireMock('../../context/ConnectivityContext').checkRealInternet as jest.Mock;
-  mockSyncPendingDocumentAcknowledgements = jest.requireMock('../../services/DocumentAcknowledgementService').syncPendingDocumentAcknowledgements as jest.Mock;
+  const documentAcknowledgementMock = jest.requireMock('../../services/DocumentAcknowledgementService');
+  mockSyncPreparedGeneratedDocuments = documentAcknowledgementMock.syncPreparedGeneratedDocuments as jest.Mock;
+  mockSyncPendingDocumentAcknowledgements = documentAcknowledgementMock.syncPendingDocumentAcknowledgements as jest.Mock;
+  mockSyncPreparedGeneratedDocuments.mockReset();
+  mockSyncPreparedGeneratedDocuments.mockResolvedValue({ success: 0, failed: 0 });
   mockSyncPendingDocumentAcknowledgements.mockReset();
   mockSyncPendingDocumentAcknowledgements.mockResolvedValue({ success: 0, failed: 0 });
   const storageMock = jest.requireMock('../../services/StorageService');
@@ -347,7 +353,7 @@ describe('syncPendentes', () => {
     expect(mockFromFn).not.toHaveBeenCalled();
   });
 
-  it('sincroniza a ciência somente depois de enviar a vistoria ao servidor', async () => {
+  it('sincroniza documento e ciência somente depois de enviar a vistoria ao servidor', async () => {
     const order: string[] = [];
     mockGetVistoriasNaoSincronizadas.mockReturnValue([makeVistoria()]);
     mockRpcFn = jest.fn(async () => {
@@ -355,6 +361,10 @@ describe('syncPendentes', () => {
       return { data: { protocol: 'TCS-VIS-20260813-0001' }, error: null };
     });
     mockSupabase.rpc = mockRpcFn;
+    mockSyncPreparedGeneratedDocuments.mockImplementation(async () => {
+      order.push('documento');
+      return { success: 0, failed: 0 };
+    });
     mockSyncPendingDocumentAcknowledgements.mockImplementation(async () => {
       order.push('ciencia');
       return { success: 0, failed: 0 };
@@ -362,7 +372,7 @@ describe('syncPendentes', () => {
 
     await syncPendentes();
 
-    expect(order).toEqual(['vistoria', 'ciencia']);
+    expect(order).toEqual(['vistoria', 'documento', 'ciencia']);
   });
 
   it('sincroniza agendamento pendente (status != deletado)', async () => {

@@ -355,6 +355,7 @@ export default function VistoriaDetalhesScreen() {
                 confirmed: 'Ciência confirmada',
                 refused: 'Recusa registrada',
                 unable_to_sign: 'Impossibilidade registrada',
+                superseded: 'Resultado já registrado no servidor',
                 sync_failed: 'Falha de sincronização',
               }[historyStatus];
               return (

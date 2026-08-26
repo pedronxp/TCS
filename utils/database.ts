@@ -1,7 +1,8 @@
 import * as SQLite from 'expo-sqlite';
+import { migrateAcknowledgementSyncStatus } from './documentAcknowledgementSchema';
 
 const DB_NAME = 'defesa_civil.db';
-const DB_VERSION = 21;
+const DB_VERSION = 22;
 
 let db: SQLite.SQLiteDatabase | null = null;
 let acknowledgementSchemaEnsured = false;
@@ -48,7 +49,7 @@ function createDocumentAcknowledgementSchema(database: SQLite.SQLiteDatabase): v
       recorded_at_server TEXT,
       device_id_hash TEXT,
       created_by TEXT NOT NULL,
-      sync_status TEXT NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending','syncing','confirmed','failed')),
+      sync_status TEXT NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending','syncing','confirmed','superseded','failed')),
       protocol TEXT,
       remote_signature_path TEXT,
       error_code TEXT,
@@ -333,6 +334,10 @@ function runMigrations(database: SQLite.SQLiteDatabase) {
           atualizado_em TEXT NOT NULL
         )
       `);
+    }
+
+    if (currentVersion < 22) {
+      migrateAcknowledgementSyncStatus(database);
     }
 
     database.runSync(
