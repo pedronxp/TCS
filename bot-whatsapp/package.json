@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test organization-isolation.test.js session-lifecycle.test.js"
+    "test": "node --test organization-isolation.test.js session-lifecycle.test.js session-operation-queue.test.js"
   },
   "engines": {
     "node": ">=20"

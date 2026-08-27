@@ -40,6 +40,7 @@ painel como contingência.
 | `DASHBOARD_ORIGIN` | não | Origens autorizadas no CORS, separadas por vírgula (inclua `https://tcsvistoria.pages.dev`) |
 | `PORT` | não | porta da tela de QR (padrão 8787) |
 | `POLL_MS` | não | intervalo da fila (padrão 5000) |
+| `WHATSAPP_CONNECT_TIMEOUT_MS` | não | tempo máximo da conexão inicial com o WhatsApp, entre 30 e 120 segundos (padrão 60000) |
 
 ## Execução
 
@@ -60,6 +61,9 @@ Supabase; o filesystem local é descartável.
   criptografia é gerada no primeiro Blueprint.
 - No plano gratuito, um monitor HTTP pode consultar `/healthz`; períodos de
   suspensão ainda podem ocorrer conforme as regras do provedor.
+- A coordenação de sockets é local ao processo e pressupõe uma única instância.
+  Antes de escalar horizontalmente, implemente um lease distribuído por sessão
+  no Supabase para impedir dois workers conectando o mesmo número.
 - No [cron-job.org](https://cron-job.org/en/), crie uma tarefa HTTP `GET` para
   `https://SEU-SERVICO.onrender.com/healthz`, a cada **5 minutos**. Não adicione
   identificadores, tokens ou parâmetros à URL. O endpoint não recebe dados
