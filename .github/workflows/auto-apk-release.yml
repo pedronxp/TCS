@@ -45,7 +45,7 @@ jobs:
     if: "${{ github.event_name != 'push' || !contains(github.event.head_commit.message, 'chore(release): publish apk') }}"
 
     env:
-      BUILD_PROFILE: ${{ github.event.inputs.profile || 'production' }}
+      BUILD_PROFILE: ${{ github.event.inputs.profile || 'preview' }}
       INPUT_VERSION: ${{ github.event.inputs.version || '' }}
       INPUT_VERSION_CODE: ${{ github.event.inputs.version_code || '' }}
       MANDATORY_UPDATE: ${{ github.event.inputs.mandatory || 'true' }}
