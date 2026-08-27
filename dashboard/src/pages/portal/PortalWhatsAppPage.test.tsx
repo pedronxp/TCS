@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   fetchBotQrObjectUrl: vi.fn(),
   prepareBotSessionPairing: vi.fn(),
   requestBotPairingCode: vi.fn(),
+  restartBotSessionPairing: vi.fn(),
   saveCanal: vi.fn(),
   setCanalAtivo: vi.fn(),
   deleteCanal: vi.fn(),
@@ -79,6 +80,7 @@ describe('operação segura do WhatsApp municipal', () => {
     mocks.fetchBotQrObjectUrl.mockReset().mockResolvedValue('blob:whatsapp-qr');
     mocks.prepareBotSessionPairing.mockReset().mockResolvedValue(undefined);
     mocks.requestBotPairingCode.mockReset().mockResolvedValue('ABCD-1234');
+    mocks.restartBotSessionPairing.mockReset().mockResolvedValue(undefined);
     mocks.saveCanal.mockReset().mockResolvedValue('channel-new');
     mocks.setCanalAtivo.mockReset().mockResolvedValue(undefined);
     mocks.deleteCanal.mockReset().mockResolvedValue(undefined);

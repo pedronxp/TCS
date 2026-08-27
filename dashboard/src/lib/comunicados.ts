@@ -584,6 +584,19 @@ export async function requestBotPairingCode(sessaoId: string, phone: string): Pr
   return codigo;
 }
 
+export async function restartBotSessionPairing(sessaoId: string): Promise<void> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/restart-pairing`,
+    30_000,
+    true,
+    { method: 'POST' },
+  );
+  const dados = record(await resposta.json().catch(() => null));
+  if (!resposta.ok || dados?.ok !== true) {
+    throw new Error(string(dados?.motivo) ?? 'Não foi possível reiniciar o pareamento.');
+  }
+}
+
 export async function removerSessaoBot(sessaoId: string): Promise<void> {
   const resposta = await fetchComTimeout(
     `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}`,

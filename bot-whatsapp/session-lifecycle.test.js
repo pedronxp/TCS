@@ -46,11 +46,74 @@ test('última tentativa encerrada marca a sessão como desconectada', () => {
     loggedOutCode: 401,
     attempt: 5,
     maxAttempts: 5,
+    registered: true,
   });
 
   assert.equal(outcome?.state, 'offline');
   assert.equal(outcome?.databaseStatus, 'desconectado');
   assert.equal(outcome?.retry, false);
+});
+
+test('timeout antes do primeiro QR abre o circuito e aguarda reinício manual', () => {
+  const outcome = lifecycle.classifyDisconnect?.({
+    code: 408,
+    loggedOutCode: 401,
+    attempt: 5,
+    maxAttempts: 5,
+    registered: false,
+  });
+
+  assert.equal(outcome?.state, 'offline');
+  assert.equal(outcome?.databaseStatus, 'desconectado');
+  assert.equal(outcome?.clearCredentials, false);
+  assert.equal(outcome?.retry, false);
+  assert.equal(outcome?.delayMs, null);
+});
+
+test('diagnóstico de transporte não expõe endereço do provedor', () => {
+  const diagnostic = lifecycle.describeDisconnect?.({
+    code: 408,
+    error: new Error('WebSocket Error (connect ECONNREFUSED 157.240.226.60:443)'),
+  });
+
+  assert.equal(diagnostic, 'Conexão com o WhatsApp recusada pelo provedor de rede (código 408).');
+  assert.doesNotMatch(diagnostic, /157\.240\.226\.60/);
+});
+
+test('timeout de conexão aceita configuração segura e usa sessenta segundos por padrão', () => {
+  assert.equal(lifecycle.resolveConnectTimeoutMs?.(undefined), 60_000);
+  assert.equal(lifecycle.resolveConnectTimeoutMs?.('90000'), 90_000);
+  assert.equal(lifecycle.resolveConnectTimeoutMs?.('1000'), 60_000);
+  assert.equal(lifecycle.resolveConnectTimeoutMs?.('999999'), 120_000);
+});
+
+test('uma nova preparação força o worker a descartar o socket antigo', () => {
+  assert.equal(lifecycle.pairingPreparationChanged?.('2026-08-27T12:00:00Z', '2026-08-27T12:01:00Z'), true);
+  assert.equal(lifecycle.pairingPreparationChanged?.('2026-08-27T12:01:00Z', '2026-08-27T12:01:00Z'), false);
+  assert.equal(lifecycle.pairingPreparationChanged?.(null, '2026-08-27T12:01:00Z'), true);
+  assert.equal(lifecycle.pairingPreparationChanged?.('2026-08-27T12:01:00Z', null), false);
+});
+
+test('evento atrasado de um socket antigo não remove a sessão substituta', () => {
+  const oldSession = { id: 'session-a' };
+  const replacement = { id: 'session-a' };
+  const sessions = new Map([['session-a', replacement]]);
+
+  assert.equal(lifecycle.removeCurrentSession?.(sessions, 'session-a', oldSession), false);
+  assert.equal(sessions.get('session-a'), replacement);
+  assert.equal(lifecycle.removeCurrentSession?.(sessions, 'session-a', replacement), true);
+  assert.equal(sessions.has('session-a'), false);
+});
+
+test('credenciais atrasadas só podem ser persistidas pela sessão ativa', () => {
+  const oldSession = { id: 'session-a', encerramentoSolicitado: false };
+  const activeSession = { id: 'session-a', encerramentoSolicitado: false };
+  const sessions = new Map([['session-a', activeSession]]);
+
+  assert.equal(lifecycle.canPersistSessionCredentials?.(sessions, 'session-a', oldSession), false);
+  assert.equal(lifecycle.canPersistSessionCredentials?.(sessions, 'session-a', activeSession), true);
+  activeSession.encerramentoSolicitado = true;
+  assert.equal(lifecycle.canPersistSessionCredentials?.(sessions, 'session-a', activeSession), false);
 });
 
 test('normaliza telefone brasileiro para o pareamento por código', () => {
@@ -110,4 +173,9 @@ test('exige autorização da organização e canal oficial para criar uma sala d
 test('inclui o ciclo de vida das sessões na imagem publicada no Render', () => {
   const dockerfile = fs.readFileSync(path.join(__dirname, 'Dockerfile'), 'utf8');
   assert.match(dockerfile, /^COPY\s+.*session-lifecycle\.js.*\s+\.\/$/m);
+});
+
+test('nova preparação limpa novamente credenciais antes de iniciar outro socket', () => {
+  const server = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
+  assert.match(server, /reiniciarSessao\(\{ \.\.\.linha, org_nome: orgNome \}, \{ sair: true \}\)/);
 });

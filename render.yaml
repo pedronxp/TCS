@@ -13,6 +13,8 @@ services:
         value: 10000
       - key: NODE_ENV
         value: production
+      - key: WHATSAPP_CONNECT_TIMEOUT_MS
+        value: 60000
       - key: DASHBOARD_ORIGIN
         value: https://tcsvistoria.pages.dev
       - key: SUPABASE_URL

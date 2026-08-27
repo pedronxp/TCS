@@ -22,7 +22,8 @@ const {
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./supabase-auth-state');
 const { sameOrganization } = require('./organization-isolation');
-const { classifyDisconnect, normalizePairingPhone, pairingPhoneMatches, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
+const { createKeyedOperationQueue } = require('./session-operation-queue');
+const { classifyDisconnect, describeDisconnect, resolveConnectTimeoutMs, pairingPreparationChanged, removeCurrentSession, canPersistSessionCredentials, normalizePairingPhone, pairingPhoneMatches, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
 (function carregarEnvLocal() {
@@ -46,6 +47,7 @@ const POLL_MS = Number(process.env.POLL_MS || 5000);
 const CHAT_SYNC_MS = Number(process.env.CHAT_SYNC_MS || 10 * 60 * 1000);
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 20_000);
 const MAX_RECONNECT_ATTEMPTS = 5;
+const CONNECT_TIMEOUT_MS = resolveConnectTimeoutMs(process.env.WHATSAPP_CONNECT_TIMEOUT_MS);
 const PAIRING_CODE_COOLDOWN_MS = 30_000;
 const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
   || 'https://tcsvistoria.pages.dev,http://localhost:5173,http://127.0.0.1:5173')
@@ -82,6 +84,7 @@ function agoraIso() {
 
 // id -> { id, orgId, orgNome, socket, fase, qr, qrGeradoEm, telefone, ultimoErro, parar }
 const sessoes = new Map();
+const runSessionOperation = createKeyedOperationQueue();
 
 function textoComunicado(comunicado, organizacao) {
   return [
@@ -165,7 +168,7 @@ async function sincronizarChats(sessao, tentativa = 1) {
   }
 }
 
-async function iniciarSessao(linha, tentativaReconexao = 0) {
+async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
   const anterior = sessoes.get(linha.id);
   if (anterior && !tentativaReconexao) return;
 
@@ -188,10 +191,12 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     expectedPhone: linha.expected_phone || null,
     identification: linha.identification || null,
     pairingMethod: linha.pairing_method || null,
+    pairingPreparedAt: linha.pairing_prepared_at || null,
     ultimoErro: null,
     clearState,
     encerramentoSolicitado: false,
     pairingCodeRequestedAt: 0,
+    retryTimer: null,
   };
   sessoes.set(linha.id, sessao);
   await reportarSessao(sessao);
@@ -201,13 +206,20 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     auth: state,
     markOnlineOnConnect: false,
     browser: ['TCS Comunicados', 'Chrome', '1.0.0'],
-    connectTimeoutMs: 20_000,
+    connectTimeoutMs: CONNECT_TIMEOUT_MS,
   });
   sessao.socket = socket;
 
-  socket.ev.on('creds.update', saveCreds);
+  socket.ev.on('creds.update', () => {
+    void runSessionOperation(sessao.id, async () => {
+      if (!canPersistSessionCredentials(sessoes, sessao.id, sessao)) return;
+      await saveCreds();
+    }).catch((erro) => log('sessao', `Falha ao salvar credenciais da sessão ${sessao.id}`, erro));
+  });
 
-  socket.ev.on('connection.update', async (atualizacao) => {
+  socket.ev.on('connection.update', (atualizacao) => {
+    void runSessionOperation(sessao.id, async () => {
+    if (sessoes.get(sessao.id) !== sessao || sessao.encerramentoSolicitado) return;
     const { connection, qr, lastDisconnect } = atualizacao;
     if (qr) {
       sessao.fase = 'aguardando_qr';
@@ -245,7 +257,7 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
         await reportarSessao(sessao, 'offline', sessao.ultimoErro);
         await clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais divergentes ${linha.id}`, erro));
         try { await socket.logout(); } catch (_erro) { socket.end(new Error('conta divergente')); }
-        sessoes.delete(sessao.id);
+        removeCurrentSession(sessoes, sessao.id, sessao);
         return;
       }
       sessao.fase = 'vinculado';
@@ -263,7 +275,7 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
     }
     if (connection === 'close') {
       if (sessao.encerramentoSolicitado) {
-        sessoes.delete(sessao.id);
+        removeCurrentSession(sessoes, sessao.id, sessao);
         return;
       }
       const codigo = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
@@ -275,14 +287,17 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
         attempt: tentativaReconexao,
         maxAttempts: MAX_RECONNECT_ATTEMPTS,
       });
+      const diagnostico = describeDisconnect({ code: codigo, error: lastDisconnect?.error });
       sessao.fase = resultado.state === 'awaiting_qr'
         ? 'aguardando_qr'
         : resultado.state === 'reconnecting' ? 'reconectando' : 'desconectado';
       sessao.ultimoErro = resultado.clearCredentials
         ? 'Sessão encerrada pelo WhatsApp. Vincule o número novamente com QR Code ou código.'
+        : resultado.state === 'awaiting_qr'
+          ? `${diagnostico} O pareamento continua ativo e fará uma nova tentativa.`
         : resultado.retry
-          ? `Conexão interrompida (código ${codigo}). Tentativa ${tentativaReconexao + 1} de ${MAX_RECONNECT_ATTEMPTS}.`
-          : `Conexão interrompida (código ${codigo}). Limite de reconexões atingido; reconecte pelo painel.`;
+          ? `${diagnostico} Tentativa ${tentativaReconexao + 1} de ${MAX_RECONNECT_ATTEMPTS}.`
+          : `${diagnostico} Limite de reconexões atingido; reconecte pelo painel.`;
       log('sessao', `${sessao.orgNome}: conexão fechada — ${resultado.clearCredentials ? 'requer novo vínculo' : resultado.retry ? `tentativa ${tentativaReconexao + 1}/${MAX_RECONNECT_ATTEMPTS}` : 'reconexão automática encerrada'}`);
       await reportarSessao(sessao, resultado.state);
 
@@ -291,24 +306,26 @@ async function iniciarSessao(linha, tentativaReconexao = 0) {
       }
       if (resultado.clearCredentials) {
         await clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${linha.id}`, erro));
-        sessoes.delete(sessao.id);
+        removeCurrentSession(sessoes, sessao.id, sessao);
       } else if (resultado.retry) {
-        setTimeout(() => {
+        sessao.retryTimer = setTimeout(() => {
           iniciarSessao(linha, tentativaReconexao + 1).catch((erro) => log('sessao', `Reconexão falhou ${linha.id}`, erro));
         }, resultado.delayMs);
       } else {
-        sessoes.delete(sessao.id);
+        removeCurrentSession(sessoes, sessao.id, sessao);
       }
     }
+    }).catch((erro) => log('sessao', `Falha ao processar evento da sessão ${sessao.id}`, erro));
   });
 
   return sessao;
 }
 
-async function pararSessao(id, { sair = false, runtimeState = 'paused' } = {}) {
+async function pararSessaoSemLock(id, { sair = false, runtimeState = 'paused' } = {}) {
   const sessao = sessoes.get(id);
   if (sessao) {
     sessao.encerramentoSolicitado = true;
+    if (sessao.retryTimer) clearTimeout(sessao.retryTimer);
     await reportarSessao(sessao, runtimeState, runtimeState === 'offline' ? 'Serviço encerrado.' : null);
     try {
       if (sair && sessao.socket && typeof sessao.socket.logout === 'function') {
@@ -320,7 +337,7 @@ async function pararSessao(id, { sair = false, runtimeState = 'paused' } = {}) {
     if (sair && typeof sessao.clearState === 'function') {
       await sessao.clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais ${id}`, erro));
     }
-    sessoes.delete(id);
+    removeCurrentSession(sessoes, id, sessao);
   } else if (sair) {
     const auth = await useSupabaseAuthState(supabase, id, BOT_SESSION_ENCRYPTION_KEY);
     await auth.clearState().catch((erro) => log('sessao', `Falha ao limpar credenciais inativas ${id}`, erro));
@@ -328,11 +345,30 @@ async function pararSessao(id, { sair = false, runtimeState = 'paused' } = {}) {
   log('sessao', `Sessao ${id} ${sair ? 'desvinculada do WhatsApp' : 'desconectada pelo painel'}.`);
 }
 
+function iniciarSessao(linha, tentativaReconexao = 0) {
+  return runSessionOperation(linha.id, () => iniciarSessaoSemLock(linha, tentativaReconexao));
+}
+
+function pararSessao(id, options) {
+  return runSessionOperation(id, () => pararSessaoSemLock(id, options));
+}
+
+function reiniciarSessao(linha, { sair = false, runtimeState = 'awaiting_qr' } = {}) {
+  return runSessionOperation(linha.id, async () => {
+    const current = sessoes.get(linha.id);
+    if (current && !pairingPreparationChanged(current.pairingPreparedAt, linha.pairing_prepared_at)) {
+      return current;
+    }
+    await pararSessaoSemLock(linha.id, { sair, runtimeState });
+    return iniciarSessaoSemLock(linha);
+  });
+}
+
 // Descobre sessões novas no painel, encerra as desativadas e mantém nomes das orgs.
 async function gerenciarSessoes() {
   const { data: linhas, error } = await supabase
     .from('bot_sessoes')
-    .select('id, organization_id, telefone, status, acao_pendente, expected_phone, identification, pairing_method, pairing_ready, organizations(display_name)');
+    .select('id, organization_id, telefone, status, acao_pendente, expected_phone, identification, pairing_method, pairing_ready, pairing_prepared_at, organizations(display_name)');
   if (error) {
     log('db', 'Falha ao listar sessoes', error);
     return;
@@ -362,6 +398,12 @@ async function gerenciarSessoes() {
     const orgNome = linha.organizations && linha.organizations.display_name;
     const existente = sessoes.get(linha.id);
     if (existente) {
+      if (pairingPreparationChanged(existente.pairingPreparedAt, linha.pairing_prepared_at)) {
+        await reiniciarSessao({ ...linha, org_nome: orgNome }, { sair: true }).catch((erro) => {
+          log('startup', `Falha ao reiniciar pareamento da sessão ${linha.id}`, erro);
+        });
+        continue;
+      }
       if (orgNome) existente.orgNome = orgNome;
       if (linha.telefone) existente.telefone = linha.telefone;
       existente.expectedPhone = linha.expected_phone || existente.expectedPhone;
@@ -604,7 +646,7 @@ app.delete('/sessao/:id', canManageSession, async (req, res) => {
       if (activeSession) {
         activeSession.encerramentoSolicitado = true;
         try { activeSession.socket?.end?.(new Error('sessão removida pelo painel')); } catch (_error) { /* socket encerrado */ }
-        sessoes.delete(sessionId);
+        removeCurrentSession(sessoes, sessionId, activeSession);
       }
     }
 
@@ -662,6 +704,60 @@ app.post('/sessao/:id/pairing-code', canManageSession, async (req, res) => {
     sessao.pairingCodeRequestedAt = 0;
     log('sessao', `Falha ao gerar código de vinculação para a sessão ${sessao.id}`, erro);
     res.status(502).json({ ok: false, motivo: 'O WhatsApp não gerou o código. Aguarde o QR aparecer e tente novamente.' });
+  }
+});
+
+app.post('/sessao/:id/restart-pairing', canManageSession, async (req, res) => {
+  const sessionId = req.params.id;
+  try {
+    const result = await runSessionOperation(sessionId, async () => {
+      const { data: linha, error } = await supabase
+        .from('bot_sessoes')
+        .select('id, organization_id, telefone, status, expected_phone, identification, pairing_method, pairing_ready, pairing_prepared_at, organizations(display_name)')
+        .eq('id', sessionId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!linha) return { status: 404, motivo: 'A sessão não existe mais.' };
+      if (!linha.pairing_ready || linha.pairing_method !== 'qr') {
+        return { status: 409, motivo: 'Prepare novamente o número e o método de conexão.' };
+      }
+
+      await pararSessaoSemLock(sessionId, { sair: true, runtimeState: 'awaiting_qr' });
+      const { data: updated, error: updateError } = await supabase
+        .from('bot_sessoes')
+        .update({
+          status: 'aguardando_qr',
+          telefone: null,
+          vinculado_em: null,
+          atualizado_em: agoraIso(),
+        })
+        .eq('id', sessionId)
+        .select('id')
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (!updated) throw new Error('A sessão deixou de existir durante o reinício.');
+
+      await iniciarSessaoSemLock({
+        ...linha,
+        telefone: null,
+        status: 'aguardando_qr',
+        org_nome: linha.organizations?.display_name,
+      });
+      return { status: 202 };
+    });
+
+    if (result.status === 404) {
+      res.status(404).json({ ok: false, motivo: 'A sessão não existe mais.' });
+      return;
+    }
+    if (result.status === 409) {
+      res.status(409).json({ ok: false, motivo: result.motivo });
+      return;
+    }
+    res.status(202).set('Cache-Control', 'no-store').json({ ok: true, state: 'starting' });
+  } catch (error) {
+    log('sessao', `Falha ao reiniciar pareamento ${sessionId}`, error);
+    res.status(502).json({ ok: false, motivo: 'Não foi possível reiniciar o pareamento agora.' });
   }
 });
 
@@ -875,6 +971,7 @@ app.get('/qr/:id', canReadSession, async (req, res) => {
   try {
     const dataUrl = await QRCode.toDataURL(sessao.qr, { margin: 1, width: 320 });
     const base64 = dataUrl.split(',')[1];
+    res.set('Cache-Control', 'no-store');
     res.type('img/png');
     res.end(Buffer.from(base64, 'base64'));
   } catch (_erro) {

@@ -30,6 +30,40 @@ function classifyDisconnect({ code, loggedOutCode, attempt, maxAttempts }) {
   };
 }
 
+function removeCurrentSession(sessions, id, expectedSession) {
+  if (sessions.get(id) !== expectedSession) return false;
+  sessions.delete(id);
+  return true;
+}
+
+function canPersistSessionCredentials(sessions, id, expectedSession) {
+  return sessions.get(id) === expectedSession && !expectedSession.encerramentoSolicitado;
+}
+
+function describeDisconnect({ code, error }) {
+  const message = String(error?.message || error || '').toUpperCase();
+  if (message.includes('ECONNREFUSED')) {
+    return `Conexão com o WhatsApp recusada pelo provedor de rede (código ${code ?? 'indisponível'}).`;
+  }
+  if (message.includes('ETIMEDOUT') || message.includes('TIMEOUT') || code === 408) {
+    return `Tempo esgotado ao conectar com o WhatsApp (código ${code ?? 'indisponível'}).`;
+  }
+  if (message.includes('WEBSOCKET')) {
+    return `Canal seguro com o WhatsApp foi interrompido (código ${code ?? 'indisponível'}).`;
+  }
+  return `Conexão com o WhatsApp interrompida (código ${code ?? 'indisponível'}).`;
+}
+
+function resolveConnectTimeoutMs(value) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 30_000) return 60_000;
+  return Math.min(parsed, 120_000);
+}
+
+function pairingPreparationChanged(currentValue, incomingValue) {
+  return Boolean(incomingValue && currentValue !== incomingValue);
+}
+
 function normalizePairingPhone(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (/^55\d{10,11}$/.test(digits)) return digits;
@@ -93,6 +127,11 @@ function isAllowedDashboardOrigin(origin, allowedOrigins) {
 
 module.exports = {
   classifyDisconnect,
+  removeCurrentSession,
+  canPersistSessionCredentials,
+  describeDisconnect,
+  resolveConnectTimeoutMs,
+  pairingPreparationChanged,
   normalizePairingPhone,
   pairingPhoneMatches,
   formatPairingCode,

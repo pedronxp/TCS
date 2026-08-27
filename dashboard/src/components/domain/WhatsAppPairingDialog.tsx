@@ -4,7 +4,7 @@ import { ArrowLeft, KeyRound, LoaderCircle, QrCode, RefreshCw, ShieldCheck, Smar
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
-import { prepareBotSessionPairing, fetchBotQrObjectUrl, requestBotPairingCode } from '@/lib/comunicados';
+import { prepareBotSessionPairing, fetchBotQrObjectUrl, requestBotPairingCode, restartBotSessionPairing } from '@/lib/comunicados';
 
 interface WhatsAppPairingDialogProps {
   sessionId: string | null;
@@ -12,7 +12,7 @@ interface WhatsAppPairingDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const MAX_QR_ATTEMPTS = 5;
+const MAX_QR_ATTEMPTS = 15;
 
 export function WhatsAppPairingDialog({ sessionId, open, onOpenChange }: WhatsAppPairingDialogProps) {
   const [method, setMethod] = useState<'qr' | 'code'>('qr');
@@ -37,6 +37,20 @@ export function WhatsAppPairingDialog({ sessionId, open, onOpenChange }: WhatsAp
       setQrAttempt(0);
       setQrError(null);
     },
+  });
+
+  const restart = useMutation({
+    mutationFn: async () => {
+      if (!sessionId) throw new Error('Sessão inexistente. Feche esta janela e tente novamente.');
+      await prepareBotSessionPairing({ sessionId, phone, identification, method: 'qr' });
+      await restartBotSessionPairing(sessionId);
+    },
+    onSuccess: () => {
+      setQrImage(null);
+      setQrError(null);
+      setQrAttempt(0);
+    },
+    onError: (error: Error) => setQrError(error.message),
   });
 
   useEffect(() => {
@@ -73,6 +87,7 @@ export function WhatsAppPairingDialog({ sessionId, open, onOpenChange }: WhatsAp
     setQrError(null);
     setQrAttempt(0);
     prepare.reset();
+    restart.reset();
   }
 
   const phoneValid = phone.replace(/\D/g, '').length >= 10;
@@ -108,7 +123,7 @@ export function WhatsAppPairingDialog({ sessionId, open, onOpenChange }: WhatsAp
                 {qrImage ? <img alt="QR Code de vinculação do WhatsApp" className="h-56 w-56 rounded-xl bg-white p-2" src={qrImage} /> : qrLoading ? <div className="text-center"><LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary motion-reduce:animate-none" /><p className="mt-3 text-sm font-medium">Preparando QR Code</p></div> : <div className="max-w-xs text-center"><QrCode className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 text-sm font-medium">QR Code ainda não disponível</p></div>}
               </div>
               {qrError && <p className="rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm leading-5" role="status">{qrError}{qrAttempt < MAX_QR_ATTEMPTS ? ` Tentativa automática ${Math.min(qrAttempt + 1, MAX_QR_ATTEMPTS)} de ${MAX_QR_ATTEMPTS}.` : ''}</p>}
-              {qrAttempt >= MAX_QR_ATTEMPTS && <Button type="button" className="w-full" variant="outline" onClick={() => { setQrAttempt(0); setQrError(null); }}><RefreshCw />Tentar novamente</Button>}
+              {qrAttempt >= MAX_QR_ATTEMPTS && <Button type="button" className="w-full" variant="outline" disabled={restart.isPending} onClick={() => restart.mutate()}>{restart.isPending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <RefreshCw />}{restart.isPending ? 'Reiniciando conexão…' : 'Tentar novamente'}</Button>}
               <p className="text-xs leading-5 text-muted-foreground">No celular: WhatsApp → Aparelhos conectados → Conectar aparelho. O QR é renovado de forma controlada.</p>
             </> : <>
               <div className="rounded-2xl border border-success/25 bg-success-soft p-6 text-center" role="status"><p className="text-xs text-muted-foreground">Digite este código no WhatsApp.</p><p className="mt-3 font-mono text-2xl font-semibold tracking-[0.2em]">{code}</p></div>
