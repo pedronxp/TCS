@@ -1,6 +1,6 @@
 import { Stack, useSegments, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import {
   syncPendentes,
@@ -16,6 +16,7 @@ import { pingSupabaseKeepAlive } from '../../services/KeepAliveService';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useTraining } from '../../context/TrainingContext';
+import { canAccessMobileFieldOperation } from '../../services/MobileAccessService';
 
 // Rotas que exigem papel mínimo para acesso.
 // Qualquer rota não listada aqui é acessível a qualquer usuário autenticado.
@@ -47,6 +48,20 @@ function useRouteGuard() {
     // segments[0] = "(panel)", segments[1] = section (admin/supervisor/master/...)
     const section = segments[1] as string | undefined;
     if (!section) return;
+
+    if (section === 'inspecoes'
+      && !canAccessMobileFieldOperation(profile.role, profile.permissions, 'inspections')) {
+      logger.warn('auth', 'Acesso de campo negado para perfil interno sem permissão de vistoria');
+      router.replace('/(panel)/internal');
+      return;
+    }
+
+    if (section === 'mapas'
+      && !canAccessMobileFieldOperation(profile.role, profile.permissions, 'tactical-map')) {
+      logger.warn('auth', 'Acesso de mapa negado para perfil interno sem permissão de mapa');
+      router.replace('/(panel)/internal');
+      return;
+    }
 
     const nestedRoute = `${section}/${segments[2] || ''}`;
     if (WEB_ONLY_ROUTES.has(nestedRoute)) {
@@ -98,6 +113,19 @@ function PanelContent() {
     }
     prevConnected.current = isOnlineReal;
   }, [isOnlineReal, isolatedMode, refreshProfile, refreshSubscription]);
+
+  useEffect(() => {
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const returningToForeground = previousState !== 'active' && nextState === 'active';
+      previousState = nextState;
+      if (returningToForeground && !isolatedMode) {
+        void refreshProfile();
+        void refreshSubscription();
+      }
+    });
+    return () => subscription.remove();
+  }, [isolatedMode, refreshProfile, refreshSubscription]);
 
   if (!ready && !isolatedMode) {
     return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator /></View>;

@@ -35,7 +35,9 @@ export type InternalPermission =
   | 'communication.manage'
   | 'whatsapp.read'
   | 'whatsapp.recover'
-  | 'whatsapp.manage';
+  | 'whatsapp.manage'
+  | 'mobile.inspection.manage'
+  | 'mobile.map.read';
 
 export interface InternalStaffProfile {
   id: string;

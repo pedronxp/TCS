@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { resolveMobileOrganizationAccess } from '../services/MobileAccessService';
+import { getMobileFieldOperations, resolveMobileOrganizationAccess } from '../services/MobileAccessService';
 import { navSystemBottom } from '../utils/useBottomTabPadding';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Spacing, SpacingAlias } from '../constants/Spacing';
@@ -54,6 +54,16 @@ const TABS_INTERNAL: NavTab[] = [
   { key: 'perfil', label: 'Perfil', icon: 'user', route: '/(panel)/perfil', matchPaths: ['/perfil'] },
 ];
 
+function internalFieldTabs(permissions: readonly string[] | undefined): NavTab[] {
+  const operations = new Set(getMobileFieldOperations(permissions));
+  return [
+    { key: 'home', label: 'Início', icon: 'home', route: '/(panel)/internal', matchPaths: ['/internal'] },
+    ...(operations.has('inspections') ? [{ key: 'inspecoes', label: 'Vistorias', icon: 'clipboard' as const, route: '/(panel)/inspecoes', matchPaths: ['/inspecoes'] }] : []),
+    ...(operations.has('tactical-map') ? [{ key: 'mapas', label: 'Mapa', icon: 'map-pin' as const, route: '/(panel)/mapas', matchPaths: ['/mapas'] }] : []),
+    { key: 'modulos', label: 'Módulos', icon: 'grid', route: '/(panel)/modulos', matchPaths: ['/modulos'] },
+  ];
+}
+
 const NAVBAR_VISIBLE_PATHS = [
   '/dashboard', '/inspecoes', '/perfil', '/modulos', '/mapas', '/avisos', '/internal',
   '/admin', '/supervisor', '/master', '/admin/relatorios', '/admin/estatisticas', '/admin/form-editor', '/admin/editor-perguntas',
@@ -62,11 +72,12 @@ const NAVBAR_VISIBLE_PATHS = [
 interface BottomNavBarInnerProps {
   role: string;
   pathname: string;
+  permissions?: readonly string[];
   hasOrganization?: boolean;
   noticesEnabled?: boolean;
 }
 
-export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname, hasOrganization = true, noticesEnabled = true }: BottomNavBarInnerProps) {
+export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname, permissions, hasOrganization = true, noticesEnabled = true }: BottomNavBarInnerProps) {
   const { theme } = useTheme();
   const { badgeCount } = useNotifications();
   const insets = useSafeAreaInsets();
@@ -75,7 +86,10 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
 
   if (!shouldShow) return null;
 
-  const baseTabs = ['owner', 'developer', 'support', 'auditor'].includes(role)
+  const fieldOperations = getMobileFieldOperations(permissions);
+  const baseTabs = fieldOperations.length
+    ? internalFieldTabs(permissions)
+    : ['developer', 'support', 'auditor'].includes(role)
     ? TABS_INTERNAL
     : role === 'master_admin'
     ? TABS_MASTER
@@ -152,6 +166,7 @@ export function BottomNavBar() {
     <BottomNavBarInner
       role={profile.role}
       pathname={pathname}
+      permissions={profile.permissions}
       hasOrganization={access.hasOrganization}
       noticesEnabled={!context?.features || !('comunicados' in context.features) || hasFeature('comunicados')}
     />

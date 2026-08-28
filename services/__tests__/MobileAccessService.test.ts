@@ -1,6 +1,6 @@
 import type { UserProfile } from '../../context/AuthContext';
 import type { SubscriptionContextValue } from '../../context/SubscriptionContext';
-import { resolveMobileOrganizationAccess } from '../MobileAccessService';
+import { canAccessMobileFieldOperation, getMobileFieldOperations, resolveMobileOrganizationAccess } from '../MobileAccessService';
 
 function profile(overrides: Partial<UserProfile> = {}): UserProfile {
   return {
@@ -118,5 +118,32 @@ describe('MobileAccessService', () => {
     }));
 
     expect(result).toMatchObject({ kind: 'internal', organizationId: null, hasOrganization: false });
+  });
+
+  it('libera operação de campo somente pelas permissões recebidas do servidor', () => {
+    expect(getMobileFieldOperations(['mobile.inspection.manage'])).toEqual([
+      'new-inspection',
+      'inspections',
+    ]);
+    expect(getMobileFieldOperations(['mobile.map.read'])).toEqual([
+      'tactical-map',
+    ]);
+    expect(getMobileFieldOperations(['mobile.inspection.manage', 'mobile.map.read'])).toEqual([
+      'new-inspection',
+      'inspections',
+      'tactical-map',
+    ]);
+    expect(getMobileFieldOperations([])).toEqual([]);
+  });
+
+  it('não concede operação de campo apenas pelo papel interno', () => {
+    expect(getMobileFieldOperations([])).toEqual([]);
+  });
+
+  it('bloqueia navegação direta de equipe interna sem a permissão correspondente', () => {
+    expect(canAccessMobileFieldOperation('owner', [], 'inspections')).toBe(false);
+    expect(canAccessMobileFieldOperation('owner', ['mobile.inspection.manage'], 'inspections')).toBe(true);
+    expect(canAccessMobileFieldOperation('owner', ['mobile.map.read'], 'tactical-map')).toBe(true);
+    expect(canAccessMobileFieldOperation('agent', [], 'inspections')).toBe(true);
   });
 });
