@@ -75,7 +75,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
-    "@electric-sql/pglite": "^0.5.4",
+    "@electric-sql/pglite": "^0.5.7",
     "@expo/ngrok": "^4.1.0",
     "@testing-library/react-native": "^12.4.3",
     "@types/jest": "29.5.14",
