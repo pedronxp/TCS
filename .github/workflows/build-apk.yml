@@ -46,16 +46,23 @@ jobs:
       - name: Build APK via EAS
         id: eas_build
         run: |
-          BUILD_OUTPUT=$(eas build \
+          eas build \
             --platform android \
             --profile ${{ inputs.profile }} \
             --non-interactive \
-            --json 2>/dev/null || echo '{}')
-          echo "build_output=$BUILD_OUTPUT" >> $GITHUB_OUTPUT
-          APK_URL=$(echo "$BUILD_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0].get('artifacts',{}).get('buildUrl',''))" 2>/dev/null || echo '')
-          echo "apk_url=$APK_URL" >> $GITHUB_OUTPUT
-          BUILD_ID=$(echo "$BUILD_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0].get('id',''))" 2>/dev/null || echo '')
-          echo "eas_build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+            --json > eas-build-output.json
+
+          APK_URL=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d[0].get('artifacts',{}).get('buildUrl',''))" eas-build-output.json)
+          BUILD_ID=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d[0].get('id',''))" eas-build-output.json)
+
+          if [ -z "$APK_URL" ] || [ -z "$BUILD_ID" ]; then
+            echo "A EAS não retornou o artefato Android esperado." >&2
+            cat eas-build-output.json >&2
+            exit 1
+          fi
+
+          echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
+          echo "eas_build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
 
       - name: Atualizar status no Supabase
         if: always()
