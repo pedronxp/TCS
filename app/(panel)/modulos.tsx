@@ -7,7 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { isInternalMobileRole } from '../../services/AppProfileService';
-import { resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
+import { getMobileFieldOperations, type MobileFieldOperation, resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { ModuleCard, SectionHeader, StateBanner } from '../../components/ui';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -59,9 +59,22 @@ const baseOperation: ModuleItem[] = [
   { title: 'Avisos', description: 'Comunicados da organização', icon: 'bell', route: '/(panel)/avisos', feature: 'comunicados', requiresOrganization: true },
 ];
 
-function sectionsForRole(role: string | undefined): ModuleSection[] {
+const fieldOperationItems: Record<MobileFieldOperation, ModuleItem> = {
+  'new-inspection': { title: 'Nova vistoria', description: 'Iniciar coleta técnica', icon: 'plus-circle', route: '/(panel)/inspecoes/dados-iniciais', badge: 'Principal' },
+  inspections: { title: 'Vistorias', description: 'Histórico, evidências e laudos', icon: 'clipboard', route: '/(panel)/inspecoes' },
+  'tactical-map': { title: 'Mapa tático', description: 'Ocorrências georreferenciadas', icon: 'map-pin', route: '/(panel)/mapas' },
+};
+
+function sectionsForRole(role: string | undefined, permissions: readonly string[] | undefined): ModuleSection[] {
   if (isInternalMobileRole(role)) {
+    const fieldOperation = getMobileFieldOperations(permissions).map(operation => fieldOperationItems[operation]);
     return [
+      ...(fieldOperation.length ? [{
+        key: 'field-operation',
+        title: 'Operação de campo',
+        description: 'Ferramentas pessoais liberadas pelo console',
+        items: fieldOperation,
+      }] : []),
       {
         key: 'internal',
         title: 'Acompanhamento TCS',
@@ -142,7 +155,7 @@ export default function ModulosScreen() {
   const [query, setQuery] = useState('');
   const access = resolveMobileOrganizationAccess(userProfile, subscriptionContext);
   const organizationId = access.organizationId;
-  const sections = useMemo(() => sectionsForRole(userProfile?.role)
+  const sections = useMemo(() => sectionsForRole(userProfile?.role, userProfile?.permissions)
     .map(section => ({
       ...section,
       items: section.items.filter(item => {
@@ -152,7 +165,7 @@ export default function ModulosScreen() {
         return hasFeature(item.feature);
       }),
     }))
-    .filter(section => section.items.length > 0), [hasFeature, organizationId, subscriptionContext?.features, userProfile?.role]);
+    .filter(section => section.items.length > 0), [hasFeature, organizationId, subscriptionContext?.features, userProfile?.permissions, userProfile?.role]);
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const visibleSections = useMemo(() => {
     if (!normalizedQuery) return sections;

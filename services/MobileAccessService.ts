@@ -3,6 +3,10 @@ import type { SubscriptionContextValue } from '../context/SubscriptionContext';
 import { isInternalMobileRole } from './AppProfileService';
 
 export type MobileAccessKind = 'internal' | 'organization' | 'individual' | 'organization_required';
+export type MobileFieldOperation = 'new-inspection' | 'inspections' | 'tactical-map';
+
+export const MOBILE_INSPECTION_MANAGE_PERMISSION = 'mobile.inspection.manage';
+export const MOBILE_MAP_READ_PERMISSION = 'mobile.map.read';
 
 export interface MobileOrganizationAccess {
   kind: MobileAccessKind;
@@ -14,6 +18,31 @@ export interface MobileOrganizationAccess {
 
 type AccessProfile = Pick<UserProfile, 'role' | 'municipio' | 'organizationId'> | null | undefined;
 type AccessSubscription = Pick<SubscriptionContextValue, 'organization' | 'membership' | 'plan'> | null | undefined;
+
+export function getMobileFieldOperations(
+  permissions: readonly string[] | null | undefined,
+): MobileFieldOperation[] {
+  const granted = new Set(permissions ?? []);
+  const operations: MobileFieldOperation[] = [];
+
+  if (granted.has(MOBILE_INSPECTION_MANAGE_PERMISSION)) {
+    operations.push('new-inspection', 'inspections');
+  }
+  if (granted.has(MOBILE_MAP_READ_PERMISSION)) {
+    operations.push('tactical-map');
+  }
+
+  return operations;
+}
+
+export function canAccessMobileFieldOperation(
+  role: string | null | undefined,
+  permissions: readonly string[] | null | undefined,
+  operation: MobileFieldOperation,
+): boolean {
+  if (!isInternalMobileRole(role)) return true;
+  return getMobileFieldOperations(permissions).includes(operation);
+}
 
 export function resolveMobileOrganizationAccess(
   profile: AccessProfile,

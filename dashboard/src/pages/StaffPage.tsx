@@ -66,6 +66,9 @@ const permissionGroups: ReadonlyArray<{ label: string; permissions: ReadonlyArra
     ['technical.read', 'Consultar dados técnicos'], ['technical.write', 'Alterar configurações técnicas'], ['build.request', 'Solicitar build'], ['build.approve', 'Aprovar build'],
     ['configuration.prepare', 'Preparar configuração'], ['configuration.publish', 'Publicar configuração'],
   ] },
+  { label: 'Aplicativo mobile', permissions: [
+    ['mobile.inspection.manage', 'Vistorias próprias'], ['mobile.map.read', 'Mapa das próprias vistorias'],
+  ] },
 ];
 
 const permissionDescriptions: Partial<Record<InternalPermission, string>> = {
@@ -81,6 +84,8 @@ const permissionDescriptions: Partial<Record<InternalPermission, string>> = {
   'audit.read': 'Exibe a trilha de ações administrativas e eventos de segurança.',
   'account.lock': 'Permite bloquear contas e revogar sessões ativas.',
   'configuration.publish': 'Permite publicar configurações para uso em produção.',
+  'mobile.inspection.manage': 'Permite criar, consultar e sincronizar somente vistorias vinculadas à própria conta, fora de organizações.',
+  'mobile.map.read': 'Exibe no mapa somente as coordenadas e vistorias vinculadas à própria conta, fora de organizações.',
 };
 
 export function StaffPage() {

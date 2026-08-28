@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.100.0';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const admin = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
@@ -24,23 +25,23 @@ Deno.serve(async (request) => {
   try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, 400); }
   if (!body.inspectionId || !body.kind) return json({ error: 'invalid_request' }, 400);
 
-  const { data: profile } = await admin
-    .from('users')
-    .select('role, municipio, isApproved')
-    .eq('uid', user.id)
-    .maybeSingle();
+  const caller = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: authorized, error: authorizationError } = await caller.rpc('authorize_inspection_upload', {
+    p_inspection_id: body.inspectionId,
+  });
+  if (authorizationError || authorized !== true) return json({ error: 'forbidden' }, 403);
+
   const { data: inspection } = await admin
     .from('vistorias')
     .select('id, agenteUid, municipio, municipio_agente, status')
     .eq('id', body.inspectionId)
     .maybeSingle();
-  if (!profile?.isApproved || !inspection) return json({ error: 'forbidden' }, 403);
+  if (!inspection) return json({ error: 'forbidden' }, 403);
 
   const inspectionMunicipio = inspection.municipio || inspection.municipio_agente || 'geral';
-  const allowed = inspection.agenteUid === user.id
-    || profile.role === 'master_admin'
-    || (profile.role === 'admin' && profile.municipio === inspectionMunicipio);
-  if (!allowed) return json({ error: 'forbidden' }, 403);
 
   let bucket: 'fotos' | 'laudos' | 'document-evidence';
   let path: string;

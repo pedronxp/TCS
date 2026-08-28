@@ -12,6 +12,7 @@ import { Spacing, SpacingAlias } from '../../../constants/Spacing';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
+import { getMobileFieldOperations } from '../../../services/MobileAccessService';
 
 interface InternalMetric {
   key: string;
@@ -123,6 +124,7 @@ export default function InternalDashboardScreen() {
   }, [load]));
 
   const firstName = profile?.name?.split(' ')[0] || 'equipe';
+  const fieldOperations = new Set(getMobileFieldOperations(profile?.permissions));
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
@@ -200,6 +202,16 @@ export default function InternalDashboardScreen() {
         <View>
           <SectionHeader title="Acesso rápido" subtitle="Ferramentas disponíveis no aplicativo" />
           <View style={styles.metricGrid}>
+            {fieldOperations.has('new-inspection') ? (
+              <View style={styles.metricCard}>
+                <ModuleCard title="Nova vistoria" description="Iniciar coleta técnica" icon="plus-circle" onPress={() => router.push('/(panel)/inspecoes/dados-iniciais')} />
+              </View>
+            ) : null}
+            {fieldOperations.has('tactical-map') ? (
+              <View style={styles.metricCard}>
+                <ModuleCard title="Mapa tático" description="Ocorrências georreferenciadas" icon="map-pin" onPress={() => router.push('/(panel)/mapas')} />
+              </View>
+            ) : null}
             <View style={styles.metricCard}>
               <ModuleCard title="Minha conta" description="Acesso e segurança" icon="user" onPress={() => router.push('/(panel)/perfil')} />
             </View>
