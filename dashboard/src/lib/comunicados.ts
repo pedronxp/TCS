@@ -716,7 +716,11 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
   if (error) throw new Error(error.message);
   if (runtimeResponse.error) throw new Error(runtimeResponse.error.message);
   if (metadataResponse.error) throw new Error(metadataResponse.error.message);
-  if (contactsResponse.error) throw new Error(contactsResponse.error.message);
+  // A migração da agenda pode ser aplicada depois do deploy do painel. Nesse
+  // intervalo, preservamos Comunidades e apenas mostramos a agenda vazia.
+  // Demais falhas (permissão, rede etc.) continuam visíveis ao operador.
+  const contactsUnavailable = Boolean(contactsResponse.error && /internal_list_whatsapp_contacts|function .* does not exist|PGRST202/i.test(contactsResponse.error.message));
+  if (contactsResponse.error && !contactsUnavailable) throw new Error(contactsResponse.error.message);
   const runtime = parseBotOrganizationRuntime(runtimeResponse.data);
   const pairingMetadata = new Map(parseArray(metadataResponse.data, (value) => {
     const item = record(value); const id = string(item?.id); return item && id ? [id, item] as const : null;
@@ -757,7 +761,7 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
       };
     }),
     chats: parseArray(source.chats, parseBotChat),
-    contatos: parseArray(contactsResponse.data, (value) => {
+    contatos: parseArray(contactsUnavailable ? [] : contactsResponse.data, (value) => {
       const contato = record(value); const id = string(contato?.id); const jid = string(contato?.jid); const telefone = string(contato?.telefone);
       if (!contato || !id || !jid || !telefone) return null;
       return { id, jid, telefone, sessaoId: string(contato.sessao_id) ?? '', nome: string(contato.nome), sincronizadoEm: string(contato.sincronizado_em) };
