@@ -59,6 +59,7 @@ const DASHBOARD_ORIGINS = new Set((process.env.DASHBOARD_ORIGIN
   .filter(Boolean));
 const WORKER_ID = process.env.RENDER_INSTANCE_ID || `bot-${process.pid}-${Date.now().toString(36)}`;
 const BOT_VERSION = (process.env.RENDER_GIT_COMMIT || process.env.npm_package_version || 'local').slice(0, 80);
+const STARTED_AT = new Date().toISOString();
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !BOT_SESSION_ENCRYPTION_KEY) {
   console.error('[bot] Configure SUPABASE_URL, SUPABASE_SECRET_KEY e BOT_SESSION_ENCRYPTION_KEY.');
@@ -704,7 +705,7 @@ app.get('/healthz', (_req, res) => {
 });
 
 app.get('/status', (_req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, version: BOT_VERSION, startedAt: STARTED_AT });
 });
 
 app.get('/sessao/:id/status', canReadSession, (req, res) => {
