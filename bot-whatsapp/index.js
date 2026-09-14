@@ -88,7 +88,13 @@ function agoraIso() {
 }
 
 function contatoDoWhatsApp(contato) {
-  const jid = typeof contato?.id === 'string' ? contato.id : '';
+  // No histórico recente, o WhatsApp pode identificar o contato pelo LID e
+  // trazer o número real em `phoneNumber`. Priorizamos este último, pois é o
+  // JID que o bot precisa para enviar mensagens e não descartamos a agenda.
+  const rawPhone = [contato?.phoneNumber, contato?.pnJid]
+    .find((valor) => typeof valor === 'string') || '';
+  const rawId = typeof contato?.id === 'string' ? contato.id : '';
+  const jid = rawPhone.endsWith('@s.whatsapp.net') ? rawPhone : rawId;
   if (!jid.endsWith('@s.whatsapp.net')) return null;
   const telefone = jid.split('@')[0].split(':')[0].replace(/\D/g, '');
   if (telefone.length < 8) return null;
@@ -98,10 +104,21 @@ function contatoDoWhatsApp(contato) {
 }
 
 async function sincronizarContatos(sessao, contatos) {
-  const lista = (Array.isArray(contatos) ? contatos : [])
+  const recebidos = Array.isArray(contatos) ? contatos : [];
+  const lista = recebidos
     .map(contatoDoWhatsApp)
     .filter(Boolean);
-  if (!lista.length || !sessao.orgId) return false;
+  if (!lista.length || !sessao.orgId) {
+    sessao.contatosSync = {
+      estado: 'aguardando', total: 0,
+      motivo: recebidos.length
+        ? 'O WhatsApp enviou contatos sem número utilizável; aguardando a associação dos números.'
+        : 'O WhatsApp ainda não entregou contatos nesta etapa da sincronização.',
+      atualizadoEm: agoraIso(),
+    };
+    log('contatos', `${sessao.orgNome}: evento com ${recebidos.length} contato(s), ${lista.length} com número utilizável.`);
+    return false;
+  }
   const linhas = lista.map((contato) => ({
     organization_id: sessao.orgId,
     sessao_id: sessao.id,
@@ -238,6 +255,33 @@ function registrarCanalRecebido(sessao, node) {
   log('transmissao', `Canal ${canal.id} confirmado pelo WhatsApp.`);
 }
 
+async function sincronizarCanaisDoHistorico(sessao, chats) {
+  const recebidos = Array.isArray(chats) ? chats : [];
+  const canais = recebidos.filter((chat) => isBroadcastRoomJid(chat?.id));
+  if (!canais.length || !sessao.orgId) return false;
+
+  const { error } = await supabase.from('bot_chats').upsert(
+    canais.map((canal) => ({
+      sessao_id: sessao.id,
+      chat_id: canal.id,
+      nome: String(canal.name || canal.subject || canal.id).slice(0, 240),
+      tipo: 'transmissao',
+      comunidade_id: null,
+      comunidade_nome: null,
+      total_admins: 1,
+      total_participantes: Number.isFinite(canal.unreadCount) ? canal.unreadCount : 0,
+      visto_em: agoraIso(),
+    })),
+    { onConflict: 'sessao_id,chat_id' },
+  );
+  if (error) {
+    log('transmissao', `Falha ao sincronizar Canais do histórico da sessão ${sessao.id}`, error);
+    return false;
+  }
+  log('transmissao', `${canais.length} Canal(is) recebido(s) no histórico de ${sessao.orgNome}.`);
+  return true;
+}
+
 function criarLoggerBaileys(sessao) {
   const registrar = (nivel, argumentos) => {
     const [contexto, mensagem] = argumentos;
@@ -342,8 +386,13 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
   socket.ev.on('contacts.update', (contatos) => {
     void sincronizarContatos(sessao, contatos);
   });
-  socket.ev.on('messaging-history.set', ({ contacts }) => {
+  socket.ev.on('chats.upsert', (chats) => {
+    void sincronizarCanaisDoHistorico(sessao, chats);
+  });
+  socket.ev.on('messaging-history.set', ({ contacts, chats, syncType }) => {
+    log('contatos', `${sessao.orgNome}: histórico recebido (${contacts?.length || 0} contatos, ${chats?.length || 0} conversas, tipo ${syncType ?? 'desconhecido'}).`);
     void sincronizarContatos(sessao, contacts);
+    void sincronizarCanaisDoHistorico(sessao, chats);
   });
 
   socket.ev.on('connection.update', (atualizacao) => {
@@ -404,12 +453,12 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
       setTimeout(() => {
         if (sessoes.get(sessao.id) !== sessao || sessao.fase !== 'vinculado' || sessao.contatosSync.estado !== 'aguardando') return;
         sessao.contatosSync = {
-          estado: 'indisponivel', total: 0,
-          motivo: 'O WhatsApp Web não enviou a agenda desta conta ao bot. Isso não é uma recusa do painel; reabra o WhatsApp no celular e reconecte a sessão para tentar novamente.',
+          estado: 'aguardando', total: 0,
+          motivo: 'A sincronização inicial ainda não trouxe contatos. Para solicitar um novo histórico completo, reinicie o vínculo pelo painel e leia o QR novamente no WhatsApp.',
           atualizadoEm: agoraIso(),
         };
-        log('contatos', `${sessao.orgNome}: agenda não disponibilizada pelo WhatsApp nesta conexão.`);
-      }, 20_000);
+        log('contatos', `${sessao.orgNome}: aguardando histórico completo de contatos; novo pareamento pode ser necessário.`);
+      }, 45_000);
     }
     if (connection === 'close') {
       if (sessao.encerramentoSolicitado) {
