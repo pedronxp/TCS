@@ -75,7 +75,20 @@ function pairingPhoneMatches(expected, connected) {
   const expectedPhone = normalizePairingPhone(expected);
   const connectedPhone = normalizePairingPhone(connected);
   if (!expectedPhone || !connectedPhone) return false;
-  return expectedPhone === connectedPhone;
+  if (expectedPhone === connectedPhone) return true;
+
+  // O WhatsApp pode devolver o JID de celulares brasileiros no formato
+  // legado, sem o nono dígito após o DDD. Aceitamos apenas essa equivalência
+  // controlada, preservando a validação da conta e do DDD.
+  const variants = (phone) => {
+    const national = phone.slice(2);
+    const ddd = national.slice(0, 2);
+    const local = national.slice(2);
+    if (national.length === 11 && local.startsWith('9')) return [phone, `55${ddd}${local.slice(1)}`];
+    if (national.length === 10) return [phone, `55${ddd}9${local}`];
+    return [phone];
+  };
+  return variants(expectedPhone).some((phone) => variants(connectedPhone).includes(phone));
 }
 
 function formatPairingCode(value) {

@@ -124,6 +124,7 @@ test('normaliza telefone brasileiro para o pareamento por código', () => {
 
 test('confirma somente a conta realmente esperada no pareamento', () => {
   assert.equal(lifecycle.pairingPhoneMatches?.('32 98479-2322', '5532984792322'), true);
+  assert.equal(lifecycle.pairingPhoneMatches?.('32 98479-2322', '553284792322'), true);
   assert.equal(lifecycle.pairingPhoneMatches?.('32 98479-2322', '5532999999999'), false);
   assert.equal(lifecycle.pairingPhoneMatches?.('', '5532984792322'), false);
 });
