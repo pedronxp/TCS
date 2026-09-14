@@ -177,16 +177,32 @@ async function sincronizarChats(sessao, tentativa = 1) {
   }
 }
 
+function registrarCanalRecebido(sessao, node) {
+  const canal = lerCanalDeNotificacaoMex(node);
+  if (!isBroadcastRoomJid(canal?.id)) return;
+  sessao.canaisRecentes.push({ ...canal, recebidoEm: Date.now() });
+  sessao.canaisRecentes = sessao.canaisRecentes.slice(-20);
+  log('transmissao', `Canal ${canal.id} confirmado pelo WhatsApp.`);
+}
+
+function criarLoggerBaileys(sessao) {
+  const registrar = (nivel, argumentos) => {
+    const [contexto, mensagem] = argumentos;
+    if (contexto?.node) registrarCanalRecebido(sessao, contexto.node);
+    const texto = typeof mensagem === 'string' ? mensagem : typeof contexto === 'string' ? contexto : null;
+    if (texto && (nivel === 'warn' || nivel === 'error')) log('baileys', texto);
+  };
+  const logger = { level: 'info', child: () => logger };
+  for (const nivel of ['trace', 'debug', 'info', 'warn', 'error', 'fatal']) {
+    logger[nivel] = (...argumentos) => registrar(nivel, argumentos);
+  }
+  return logger;
+}
+
 function registrarConfirmacoesDeCanal(sessao, socket) {
   sessao.canaisRecentes = [];
   if (typeof socket.ws?.on !== 'function') return;
-  socket.ws.on('CB:notification', (node) => {
-    const canal = lerCanalDeNotificacaoMex(node);
-    if (!isBroadcastRoomJid(canal?.id)) return;
-    sessao.canaisRecentes.push({ ...canal, recebidoEm: Date.now() });
-    sessao.canaisRecentes = sessao.canaisRecentes.slice(-20);
-    log('transmissao', `Canal ${canal.id} confirmado pelo WhatsApp.`);
-  });
+  socket.ws.on('CB:notification', (node) => registrarCanalRecebido(sessao, node));
 }
 
 function esperar(ms) {
@@ -242,6 +258,7 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
   const socket = makeWASocket({
     version,
     auth: state,
+    logger: criarLoggerBaileys(sessao),
     markOnlineOnConnect: false,
     browser: ['TCS Comunicados', 'Chrome', '1.0.0'],
     connectTimeoutMs: CONNECT_TIMEOUT_MS,
