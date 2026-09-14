@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test heartbeat-health.test.js organization-isolation.test.js session-lifecycle.test.js session-operation-queue.test.js single-flight.test.js"
+    "test": "node --test heartbeat-health.test.js newsletter-recovery.test.js organization-isolation.test.js session-lifecycle.test.js session-operation-queue.test.js single-flight.test.js"
   },
   "engines": {
     "node": ">=20"

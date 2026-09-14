@@ -25,6 +25,7 @@ const { sameOrganization } = require('./organization-isolation');
 const { createKeyedOperationQueue } = require('./session-operation-queue');
 const { createHeartbeatHealth } = require('./heartbeat-health');
 const { createSingleFlight } = require('./single-flight');
+const { selecionarCanalRecemCriado, lerCanalDeNotificacaoMex } = require('./newsletter-recovery');
 const { classifyDisconnect, describeDisconnect, resolveConnectTimeoutMs, pairingPreparationChanged, removeCurrentSession, canPersistSessionCredentials, normalizePairingPhone, pairingPhoneMatches, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
@@ -176,6 +177,35 @@ async function sincronizarChats(sessao, tentativa = 1) {
   }
 }
 
+function registrarConfirmacoesDeCanal(sessao, socket) {
+  sessao.canaisRecentes = [];
+  if (typeof socket.ws?.on !== 'function') return;
+  socket.ws.on('CB:notification', (node) => {
+    const canal = lerCanalDeNotificacaoMex(node);
+    if (!isBroadcastRoomJid(canal?.id)) return;
+    sessao.canaisRecentes.push({ ...canal, recebidoEm: Date.now() });
+    sessao.canaisRecentes = sessao.canaisRecentes.slice(-20);
+    log('transmissao', `Canal ${canal.id} confirmado pelo WhatsApp.`);
+  });
+}
+
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function recuperarCanalCriado(sessao, nome, iniciadoEm) {
+  for (const espera of [0, 300, 700]) {
+    if (espera) await esperar(espera);
+    const canal = selecionarCanalRecemCriado(
+      (sessao.canaisRecentes || []).filter((item) => item.recebidoEm >= iniciadoEm - 1_000),
+      nome,
+      iniciadoEm,
+    );
+    if (isBroadcastRoomJid(canal?.id)) return canal;
+  }
+  return null;
+}
+
 async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
   const anterior = sessoes.get(linha.id);
   if (anterior && !tentativaReconexao) return;
@@ -217,6 +247,7 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
     connectTimeoutMs: CONNECT_TIMEOUT_MS,
   });
   sessao.socket = socket;
+  registrarConfirmacoesDeCanal(sessao, socket);
 
   socket.ev.on('creds.update', () => {
     void runSessionOperation(sessao.id, async () => {
@@ -822,7 +853,19 @@ app.post('/sessao/:id/transmissao', canManageSession, async (req, res) => {
   }
 
   try {
-    const canal = await sessao.socket.newsletterCreate(nome, descricao || undefined);
+    const iniciadoEm = Date.now();
+    let canal;
+    try {
+      canal = await sessao.socket.newsletterCreate(nome, descricao || undefined);
+    } catch (erroCriacao) {
+      // Algumas versões do WhatsApp confirmam a criação por notificação MEX,
+      // mas devolvem uma resposta vazia que o Baileys 6.7.24 não consegue ler.
+      // Antes de informar erro (ou permitir outra tentativa), consultamos os
+      // canais recém-criados para evitar criar duplicatas.
+      canal = await recuperarCanalCriado(sessao, nome, iniciadoEm);
+      if (!canal) throw erroCriacao;
+      log('transmissao', `Canal ${canal.id} confirmado após resposta incompleta do WhatsApp.`);
+    }
     if (!isBroadcastRoomJid(canal?.id)) {
       res.status(502).json({ ok: false, motivo: 'O WhatsApp não confirmou a criação de um canal oficial.' });
       return;
