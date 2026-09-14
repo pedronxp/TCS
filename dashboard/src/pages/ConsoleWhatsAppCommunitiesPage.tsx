@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
-import { criarSalaTransmissaoPeloBot, fetchComunicadosOrgConsole, salvarCanalConsole, sincronizarChatsBot, vincularCanalChatConsole } from '@/lib/comunicados';
+import { criarSalaTransmissaoPeloBot, fetchComunicadosOrgConsole, mascararTelefone, salvarCanalConsole, sincronizarChatsBot, vincularCanalChatConsole } from '@/lib/comunicados';
 
 export function ConsoleWhatsAppCommunitiesPage() {
   const { orgId } = useParams();
@@ -116,12 +116,12 @@ export function ConsoleWhatsAppCommunitiesPage() {
         <option value="">Selecionar depois</option>
         {hierarchy.communities.map(([communityId, community]) => (
           <optgroup key={communityId} label={`Comunidade: ${community.name}`}>
-            {community.chats.map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome} · {chat.totalParticipantes} membros</option>)}
+            {community.chats.map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome} · {chat.totalParticipantes} membros · conta {mascararTelefone(chat.sessaoTelefone)}</option>)}
           </optgroup>
         ))}
         {hierarchy.standalone.length > 0 && (
           <optgroup label="Grupos avulsos">
-            {hierarchy.standalone.map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome} · {chat.totalParticipantes} membros</option>)}
+            {hierarchy.standalone.map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome} · {chat.totalParticipantes} membros · conta {mascararTelefone(chat.sessaoTelefone)}</option>)}
           </optgroup>
         )}
       </>
@@ -208,8 +208,8 @@ export function ConsoleWhatsAppCommunitiesPage() {
                 <CardHeader><CardTitle className="flex items-center gap-2"><Users />Estrutura sincronizada</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm leading-6 text-muted-foreground">Mostra os grupos visíveis para o número vinculado. Para cada grupo, o painel exibe somente nome, quantidade de participantes e administradores — nunca a lista de números.</p>
-                  {hierarchy.communities.map(([communityId, community]) => <div key={communityId} className="rounded-xl border p-4"><p className="font-semibold">{community.name}</p><ul className="mt-3 divide-y">{community.chats.map((chat) => <li key={chat.chatId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span>{chat.nome}</span><span className="text-xs text-muted-foreground">{chat.totalAdmins} admin · {chat.totalParticipantes} membros</span></li>)}</ul></div>)}
-                  {hierarchy.standalone.length > 0 && <div className="rounded-xl border p-4"><p className="font-semibold">Grupos fora de Comunidades</p><ul className="mt-3 divide-y">{hierarchy.standalone.map((chat) => <li key={chat.chatId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span>{chat.nome}</span><span className="text-xs text-muted-foreground">{chat.totalAdmins} admin · {chat.totalParticipantes} membros</span></li>)}</ul></div>}
+                  {hierarchy.communities.map(([communityId, community]) => <div key={communityId} className="rounded-xl border p-4"><p className="font-semibold">{community.name}</p><ul className="mt-3 divide-y">{community.chats.map((chat) => <li key={chat.chatId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span>{chat.nome}</span><span className="text-xs text-muted-foreground">Conta {mascararTelefone(chat.sessaoTelefone)} · {chat.totalAdmins} admin · {chat.totalParticipantes} membros</span></li>)}</ul></div>)}
+                  {hierarchy.standalone.length > 0 && <div className="rounded-xl border p-4"><p className="font-semibold">Grupos fora de Comunidades</p><ul className="mt-3 divide-y">{hierarchy.standalone.map((chat) => <li key={chat.chatId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span>{chat.nome}</span><span className="text-xs text-muted-foreground">Conta {mascararTelefone(chat.sessaoTelefone)} · {chat.totalAdmins} admin · {chat.totalParticipantes} membros</span></li>)}</ul></div>}
                   {organization.chats.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum grupo sincronizado ainda.</p>}
                 </CardContent>
               </Card>
