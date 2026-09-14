@@ -26,6 +26,43 @@ function itensDeConteudo(node) {
   return node?.content ? [node.content] : [];
 }
 
+function normalizarCanal(dados) {
+  if (!dados || typeof dados !== 'object' || !dados.id || !dados.thread_metadata?.name?.text) return null;
+  return {
+    id: dados.id,
+    name: dados.thread_metadata.name.text,
+    description: dados.thread_metadata.description?.text || '',
+    creation_time: dados.thread_metadata.creation_time,
+    invite: dados.thread_metadata.invite,
+    subscribers: Number(dados.thread_metadata.subscribers_count || 0),
+  };
+}
+
+function encontrarCanalNosDados(dados, vistos = new Set()) {
+  if (!dados || typeof dados !== 'object' || Buffer.isBuffer(dados) || vistos.has(dados)) return null;
+  vistos.add(dados);
+
+  const direto = normalizarCanal(dados);
+  if (direto) return direto;
+
+  for (const [chave, valor] of Object.entries(dados)) {
+    if (!valor || typeof valor !== 'object') continue;
+    // O WhatsApp muda o envelope MEX ocasionalmente. Procuramos o payload do
+    // Canal dentro dele, sem assumir que sempre será filho direto de `data`.
+    if (chave.includes('newsletter')) {
+      const canal = normalizarCanal(valor) || encontrarCanalNosDados(valor, vistos);
+      if (canal) return canal;
+    }
+    const canal = encontrarCanalNosDados(valor, vistos);
+    if (canal) return canal;
+  }
+  return null;
+}
+
+function normalizarRespostaCriacaoCanal(resposta) {
+  return encontrarCanalNosDados(resposta);
+}
+
 function lerCanalDeNotificacaoMex(node) {
   if (node?.attrs?.type !== 'mex') return null;
   const update = itensDeConteudo(node).find((item) => item?.tag === 'update');
@@ -35,18 +72,10 @@ function lerCanalDeNotificacaoMex(node) {
       ? update.content.toString('utf8')
       : Buffer.from(update.content).toString('utf8');
     const dados = JSON.parse(conteudo);
-    const canal = dados?.data?.xwa2_notify_new_newsletter_on_join;
-    return canal?.id && canal?.thread_metadata?.name?.text ? {
-      id: canal.id,
-      name: canal.thread_metadata.name.text,
-      description: canal.thread_metadata.description?.text || '',
-      creation_time: canal.thread_metadata.creation_time,
-      invite: canal.thread_metadata.invite,
-      subscribers: Number(canal.thread_metadata.subscribers_count || 0),
-    } : null;
+    return encontrarCanalNosDados(dados);
   } catch {
     return null;
   }
 }
 
-module.exports = { selecionarCanalRecemCriado, lerCanalDeNotificacaoMex };
+module.exports = { selecionarCanalRecemCriado, lerCanalDeNotificacaoMex, normalizarRespostaCriacaoCanal };

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { selecionarCanalRecemCriado, lerCanalDeNotificacaoMex } = require('./newsletter-recovery');
+const { selecionarCanalRecemCriado, lerCanalDeNotificacaoMex, normalizarRespostaCriacaoCanal } = require('./newsletter-recovery');
 
 test('recupera o canal recém-criado por nome e data', () => {
   const startedAt = Date.now();
@@ -9,6 +9,14 @@ test('recupera o canal recém-criado por nome e data', () => {
     { id: '121@newsletter', name: 'Outro', creation_time: Math.floor(startedAt / 1000) },
   ], ' comunicados ', startedAt);
   assert.equal(canal.id, '120@newsletter');
+});
+
+test('normaliza resposta de criação encapsulada pelo protocolo', () => {
+  assert.deepEqual(normalizarRespostaCriacaoCanal({ data: { xwa2_newsletter_create: {
+    id: '120363429887483519@newsletter', thread_metadata: { name: { text: 'Alertas' }, subscribers_count: '1' },
+  } } }), {
+    id: '120363429887483519@newsletter', name: 'Alertas', description: '', creation_time: undefined, invite: undefined, subscribers: 1,
+  });
 });
 
 test('não recupera canal antigo com o mesmo nome', () => {

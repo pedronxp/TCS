@@ -108,9 +108,11 @@ export async function criarGrupoPeloBot(sessaoId: string, nome: string, comunida
 }
 
 export interface BotSalaTransmissao {
-  chatId: string;
+  chatId: string | null;
   nome: string;
   inviteUrl: string | null;
+  pending: boolean;
+  motivo: string | null;
 }
 
 export async function criarSalaTransmissaoPeloBot(sessaoId: string, nome: string, descricao = ''): Promise<BotSalaTransmissao> {
@@ -126,10 +128,11 @@ export async function criarSalaTransmissaoPeloBot(sessaoId: string, nome: string
   );
   const dados = record(await resposta.json());
   const chatId = string(dados?.chat_id);
-  if (!resposta.ok || dados?.ok !== true || !chatId?.endsWith('@newsletter')) {
+  const pending = dados?.pending === true;
+  if (!resposta.ok || dados?.ok !== true || (!pending && !chatId?.endsWith('@newsletter'))) {
     throw new Error(string(dados?.motivo) ?? 'O WhatsApp não confirmou a criação da sala de transmissão.');
   }
-  return { chatId, nome: string(dados?.nome) ?? nome, inviteUrl: string(dados?.invite_url) };
+  return { chatId: chatId ?? null, nome: string(dados?.nome) ?? nome, inviteUrl: string(dados?.invite_url), pending, motivo: string(dados?.motivo) };
 }
 
 export interface BotContatoSyncStatus {

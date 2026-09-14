@@ -144,12 +144,16 @@ export function PortalWhatsAppPage() {
     mutationFn: async ({ name, description }: { name: string; description: string }) => {
       if (!onlineSession) throw new Error('Conecte um número antes de criar uma sala de transmissão.');
       const room = await criarSalaTransmissaoPeloBot(onlineSession.id, name, description);
+      if (room.pending || !room.chatId) return room;
       const channelId = await saveCanal({ nome: room.nome, linkConvite: room.inviteUrl });
       await vincularCanalChat(channelId, room.chatId);
+      return room;
     },
-    onSuccess: async () => {
+    onSuccess: async (room) => {
       setNewBroadcastRoom({ name: '', description: '' });
-      setNotice('Sala de transmissão criada. Os participantes não visualizam os números uns dos outros.');
+      setNotice(room.pending
+        ? (room.motivo ?? 'O Canal está aguardando confirmação do WhatsApp. Atualize a página em alguns segundos; não tente criar novamente.')
+        : 'Sala de transmissão criada. Os participantes não visualizam os números uns dos outros.');
       setError(null);
       await refresh();
     },

@@ -25,7 +25,7 @@ const { sameOrganization } = require('./organization-isolation');
 const { createKeyedOperationQueue } = require('./session-operation-queue');
 const { createHeartbeatHealth } = require('./heartbeat-health');
 const { createSingleFlight } = require('./single-flight');
-const { selecionarCanalRecemCriado, lerCanalDeNotificacaoMex } = require('./newsletter-recovery');
+const { selecionarCanalRecemCriado, lerCanalDeNotificacaoMex, normalizarRespostaCriacaoCanal } = require('./newsletter-recovery');
 const { classifyDisconnect, describeDisconnect, resolveConnectTimeoutMs, pairingPreparationChanged, removeCurrentSession, canPersistSessionCredentials, normalizePairingPhone, pairingPhoneMatches, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
@@ -1007,14 +1007,33 @@ app.post('/sessao/:id/transmissao', canManageSession, async (req, res) => {
     const iniciadoEm = Date.now();
     let canal;
     try {
-      canal = await sessao.socket.newsletterCreate(nome, descricao || undefined);
+      canal = normalizarRespostaCriacaoCanal(await sessao.socket.newsletterCreate(nome, descricao || undefined));
     } catch (erroCriacao) {
       // Algumas versões do WhatsApp confirmam a criação por notificação MEX,
       // mas devolvem uma resposta vazia que o Baileys 6.7.24 não consegue ler.
       // Antes de informar erro (ou permitir outra tentativa), consultamos os
       // canais recém-criados para evitar criar duplicatas.
       canal = await recuperarCanalCriado(sessao, nome, iniciadoEm);
-      if (!canal) throw erroCriacao;
+      if (!canal) {
+        // O erro de stream 515 pode ocorrer depois que o WhatsApp já aceitou a
+        // criação. Não induzimos o usuário a repetir e criar Canal duplicado:
+        // o evento/histórico fará a confirmação assim que o protocolo entregar
+        // o identificador ao bot.
+        const ambiguo = /(?:stream errored out|\b515\b|timeout|unexpected)/i.test(String(erroCriacao?.message || erroCriacao));
+        if (ambiguo) {
+          log('transmissao', `Criação de Canal ${nome} aguardando confirmação do WhatsApp.`);
+          res.status(202).set('Cache-Control', 'no-store').json({
+            ok: true,
+            pending: true,
+            chat_id: null,
+            nome,
+            invite_url: null,
+            motivo: 'O WhatsApp aceitou a criação, mas ainda não devolveu o identificador ao bot. Aguarde alguns segundos e atualize a página; não crie novamente.',
+          });
+          return;
+        }
+        throw erroCriacao;
+      }
       log('transmissao', `Canal ${canal.id} confirmado após resposta incompleta do WhatsApp.`);
     }
     if (!isBroadcastRoomJid(canal?.id)) {

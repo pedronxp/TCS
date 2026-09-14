@@ -93,14 +93,18 @@ export function ConsoleWhatsAppCommunitiesPage() {
     mutationFn: async () => {
       if (!linkedSession) throw new Error('Conecte um número antes de criar a sala de transmissão.');
       const room = await criarSalaTransmissaoPeloBot(linkedSession.id, broadcastName.trim(), broadcastDescription.trim());
+      if (room.pending || !room.chatId) return room;
       const channelId = await salvarCanalConsole(orgId as string, room.nome);
       await vincularCanalChatConsole(channelId, room.chatId);
+      return room;
     },
-    onSuccess: async () => {
+    onSuccess: async (room) => {
       setBroadcastName('');
       setBroadcastDescription('');
       setError(null);
-      setNotice('Sala de transmissão criada. Os números dos participantes permanecem protegidos.');
+      setNotice(room.pending
+        ? (room.motivo ?? 'O Canal está aguardando confirmação do WhatsApp. Atualize a página em alguns segundos; não tente criar novamente.')
+        : 'Sala de transmissão criada. Os números dos participantes permanecem protegidos.');
       await refresh();
     },
     onError: (mutationError: Error) => setError(mutationError.message),
