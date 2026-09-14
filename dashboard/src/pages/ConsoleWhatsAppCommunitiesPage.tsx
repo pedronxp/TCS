@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
-import { criarSalaTransmissaoPeloBot, fetchComunicadosOrgConsole, limparContatosWhatsAppConsole, mascararTelefone, removerContatoWhatsAppConsole, salvarCanalConsole, sincronizarChatsBot, vincularCanalChatConsole } from '@/lib/comunicados';
+import { criarSalaTransmissaoPeloBot, fetchComunicadosOrgConsole, limparContatosWhatsAppConsole, mascararTelefone, removerContatoWhatsAppConsole, salvarCanalConsole, sincronizarChatsBot, testarSalaTransmissaoPeloBot, vincularCanalChatConsole } from '@/lib/comunicados';
 
 export function ConsoleWhatsAppCommunitiesPage() {
   const { orgId } = useParams();
@@ -17,9 +17,10 @@ export function ConsoleWhatsAppCommunitiesPage() {
   const [chatId, setChatId] = useState('');
   const [broadcastName, setBroadcastName] = useState('');
   const [broadcastDescription, setBroadcastDescription] = useState('');
+  const [broadcastTestText, setBroadcastTestText] = useState('Teste do Canal TCS: envio confirmado.');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<{ action: 'create' | 'create_room' | 'unlink' | 'clear_contacts'; channelId?: string; name: string } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ action: 'create' | 'create_room' | 'test_room' | 'unlink' | 'clear_contacts'; channelId?: string; chatId?: string; name: string } | null>(null);
   const [showAccessNotice, setShowAccessNotice] = useState(false);
 
   const organizationQuery = useQuery({
@@ -88,6 +89,15 @@ export function ConsoleWhatsAppCommunitiesPage() {
       setNotice('Sala de transmissão criada. Os números dos participantes permanecem protegidos.');
       await refresh();
     },
+    onError: (mutationError: Error) => setError(mutationError.message),
+  });
+
+  const testBroadcastRoom = useMutation({
+    mutationFn: async ({ chatId }: { chatId: string }) => {
+      if (!linkedSession) throw new Error('Conecte um número antes de testar o Canal.');
+      await testarSalaTransmissaoPeloBot(linkedSession.id, chatId, broadcastTestText.trim());
+    },
+    onSuccess: () => { setError(null); setNotice('Texto de teste enviado ao Canal. Confira a publicação no WhatsApp.'); },
     onError: (mutationError: Error) => setError(mutationError.message),
   });
 
@@ -213,7 +223,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
                       return (
                         <li key={channel.id} className="rounded-xl border p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{channel.nome}</p><p className="mt-1 text-xs text-muted-foreground">{isBroadcastRoom ? 'Canal oficial · números dos seguidores protegidos' : linkedChat ? `${linkedChat.nome} · ${linkedChat.totalAdmins} administrador${linkedChat.totalAdmins === 1 ? '' : 'es'} · ${linkedChat.totalParticipantes} membros` : 'Escolha um grupo para habilitar o envio automático.'}</p></div><Badge variant={linkedChat ? 'success' : 'warning'}>{linkedChat ? isBroadcastRoom ? 'Transmissão pronta' : 'Pronto para envio' : 'Sem grupo'}</Badge></div>
-                          {!isBroadcastRoom && <label className="mt-4 block text-xs font-medium text-muted-foreground">Grupo vinculado<select className="mt-1.5 h-10 w-full rounded-md border bg-card px-3 text-sm text-foreground" value={channel.chatId ?? ''} disabled={linkCommunity.isPending} onChange={(event) => event.target.value ? linkCommunity.mutate({ channelId: channel.id, nextChatId: event.target.value }) : setConfirmation({ action: 'unlink', channelId: channel.id, name: channel.nome })}>{chatOptions()}</select></label>}
+                          {isBroadcastRoom ? <div className="mt-4 flex flex-wrap items-end gap-2"><label className="min-w-60 flex-1 text-xs font-medium text-muted-foreground">Texto de teste<Input className="mt-1.5" value={broadcastTestText} onChange={(event) => setBroadcastTestText(event.target.value)} maxLength={1000} /></label><Button variant="outline" disabled={!linkedSession || testBroadcastRoom.isPending || broadcastTestText.trim().length === 0} onClick={() => setConfirmation({ action: 'test_room', chatId: channel.chatId ?? undefined, name: channel.nome })}>{testBroadcastRoom.isPending ? 'Enviando…' : 'Enviar teste'}</Button></div> : <label className="mt-4 block text-xs font-medium text-muted-foreground">Grupo vinculado<select className="mt-1.5 h-10 w-full rounded-md border bg-card px-3 text-sm text-foreground" value={channel.chatId ?? ''} disabled={linkCommunity.isPending} onChange={(event) => event.target.value ? linkCommunity.mutate({ channelId: channel.id, nextChatId: event.target.value }) : setConfirmation({ action: 'unlink', channelId: channel.id, name: channel.nome })}>{chatOptions()}</select></label>}
                         </li>
                       );
                     })}
@@ -238,12 +248,14 @@ export function ConsoleWhatsAppCommunitiesPage() {
       <AlertDialog open={confirmation !== null} onOpenChange={(open) => !open && setConfirmation(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmation?.action === 'create' ? 'Cadastrar comunidade?' : confirmation?.action === 'create_room' ? 'Criar sala de transmissão?' : confirmation?.action === 'clear_contacts' ? 'Apagar agenda sincronizada?' : 'Desvincular grupo do WhatsApp?'}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmation?.action === 'create' ? 'Cadastrar comunidade?' : confirmation?.action === 'create_room' ? 'Criar sala de transmissão?' : confirmation?.action === 'test_room' ? 'Enviar texto de teste?' : confirmation?.action === 'clear_contacts' ? 'Apagar agenda sincronizada?' : 'Desvincular grupo do WhatsApp?'}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmation?.action === 'create'
                 ? `A comunidade “${confirmation.name}” será cadastrada nesta organização.`
                 : confirmation?.action === 'create_room'
                   ? `A sala “${confirmation.name}” será criada como um Canal oficial do WhatsApp, com os números dos participantes protegidos.`
+                  : confirmation?.action === 'test_room'
+                    ? `A mensagem “${broadcastTestText.trim()}” será publicada no Canal “${confirmation.name}”.`
                   : confirmation?.action === 'clear_contacts'
                     ? 'Todos os contatos sincronizados deste número serão removidos do painel. O WhatsApp do celular não será alterado.'
                   : `O grupo associado a “${confirmation?.name ?? ''}” será removido dos envios automáticos.`}
@@ -254,10 +266,11 @@ export function ConsoleWhatsAppCommunitiesPage() {
             <AlertDialogAction onClick={() => {
               if (confirmation?.action === 'create') createCommunity.mutate();
               else if (confirmation?.action === 'create_room') createBroadcastRoom.mutate();
+              else if (confirmation?.action === 'test_room' && confirmation.chatId) testBroadcastRoom.mutate({ chatId: confirmation.chatId });
               else if (confirmation?.action === 'clear_contacts') clearContacts.mutate();
               else if (confirmation?.channelId) linkCommunity.mutate({ channelId: confirmation.channelId, nextChatId: null });
               setConfirmation(null);
-            }}>{confirmation?.action === 'create' || confirmation?.action === 'create_room' ? 'Confirmar criação' : confirmation?.action === 'clear_contacts' ? 'Apagar contatos' : 'Confirmar desvinculação'}</AlertDialogAction>
+            }}>{confirmation?.action === 'create' || confirmation?.action === 'create_room' ? 'Confirmar criação' : confirmation?.action === 'test_room' ? 'Enviar texto' : confirmation?.action === 'clear_contacts' ? 'Apagar contatos' : 'Confirmar desvinculação'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

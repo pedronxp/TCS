@@ -132,6 +132,23 @@ export async function criarSalaTransmissaoPeloBot(sessaoId: string, nome: string
   return { chatId, nome: string(dados?.nome) ?? nome, inviteUrl: string(dados?.invite_url) };
 }
 
+export async function testarSalaTransmissaoPeloBot(sessaoId: string, chatId: string, text: string): Promise<void> {
+  const resposta = await fetchComTimeout(
+    `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/transmissao/teste`,
+    30_000,
+    true,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    },
+  );
+  const dados = record(await resposta.json());
+  if (!resposta.ok || dados?.ok !== true) {
+    throw new Error(string(dados?.motivo) ?? 'O WhatsApp não confirmou o envio do texto de teste ao Canal.');
+  }
+}
+
 export async function sincronizarChatsBot(sessaoId: string): Promise<boolean> {
   try {
     const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/sessao/${sessaoId}/sincronizar`, 30_000);

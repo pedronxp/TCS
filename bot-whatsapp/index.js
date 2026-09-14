@@ -245,7 +245,10 @@ function esperar(ms) {
 }
 
 async function recuperarCanalCriado(sessao, nome, iniciadoEm) {
-  for (const espera of [0, 300, 700]) {
+  // O WhatsApp pode devolver a confirmação MEX depois da resposta incompleta
+  // que faz versões antigas do Baileys lançarem erro. Esperamos o evento antes
+  // de permitir que o painel tente criar o mesmo Canal outra vez.
+  for (const espera of [0, 500, 1_500, 3_000]) {
     if (espera) await esperar(espera);
     const canal = selecionarCanalRecemCriado(
       (sessao.canaisRecentes || []).filter((item) => item.recebidoEm >= iniciadoEm - 1_000),
@@ -958,6 +961,42 @@ app.post('/sessao/:id/transmissao', canManageSession, async (req, res) => {
   } catch (erro) {
     log('transmissao', `Falha ao criar sala de transmissão na sessão ${sessao.id}`, erro);
     res.status(502).json({ ok: false, motivo: 'O WhatsApp não conseguiu criar a sala de transmissão. Tente novamente.' });
+  }
+});
+
+// Teste controlado: publica apenas texto em um Canal já confirmado e vinculado
+// à mesma sessão. Não é chamado automaticamente pela fila de comunicados.
+app.post('/sessao/:id/transmissao/teste', canManageSession, async (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao || sessao.fase !== 'vinculado' || !sessao.socket?.user?.id) {
+    res.status(409).json({ ok: false, motivo: 'Conecte o número antes de testar o Canal.' });
+    return;
+  }
+  const chatId = String(req.body?.chat_id || '').trim();
+  const texto = String(req.body?.text || '').trim();
+  if (!isBroadcastRoomJid(chatId) || texto.length < 1 || texto.length > 1_000) {
+    res.status(400).json({ ok: false, motivo: 'Informe um Canal válido e uma mensagem de teste de até 1.000 caracteres.' });
+    return;
+  }
+  try {
+    const { data: canal, error } = await supabase
+      .from('bot_chats')
+      .select('chat_id, tipo')
+      .eq('sessao_id', sessao.id)
+      .eq('chat_id', chatId)
+      .eq('tipo', 'transmissao')
+      .maybeSingle();
+    if (error) throw error;
+    if (!canal) {
+      res.status(404).json({ ok: false, motivo: 'Este Canal ainda não foi confirmado pelo WhatsApp nesta conta.' });
+      return;
+    }
+    await sessao.socket.sendMessage(chatId, { text: texto });
+    log('transmissao', `Teste de texto enviado ao Canal ${chatId}.`);
+    res.set('Cache-Control', 'no-store').json({ ok: true });
+  } catch (erro) {
+    log('transmissao', `Falha ao enviar teste ao Canal ${chatId}`, erro);
+    res.status(502).json({ ok: false, motivo: 'O WhatsApp não confirmou o envio do texto de teste ao Canal.' });
   }
 });
 
