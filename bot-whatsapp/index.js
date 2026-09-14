@@ -101,7 +101,7 @@ async function sincronizarContatos(sessao, contatos) {
   const lista = (Array.isArray(contatos) ? contatos : [])
     .map(contatoDoWhatsApp)
     .filter(Boolean);
-  if (!lista.length || !sessao.orgId) return;
+  if (!lista.length || !sessao.orgId) return false;
   const linhas = lista.map((contato) => ({
     organization_id: sessao.orgId,
     sessao_id: sessao.id,
@@ -114,8 +114,14 @@ async function sincronizarContatos(sessao, contatos) {
   const { error } = await supabase
     .from('whatsapp_contacts')
     .upsert(linhas, { onConflict: 'sessao_id,jid' });
-  if (error) log('contatos', `Falha ao salvar contatos da sessão ${sessao.id}`, error);
-  else log('contatos', `${linhas.length} contato(s) sincronizado(s) para ${sessao.orgNome}.`);
+  if (error) {
+    sessao.contatosSync = { estado: 'erro', total: 0, motivo: 'Não foi possível salvar a agenda sincronizada.', atualizadoEm: agoraIso() };
+    log('contatos', `Falha ao salvar contatos da sessão ${sessao.id}`, error);
+    return false;
+  }
+  sessao.contatosSync = { estado: 'sincronizado', total: linhas.length, motivo: null, atualizadoEm: agoraIso() };
+  log('contatos', `${linhas.length} contato(s) sincronizado(s) para ${sessao.orgNome}.`);
+  return true;
 }
 
 // id -> { id, orgId, orgNome, socket, fase, qr, qrGeradoEm, telefone, ultimoErro, parar }
@@ -214,6 +220,21 @@ function registrarCanalRecebido(sessao, node) {
   if (!isBroadcastRoomJid(canal?.id)) return;
   sessao.canaisRecentes.push({ ...canal, recebidoEm: Date.now() });
   sessao.canaisRecentes = sessao.canaisRecentes.slice(-20);
+  // Persistimos já na confirmação do WhatsApp. Assim o Canal continua visível
+  // no painel mesmo se a biblioteca devolver uma resposta vazia ao criá-lo.
+  void supabase.from('bot_chats').upsert({
+    sessao_id: sessao.id,
+    chat_id: canal.id,
+    nome: canal.name || canal.id,
+    tipo: 'transmissao',
+    comunidade_id: null,
+    comunidade_nome: null,
+    total_admins: 1,
+    total_participantes: Number.isFinite(canal.subscribers) ? canal.subscribers : 0,
+    visto_em: agoraIso(),
+  }, { onConflict: 'sessao_id,chat_id' }).then(({ error }) => {
+    if (error) log('transmissao', `Falha ao registrar Canal ${canal.id}`, error);
+  });
   log('transmissao', `Canal ${canal.id} confirmado pelo WhatsApp.`);
 }
 
@@ -289,6 +310,7 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
     encerramentoSolicitado: false,
     pairingCodeRequestedAt: 0,
     retryTimer: null,
+    contatosSync: { estado: 'aguardando', total: 0, motivo: 'Aguardando o WhatsApp disponibilizar a agenda para esta sessão.', atualizadoEm: null },
   };
   sessoes.set(linha.id, sessao);
   await reportarSessao(sessao);
@@ -319,6 +341,9 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
   });
   socket.ev.on('contacts.update', (contatos) => {
     void sincronizarContatos(sessao, contatos);
+  });
+  socket.ev.on('messaging-history.set', ({ contacts }) => {
+    void sincronizarContatos(sessao, contacts);
   });
 
   socket.ev.on('connection.update', (atualizacao) => {
@@ -376,6 +401,15 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
       });
       await reportarSessao(sessao, 'online', null);
       await sincronizarChats(sessao);
+      setTimeout(() => {
+        if (sessoes.get(sessao.id) !== sessao || sessao.fase !== 'vinculado' || sessao.contatosSync.estado !== 'aguardando') return;
+        sessao.contatosSync = {
+          estado: 'indisponivel', total: 0,
+          motivo: 'O WhatsApp Web não enviou a agenda desta conta ao bot. Isso não é uma recusa do painel; reabra o WhatsApp no celular e reconecte a sessão para tentar novamente.',
+          atualizadoEm: agoraIso(),
+        };
+        log('contatos', `${sessao.orgNome}: agenda não disponibilizada pelo WhatsApp nesta conexão.`);
+      }, 20_000);
     }
     if (connection === 'close') {
       if (sessao.encerramentoSolicitado) {
@@ -962,6 +996,15 @@ app.post('/sessao/:id/transmissao', canManageSession, async (req, res) => {
     log('transmissao', `Falha ao criar sala de transmissão na sessão ${sessao.id}`, erro);
     res.status(502).json({ ok: false, motivo: 'O WhatsApp não conseguiu criar a sala de transmissão. Tente novamente.' });
   }
+});
+
+app.get('/sessao/:id/contatos/status', canReadSession, (req, res) => {
+  const sessao = sessoes.get(req.params.id);
+  if (!sessao) {
+    res.status(404).json({ ok: false, estado: 'offline', motivo: 'Sessão não está ativa no bot.' });
+    return;
+  }
+  res.set('Cache-Control', 'no-store').json({ ok: true, ...(sessao.contatosSync || { estado: 'aguardando', total: 0, motivo: null, atualizadoEm: null }) });
 });
 
 // Teste controlado: publica apenas texto em um Canal já confirmado e vinculado

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, Link2, Megaphone, Plus, RefreshCw, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, CircleAlert, Link2, Megaphone, Plus, Radio, RefreshCw, ShieldCheck, Trash2, Users } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
-import { criarSalaTransmissaoPeloBot, fetchComunicadosOrgConsole, limparContatosWhatsAppConsole, mascararTelefone, removerContatoWhatsAppConsole, salvarCanalConsole, sincronizarChatsBot, testarSalaTransmissaoPeloBot, vincularCanalChatConsole } from '@/lib/comunicados';
+import { criarSalaTransmissaoPeloBot, fetchBotContatoSyncStatus, fetchComunicadosOrgConsole, limparContatosWhatsAppConsole, mascararTelefone, removerContatoWhatsAppConsole, salvarCanalConsole, sincronizarChatsBot, testarSalaTransmissaoPeloBot, vincularCanalChatConsole } from '@/lib/comunicados';
 
 export function ConsoleWhatsAppCommunitiesPage() {
   const { orgId } = useParams();
@@ -33,6 +33,13 @@ export function ConsoleWhatsAppCommunitiesPage() {
   const linkedSession = organization?.sessoes.find((session) => session.runtimeState === 'online'
     || (!organization.runtime && session.status === 'vinculado')) ?? null;
   const groupsVisible = Boolean(linkedSession);
+  const contactsStatusQuery = useQuery({
+    queryKey: ['bot', 'contacts-status', linkedSession?.id],
+    queryFn: () => fetchBotContatoSyncStatus(linkedSession?.id as string),
+    enabled: Boolean(linkedSession),
+    refetchInterval: 15_000,
+  });
+  const contactsStatus = contactsStatusQuery.data;
 
   useEffect(() => {
     if (!linkedSession || typeof window === 'undefined') return;
@@ -55,6 +62,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
     }
     return { communities: [...communities.entries()], standalone };
   }, [groupsVisible, organization]);
+  const transmissionRooms = useMemo(() => (groupsVisible ? organization?.chats.filter((chat) => chat.chatId.endsWith('@newsletter')) ?? [] : []), [groupsVisible, organization]);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['console', 'comunicados', 'org', orgId] });
@@ -145,6 +153,11 @@ export function ConsoleWhatsAppCommunitiesPage() {
             {hierarchy.standalone.map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome} · {chat.totalParticipantes} membros · conta {mascararTelefone(chat.sessaoTelefone)}</option>)}
           </optgroup>
         )}
+        {transmissionRooms.length > 0 && (
+          <optgroup label="Canais de transmissão">
+            {transmissionRooms.map((room) => <option key={room.chatId} value={room.chatId}>{room.nome} · Canal · conta {mascararTelefone(room.sessaoTelefone)}</option>)}
+          </optgroup>
+        )}
       </>
     );
   }
@@ -197,7 +210,8 @@ export function ConsoleWhatsAppCommunitiesPage() {
                 <p className="mb-5 text-sm leading-6 text-muted-foreground">Cadastre o nome que aparecerá nos comunicados e associe o grupo oficial de anúncios.</p>
                 <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (nome.trim().length >= 3) setConfirmation({ action: 'create', name: nome.trim() }); }}>
                   <label className="block text-sm font-medium">Nome no painel<Input className="mt-1.5" value={nome} onChange={(event) => setNome(event.target.value)} placeholder="Ex.: Alertas — Bairro Centro" minLength={3} maxLength={80} required /></label>
-                  <label className="block text-sm font-medium">Grupo de envio<select className="mt-1.5 h-11 w-full rounded-md border bg-card px-3 text-sm" value={chatId} onChange={(event) => setChatId(event.target.value)}>{chatOptions()}</select></label>
+                  <label className="block text-sm font-medium">Destino de envio<select className="mt-1.5 h-11 w-full rounded-md border bg-card px-3 text-sm" value={chatId} onChange={(event) => setChatId(event.target.value)}>{chatOptions()}</select></label>
+                  <p className="text-xs leading-5 text-muted-foreground">Escolha um grupo ou um Canal já detectado. Listas de contatos aparecerão aqui quando forem criadas a partir da agenda.</p>
                   <Button type="submit" disabled={createCommunity.isPending || nome.trim().length < 3}><Plus />{createCommunity.isPending ? 'Cadastrando…' : 'Cadastrar comunidade'}</Button>
                 </form>
               </CardContent>
@@ -207,9 +221,13 @@ export function ConsoleWhatsAppCommunitiesPage() {
 
             {groupsVisible && <div className="space-y-6" data-tutorial="community-list">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Users />Agenda autorizada</CardTitle><p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">Contatos que o número vinculado sincronizou para criar listas no painel. Você pode remover qualquer contato ou apagar toda esta agenda.</p></div><Button variant="outline" size="sm" disabled={clearContacts.isPending || organization.contatos.length === 0} onClick={() => setConfirmation({ action: 'clear_contacts', name: 'agenda sincronizada' })}><Trash2 />Limpar agenda</Button></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Radio />Canais detectados</CardTitle><p className="pt-1 text-sm font-normal leading-6 text-muted-foreground">Canais confirmados pelo WhatsApp nesta conta, mesmo que a criação tenha retornado erro no painel.</p></CardHeader>
+                <CardContent>{transmissionRooms.length === 0 ? <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Nenhum Canal confirmado nesta sessão ainda. Depois de criar um Canal, aguarde alguns segundos e clique em “Sincronizar grupos”.</p> : <ul className="space-y-3">{transmissionRooms.map((room) => <li key={room.chatId} className="rounded-xl border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{room.nome}</p><p className="mt-1 text-xs text-muted-foreground">Canal oficial · conta {mascararTelefone(room.sessaoTelefone)} · seguidores protegidos</p></div><Badge variant="success">Confirmado</Badge></div><div className="mt-4 flex flex-wrap items-end gap-2"><label className="min-w-60 flex-1 text-xs font-medium text-muted-foreground">Texto de teste<Input className="mt-1.5" value={broadcastTestText} onChange={(event) => setBroadcastTestText(event.target.value)} maxLength={1000} /></label><Button variant="outline" disabled={!linkedSession || testBroadcastRoom.isPending || broadcastTestText.trim().length === 0} onClick={() => setConfirmation({ action: 'test_room', chatId: room.chatId, name: room.nome })}>{testBroadcastRoom.isPending ? 'Enviando…' : 'Enviar teste'}</Button></div></li>)}</ul>}</CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Users />Agenda autorizada</CardTitle><p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">Contatos que o WhatsApp entregou ao dispositivo vinculado. Você pode remover qualquer contato ou apagar toda esta agenda.</p></div><Button variant="outline" size="sm" disabled={clearContacts.isPending || organization.contatos.length === 0} onClick={() => setConfirmation({ action: 'clear_contacts', name: 'agenda sincronizada' })}><Trash2 />Limpar agenda</Button></CardHeader>
                 <CardContent>
-                  {organization.contatos.length === 0 ? <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Nenhum contato foi sincronizado ainda. Mantenha o WhatsApp vinculado e use “Sincronizar grupos”; a agenda será recebida quando o WhatsApp disponibilizá-la para o dispositivo conectado.</p> : <ul className="divide-y rounded-xl border">{organization.contatos.map((contact) => <li key={contact.id} className="flex items-center justify-between gap-3 p-3"><div><p className="font-medium">{contact.nome || 'Contato sem nome'}</p><p className="text-xs text-muted-foreground">{contact.telefone}</p></div><Button variant="ghost" size="sm" aria-label={`Remover ${contact.nome || contact.telefone}`} disabled={deleteContact.isPending} onClick={() => deleteContact.mutate(contact.id)}><Trash2 className="text-destructive" />Remover</Button></li>)}</ul>}
+                  {organization.contatos.length === 0 ? <div className="rounded-lg border border-dashed p-5 text-sm"><p className="flex items-center gap-2 font-medium"><CircleAlert className="h-4 w-4 text-warning-foreground" />{contactsStatus?.estado === 'indisponivel' ? 'A agenda não foi disponibilizada pelo WhatsApp' : contactsStatus?.estado === 'aguardando' ? 'Aguardando a agenda do WhatsApp' : 'Nenhum contato sincronizado ainda'}</p><p className="mt-2 leading-6 text-muted-foreground">{contactsStatus?.motivo ?? 'O bot ainda não recebeu contatos da conta vinculada. “Sincronizar grupos” atualiza grupos; ele não força o WhatsApp a enviar a agenda.'}</p></div> : <><p className="mb-3 text-xs text-success">{organization.contatos.length} contato(s) sincronizado(s) {contactsStatus?.atualizadoEm ? `· atualização ${new Date(contactsStatus.atualizadoEm).toLocaleTimeString('pt-BR')}` : ''}</p><ul className="divide-y rounded-xl border">{organization.contatos.map((contact) => <li key={contact.id} className="flex items-center justify-between gap-3 p-3"><div><p className="font-medium">{contact.nome || 'Contato sem nome'}</p><p className="text-xs text-muted-foreground">{contact.telefone}</p></div><Button variant="ghost" size="sm" aria-label={`Remover ${contact.nome || contact.telefone}`} disabled={deleteContact.isPending} onClick={() => deleteContact.mutate(contact.id)}><Trash2 className="text-destructive" />Remover</Button></li>)}</ul></>}
                 </CardContent>
               </Card>
               <Card>

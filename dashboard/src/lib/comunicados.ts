@@ -132,6 +132,30 @@ export async function criarSalaTransmissaoPeloBot(sessaoId: string, nome: string
   return { chatId, nome: string(dados?.nome) ?? nome, inviteUrl: string(dados?.invite_url) };
 }
 
+export interface BotContatoSyncStatus {
+  estado: 'aguardando' | 'sincronizado' | 'indisponivel' | 'erro' | 'offline';
+  total: number;
+  motivo: string | null;
+  atualizadoEm: string | null;
+}
+
+export async function fetchBotContatoSyncStatus(sessaoId: string): Promise<BotContatoSyncStatus | null> {
+  try {
+    const resposta = await fetchComTimeout(`${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/contatos/status`);
+    const dados = record(await resposta.json());
+    if (!dados) return null;
+    const estado = string(dados.estado);
+    return {
+      estado: ['aguardando', 'sincronizado', 'indisponivel', 'erro', 'offline'].includes(estado ?? '') ? estado as BotContatoSyncStatus['estado'] : 'erro',
+      total: typeof dados.total === 'number' ? dados.total : 0,
+      motivo: string(dados.motivo),
+      atualizadoEm: string(dados.atualizadoEm),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function testarSalaTransmissaoPeloBot(sessaoId: string, chatId: string, text: string): Promise<void> {
   const resposta = await fetchComTimeout(
     `${BOT_WHATSAPP_URL}/sessao/${encodeURIComponent(sessaoId)}/transmissao/teste`,
