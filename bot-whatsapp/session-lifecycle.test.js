@@ -174,6 +174,7 @@ test('exige autorização da organização e canal oficial para criar uma sala d
 test('inclui o ciclo de vida das sessões na imagem publicada no Render', () => {
   const dockerfile = fs.readFileSync(path.join(__dirname, 'Dockerfile'), 'utf8');
   assert.match(dockerfile, /^COPY\s+.*session-lifecycle\.js.*\s+\.\/$/m);
+  assert.match(dockerfile, /^COPY\s+.*newsletter-recovery\.js.*\s+\.\/$/m);
 });
 
 test('nova preparação limpa novamente credenciais antes de iniciar outro socket', () => {
