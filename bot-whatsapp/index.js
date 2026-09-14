@@ -24,6 +24,7 @@ const { useSupabaseAuthState } = require('./supabase-auth-state');
 const { sameOrganization } = require('./organization-isolation');
 const { createKeyedOperationQueue } = require('./session-operation-queue');
 const { createHeartbeatHealth } = require('./heartbeat-health');
+const { createSingleFlight } = require('./single-flight');
 const { classifyDisconnect, describeDisconnect, resolveConnectTimeoutMs, pairingPreparationChanged, removeCurrentSession, canPersistSessionCredentials, normalizePairingPhone, pairingPhoneMatches, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
@@ -371,6 +372,31 @@ function reiniciarSessao(linha, { sair = false, runtimeState = 'awaiting_qr' } =
   });
 }
 
+async function garantirSessaoPreparada(sessionId, method) {
+  const { data: linha, error } = await supabase
+    .from('bot_sessoes')
+    .select('id, organization_id, telefone, status, expected_phone, identification, pairing_method, pairing_ready, pairing_prepared_at, organizations(display_name)')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!linha) throw new Error('A sessão não existe mais.');
+  if (!linha.pairing_ready || linha.pairing_method !== method) {
+    throw new Error('Prepare novamente o número e o método de conexão.');
+  }
+
+  const atual = sessoes.get(sessionId);
+  if (!atual || pairingPreparationChanged(atual.pairingPreparedAt, linha.pairing_prepared_at)) {
+    log('sessao', `Aplicando nova preparação de pareamento para a sessão ${sessionId}.`);
+    const sessaoLinha = { ...linha, org_nome: linha.organizations?.display_name };
+    if (atual) await reiniciarSessao(sessaoLinha, { sair: true });
+    else await iniciarSessao(sessaoLinha);
+  }
+
+  const sessao = sessoes.get(sessionId);
+  if (!sessao?.socket) throw new Error('A sessão ainda está iniciando. Aguarde alguns segundos e tente novamente.');
+  return sessao;
+}
+
 // Descobre sessões novas no painel, encerra as desativadas e mantém nomes das orgs.
 async function gerenciarSessoes() {
   const { data: linhas, error } = await supabase
@@ -685,9 +711,11 @@ app.delete('/sessao/:id', canManageSession, async (req, res) => {
 });
 
 app.post('/sessao/:id/pairing-code', canManageSession, async (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  if (!sessao || !sessao.socket) {
-    res.status(404).json({ ok: false, motivo: 'Sessão não encontrada. Aguarde o serviço iniciar e tente novamente.' });
+  let sessao;
+  try {
+    sessao = await garantirSessaoPreparada(req.params.id, 'code');
+  } catch (erro) {
+    res.status(409).json({ ok: false, motivo: erro.message || 'Não foi possível preparar a sessão.' });
     return;
   }
   if (sessao.fase === 'vinculado' || sessao.socket.authState?.creds?.registered) {
@@ -965,9 +993,11 @@ ${sessao.qr ? `<img src="/qr/${sessao.id}" alt="QR Code do WhatsApp"><p>QR gerad
 }
 
 app.get('/qr/:id', canReadSession, async (req, res) => {
-  const sessao = sessoes.get(req.params.id);
-  if (!sessao) {
-    res.status(404).json({ ok: false, code: 'session_not_found', motivo: 'A sessão ainda não foi iniciada pelo serviço.' });
+  let sessao;
+  try {
+    sessao = await garantirSessaoPreparada(req.params.id, 'qr');
+  } catch (erro) {
+    res.status(409).json({ ok: false, code: 'session_not_ready', motivo: erro.message || 'Não foi possível preparar a sessão.' });
     return;
   }
   if (sessao.fase === 'vinculado') {
@@ -1001,12 +1031,19 @@ app.get('/', (_req, res) => {
   res.json({ service: 'TCS WhatsApp Bot', ok: true });
 });
 
+const executarGerenciamentoSessoes = createSingleFlight(() => gerenciarSessoes());
+const executarFila = createSingleFlight(() => processarFila());
+const executarHeartbeat = createSingleFlight(async () => {
+  await reportarWorker('online');
+  await Promise.all([...sessoes.values()].map((sessao) => reportarSessao(sessao)));
+});
+
 setInterval(() => {
-  gerenciarSessoes().catch((erro) => log('sessoes', 'Erro no ciclo de sessões', erro));
+  executarGerenciamentoSessoes().catch((erro) => log('sessoes', 'Erro no ciclo de sessões', erro));
 }, POLL_MS);
 
 setInterval(() => {
-  processarFila().catch((erro) => log('fila', 'Erro no ciclo da fila', erro));
+  executarFila().catch((erro) => log('fila', 'Erro no ciclo da fila', erro));
 }, POLL_MS);
 
 // Publica comunicados agendados vencidos mesmo sem ninguém com tela aberta.
@@ -1029,10 +1066,7 @@ setInterval(() => {
 }, CHAT_SYNC_MS);
 
 setInterval(() => {
-  reportarWorker('online').catch(() => null);
-  for (const sessao of sessoes.values()) {
-    reportarSessao(sessao).catch(() => null);
-  }
+  executarHeartbeat().catch((erro) => log('heartbeat', 'Falha no ciclo de heartbeat', erro));
 }, HEARTBEAT_MS);
 
 const server = app.listen(PORT, '0.0.0.0', () => {
