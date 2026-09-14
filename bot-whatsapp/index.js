@@ -87,7 +87,7 @@ function agoraIso() {
   return new Date().toISOString();
 }
 
-function contatoDoWhatsApp(contato) {
+function contatoDoWhatsApp(contato, nomeAlternativo = null) {
   // No histórico recente, o WhatsApp pode identificar o contato pelo LID e
   // trazer o número real em `phoneNumber`. Priorizamos este último, pois é o
   // JID que o bot precisa para enviar mensagens e não descartamos a agenda.
@@ -98,15 +98,18 @@ function contatoDoWhatsApp(contato) {
   if (!jid.endsWith('@s.whatsapp.net')) return null;
   const telefone = jid.split('@')[0].split(':')[0].replace(/\D/g, '');
   if (telefone.length < 8) return null;
-  const nome = [contato.name, contato.notify, contato.verifiedName]
+  const nome = [contato.name, contato.notify, contato.verifiedName, contato.pushName, nomeAlternativo]
     .find((valor) => typeof valor === 'string' && valor.trim());
   return { jid, telefone, nome: nome ? nome.trim().slice(0, 160) : null };
 }
 
-async function sincronizarContatos(sessao, contatos) {
+async function sincronizarContatos(sessao, contatos, chats = []) {
   const recebidos = Array.isArray(contatos) ? contatos : [];
+  const nomesDosChats = new Map((Array.isArray(chats) ? chats : [])
+    .filter((chat) => typeof chat?.id === 'string' && typeof (chat.name || chat.subject) === 'string')
+    .map((chat) => [chat.id, String(chat.name || chat.subject)]));
   const lista = recebidos
-    .map(contatoDoWhatsApp)
+    .map((contato) => contatoDoWhatsApp(contato, nomesDosChats.get(contato?.id) || nomesDosChats.get(contato?.phoneNumber) || null))
     .filter(Boolean);
   if (!lista.length || !sessao.orgId) {
     sessao.contatosSync = {
@@ -391,7 +394,7 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
   });
   socket.ev.on('messaging-history.set', ({ contacts, chats, syncType }) => {
     log('contatos', `${sessao.orgNome}: histórico recebido (${contacts?.length || 0} contatos, ${chats?.length || 0} conversas, tipo ${syncType ?? 'desconhecido'}).`);
-    void sincronizarContatos(sessao, contacts);
+    void sincronizarContatos(sessao, contacts, chats);
     void sincronizarCanaisDoHistorico(sessao, chats);
   });
 
