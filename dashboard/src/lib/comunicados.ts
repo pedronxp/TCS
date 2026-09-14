@@ -142,6 +142,20 @@ export async function sincronizarChatsBot(sessaoId: string): Promise<boolean> {
   }
 }
 
+export async function removerContatoWhatsAppConsole(contactId: string): Promise<void> {
+  const { error } = await rpc('internal_delete_whatsapp_contact', { p_contact_id: contactId });
+  if (error) throw new Error(error.message);
+}
+
+export async function limparContatosWhatsAppConsole(organizationId: string, sessionId: string | null = null): Promise<number> {
+  const { data, error } = await rpc('internal_clear_whatsapp_contacts', {
+    p_organization_id: organizationId,
+    p_sessao_id: sessionId,
+  });
+  if (error) throw new Error(error.message);
+  return typeof data === 'number' ? data : 0;
+}
+
 // Comunicados municipais: acesso exclusivo por RPCs SECURITY DEFINER.
 // O servidor decide escopo (organização do usuário) e papel; o cliente
 // apenas tipa o contrato devolvido por portal_list_comunicados/bairros.
@@ -650,6 +664,7 @@ export interface ConsoleComunicadosOrg {
   runtime: BotOrganizationRuntime | null;
   sessoes: Array<{ id: string; telefone: string | null; status: SessaoBotStatus; runtimeState: BotOrganizationRuntime['sessions'][number]['runtimeState']; lastSeenAt: string | null; lastError: string | null; vinculadoPorNome: string | null; vinculadoEm: string | null; totalChats: number; expectedPhone: string | null; identification: string | null; pairingMethod: 'qr' | 'code' | null; pairingReady: boolean }>;
   chats: BotChat[];
+  contatos: Array<{ id: string; sessaoId: string; jid: string; telefone: string; nome: string | null; sincronizadoEm: string | null }>;
   canais: Array<{ id: string; nome: string; chatId: string | null; ativo: boolean; totalEnvios: number }>;
   comunicados: Array<{
     id: string;
@@ -692,14 +707,16 @@ export async function fetchOrgsComunicadosConsole(): Promise<OrgComunicadosResum
 }
 
 export async function fetchComunicadosOrgConsole(organizationId: string): Promise<ConsoleComunicadosOrg | null> {
-  const [{ data, error }, runtimeResponse, metadataResponse] = await Promise.all([
+  const [{ data, error }, runtimeResponse, metadataResponse, contactsResponse] = await Promise.all([
     rpc('internal_comunicados_org', { p_organization_id: organizationId }),
     rpc('internal_bot_runtime_status', { p_organization_id: organizationId }),
     rpc('internal_bot_session_pairing_metadata', { p_organization_id: organizationId }),
+    rpc('internal_list_whatsapp_contacts', { p_organization_id: organizationId }),
   ]);
   if (error) throw new Error(error.message);
   if (runtimeResponse.error) throw new Error(runtimeResponse.error.message);
   if (metadataResponse.error) throw new Error(metadataResponse.error.message);
+  if (contactsResponse.error) throw new Error(contactsResponse.error.message);
   const runtime = parseBotOrganizationRuntime(runtimeResponse.data);
   const pairingMetadata = new Map(parseArray(metadataResponse.data, (value) => {
     const item = record(value); const id = string(item?.id); return item && id ? [id, item] as const : null;
@@ -740,6 +757,11 @@ export async function fetchComunicadosOrgConsole(organizationId: string): Promis
       };
     }),
     chats: parseArray(source.chats, parseBotChat),
+    contatos: parseArray(contactsResponse.data, (value) => {
+      const contato = record(value); const id = string(contato?.id); const jid = string(contato?.jid); const telefone = string(contato?.telefone);
+      if (!contato || !id || !jid || !telefone) return null;
+      return { id, jid, telefone, sessaoId: string(contato.sessao_id) ?? '', nome: string(contato.nome), sincronizadoEm: string(contato.sincronizado_em) };
+    }),
     canais: parseArray(source.canais, (value) => {
       const canal = record(value);
       if (!canal || !string(canal.id) || !string(canal.nome)) return null;

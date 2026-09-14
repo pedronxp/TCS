@@ -87,6 +87,37 @@ function agoraIso() {
   return new Date().toISOString();
 }
 
+function contatoDoWhatsApp(contato) {
+  const jid = typeof contato?.id === 'string' ? contato.id : '';
+  if (!jid.endsWith('@s.whatsapp.net')) return null;
+  const telefone = jid.split('@')[0].split(':')[0].replace(/\D/g, '');
+  if (telefone.length < 8) return null;
+  const nome = [contato.name, contato.notify, contato.verifiedName]
+    .find((valor) => typeof valor === 'string' && valor.trim());
+  return { jid, telefone, nome: nome ? nome.trim().slice(0, 160) : null };
+}
+
+async function sincronizarContatos(sessao, contatos) {
+  const lista = (Array.isArray(contatos) ? contatos : [])
+    .map(contatoDoWhatsApp)
+    .filter(Boolean);
+  if (!lista.length || !sessao.orgId) return;
+  const linhas = lista.map((contato) => ({
+    organization_id: sessao.orgId,
+    sessao_id: sessao.id,
+    jid: contato.jid,
+    telefone: contato.telefone,
+    ...(contato.nome ? { nome: contato.nome } : {}),
+    sincronizado_em: agoraIso(),
+    updated_at: agoraIso(),
+  }));
+  const { error } = await supabase
+    .from('whatsapp_contacts')
+    .upsert(linhas, { onConflict: 'sessao_id,jid' });
+  if (error) log('contatos', `Falha ao salvar contatos da sessão ${sessao.id}`, error);
+  else log('contatos', `${linhas.length} contato(s) sincronizado(s) para ${sessao.orgNome}.`);
+}
+
 // id -> { id, orgId, orgNome, socket, fase, qr, qrGeradoEm, telefone, ultimoErro, parar }
 const sessoes = new Map();
 const runSessionOperation = createKeyedOperationQueue();
@@ -189,7 +220,10 @@ function registrarCanalRecebido(sessao, node) {
 function criarLoggerBaileys(sessao) {
   const registrar = (nivel, argumentos) => {
     const [contexto, mensagem] = argumentos;
-    if (contexto?.node) registrarCanalRecebido(sessao, contexto.node);
+    // Dependendo da versão do Baileys/Pino, a notificação chega como
+    // { node: ... } ou como o próprio nó. Aceitamos os dois formatos para não
+    // transformar um Canal efetivamente criado em erro no painel.
+    registrarCanalRecebido(sessao, contexto?.node || contexto);
     const texto = typeof mensagem === 'string' ? mensagem : typeof contexto === 'string' ? contexto : null;
     if (texto && (nivel === 'warn' || nivel === 'error')) log('baileys', texto);
   };
@@ -263,6 +297,9 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
     markOnlineOnConnect: false,
     browser: ['TCS Comunicados', 'Chrome', '1.0.0'],
     connectTimeoutMs: CONNECT_TIMEOUT_MS,
+    // A agenda só é recebida pelo protocolo quando o cliente permite o sync
+    // completo. O painel deixa explícito esse consentimento e permite apagá-la.
+    syncFullHistory: true,
   });
   sessao.socket = socket;
   registrarConfirmacoesDeCanal(sessao, socket);
@@ -272,6 +309,13 @@ async function iniciarSessaoSemLock(linha, tentativaReconexao = 0) {
       if (!canPersistSessionCredentials(sessoes, sessao.id, sessao)) return;
       await saveCreds();
     }).catch((erro) => log('sessao', `Falha ao salvar credenciais da sessão ${sessao.id}`, erro));
+  });
+
+  socket.ev.on('contacts.upsert', (contatos) => {
+    void sincronizarContatos(sessao, contatos);
+  });
+  socket.ev.on('contacts.update', (contatos) => {
+    void sincronizarContatos(sessao, contatos);
   });
 
   socket.ev.on('connection.update', (atualizacao) => {

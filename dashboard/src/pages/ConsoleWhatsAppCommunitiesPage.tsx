@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, Link2, Megaphone, Plus, RefreshCw, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Link2, Megaphone, Plus, RefreshCw, ShieldCheck, Trash2, Users } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/AlertDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { GuidedTutorial } from '@/components/tutorial/GuidedTutorial';
-import { criarSalaTransmissaoPeloBot, fetchComunicadosOrgConsole, mascararTelefone, salvarCanalConsole, sincronizarChatsBot, vincularCanalChatConsole } from '@/lib/comunicados';
+import { criarSalaTransmissaoPeloBot, fetchComunicadosOrgConsole, limparContatosWhatsAppConsole, mascararTelefone, removerContatoWhatsAppConsole, salvarCanalConsole, sincronizarChatsBot, vincularCanalChatConsole } from '@/lib/comunicados';
 
 export function ConsoleWhatsAppCommunitiesPage() {
   const { orgId } = useParams();
@@ -19,7 +19,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
   const [broadcastDescription, setBroadcastDescription] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<{ action: 'create' | 'create_room' | 'unlink'; channelId?: string; name: string } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ action: 'create' | 'create_room' | 'unlink' | 'clear_contacts'; channelId?: string; name: string } | null>(null);
   const [showAccessNotice, setShowAccessNotice] = useState(false);
 
   const organizationQuery = useQuery({
@@ -110,6 +110,17 @@ export function ConsoleWhatsAppCommunitiesPage() {
     onError: (mutationError: Error) => setError(mutationError.message),
   });
 
+  const deleteContact = useMutation({
+    mutationFn: (contactId: string) => removerContatoWhatsAppConsole(contactId),
+    onSuccess: async () => { setNotice('Contato removido da agenda do painel.'); await refresh(); },
+    onError: (mutationError: Error) => setError(mutationError.message),
+  });
+  const clearContacts = useMutation({
+    mutationFn: () => limparContatosWhatsAppConsole(orgId as string, linkedSession?.id ?? null),
+    onSuccess: async (total) => { setNotice(`${total} contato(s) removido(s) da agenda do painel.`); await refresh(); },
+    onError: (mutationError: Error) => setError(mutationError.message),
+  });
+
   function chatOptions() {
     return (
       <>
@@ -156,7 +167,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
       {notice && <p className="rounded-lg border border-success/25 bg-success-soft p-3 text-sm" role="status">{notice}</p>}
       {error && <p className="rounded-lg border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
       {!linkedSession && organization && <p className="rounded-lg border border-warning/25 bg-warning-soft p-4 text-sm text-warning-foreground"><ShieldCheck className="mb-2 h-5 w-5" />Dados protegidos até um número reconectar. Comunidades, grupos, convites e vínculos permanecem ocultos.</p>}
-      {linkedSession && <p className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />O número vinculado permite ao bot consultar os grupos que essa conta administra ou participa. O painel guarda e mostra somente nome do grupo, quantidade de participantes e administradores; números individuais de participantes não são exibidos nem ficam cadastrados no painel.</p>}
+      {linkedSession && <p className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />O número vinculado permite ao bot consultar os grupos e, mediante sua autorização, sincronizar a agenda para a criação de listas no painel. Os contatos ficam restritos à organização e podem ser removidos a qualquer momento; a exclusão não altera a agenda do celular.</p>}
 
       {organizationQuery.isLoading && <p className="text-sm text-muted-foreground">Carregando comunidades…</p>}
       {organizationQuery.isError && <p className="text-sm text-destructive">Não foi possível carregar as comunidades.</p>}
@@ -185,6 +196,12 @@ export function ConsoleWhatsAppCommunitiesPage() {
             <Card className="overflow-hidden"><CardHeader className="border-b bg-secondary/15"><CardTitle className="flex items-center gap-2"><Megaphone />Sala de transmissão</CardTitle></CardHeader><CardContent className="space-y-4 pt-5"><div className="flex gap-3 rounded-xl bg-primary/5 p-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><p className="text-xs leading-5 text-muted-foreground">Canais oficiais do WhatsApp não mostram os números dos seguidores para os demais participantes.</p></div>{!linkedSession && <p className="rounded-xl border border-dashed bg-secondary/20 p-4 text-sm leading-6 text-muted-foreground">Conecte um número autorizado para criar e visualizar salas de transmissão.</p>}<form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (linkedSession && broadcastName.trim().length >= 3) setConfirmation({ action: 'create_room', name: broadcastName.trim() }); }}><label className="block text-sm font-medium">Nome da sala<Input className="mt-1.5" value={broadcastName} onChange={(event) => setBroadcastName(event.target.value)} placeholder="Ex.: Alertas oficiais" minLength={3} maxLength={80} disabled={!linkedSession} required /></label><label className="block text-sm font-medium">Descrição<Input className="mt-1.5" value={broadcastDescription} onChange={(event) => setBroadcastDescription(event.target.value)} placeholder="Opcional" maxLength={280} disabled={!linkedSession} /></label><Button type="submit" disabled={!linkedSession || createBroadcastRoom.isPending || broadcastName.trim().length < 3}><Plus />{createBroadcastRoom.isPending ? 'Criando sala…' : 'Criar sala de transmissão'}</Button></form></CardContent></Card></div>
 
             {groupsVisible && <div className="space-y-6" data-tutorial="community-list">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Users />Agenda autorizada</CardTitle><p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">Contatos que o número vinculado sincronizou para criar listas no painel. Você pode remover qualquer contato ou apagar toda esta agenda.</p></div><Button variant="outline" size="sm" disabled={clearContacts.isPending || organization.contatos.length === 0} onClick={() => setConfirmation({ action: 'clear_contacts', name: 'agenda sincronizada' })}><Trash2 />Limpar agenda</Button></CardHeader>
+                <CardContent>
+                  {organization.contatos.length === 0 ? <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Nenhum contato foi sincronizado ainda. Mantenha o WhatsApp vinculado e use “Sincronizar grupos”; a agenda será recebida quando o WhatsApp disponibilizá-la para o dispositivo conectado.</p> : <ul className="divide-y rounded-xl border">{organization.contatos.map((contact) => <li key={contact.id} className="flex items-center justify-between gap-3 p-3"><div><p className="font-medium">{contact.nome || 'Contato sem nome'}</p><p className="text-xs text-muted-foreground">{contact.telefone}</p></div><Button variant="ghost" size="sm" aria-label={`Remover ${contact.nome || contact.telefone}`} disabled={deleteContact.isPending} onClick={() => deleteContact.mutate(contact.id)}><Trash2 className="text-destructive" />Remover</Button></li>)}</ul>}
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><Link2 />Destinos configurados</CardTitle></CardHeader>
                 <CardContent>
@@ -221,13 +238,15 @@ export function ConsoleWhatsAppCommunitiesPage() {
       <AlertDialog open={confirmation !== null} onOpenChange={(open) => !open && setConfirmation(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmation?.action === 'create' ? 'Cadastrar comunidade?' : confirmation?.action === 'create_room' ? 'Criar sala de transmissão?' : 'Desvincular grupo do WhatsApp?'}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmation?.action === 'create' ? 'Cadastrar comunidade?' : confirmation?.action === 'create_room' ? 'Criar sala de transmissão?' : confirmation?.action === 'clear_contacts' ? 'Apagar agenda sincronizada?' : 'Desvincular grupo do WhatsApp?'}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmation?.action === 'create'
                 ? `A comunidade “${confirmation.name}” será cadastrada nesta organização.`
                 : confirmation?.action === 'create_room'
                   ? `A sala “${confirmation.name}” será criada como um Canal oficial do WhatsApp, com os números dos participantes protegidos.`
-                : `O grupo associado a “${confirmation?.name ?? ''}” será removido dos envios automáticos.`}
+                  : confirmation?.action === 'clear_contacts'
+                    ? 'Todos os contatos sincronizados deste número serão removidos do painel. O WhatsApp do celular não será alterado.'
+                  : `O grupo associado a “${confirmation?.name ?? ''}” será removido dos envios automáticos.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -235,9 +254,10 @@ export function ConsoleWhatsAppCommunitiesPage() {
             <AlertDialogAction onClick={() => {
               if (confirmation?.action === 'create') createCommunity.mutate();
               else if (confirmation?.action === 'create_room') createBroadcastRoom.mutate();
+              else if (confirmation?.action === 'clear_contacts') clearContacts.mutate();
               else if (confirmation?.channelId) linkCommunity.mutate({ channelId: confirmation.channelId, nextChatId: null });
               setConfirmation(null);
-            }}>{confirmation?.action === 'create' || confirmation?.action === 'create_room' ? 'Confirmar criação' : 'Confirmar desvinculação'}</AlertDialogAction>
+            }}>{confirmation?.action === 'create' || confirmation?.action === 'create_room' ? 'Confirmar criação' : confirmation?.action === 'clear_contacts' ? 'Apagar contatos' : 'Confirmar desvinculação'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -246,7 +266,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>WhatsApp vinculado com acesso aos grupos</AlertDialogTitle>
             <AlertDialogDescription>
-              O bot poderá consultar os grupos visíveis para a conta vinculada, incluindo nome do grupo, administradores e total de participantes, para permitir a seleção dos destinos de alerta. Números individuais dos participantes não são exibidos ou armazenados no painel.
+              O bot poderá consultar os grupos visíveis e sincronizar nome e telefone dos contatos disponibilizados pela conta vinculada. Esses dados ficam restritos a esta organização para criação de listas no painel e podem ser removidos individualmente ou apagados por completo sem alterar a agenda do celular.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
