@@ -23,6 +23,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./supabase-auth-state');
 const { sameOrganization } = require('./organization-isolation');
 const { createKeyedOperationQueue } = require('./session-operation-queue');
+const { createHeartbeatHealth } = require('./heartbeat-health');
 const { classifyDisconnect, describeDisconnect, resolveConnectTimeoutMs, pairingPreparationChanged, removeCurrentSession, canPersistSessionCredentials, normalizePairingPhone, pairingPhoneMatches, formatPairingCode, classifyDeliveryOutcome, isBroadcastRoomJid, isAllowedDashboardOrigin } = require('./session-lifecycle');
 
 // Carrega ./.env (KEY=VALUE por linha) se existir.
@@ -65,6 +66,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !BOT_SESSION_ENCRYPTION_KEY) 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
+const heartbeatHealth = createHeartbeatHealth();
 
 const SEVERIDADE_LABEL = {
   informacao: 'Informação',
@@ -108,7 +110,12 @@ async function reportarWorker(state = 'online') {
     p_state: state,
     p_version: BOT_VERSION,
   });
-  if (error) log('heartbeat', `Falha ao registrar worker ${state}`, error);
+  if (error) {
+    log('heartbeat', `Falha ao registrar worker ${state}`, error);
+    return false;
+  }
+  if (state === 'online') heartbeatHealth.markSuccess();
+  return true;
 }
 
 function runtimeDaFase(fase) {
@@ -611,8 +618,15 @@ const canReadSession = authorizeSession();
 const canManageSession = authorizeSession({ manage: true });
 
 app.get('/healthz', (_req, res) => {
+  const heartbeat = heartbeatHealth.snapshot();
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true });
+  res.status(heartbeat.ok ? 200 : 503).json({
+    ok: heartbeat.ok,
+    heartbeat: {
+      lastSuccessAt: heartbeat.lastSuccessAt,
+      ageMs: heartbeat.ageMs,
+    },
+  });
 });
 
 app.get('/status', (_req, res) => {
