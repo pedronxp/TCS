@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, Link2, Megaphone, Plus, RefreshCw, ShieldCheck, Users } from 'lucide-react';
@@ -20,6 +20,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{ action: 'create' | 'create_room' | 'unlink'; channelId?: string; name: string } | null>(null);
+  const [showAccessNotice, setShowAccessNotice] = useState(false);
 
   const organizationQuery = useQuery({
     queryKey: ['console', 'comunicados', 'org', orgId],
@@ -32,14 +33,19 @@ export function ConsoleWhatsAppCommunitiesPage() {
     || (!organization.runtime && session.status === 'vinculado')) ?? null;
   const groupsVisible = Boolean(linkedSession);
 
+  useEffect(() => {
+    if (!linkedSession || typeof window === 'undefined') return;
+    const key = `tcs:whatsapp-access-notice:${linkedSession.id}`;
+    if (!window.localStorage.getItem(key)) setShowAccessNotice(true);
+  }, [linkedSession?.id]);
+
   const hierarchy = useMemo(() => {
     const communities = new Map<string, { name: string; chats: NonNullable<typeof organization>['chats'] }>();
     const standalone: NonNullable<typeof organization>['chats'] = [];
-    const approvedStandalone = new Set((organization?.canais ?? []).map((channel) => channel.chatId).filter(Boolean));
     for (const chat of groupsVisible ? organization?.chats ?? [] : []) {
       if (chat.chatId.endsWith('@newsletter')) continue;
       if (!chat.comunidadeId) {
-        if (approvedStandalone.has(chat.chatId)) standalone.push(chat);
+        standalone.push(chat);
         continue;
       }
       const current = communities.get(chat.comunidadeId) ?? { name: chat.comunidadeNome ?? 'Comunidade WhatsApp', chats: [] };
@@ -150,6 +156,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
       {notice && <p className="rounded-lg border border-success/25 bg-success-soft p-3 text-sm" role="status">{notice}</p>}
       {error && <p className="rounded-lg border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{error}</p>}
       {!linkedSession && organization && <p className="rounded-lg border border-warning/25 bg-warning-soft p-4 text-sm text-warning-foreground"><ShieldCheck className="mb-2 h-5 w-5" />Dados protegidos até um número reconectar. Comunidades, grupos, convites e vínculos permanecem ocultos.</p>}
+      {linkedSession && <p className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />O número vinculado permite ao bot consultar os grupos que essa conta administra ou participa. O painel guarda e mostra somente nome do grupo, quantidade de participantes e administradores; números individuais de participantes não são exibidos nem ficam cadastrados no painel.</p>}
 
       {organizationQuery.isLoading && <p className="text-sm text-muted-foreground">Carregando comunidades…</p>}
       {organizationQuery.isError && <p className="text-sm text-destructive">Não foi possível carregar as comunidades.</p>}
@@ -200,7 +207,7 @@ export function ConsoleWhatsAppCommunitiesPage() {
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><Users />Estrutura sincronizada</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm leading-6 text-muted-foreground">Por privacidade, esta área mostra apenas grupos dentro de Comunidades do WhatsApp ou destinos já aprovados no painel.</p>
+                  <p className="text-sm leading-6 text-muted-foreground">Mostra os grupos visíveis para o número vinculado. Para cada grupo, o painel exibe somente nome, quantidade de participantes e administradores — nunca a lista de números.</p>
                   {hierarchy.communities.map(([communityId, community]) => <div key={communityId} className="rounded-xl border p-4"><p className="font-semibold">{community.name}</p><ul className="mt-3 divide-y">{community.chats.map((chat) => <li key={chat.chatId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span>{chat.nome}</span><span className="text-xs text-muted-foreground">{chat.totalAdmins} admin · {chat.totalParticipantes} membros</span></li>)}</ul></div>)}
                   {hierarchy.standalone.length > 0 && <div className="rounded-xl border p-4"><p className="font-semibold">Grupos fora de Comunidades</p><ul className="mt-3 divide-y">{hierarchy.standalone.map((chat) => <li key={chat.chatId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span>{chat.nome}</span><span className="text-xs text-muted-foreground">{chat.totalAdmins} admin · {chat.totalParticipantes} membros</span></li>)}</ul></div>}
                   {organization.chats.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum grupo sincronizado ainda.</p>}
@@ -231,6 +238,22 @@ export function ConsoleWhatsAppCommunitiesPage() {
               else if (confirmation?.channelId) linkCommunity.mutate({ channelId: confirmation.channelId, nextChatId: null });
               setConfirmation(null);
             }}>{confirmation?.action === 'create' || confirmation?.action === 'create_room' ? 'Confirmar criação' : 'Confirmar desvinculação'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={showAccessNotice} onOpenChange={setShowAccessNotice}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>WhatsApp vinculado com acesso aos grupos</AlertDialogTitle>
+            <AlertDialogDescription>
+              O bot poderá consultar os grupos visíveis para a conta vinculada, incluindo nome do grupo, administradores e total de participantes, para permitir a seleção dos destinos de alerta. Números individuais dos participantes não são exibidos ou armazenados no painel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => {
+              if (linkedSession) window.localStorage.setItem(`tcs:whatsapp-access-notice:${linkedSession.id}`, 'acknowledged');
+              setShowAccessNotice(false);
+            }}>Entendi e continuar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
