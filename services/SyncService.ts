@@ -208,6 +208,7 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
           const protocol = allocationResults[index]?.data?.protocol;
           if (typeof protocol === 'string') storeOfficialProtocol(v.id, protocol);
           if (hasMidiaLocalPendente(v)) {
+            incrementTentativasSync(v.id);
             markErroSync(v.id, 'Dados enviados; mídia local pendente de upload.');
             falha++;
             logger.warn('sync', 'Dados sincronizados, mas a vistoria permanece pendente por midia local', { id: v.id });
@@ -230,6 +231,7 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
             if (errSingle) throw errSingle;
             if (typeof data?.protocol === 'string') storeOfficialProtocol(vistoria.id, data.protocol);
             if (hasMidiaLocalPendente(vistoria)) {
+              incrementTentativasSync(vistoria.id);
               markErroSync(vistoria.id, 'Dados enviados; mídia local pendente de upload.');
               falha++;
               logger.warn('sync', 'Dados sincronizados, mas a vistoria permanece pendente por midia local', { id: vistoria.id });
@@ -587,14 +589,10 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
   const db = getDb();
   let sofreuAlteracao = false;
 
-  const ano = new Date(v.data_vistoria).getFullYear();
-  const folderPath = `${ano}/${v.municipio || 'indefinido'}/${v.id}`;
-
   // Processa foto principal (thumb)
   if (v.foto_url && v.foto_url.startsWith('file://')) {
-    const remotePath = `${folderPath}/thumb.jpg`;
     try {
-      v.foto_url = await uploadImageFromLocalUri(v.foto_url, remotePath);
+      v.foto_url = await uploadImageFromLocalUri(v.foto_url, v.id);
       sofreuAlteracao = true;
     } catch (e: any) {
       logger.warn('sync', 'Falha ao subir foto principal; sync seguira sem fotoUrl remota', {
@@ -614,9 +612,8 @@ async function processarImagensVistoria(v: VistoriaLocal): Promise<VistoriaLocal
       for (let i = 0; i < arrayFotos.length; i++) {
         const fotoLocal = arrayFotos[i];
         if (fotoLocal.startsWith('file://')) {
-          const remotePath = `${folderPath}/evidencia_${i}.jpg`;
           try {
-            const publicUrl = await uploadImageFromLocalUri(fotoLocal, remotePath);
+            const publicUrl = await uploadImageFromLocalUri(fotoLocal, v.id);
             novasFotos.push(publicUrl);
             mudeiFotos = true;
           } catch (e: any) {
