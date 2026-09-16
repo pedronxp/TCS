@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Filter, Plus, Search, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { IndividualClientDialog } from '@/components/customers/IndividualClientDialog';
+import { BrazilMunicipalityPicker, BrazilStateSelect } from '@/components/BrazilMunicipalityPicker';
 import { PageHeader } from '@/components/domain/PageHeader';
 import { StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
@@ -14,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { Input } from '@/components/ui/Input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
@@ -43,16 +46,21 @@ export function CustomersPage() {
   const search = params.get('q') ?? '';
   const rawStatus = params.get('status') ?? 'all';
   const status = ['all', 'active', 'onboarding', 'pilot', 'suspended', 'archived'].includes(rawStatus) ? rawStatus : 'all';
+  const municipio = params.get('municipio') ?? '';
+  const uf = params.get('uf') ?? '';
+  const activityFrom = params.get('atividade_de') ?? '';
+  const activityTo = params.get('atividade_ate') ?? '';
   const rawPage = Number(params.get('page') ?? '0');
   const page = Number.isInteger(rawPage) && rawPage >= 0 ? rawPage : 0;
   const navigate = useNavigate();
   const { can } = useAuth();
-  const query = useCustomers(search, status === 'all' ? '' : status, page);
-  const totalQuery = useCustomers('', '', 0);
-  const onboardingQuery = useCustomers('', 'onboarding', 0);
-  const pilotQuery = useCustomers('', 'pilot', 0);
-  const activeQuery = useCustomers('', 'active', 0);
-  const suspendedQuery = useCustomers('', 'suspended', 0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const query = useCustomers({ search, status: status === 'all' ? '' : status, municipio, uf, activityFrom, activityTo, page });
+  const totalQuery = useCustomers();
+  const onboardingQuery = useCustomers({ status: 'onboarding' });
+  const pilotQuery = useCustomers({ status: 'pilot' });
+  const activeQuery = useCustomers({ status: 'active' });
+  const suspendedQuery = useCustomers({ status: 'suspended' });
   const newCustomer = params.get('novo');
   const creatingOrganization = (newCustomer === '1' || newCustomer === 'municipal') && can('customer.write');
   const creatingIndividual = newCustomer === 'individual' && can('customer.write');
@@ -66,6 +74,7 @@ export function CustomersPage() {
     suspended: suspendedQuery.data?.total ?? 0,
   };
   const activePercent = totals.all > 0 ? Math.round((totals.active / totals.all) * 100) : 0;
+  const activeAdvancedFilters = Number(Boolean(uf)) + Number(Boolean(municipio)) + Number(Boolean(activityFrom)) + Number(Boolean(activityTo));
   const setStatusFilter = (nextStatus: string) => {
     const next = new URLSearchParams(params);
     if (nextStatus === 'all') next.delete('status');
@@ -85,6 +94,12 @@ export function CustomersPage() {
     if (nextPage > 0) next.set('page', String(nextPage));
     else next.delete('page');
     setParams(next);
+  };
+  const setAdvancedFilters = (nextFilters: { uf: string; municipio: string; activityFrom: string; activityTo: string }) => {
+    const next = new URLSearchParams(params);
+    const pairs: Array<[string, string]> = [['uf', nextFilters.uf], ['municipio', nextFilters.municipio], ['atividade_de', nextFilters.activityFrom], ['atividade_ate', nextFilters.activityTo]];
+    for (const [key, value] of pairs) { if (value) next.set(key, value); else next.delete(key); }
+    next.delete('page'); setParams(next); setFiltersOpen(false);
   };
   const openCreate = (kind: 'municipal' | 'individual') => {
     const next = new URLSearchParams(params);
@@ -155,22 +170,10 @@ export function CustomersPage() {
                 {filter.label}
               </button>
             ))}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn('ml-auto h-11', ['pilot', 'archived'].includes(status) && 'border-primary')}
-                >
-                  <Filter />
-                  {status === 'pilot' ? 'Piloto' : status === 'archived' ? 'Arquivados' : 'Filtros'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setStatusFilter('pilot')}>Piloto</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setStatusFilter('archived')}>Arquivados</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setStatusFilter('all')}>Limpar filtro</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button variant="outline" className={cn('ml-auto h-11', activeAdvancedFilters > 0 && 'border-primary')} onClick={() => setFiltersOpen(true)}>
+              <Filter />
+              {activeAdvancedFilters > 0 ? `Filtros (${activeAdvancedFilters})` : 'Filtros'}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -275,8 +278,26 @@ export function CustomersPage() {
         onClose={closeCreate}
         onSaved={(customerId) => navigate(customerDetailPath(customerId))}
       />
+      <CustomerFiltersDialog open={filtersOpen} uf={uf} municipio={municipio} activityFrom={activityFrom} activityTo={activityTo} onClose={() => setFiltersOpen(false)} onApply={setAdvancedFilters} />
     </div>
   );
+}
+
+function CustomerFiltersDialog({ open, uf: initialUf, municipio: initialMunicipio, activityFrom: initialActivityFrom, activityTo: initialActivityTo, onClose, onApply }: {
+  open: boolean; uf: string; municipio: string; activityFrom: string; activityTo: string;
+  onClose: () => void; onApply: (filters: { uf: string; municipio: string; activityFrom: string; activityTo: string }) => void;
+}) {
+  const [uf, setUf] = useState(initialUf);
+  const [municipio, setMunicipio] = useState(initialMunicipio);
+  const [activityFrom, setActivityFrom] = useState(initialActivityFrom);
+  const [activityTo, setActivityTo] = useState(initialActivityTo);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (open) { setUf(initialUf); setMunicipio(initialMunicipio); setActivityFrom(initialActivityFrom); setActivityTo(initialActivityTo); setError(null); } }, [open, initialUf, initialMunicipio, initialActivityFrom, initialActivityTo]);
+  const apply = () => {
+    if (activityFrom && activityTo && activityFrom > activityTo) { setError('A data inicial deve ser anterior ou igual à data final.'); return; }
+    onApply({ uf, municipio, activityFrom, activityTo });
+  };
+  return <Dialog open={open} onOpenChange={(next) => !next && onClose()}><DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Filtrar carteira</DialogTitle><DialogDescription>Restrinja por município e pelo intervalo da última atividade registrada.</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><label className="text-sm font-medium">UF</label><BrazilStateSelect value={uf} onValueChange={(value) => { setUf(value); setMunicipio(''); }} includeAll /></div><div className="space-y-2"><label className="text-sm font-medium">Município</label><BrazilMunicipalityPicker uf={uf} value={municipio} onValueChange={setMunicipio} includeAll allValue="" allLabel="Todos os municípios" placeholder={uf ? 'Todos os municípios' : 'Selecione uma UF'} /></div><div className="space-y-2"><label className="text-sm font-medium" htmlFor="customer-activity-from">Atividade a partir de</label><Input id="customer-activity-from" type="date" value={activityFrom} onChange={(event) => setActivityFrom(event.target.value)} /></div><div className="space-y-2"><label className="text-sm font-medium" htmlFor="customer-activity-to">Atividade até</label><Input id="customer-activity-to" type="date" value={activityTo} onChange={(event) => setActivityTo(event.target.value)} /></div></div>{error && <p className="text-sm text-destructive">{error}</p>}<DialogFooter><Button variant="ghost" onClick={() => { setUf(''); setMunicipio(''); setActivityFrom(''); setActivityTo(''); }}>Limpar</Button><Button variant="outline" onClick={onClose}>Cancelar</Button><Button onClick={apply}>Aplicar filtros</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function CustomerOverview({

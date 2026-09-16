@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCheck, RefreshCw } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -22,6 +22,7 @@ import {
   type InboxWorkspace,
 } from '@/lib/inbox';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const inboxQueryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
@@ -50,6 +51,7 @@ function InboxBellContent({ workspace }: { workspace: InboxWorkspace }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const queryKey = ['inbox', workspace] as const;
+  const knownMessageIds = useRef<Set<string> | null>(null);
   const query = useQuery({
     queryKey,
     queryFn: () => getInbox(workspace, { limit: 8 }),
@@ -91,6 +93,22 @@ function InboxBellContent({ workspace }: { workspace: InboxWorkspace }) {
       if (channel) void supabase.removeChannel(channel);
     };
   }, [queryClient, workspace]);
+
+  useEffect(() => {
+    const messages = query.data?.items;
+    if (!messages) return;
+    if (!knownMessageIds.current) {
+      knownMessageIds.current = new Set(messages.map((item) => item.id));
+      return;
+    }
+    const newUnread = messages.find((item) => !item.readAt && !knownMessageIds.current?.has(item.id));
+    knownMessageIds.current = new Set(messages.map((item) => item.id));
+    if (newUnread) {
+      const notify = newUnread.severity === 'critical' || newUnread.severity === 'error' ? toast.error
+        : newUnread.severity === 'warning' ? toast.warning : toast.success;
+      notify(newUnread.title, { description: newUnread.body, duration: newUnread.severity === 'critical' ? 10000 : 6000 });
+    }
+  }, [query.data]);
 
   async function openItem(item: InboxItem) {
     if (!item.readAt) await readMutation.mutateAsync(item.id);

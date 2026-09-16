@@ -45,13 +45,31 @@ function parseCustomerPage(value: Json | null): CustomerPage {
   };
 }
 
-export function useCustomers(search = '', status = '', page = 0, limit = 25) {
+export interface CustomerFilters {
+  search?: string;
+  status?: string;
+  municipio?: string;
+  uf?: string;
+  activityFrom?: string;
+  activityTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export function useCustomers(filtersOrSearch: CustomerFilters | string = {}, legacyStatus = '', legacyPage = 0, legacyLimit = 25) {
+  const { search = '', status = '', municipio = '', uf = '', activityFrom = '', activityTo = '', page = 0, limit = 25 } = typeof filtersOrSearch === 'string'
+    ? { search: filtersOrSearch, status: legacyStatus, page: legacyPage, limit: legacyLimit }
+    : filtersOrSearch;
   return useQuery({
-    queryKey: customerKeys.list(search, status, page),
+    queryKey: customerKeys.list({ search, status, municipio, uf, activityFrom, activityTo, page }),
     queryFn: async (): Promise<CustomerPage> => {
       const { data, error } = await supabase.rpc('list_internal_customers', {
         p_search: search || undefined,
         p_status: status || undefined,
+        p_municipio: municipio || undefined,
+        p_state_code: uf || undefined,
+        p_activity_from: activityFrom || undefined,
+        p_activity_to: activityTo || undefined,
         p_limit: limit,
         p_offset: page * limit,
       });
