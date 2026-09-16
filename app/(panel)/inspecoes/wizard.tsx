@@ -9,13 +9,12 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
-import { insertTrainingVistoria, insertVistoria, markErroSync, markSincronizado, storeOfficialProtocol, updateAgendamentoVistoriaId, getFormularioCacheById } from '../../../utils/database';
+import { insertTrainingVistoria, insertVistoria, markErroSync, markSincronizado, storeOfficialProtocol, updateAgendamentoVistoriaId, getFormularioCacheById, updateVistoriaMedia } from '../../../utils/database';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useTraining } from '../../../context/TrainingContext';
 import { notificarVistoriaSalva } from '../../../services/NotificationService';
-import { uploadFotoVistoria } from '../../../services/StorageService';
-import { updateFotoUrl } from '../../../utils/database';
+import { uploadImageFromLocalUri } from '../../../services/StorageService';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 import { logger } from '../../../utils/logger';
@@ -589,21 +588,9 @@ export default function WizardAvaliacaoScreen() {
 
       // 2. Tentar sync imediato se online
       if (isConnected && !isolatedMode) {
-        // Upload da foto para Storage (não bloqueia o fluxo principal)
-        let fotoStorageUrl: string | null = null;
-        if (fotoUri && fotoUri.startsWith('file://')) {
-          fotoStorageUrl = await uploadFotoVistoria(fotoUri, id, municipioVistoria);
-          if (fotoStorageUrl) {
-            updateFotoUrl(id, fotoStorageUrl);
-          }
-        }
-
-        // Nunca enviar file:// ao Supabase — se upload falhou, omitir fotoUrl.
-        // O SyncService fará o upload e atualizará o campo quando o app reconectar.
-        const fotoUrlRemota = fotoStorageUrl ?? null;
-        const midiaLocalPendente = (!!fotoUri?.startsWith('file://') && !fotoStorageUrl)
-          || fotosAdicionais.some(uri => uri.startsWith('file://'));
-
+        // Primeiro cria a vistoria e aloca o protocolo. A autorização de upload
+        // só existe depois disso; tentar subir a foto antes fazia o Storage negar
+        // a mídia e o protocolo acabava salvo sem as evidências.
         const { data, error } = await supabase.rpc('sync_finalized_inspection', { p_inspection: {
           id,
           agenteUid: vistoriaLocal.agente_uid,
@@ -625,18 +612,41 @@ export default function WizardAvaliacaoScreen() {
           nivelRisco: nivel,
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
-          fotoUrl: fotoUrlRemota,
-          fotosUrls: fotosAdicionais.filter(uri => !uri.startsWith('file://')),
+          fotoUrl: null,
+          fotosUrls: [],
           status: 'concluida',
         }});
         if (!error) {
           if (typeof data?.protocol === 'string') storeOfficialProtocol(id, data.protocol);
-          if (midiaLocalPendente) {
-            markErroSync(id, 'Dados enviados; mídia local pendente de upload.');
-            logger.warn('sync', `Dados sincronizados, mas foto local ficou pendente`, { id });
-          } else {
+          const imagensLocais = [fotoUri, ...fotosAdicionais].filter((uri): uri is string => Boolean(uri));
+          if (imagensLocais.length === 0) {
             markSincronizado(id);
             logger.info('sync', `Vistoria sincronizada imediatamente apos salvar`, { id });
+          } else {
+            const imagensRemotas: string[] = [];
+            for (const imagem of imagensLocais) {
+              try {
+                imagensRemotas.push(imagem.startsWith('file://') ? await uploadImageFromLocalUri(imagem, id) : imagem);
+              } catch (cause: any) {
+                logger.warn('sync', 'Foto ficará pendente para nova sincronização', { id, erro: cause?.message });
+                break;
+              }
+            }
+            if (imagensRemotas.length === imagensLocais.length) {
+              const { error: mediaError } = await supabase.rpc('update_inspection_media', {
+                p_inspection_id: id,
+                p_primary_photo: imagensRemotas[0] ?? null,
+                p_extra_photos: imagensRemotas.slice(1),
+              });
+              if (!mediaError) {
+                updateVistoriaMedia(id, imagensRemotas[0] ?? null, imagensRemotas.slice(1));
+                markSincronizado(id);
+              } else {
+                markErroSync(id, subscriptionLimitSyncMessage(mediaError));
+              }
+            } else {
+              markErroSync(id, 'Dados enviados; mídia local pendente de upload.');
+            }
           }
         } else {
           // Sem este estado local, a falha imediata ficava apenas no log e a
