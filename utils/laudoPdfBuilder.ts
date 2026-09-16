@@ -1017,7 +1017,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
         <td class="dt-value">${escapeHtml(dados.agenteNome || '-')}</td>
       </tr>
       <tr>
-        <td class="dt-label">Responsável pelo imóvel</td>
+        <td class="dt-label">Solicitante ou responsável</td>
         <td class="dt-value">${escapeHtml(dados.responsavelNome || '-')}</td>
       </tr>
       <tr>

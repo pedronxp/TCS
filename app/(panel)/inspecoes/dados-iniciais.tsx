@@ -222,7 +222,7 @@ export default function DadosIniciaisScreen() {
       return;
     }
     if (form.responsavelNome.trim()) {
-      const nomeCheck = validarNome(form.responsavelNome, 'Nome do Morador');
+      const nomeCheck = validarNome(form.responsavelNome, 'Nome do solicitante ou responsável');
       if (!nomeCheck.valido) {
         Alert.alert('Nome inválido', nomeCheck.erro || 'Verifique o nome informado.');
         return;
@@ -391,16 +391,16 @@ export default function DadosIniciaisScreen() {
         )}
 
         <SectionHeader
-          title="Pessoa de referência"
-          subtitle="Informação opcional para identificar o atendimento"
+          title="Solicitante ou responsável"
+          subtitle="Identifica quem solicitou ou acompanhou o atendimento"
         />
         <FormField
-          label="Nome do morador ou responsável"
-          placeholder="Informe somente o nome"
+          label="Nome do solicitante ou responsável"
+          placeholder="Informe o nome completo"
           value={form.responsavelNome}
           onChangeText={t => setForm(f => ({ ...f, responsavelNome: t }))}
           autoCapitalize="words"
-          helperText="Não informe CPF ou outros documentos pessoais"
+          helperText="Será exibido no documento gerado. Não informe CPF ou outros documentos pessoais"
         />
 
       </ScrollView>

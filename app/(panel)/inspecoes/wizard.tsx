@@ -23,6 +23,7 @@ import { generateUUID } from '../../../utils/uuid';
 import { safeBack } from '../../../utils/navigationUtils';
 import { normalizeCoordinatePair } from '../../../utils/coordinateUtils';
 import { compressAndPersistImage } from '../../../utils/imageCompression';
+import { subscriptionLimitSyncMessage } from '../../../utils/subscriptionSync';
 import { WizardParams } from '../../../types/vistoria';
 import {
   calcularRiscoFormulario,
@@ -638,6 +639,9 @@ export default function WizardAvaliacaoScreen() {
             logger.info('sync', `Vistoria sincronizada imediatamente apos salvar`, { id });
           }
         } else {
+          // Sem este estado local, a falha imediata ficava apenas no log e a
+          // pessoa não conseguia identificar por que o protocolo não chegou.
+          markErroSync(id, subscriptionLimitSyncMessage(error));
           logger.warn('sync', `Falha no sync imediato — ficará pendente`, { id, erro: error.message });
         }
       } else {
