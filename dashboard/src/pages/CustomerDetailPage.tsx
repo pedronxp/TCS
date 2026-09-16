@@ -1355,6 +1355,26 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
   const [importHistory, setImportHistory] = useState(false);
   const [transferExisting, setTransferExisting] = useState(false);
   const [reason, setReason] = useState('');
+  const [agentSearch, setAgentSearch] = useState('');
+  const availableAgentsQuery = useQuery({
+    queryKey: ['unlinked-agents-for-internal-link'],
+    enabled: open,
+    queryFn: async () => {
+      const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+      const { data, error } = await rpc('list_unlinked_agents_for_internal_link', { p_limit: 200 });
+      if (error) throw error;
+      return Array.isArray(data)
+        ? data.filter((item): item is { user_id: string; name: string; email: string | null } => Boolean(item) && typeof item === 'object' && typeof (item as { user_id?: unknown }).user_id === 'string')
+        : [];
+    },
+  });
+  const availableAgents = useMemo(() => {
+    const term = agentSearch.trim().toLocaleLowerCase('pt-BR');
+    if (!term) return availableAgentsQuery.data ?? [];
+    return (availableAgentsQuery.data ?? []).filter((agent) =>
+      `${agent.name} ${agent.email ?? ''}`.toLocaleLowerCase('pt-BR').includes(term),
+    );
+  }, [agentSearch, availableAgentsQuery.data]);
 
   useEffect(() => {
     const valid = /^[0-9a-f-]{36}$/i.test(userId.trim());
@@ -1422,6 +1442,7 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
     const linkResult = data && typeof data === 'object' && !Array.isArray(data) ? data as { imported_inspections?: number; transferred?: boolean } : null;
     toast.success(`${linkResult?.transferred ? 'Agente remanejado' : 'Agente vinculado'} com registro auditado${linkResult?.imported_inspections ? `; ${linkResult.imported_inspections} vistorias importadas` : ''}.`);
     setUserId('');
+    setAgentSearch('');
     setImportHistory(false);
     setTransferExisting(false);
     setReason('');
@@ -1434,13 +1455,26 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Vincular agente existente</DialogTitle>
-          <DialogDescription>Use o ID da conta individual confirmado pelo suporte. A operação fica registrada na auditoria e não permite buscar pessoas pelo município.</DialogDescription>
+          <DialogDescription>Selecione uma conta cadastrada que ainda não pertence a nenhuma organização. A operação fica registrada na auditoria.</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={submit}>
           <div>
-            <Label htmlFor="existing-agent-user-id">ID da conta individual (UUID)</Label>
-            <Input id="existing-agent-user-id" value={userId} onChange={(event) => setUserId(event.target.value.trim())} placeholder="Ex.: 2237aa62-47fb-4c99-95bb-9e6722b527b2" aria-describedby="existing-agent-user-id-help" required />
-            <p id="existing-agent-user-id-help" className="mt-1 text-xs text-muted-foreground">Cole o ID exibido na conta do agente. Não use e-mail, nome ou ID da organização.</p>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="existing-agent-search">Conta cadastrada sem organização</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => void availableAgentsQuery.refetch()} disabled={availableAgentsQuery.isFetching}>
+                <RefreshCw className={cn('mr-1 size-3.5', availableAgentsQuery.isFetching && 'animate-spin')} /> Atualizar
+              </Button>
+            </div>
+            <Input id="existing-agent-search" className="mt-2" value={agentSearch} onChange={(event) => setAgentSearch(event.target.value)} placeholder="Buscar por nome ou e-mail" autoComplete="off" />
+            <Select value={userId} onValueChange={setUserId} required>
+              <SelectTrigger className="mt-2" aria-label="Selecionar conta cadastrada"><SelectValue placeholder={availableAgentsQuery.isLoading ? 'Carregando contas…' : 'Selecione uma conta'} /></SelectTrigger>
+              <SelectContent>
+                {availableAgents.map((agent) => <SelectItem key={agent.user_id} value={agent.user_id}>{agent.name}{agent.email ? ` — ${agent.email}` : ''}</SelectItem>)}
+                {!availableAgentsQuery.isLoading && availableAgents.length === 0 && <SelectItem value="no-eligible-agent" disabled>Nenhuma conta sem organização encontrada</SelectItem>}
+              </SelectContent>
+            </Select>
+            {availableAgentsQuery.isError && <p role="alert" className="mt-2 text-xs text-destructive">Não foi possível carregar as contas disponíveis. Atualize a página e tente novamente.</p>}
+            {!availableAgentsQuery.isLoading && !availableAgentsQuery.isError && <p className="mt-1 text-xs text-muted-foreground">A lista mostra somente contas sem vínculo organizacional ativo.</p>}
           </div>
           <section className="rounded-xl border bg-secondary/30 p-4" aria-live="polite">
             <p className="text-sm font-semibold">Vistorias feitas como agente individual</p>
