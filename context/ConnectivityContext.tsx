@@ -4,6 +4,7 @@ import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 // Deve espelhar o fallback do cliente Supabase. Sem isso, builds sem .env
 // tratavam qualquer Wi‑Fi como internet real e consumiam tentativas de sync.
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://vobcapzssxchdckazfnr.supabase.co';
+const SUPABASE_HEALTH_URL = `${SUPABASE_URL}/auth/v1/health`;
 const CHECK_TIMEOUT_MS = 8000;
 const DEBOUNCE_MS = 2000;
 const MAX_RETRIES = 2;
@@ -21,24 +22,28 @@ const ConnectivityContext = createContext<ConnectivityContextData>({
 });
 
 /**
- * Verifica se há acesso real à internet fazendo uma requisição HEAD ao Supabase.
+ * Verifica se há acesso real à internet consultando o endpoint de saúde do
+ * Supabase. O endpoint raiz não é uma verificação de conectividade e algumas
+ * redes móveis/proxies rejeitam requisições HEAD, causando falso "offline".
  * Exportada para uso fora de hooks React (ex: SyncService).
  */
 export async function checkRealInternet(): Promise<boolean> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
-      const response = await fetch(SUPABASE_URL, {
-        method: 'HEAD',
+      timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
+      const response = await fetch(SUPABASE_HEALTH_URL, {
+        method: 'GET',
         signal: controller.signal,
       });
-      clearTimeout(timeout);
       if (response.status < 600) return true;
     } catch {
       if (attempt === MAX_RETRIES) return false;
       // Espera 1s antes do retry
       await new Promise(r => setTimeout(r, 1000));
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
   }
   return false;

@@ -23,7 +23,7 @@ import { useConnectivity } from '../../context/ConnectivityContext';
 
 export default function LoginScreen() {
   const { theme } = useTheme();
-  const { isOnlineReal } = useConnectivity();
+  const { isConnected } = useConnectivity();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,8 +42,8 @@ export default function LoginScreen() {
   }, []);
 
   const handleGoogle = async () => {
-    if (!isOnlineReal) {
-      setError('O primeiro acesso com Google precisa de internet. Se esta conta já entrou antes, reabra o aplicativo para usar a sessão salva.');
+    if (isConnected === false) {
+      setError('O primeiro acesso com Google precisa de uma conexão de rede. Se esta conta já entrou antes, reabra o aplicativo para usar a sessão salva.');
       return;
     }
     setGoogleLoading(true);
@@ -61,8 +61,11 @@ export default function LoginScreen() {
   };
 
   const handleLoginEmail = async () => {
-    if (!isOnlineReal) {
-      setError('O login precisa de internet. Uma sessão já validada continua disponível offline ao reabrir o aplicativo.');
+    // A sonda HTTP de conectividade é útil para sincronização, mas não pode
+    // bloquear o acesso: uma falha transitória nela não significa que a
+    // autenticação não funcionará. O Supabase é a fonte de verdade do login.
+    if (isConnected === false) {
+      setError('O login precisa de uma conexão de rede. Uma sessão já validada continua disponível offline ao reabrir o aplicativo.');
       return;
     }
     if (!email || !password) {
