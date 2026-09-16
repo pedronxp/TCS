@@ -1419,8 +1419,8 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
         : 'Não foi possível concluir o vínculo. Confira os dados e tente novamente.');
       return;
     }
-    const result = data && typeof data === 'object' && !Array.isArray(data) ? data as { imported_inspections?: number; transferred?: boolean } : null;
-    toast.success(`${result?.transferred ? 'Agente remanejado' : 'Agente vinculado'} com registro auditado${result?.imported_inspections ? `; ${result.imported_inspections} vistorias importadas` : ''}.`);
+    const linkResult = data && typeof data === 'object' && !Array.isArray(data) ? data as { imported_inspections?: number; transferred?: boolean } : null;
+    toast.success(`${linkResult?.transferred ? 'Agente remanejado' : 'Agente vinculado'} com registro auditado${linkResult?.imported_inspections ? `; ${linkResult.imported_inspections} vistorias importadas` : ''}.`);
     setUserId('');
     setImportHistory(false);
     setTransferExisting(false);
