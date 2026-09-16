@@ -40,6 +40,9 @@ export function canAccessMobileFieldOperation(
   permissions: readonly string[] | null | undefined,
   operation: MobileFieldOperation,
 ): boolean {
+  // Owner é a conta mestra do sistema: não fica sujeita às permissões
+  // operacionais granulares atribuídas aos demais perfis internos.
+  if (role === 'owner') return true;
   if (!isInternalMobileRole(role)) return true;
   return getMobileFieldOperations(permissions).includes(operation);
 }

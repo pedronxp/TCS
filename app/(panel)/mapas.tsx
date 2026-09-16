@@ -396,7 +396,7 @@ export default function MapasScreen() {
     setLoadError(null);
     refreshMarkerRendering();
     try {
-      const isAdmin = ['admin', 'master_admin', 'supervisor'].includes(profile.role);
+      const isAdmin = ['admin', 'master_admin', 'owner', 'supervisor'].includes(profile.role);
 
       if (isOnlineReal) {
         let query = supabase
@@ -407,7 +407,7 @@ export default function MapasScreen() {
 
         if (!isAdmin) {
           query = query.eq('agenteUid', profile.uid);
-        } else if (profile.municipio && profile.role !== 'master_admin') {
+        } else if (profile.municipio && !['master_admin', 'owner'].includes(profile.role)) {
           query = query.eq('municipio', profile.municipio);
         }
 
@@ -448,7 +448,7 @@ export default function MapasScreen() {
               agendQuery = agendQuery
                 .or(`agente_uid.eq.${profile.uid},agente_uid.is.null`)
                 .eq('municipio', profile.municipio);
-            } else if (profile.municipio && profile.role !== 'master_admin') {
+            } else if (profile.municipio && !['master_admin', 'owner'].includes(profile.role)) {
               agendQuery = agendQuery.eq('municipio', profile.municipio);
             }
             const { data: agendData } = await agendQuery.limit(200);

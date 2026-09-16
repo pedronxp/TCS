@@ -1362,11 +1362,20 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
     const timer = window.setTimeout(() => {
       setCheckingHistory(true);
       const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
-      void rpc('preview_individual_inspection_import', { p_user_id: userId.trim() }).then(({ data, error }) => {
+      const timeout = new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error('inspection_history_preview_timeout')), 10_000);
+      });
+      void Promise.race([
+        rpc('preview_individual_inspection_import', { p_user_id: userId.trim() }),
+        timeout,
+      ]).then(({ data, error }) => {
         setCheckingHistory(false);
         if (error || !data || typeof data !== 'object' || Array.isArray(data)) { setHistory(null); return; }
         const value = data as { count?: number; first_at?: string; last_at?: string };
         setHistory({ count: Number(value.count ?? 0), firstAt: value.first_at ?? null, lastAt: value.last_at ?? null });
+      }).catch(() => {
+        setCheckingHistory(false);
+        setHistory(null);
       });
     }, 350);
     return () => window.clearTimeout(timer);

@@ -152,12 +152,12 @@ export default function InspecoesListScreen() {
     setFetchError(null);
     setLoading(true);
     try {
-      const isAdmin = perfil.role === 'admin' || perfil.role === 'master_admin';
+      const isAdmin = ['admin', 'master_admin', 'owner'].includes(perfil.role);
 
       // 1. Carregar do SQLite local imediatamente (offline-first)
       const locais = isolatedMode
         ? getTrainingVistoriasByAgente(perfil.uid)
-        : perfil.role === 'master_admin'
+        : ['master_admin', 'owner'].includes(perfil.role)
         ? getAllVistorias()
         : isAdmin
           ? getVistoriasByMunicipio(perfil.municipio)
@@ -178,10 +178,10 @@ export default function InspecoesListScreen() {
 
         if (!isAdmin) {
           query = query.eq('agenteUid', perfil.uid);
-        } else if (perfil.role !== 'master_admin' && perfil.municipio) {
+        } else if (!['master_admin', 'owner'].includes(perfil.role) && perfil.municipio) {
           query = query.eq('municipio', perfil.municipio);
         }
-        // master_admin: sem filtro — vê todas as vistorias do sistema
+        // master_admin e owner: sem filtro — veem todas as vistorias do sistema.
 
         const { data } = await query;
         if (data) {

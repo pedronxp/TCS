@@ -140,8 +140,9 @@ describe('MobileAccessService', () => {
     expect(getMobileFieldOperations([])).toEqual([]);
   });
 
-  it('bloqueia navegação direta de equipe interna sem a permissão correspondente', () => {
-    expect(canAccessMobileFieldOperation('owner', [], 'inspections')).toBe(false);
+  it('mantém a navegação de campo global para owner e restringe os demais perfis internos', () => {
+    expect(canAccessMobileFieldOperation('owner', [], 'inspections')).toBe(true);
+    expect(canAccessMobileFieldOperation('owner', [], 'tactical-map')).toBe(true);
     expect(canAccessMobileFieldOperation('owner', ['mobile.inspection.manage'], 'inspections')).toBe(true);
     expect(canAccessMobileFieldOperation('owner', ['mobile.map.read'], 'tactical-map')).toBe(true);
     expect(canAccessMobileFieldOperation('agent', [], 'inspections')).toBe(true);

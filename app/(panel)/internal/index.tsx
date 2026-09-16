@@ -124,7 +124,11 @@ export default function InternalDashboardScreen() {
   }, [load]));
 
   const firstName = profile?.name?.split(' ')[0] || 'equipe';
-  const fieldOperations = new Set(getMobileFieldOperations(profile?.permissions));
+  const fieldOperations = new Set(
+    profile?.role === 'owner'
+      ? ['new-inspection', 'inspections', 'tactical-map']
+      : getMobileFieldOperations(profile?.permissions),
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
