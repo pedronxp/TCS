@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRight,
+  Building2,
   CalendarClock,
   CalendarPlus,
   CheckCircle2,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { IndividualEditDialog } from '@/components/customers/IndividualEditDialog';
+import { BrazilMunicipalityPicker, BrazilStateSelect } from '@/components/BrazilMunicipalityPicker';
 import { CustomerMap } from '@/components/customers/CustomerMap';
 import { AccountPermissionBadge, StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary, AsyncEmpty, AsyncError, AsyncLoading } from '@/components/states/AsyncBoundary';
@@ -166,6 +168,8 @@ export function CustomerDetailWorkspace({
   onSaved?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const navigate = useNavigate();
   const customer = detail.customer;
   const primarySections = customer.kind === 'organization' ? organizationPrimarySections : individualPrimarySections;
   const requestedSection = section === 'usuarios' && customer.kind === 'organization' ? 'equipe' : section;
@@ -210,6 +214,12 @@ export function CustomerDetailWorkspace({
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge value={customer.status} />
             {customer.kind === 'individual' && <AccountPermissionBadge role={detail.users[0]?.role} />}
+            {canEdit && customer.kind === 'individual' && detail.subscription && (
+              <Button variant="outline" className="h-11" onClick={() => setConverting(true)}>
+                <Building2 className="h-4 w-4" />
+                Converter para município
+              </Button>
+            )}
             {canEdit && (
               <Button variant="outline" className="h-11 min-w-24" onClick={() => setEditing(true)}>
                 <Pencil className="h-4 w-4" />
@@ -303,8 +313,114 @@ export function CustomerDetailWorkspace({
           onSaved?.();
         }}
       />
+      <ConvertIndividualToMunicipalDialog
+        open={converting}
+        detail={customer.kind === 'individual' ? detail : null}
+        onClose={() => setConverting(false)}
+        onConverted={(nextCustomerId) => {
+          setConverting(false);
+          navigate(customerDetailPath(nextCustomerId));
+        }}
+      />
     </section>
   );
+}
+
+function ConvertIndividualToMunicipalDialog({ open, detail, onClose, onConverted }: {
+  open: boolean;
+  detail: CustomerDetail | null;
+  onClose: () => void;
+  onConverted: (customerId: string) => void;
+}) {
+  const [displayName, setDisplayName] = useState('');
+  const [uf, setUf] = useState('');
+  const [municipio, setMunicipio] = useState('');
+  const [planId, setPlanId] = useState('');
+  const [role, setRole] = useState('agent');
+  const [importInspections, setImportInspections] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const conversion = useAdministrativeMutation<{
+    customerId: string; displayName: string; municipio: string; uf: string; planId: string; role: string; importInspections: boolean; reason: string;
+  }, { customer_id: string }>({
+    mutationFn: async (variables, operationId) => {
+      const { data, error: rpcError } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: { customer_id?: string } | null; error: { message: string } | null }>)('convert_individual_customer_to_municipal_organization', {
+        p_customer_id: variables.customerId,
+        p_display_name: variables.displayName,
+        p_municipality_name: variables.municipio,
+        p_state_code: variables.uf,
+        p_plan_id: variables.planId,
+        p_member_role: variables.role,
+        p_import_individual_inspections: variables.importInspections,
+        p_reason: variables.reason,
+        p_operation_id: operationId,
+      });
+      if (rpcError) throw rpcError;
+      if (!data?.customer_id) throw new Error('A organização não foi retornada pelo servidor.');
+      return { customer_id: data.customer_id };
+    },
+    invalidate: [['internal-subscriptions'], ['internal-customers'], ['customer-detail']],
+  });
+  const plans = useQuery({
+    queryKey: ['commercial-municipal-plans-options'],
+    queryFn: async () => {
+      const { data, error: queryError } = await supabase.from('plans').select('id,name').eq('audience', 'organization').eq('status', 'active').order('name');
+      if (queryError) throw queryError;
+      return data ?? [];
+    },
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setDisplayName(''); setUf(''); setMunicipio(''); setPlanId(''); setRole('agent'); setImportInspections(false); setConfirming(false); setError(null);
+  }, [open]);
+  useEffect(() => {
+    if (!planId && plans.data?.[0]?.id) setPlanId(plans.data[0].id);
+  }, [planId, plans.data]);
+  useEffect(() => {
+    if (!displayName || displayName.startsWith('Prefeitura de ')) setDisplayName(municipio ? `Prefeitura de ${municipio}` : '');
+  }, [municipio]); // The municipality picker is the source of the suggested organization name.
+
+  if (!open || !detail?.subscription) return null;
+  const submit = () => {
+    if (!displayName.trim() || !uf || !municipio || !planId) { setError('Informe o nome da organização, UF, município e plano municipal.'); return; }
+    setError(null); setConfirming(true);
+  };
+
+  return <>
+    <Dialog open={!confirming} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Converter para organização municipal</DialogTitle>
+          <DialogDescription>Cria uma organização para o município, mantém esta pessoa vinculada e migra a assinatura atual para o plano municipal escolhido — sem criar uma segunda cobrança.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm"><strong>Assinatura atual:</strong> {detail.subscription.plan_name}. Ela será substituída pelo plano municipal abaixo, preservando situação e datas do ciclo.</div>
+          <div className="space-y-2"><Label htmlFor="municipal-organization-name">Nome da organização</Label><Input id="municipal-organization-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Prefeitura de Astolfo Dutra" /></div>
+          <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>UF</Label><BrazilStateSelect value={uf} onValueChange={(value) => { setUf(value); setMunicipio(''); }} /></div><div className="space-y-2"><Label>Município</Label><BrazilMunicipalityPicker uf={uf} value={municipio} onValueChange={setMunicipio} /></div></div>
+          <div className="space-y-2"><Label>Plano municipal</Label>{plans.isLoading ? <p className="text-sm text-muted-foreground">Carregando planos…</p> : <Select value={planId} onValueChange={setPlanId}><SelectTrigger><SelectValue placeholder="Selecione o plano" /></SelectTrigger><SelectContent>{plans.data?.map((plan) => <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>)}</SelectContent></Select>}</div>
+          <div className="space-y-2"><Label>Papel do Victor na organização</Label><Select value={role} onValueChange={setRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="agent">Agente</SelectItem><SelectItem value="supervisor">Supervisor</SelectItem><SelectItem value="coordinator">Coordenador</SelectItem><SelectItem value="owner">Responsável</SelectItem></SelectContent></Select></div>
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm"><Checkbox className="mt-0.5" checked={importInspections} onCheckedChange={(checked) => setImportInspections(checked === true)} /><span><strong>Levar as vistorias individuais para a organização</strong><span className="mt-1 block text-xs text-muted-foreground">Protocolos e autoria são preservados.</span></span></label>
+          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        </div>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Cancelar</Button><Button onClick={submit} disabled={plans.isLoading || conversion.isPending}>Revisar conversão</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <HighRiskDialog open={confirming} title="Confirmar conversão para município" description="A conta individual deixará de ser uma conta separada. A assinatura será migrada, o acesso atual será encerrado e a alteração ficará registrada na auditoria." confirmLabel="Converter e migrar assinatura" onClose={() => setConfirming(false)} onConfirm={async (reason) => {
+      const result = await conversion.mutateAsync({ customerId: detail.customer.customer_id, displayName: displayName.trim(), municipio, uf, planId, role, importInspections, reason });
+      if (!result.ok || !result.data) throw new Error(describeMunicipalConversionError(result.error));
+      toast.success('Conta convertida e assinatura migrada para a organização municipal.');
+      onConverted(result.data.customer_id);
+    }} />
+  </>;
+}
+
+function describeMunicipalConversionError(error: string | undefined) {
+  if (error?.includes('municipal_organization_already_exists')) return 'Já existe uma organização ativa para esta cidade e UF. Abra essa organização e vincule o Victor à equipe.';
+  if (error?.includes('individual_subscription_not_found')) return 'Esta conta não possui uma assinatura individual ativa que possa ser migrada.';
+  if (error?.includes('municipal_plan_not_available')) return 'O plano municipal selecionado não está disponível.';
+  return error || 'Não foi possível converter a conta para organização municipal.';
 }
 
 function CustomerTab({ active, href, children }: { active: boolean; href: string; children: ReactNode }) {
