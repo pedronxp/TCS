@@ -618,6 +618,16 @@ export default function WizardAvaliacaoScreen() {
         }});
         if (!error) {
           if (typeof data?.protocol === 'string') storeOfficialProtocol(id, data.protocol);
+          // Regrava o solicitante após a alocação do protocolo. Isso protege o
+          // dado caso uma versão anterior do servidor retorne cedo por já haver
+          // protocolo para este mesmo ID.
+          if (vistoriaLocal.responsavel_nome) {
+            const { error: requesterError } = await supabase.rpc('update_inspection_requester', {
+              p_inspection_id: id,
+              p_requester_name: vistoriaLocal.responsavel_nome,
+            });
+            if (requesterError) logger.warn('sync', 'Solicitante ficará pendente para nova sincronização', { id, erro: requesterError.message });
+          }
           const imagensLocais = [fotoUri, ...fotosAdicionais].filter((uri): uri is string => Boolean(uri));
           if (imagensLocais.length === 0) {
             markSincronizado(id);
