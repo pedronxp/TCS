@@ -1358,12 +1358,14 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
 
   useEffect(() => {
     const valid = /^[0-9a-f-]{36}$/i.test(userId.trim());
-    if (!open || !valid) { setHistory(null); setImportHistory(false); return undefined; }
+    if (!open || !valid) { setHistory(null); setImportHistory(false); setCheckingHistory(false); return undefined; }
     const timer = window.setTimeout(() => {
       setCheckingHistory(true);
+      setMessage(null);
       const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+      let expired = false;
       const timeout = new Promise<never>((_, reject) => {
-        window.setTimeout(() => reject(new Error('inspection_history_preview_timeout')), 10_000);
+        window.setTimeout(() => { expired = true; reject(new Error('inspection_history_preview_timeout')); }, 10_000);
       });
       void Promise.race([
         rpc('preview_individual_inspection_import', { p_user_id: userId.trim() }),
@@ -1376,6 +1378,7 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
       }).catch(() => {
         setCheckingHistory(false);
         setHistory(null);
+        if (expired) setMessage('A consulta do histórico demorou demais. Você ainda pode confirmar o vínculo; as vistorias não sincronizadas no celular não são importadas.');
       });
     }, 350);
     return () => window.clearTimeout(timer);
@@ -1383,17 +1386,32 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!/^[0-9a-f-]{36}$/i.test(userId.trim())) {
+      setMessage('Informe o ID completo da conta, no formato UUID.');
+      return;
+    }
     setSaving(true);
     setMessage(null);
     const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
-    const { data, error } = await rpc('internal_assign_customer_to_organization', {
-      p_user_id: userId.trim(),
-      p_organization_id: organizationId,
-      p_role: role,
-      p_import_individual_inspections: importHistory,
-      p_transfer_existing_membership: transferExisting,
-      p_reason: reason.trim() || null,
-    });
+    let result: { data: unknown; error: { message: string } | null };
+    try {
+      result = await Promise.race([
+        rpc('internal_assign_customer_to_organization', {
+          p_user_id: userId.trim(),
+          p_organization_id: organizationId,
+          p_role: role,
+          p_import_individual_inspections: importHistory,
+          p_transfer_existing_membership: transferExisting,
+          p_reason: reason.trim() || null,
+        }),
+        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('municipal_link_timeout')), 15_000)),
+      ]);
+    } catch {
+      setSaving(false);
+      setMessage('O vínculo não foi confirmado em 15 segundos. Feche esta janela, atualize a página e confira se o agente apareceu antes de tentar novamente.');
+      return;
+    }
+    const { data, error } = result;
     setSaving(false);
     if (error) {
       setMessage(error.message.includes('membership_conflict')
@@ -1420,12 +1438,13 @@ function LinkExistingAgentDialog({ open, organizationId, onOpenChange, onLinked 
         </DialogHeader>
         <form className="space-y-4" onSubmit={submit}>
           <div>
-            <Label htmlFor="existing-agent-user-id">ID da conta individual</Label>
-            <Input id="existing-agent-user-id" value={userId} onChange={(event) => setUserId(event.target.value)} placeholder="UUID do usuário" required />
+            <Label htmlFor="existing-agent-user-id">ID da conta individual (UUID)</Label>
+            <Input id="existing-agent-user-id" value={userId} onChange={(event) => setUserId(event.target.value.trim())} placeholder="Ex.: 2237aa62-47fb-4c99-95bb-9e6722b527b2" aria-describedby="existing-agent-user-id-help" required />
+            <p id="existing-agent-user-id-help" className="mt-1 text-xs text-muted-foreground">Cole o ID exibido na conta do agente. Não use e-mail, nome ou ID da organização.</p>
           </div>
           <section className="rounded-xl border bg-secondary/30 p-4" aria-live="polite">
             <p className="text-sm font-semibold">Vistorias feitas como agente individual</p>
-            {checkingHistory ? <p className="mt-2 text-xs text-muted-foreground">Consultando histórico…</p>
+            {checkingHistory ? <p className="mt-2 text-xs text-muted-foreground">Consultando histórico (até 10 segundos)…</p>
               : history ? <>
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">{history.count === 0 ? 'Nenhuma vistoria individual disponível para importar.' : `${history.count} vistoria${history.count === 1 ? '' : 's'} sem organização entre ${formatImportDate(history.firstAt)} e ${formatImportDate(history.lastAt)}.`}</p>
                 {history.count > 0 && <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-3 text-sm"><Checkbox className="mt-1" checked={importHistory} onCheckedChange={(checked) => setImportHistory(checked === true)} /><span><strong>Trazer todas para esta prefeitura</strong><span className="mt-1 block text-xs text-muted-foreground">A autoria e os protocolos originais serão preservados.</span></span></label>}

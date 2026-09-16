@@ -21,6 +21,10 @@ import { isActiveInternalMobileStaff, isNeutralCustomerProfile } from '../../ser
 import { getTurnstileConfiguration } from '../../services/TurnstileService';
 import { useConnectivity } from '../../context/ConnectivityContext';
 
+function isInvalidCredentialError(message: string | undefined): boolean {
+  return /invalid login credentials|invalid credentials|credenciais inv[aá]lidas/i.test(message ?? '');
+}
+
 export default function LoginScreen() {
   const { theme } = useTheme();
   const { isConnected } = useConnectivity();
@@ -98,7 +102,11 @@ export default function LoginScreen() {
           setCaptchaToken(null);
           setCaptchaRevision(value => value + 1);
         }
-        await recordLoginAttempt(emailNorm);
+        // Só senha/e-mail inválidos contam como tentativa. CAPTCHA, falha de
+        // rede e indisponibilidade do servidor não podem bloquear o aparelho.
+        if (isInvalidCredentialError(authError.message)) {
+          await recordLoginAttempt(emailNorm);
+        }
         registrarAuditoria({
           acao: 'login_falhou',
           adminUid: emailNorm,
@@ -138,7 +146,6 @@ export default function LoginScreen() {
         }
       } else if (!activeInternalStaff && userData && !userData.isApproved && !isNeutralCustomer) {
         await supabase.auth.signOut();
-        await recordLoginAttempt(emailNorm);
         registrarAuditoria({
           acao: 'login_falhou',
           adminUid: data?.user?.id || emailNorm,

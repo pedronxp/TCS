@@ -9,7 +9,10 @@ interface LoginAttemptData {
 }
 
 function storageKey(email: string): string {
-  return `tcs_login_attempts_${email.trim().toLowerCase()}`;
+  // A versão anterior contabilizava falhas de CAPTCHA, rede e validação de
+  // perfil como se fossem senha inválida. Separar a chave libera apenas esses
+  // bloqueios locais indevidos após a atualização.
+  return `tcs_login_attempts_v2_${email.trim().toLowerCase()}`;
 }
 
 /** Registra uma tentativa de login e retorna se ainda está permitido. */
