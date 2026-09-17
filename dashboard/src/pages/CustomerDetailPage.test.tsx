@@ -3,9 +3,12 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CustomerDetailPage } from './CustomerDetailPage';
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 globalThis.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -186,11 +189,13 @@ afterEach(cleanup);
 
 function renderPage(path = '/app/clientes/organizacoes/aurora/resumo') {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/app/clientes/organizacoes/:recordId/:section?" element={<CustomerDetailPage kind="organization" />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/app/clientes/organizacoes/:recordId/:section?" element={<CustomerDetailPage kind="organization" />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

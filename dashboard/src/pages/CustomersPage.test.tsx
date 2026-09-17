@@ -30,15 +30,19 @@ const customer = {
   last_activity_at: new Date().toISOString(),
 };
 
-const mocks = vi.hoisted(() => ({ calls: [] as Array<[string, string, number]> }));
+const mocks = vi.hoisted(() => ({ calls: [] as Array<{ search: string; status: string; page: number }> }));
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ can: () => true }),
 }));
 
 vi.mock('@/hooks/useCustomers', () => ({
-  useCustomers: (search: string, status: string, page: number) => {
-    mocks.calls.push([search, status, page]);
+  useCustomers: (filters: { search?: string; status?: string; page?: number } | string = {}) => {
+    const resolved = typeof filters === 'string' ? { search: filters, status: '', page: 0 } : filters;
+    const search = resolved.search ?? '';
+    const status = resolved.status ?? '';
+    const page = resolved.page ?? 0;
+    mocks.calls.push({ search, status, page });
     const totals: Record<string, number> = { '': 148, onboarding: 12, pilot: 4, active: 129, suspended: 7 };
     return {
       data: {
@@ -88,9 +92,9 @@ describe('Carteira de clientes', () => {
 
     expect(screen.getByPlaceholderText('Nome, município, contato ou identificador')).toHaveValue('Aurora');
     expect(screen.getByRole('button', { name: 'Ativos' })).toHaveAttribute('aria-pressed', 'true');
-    expect(mocks.calls).toContainEqual(['Aurora', 'active', 2]);
+    expect(mocks.calls).toContainEqual({ search: 'Aurora', status: 'active', page: 2 });
 
     await user.click(screen.getByRole('button', { name: 'Onboarding' }));
-    expect(mocks.calls).toContainEqual(['Aurora', 'onboarding', 0]);
+    expect(mocks.calls).toContainEqual({ search: 'Aurora', status: 'onboarding', page: 0 });
   });
 });
