@@ -70,8 +70,11 @@ function DocumentWorkspace({ kind, inspection, onUpdated }: { kind: WorkspaceKin
   const print = async (type: 'relatorio' | 'termo') => {
     if (type === 'termo' && !inspection.canViewSensitive) { setMessage('O Termo exige acesso a dados sensíveis da vistoria.'); return; }
     if (type === 'termo' && !term.name.trim()) { setMessage('Informe o nome do notificado para gerar o Termo.'); return; }
-    const popup = window.open('', '_blank', 'noopener,noreferrer');
+    // Não usar 'noopener' aqui: ele faz window.open retornar null nos navegadores
+    // modernos e impede o document.write, deixando a aba travada em about:blank.
+    const popup = window.open('', '_blank');
     if (!popup) { setMessage('O navegador bloqueou a nova janela. Libere pop-ups para gerar o PDF.'); return; }
+    popup.opener = null;
     const html = type === 'relatorio' ? reportHtml(inspection, reportNotes) : termHtml(inspection, term);
     popup.document.write(html); popup.document.close(); popup.focus();
     setTimeout(() => popup.print(), 250);
