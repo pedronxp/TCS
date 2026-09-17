@@ -166,6 +166,7 @@ export default function ResultadoScreen() {
       foto_url: v.foto_url ?? v.fotosUrls?.[0] ?? null,
       fotosUrls: v.fotosUrls ?? (v.foto_url ? [v.foto_url] : null),
       modoTreinamento: isolatedMode,
+      responsavelNome: v.responsavelNome ?? '',
       condutaRecomendada: '',
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',

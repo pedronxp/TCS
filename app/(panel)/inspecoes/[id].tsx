@@ -79,6 +79,7 @@ export default function VistoriaDetalhesScreen() {
       respostas,
       foto_url: data.fotosUrls?.[0] ?? data.fotoUrl ?? null,
       fotosUrls: data.fotosUrls ?? (data.fotoUrl ? [data.fotoUrl] : null),
+      responsavelNome: data.responsavelNome ?? data.responsavel_nome ?? '',
       condutaRecomendada: '',
       observacoesTecnicas: '',
       cargo: 'Agente de Defesa Civil',
