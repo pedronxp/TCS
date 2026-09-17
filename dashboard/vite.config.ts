@@ -5,6 +5,8 @@ import path from 'node:path';
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    // Prioriza variantes .web.* (módulos compartilhados com o app Expo, ex.: utils/photoToBase64.web.ts)
+    extensions: ['.web.tsx', '.web.ts', '.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
@@ -12,6 +14,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    fs: { allow: [path.resolve(__dirname, '..')] },
   },
   build: {
     chunkSizeWarningLimit: 2000,

@@ -1,13 +1,25 @@
+// Imports estáticos (em vez de require) para funcionar tanto no Metro (app)
+// quanto no Vite (dashboard web).
+import formBueiroDrenagemV1 from '../assets/formularios/inspecao_bueiro_drenagem_v1.json';
+import formPontePassarelaV1 from '../assets/formularios/inspecao_ponte_passarela_v1.json';
+import formIncendioVegetacaoV1 from '../assets/formularios/risco_incendio_vegetacao_v1.json';
+import formInundacaoV1 from '../assets/formularios/risco_inundacao_v1.json';
+import formArvoreCbmmgV1 from '../assets/formularios/avaliacao_arvore_cbmmg_v1.json';
+import formDeslizamentoV3 from '../assets/formularios/vistoria_deslizamento_v3.json';
+import formDeslizamentoV2 from '../assets/formularios/vistoria_deslizamento_v2.json';
+import formEstruturalV2 from '../assets/formularios/risco_estrutural_novo_v2.json';
+import formEstruturalV1 from '../assets/formularios/risco_estrutural_novo_v1.json';
+
 export const ASSETS: Record<string, any> = {
-  'inspecao_bueiro_drenagem_v1': require('../assets/formularios/inspecao_bueiro_drenagem_v1.json'),
-  'inspecao_ponte_passarela_v1': require('../assets/formularios/inspecao_ponte_passarela_v1.json'),
-  'risco_incendio_vegetacao_v1': require('../assets/formularios/risco_incendio_vegetacao_v1.json'),
-  'risco_inundacao_v1': require('../assets/formularios/risco_inundacao_v1.json'),
-  'avaliacao_arvore_cbmmg_v1': require('../assets/formularios/avaliacao_arvore_cbmmg_v1.json'),
-  'vistoria_deslizamento_v3': require('../assets/formularios/vistoria_deslizamento_v3.json'),
-  'vistoria_deslizamento_v2': require('../assets/formularios/vistoria_deslizamento_v2.json'),
-  'risco_estrutural_novo_v2': require('../assets/formularios/risco_estrutural_novo_v2.json'),
-  'risco_estrutural_novo_v1': require('../assets/formularios/risco_estrutural_novo_v1.json'),
+  'inspecao_bueiro_drenagem_v1': formBueiroDrenagemV1,
+  'inspecao_ponte_passarela_v1': formPontePassarelaV1,
+  'risco_incendio_vegetacao_v1': formIncendioVegetacaoV1,
+  'risco_inundacao_v1': formInundacaoV1,
+  'avaliacao_arvore_cbmmg_v1': formArvoreCbmmgV1,
+  'vistoria_deslizamento_v3': formDeslizamentoV3,
+  'vistoria_deslizamento_v2': formDeslizamentoV2,
+  'risco_estrutural_novo_v2': formEstruturalV2,
+  'risco_estrutural_novo_v1': formEstruturalV1,
 };
 
 export interface OpcaoModel {
