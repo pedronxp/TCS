@@ -32,6 +32,13 @@ import {
 } from './formulariosAssets';
 import { SignatureStroke } from '../types/documentAcknowledgement';
 
+/** Texto padrão da Base Legal do relatório (editável por emissão no Console). */
+export const BASE_LEGAL_PADRAO =
+  'Este relatório técnico foi elaborado em conformidade com a Lei Federal ' +
+  'nº 12.608/2012, que institui a Política Nacional de Proteção e Defesa ' +
+  'Civil, e com a Lei Federal nº 10.257/2001, denominada Estatuto da Cidade. ' +
+  'Esses dispositivos estabelecem diretrizes para a prevenção de desastres e a proteção da vida.';
+
 export interface LaudoData {
   id: string;
   protocolo?: string;
@@ -50,6 +57,8 @@ export interface LaudoData {
   // A conduta não é mais exibida no PDF de vistoria.
   condutaRecomendada?: string;
   observacoesTecnicas?: string;
+  /** Base Legal exibida no rodapé do relatório; usa o texto padrão quando vazia. */
+  baseLegal?: string;
   cargo?: string;
   bairro?: string;
   responsavelNome?: string;
@@ -1022,11 +1031,13 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     <div class="section-title">Base Legal</div>
     <div class="legal-note">
       ${isAvaliacaoArvore ? `${escapeHtml(schemaForm?.metodologia?.fonte || '')}<br/>` : ''}
-      Este relatório técnico foi elaborado em conformidade com a Lei Federal
+      ${dados.baseLegal?.trim()
+        ? escapeHtml(dados.baseLegal).replace(/\n/g, '<br/>')
+        : `Este relatório técnico foi elaborado em conformidade com a Lei Federal
       nº 12.608/2012, que institui a Política Nacional de Proteção e Defesa
       Civil, e com a Lei Federal nº 10.257/2001, denominada Estatuto da Cidade.
       Esses dispositivos estabelecem diretrizes para a prevenção de desastres
-      e a proteção da vida.
+      e a proteção da vida.`}
     </div>
   </div>
 
