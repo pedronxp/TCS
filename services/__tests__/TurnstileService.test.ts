@@ -12,11 +12,10 @@ describe('TurnstileService', () => {
     expect(config.siteKey).toBeNull();
   });
 
-  it('mantém a chave pública disponível no Expo local quando não há arquivo de ambiente', () => {
+  it('mantém o captcha desativado no app quando não há chave pública em ambiente', () => {
     expect(getTurnstileConfiguration()).toMatchObject({
-      enabled: true,
-      siteKey: '0x4AAAAAAEZrvk6QszB6lWKY',
-      origin: 'https://tcsvistoria.pages.dev',
+      enabled: false,
+      siteKey: null,
     });
   });
 
