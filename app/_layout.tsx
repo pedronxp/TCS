@@ -154,7 +154,7 @@ function RootNavigator() {
 
   return (
     <>
-      <StatusBar style={isDark ? 'light' : 'dark'} translucent={false} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(auth)" />

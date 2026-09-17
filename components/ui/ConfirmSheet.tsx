@@ -53,7 +53,7 @@ export function ConfirmSheet({ visible, title, description, actions, onDismiss }
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject },
+  backdrop: { ...StyleSheet.absoluteFill },
   sheet: { borderTopLeftRadius: SpacingAlias.radiusXl, borderTopRightRadius: SpacingAlias.radiusXl, paddingHorizontal: Spacing[5], paddingTop: Spacing[3] },
   handle: { alignSelf: 'center', width: 52, height: 5, borderRadius: 3, marginBottom: Spacing[5] },
   title: { fontSize: FontSize.xl, fontWeight: FontWeight.bold },

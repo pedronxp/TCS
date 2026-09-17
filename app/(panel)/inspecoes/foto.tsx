@@ -456,13 +456,13 @@ const styles = StyleSheet.create({
   },
   foto: { width: '100%', height: '100%' },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', alignItems: 'center', gap: 8,
   },
   uploadText: { color: '#FFF', fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   erroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'center', alignItems: 'center', gap: 6,
     padding: 10,

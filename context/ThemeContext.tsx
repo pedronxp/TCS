@@ -37,7 +37,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       .then((storedMode) => {
         const mode = isThemeMode(storedMode) ? storedMode : 'system';
         setThemeModeState(mode);
-        Appearance.setColorScheme(mode === 'light' || mode === 'dark' ? mode : null);
+        Appearance.setColorScheme(mode === 'light' || mode === 'dark' ? mode : 'unspecified');
       })
       .catch((error) => {
         logger.warn('system', 'Failed to restore theme preference', {
@@ -48,7 +48,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);
-    Appearance.setColorScheme(mode === 'light' || mode === 'dark' ? mode : null);
+    Appearance.setColorScheme(mode === 'light' || mode === 'dark' ? mode : 'unspecified');
     AsyncStorage.setItem(THEME_PREFERENCE_KEY, mode).catch((error) => {
       logger.warn('system', 'Failed to save theme preference', {
         erro: String(error),
