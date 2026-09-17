@@ -656,7 +656,7 @@ export default function MapasScreen() {
       {mapVisible && (
         <MapView
           ref={mapRef}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
           mapType={currentStyleConfig.mapType}
           customMapStyle={mapStyle === 'escuro' || (isDark && mapStyle === 'padrao') ? DARK_MAP_STYLE : undefined}
