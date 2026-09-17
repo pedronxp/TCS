@@ -27,7 +27,6 @@ import {
   flattenPerguntas,
   getObservacaoCondicionalRiscoKey,
   getPerguntaIdFromObservacaoCondicionalRiscoKey,
-  opcaoAcionaObservacaoCondicionalRisco,
   PerguntaModel,
 } from './formulariosAssets';
 import { SignatureStroke } from '../types/documentAcknowledgement';
@@ -456,7 +455,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
         }
       }
 
-      if (!observacao && opcaoAcionaObservacaoCondicionalRisco(dados.formularioId, pergunta, String(valor))) {
+      if (!observacao) {
         observacao = String(respostasObjeto[getObservacaoCondicionalRiscoKey(pergunta.id)] ?? '').trim() || undefined;
       }
 
@@ -520,9 +519,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
                       pontuacaoDesc = ` <span class="answer-score">(+${formatarPontuacaoRisco(opDef.pesoRisco)} pts)</span>`;
                   }
                   const observacaoKey = getObservacaoCondicionalRiscoKey(pDef.id);
-                  const observacao = opcaoAcionaObservacaoCondicionalRisco(dados.formularioId, pDef, String(val))
-                    ? String((respostas as Record<string, unknown>)[observacaoKey] ?? '').trim()
-                    : '';
+                  const observacao = String((respostas as Record<string, unknown>)[observacaoKey] ?? '').trim();
                   if (observacao) {
                     observacaoDesc = `<div class="item-observation"><strong>Observação:</strong> ${escapeHtml(observacao)}</div>`;
                   }
