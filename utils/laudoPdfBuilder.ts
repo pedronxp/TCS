@@ -4,7 +4,7 @@
  * Substitui as 3 implementações inline em resultado.tsx, laudo.tsx e relatorio.tsx.
  */
 
-import { File, Paths } from 'expo-file-system';
+import { photoUrlToBase64 } from './photoToBase64';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
 import {
   CalculoRiscoSnapshot,
@@ -548,34 +548,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     });
   }
 
-  const converterParaBase64 = async (url: string): Promise<string | null> => {
-    let temporaryFile: File | null = null;
-    try {
-      if (url.startsWith('file://')) {
-        const file = new File(url);
-        if (!file.exists) return null;
-        const b64 = await file.base64();
-        return `data:image/jpeg;base64,${b64}`;
-      } else if (url.startsWith('http://') || url.startsWith('https://')) {
-        temporaryFile = new File(
-          Paths.cache,
-          `foto_laudo_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`
-        );
-        const downloaded = await File.downloadFileAsync(url, temporaryFile, { idempotent: true });
-        const b64 = await downloaded.base64();
-        return `data:image/jpeg;base64,${b64}`;
-      }
-    } catch (e) {
-      console.warn('[laudoPdfBuilder] Erro ao converter foto:', e);
-    } finally {
-      if (temporaryFile?.exists) {
-        try { temporaryFile.delete(); } catch { /* arquivo temporário já removido */ }
-      }
-    }
-    return null;
-  };
-
-  const fotosBase64 = (await Promise.all(urlsParaProcessar.map(converterParaBase64)))
+  const fotosBase64 = (await Promise.all(urlsParaProcessar.map(photoUrlToBase64)))
     .filter((b): b is string => b !== null);
 
   let imageHtml = '';
