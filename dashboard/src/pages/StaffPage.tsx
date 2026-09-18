@@ -61,6 +61,7 @@ const permissionGroups: ReadonlyArray<{ label: string; permissions: ReadonlyArra
     ['staff.read', 'Consultar equipe interna'], ['staff.manage', 'Gerenciar equipe interna'], ['audit.read', 'Consultar auditoria'],
     ['account.approve', 'Aprovar contas'], ['account.lock', 'Bloquear contas'], ['account.recover_invite', 'Recuperar convite de conta'],
     ['token.manage', 'Gerenciar tokens'], ['notification.manage', 'Enviar avisos'],
+    ['ia.read', 'Consultar módulo de IA'], ['ia.manage', 'Gerenciar IA e agente WhatsApp'],
   ] },
   { label: 'Técnico', permissions: [
     ['technical.read', 'Consultar dados técnicos'], ['technical.write', 'Alterar configurações técnicas'], ['build.request', 'Solicitar build'], ['build.approve', 'Aprovar build'],
@@ -86,6 +87,8 @@ const permissionDescriptions: Partial<Record<InternalPermission, string>> = {
   'configuration.publish': 'Permite publicar configurações para uso em produção.',
   'mobile.inspection.manage': 'Permite criar, consultar e sincronizar somente vistorias vinculadas à própria conta, fora de organizações.',
   'mobile.map.read': 'Exibe no mapa somente as coordenadas e vistorias vinculadas à própria conta, fora de organizações.',
+  'ia.read': 'Exibe o painel de IA: status das chaves, uso, sessões do agente e logs, sem permitir mudanças.',
+  'ia.manage': 'Permite cadastrar chaves de IA, configurar o agente WhatsApp, liberar funcionalidades por organização/usuário e revogar sessões.',
 };
 
 export function StaffPage() {

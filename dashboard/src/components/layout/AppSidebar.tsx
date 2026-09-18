@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { ChevronsLeft, ChevronsRight, LogOut, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { ChevronDown, ChevronsLeft, ChevronsRight, LogOut, Search, X } from 'lucide-react';
 import { TcsMark } from '@/components/brand/TcsMark';
 import { RoleBadge } from '@/components/domain/Badges';
 import { useAuth } from '@/contexts/AuthContext';
@@ -129,58 +129,13 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
             </p>
           )}
           {visibleGroups.map((group) => (
-            <div key={group.label} className="mb-6">
-              {!compact && (
-                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.label}
-                </p>
-              )}
-              <div className="space-y-1.5">
-                {group.items.map((item) => {
-                  const link = (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={onNavigate}
-                      end={item.to === '/app'}
-                      aria-label={compact ? item.label : undefined}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                          isActive
-                            ? 'bg-accent font-semibold text-foreground'
-                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
-                          compact && 'mx-auto h-12 w-12 justify-center rounded-xl px-0',
-                        )
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <span
-                            className={cn(
-                              'grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors',
-                              isActive
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground',
-                            )}
-                          >
-                            <item.icon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          {!compact && <span className="truncate">{item.label}</span>}
-                        </>
-                      )}
-                    </NavLink>
-                  );
-
-                  return compact ? (
-                    <Tooltip key={item.to}>
-                      <TooltipTrigger asChild>{link}</TooltipTrigger>
-                      <TooltipContent side="right">{item.label}</TooltipContent>
-                    </Tooltip>
-                  ) : link;
-                })}
-              </div>
-            </div>
+            <SidebarMenuGroup
+              key={group.label}
+              group={group}
+              compact={compact}
+              searching={Boolean(normalizedQuery)}
+              onNavigate={onNavigate}
+            />
           ))}
         </nav>
 
@@ -226,5 +181,117 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
 }
 
 function normalizeNavigationQuery(value: string) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLocaleLowerCase('pt-BR');
+}
+
+const SIDEBAR_GROUPS_KEY = 'tcs:sidebar-collapsed-groups';
+
+function readCollapsedGroups(): Set<string> {
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_GROUPS_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function SidebarMenuGroup({ group, compact, searching, onNavigate }: {
+  group: ReturnType<typeof resolveNavigation>[number];
+  compact: boolean;
+  searching: boolean;
+  onNavigate?: () => void;
+}) {
+  const location = useLocation();
+  const hasActiveItem = group.items.some((item) =>
+    item.to === '/app' ? location.pathname === '/app' : location.pathname.startsWith(item.to));
+  const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsedGroups().has(group.label));
+  const [mounted, setMounted] = useState(false);
+
+  // Ao navegar para uma rota dentro de um grupo fechado, abre o grupo.
+  useEffect(() => {
+    setMounted(true);
+    if (hasActiveItem && readCollapsedGroups().has(group.label)) {
+      setCollapsed(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  const expanded = compact || searching || !collapsed || !mounted;
+
+  const toggle = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      const set = readCollapsedGroups();
+      if (next) set.add(group.label); else set.delete(group.label);
+      try { window.localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify([...set])); } catch { /* storage indisponível */ }
+      return next;
+    });
+  };
+
+  return (
+    <div className="mb-3">
+      {!compact && (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={expanded}
+          className="mb-2 flex w-full items-center justify-between rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span>{group.label}</span>
+          <ChevronDown
+            className={cn('h-3.5 w-3.5 transition-transform duration-200', expanded ? 'rotate-0' : '-rotate-90')}
+            aria-hidden="true"
+          />
+        </button>
+      )}
+      {expanded && (
+        <div className="space-y-1.5">
+          {group.items.map((item) => {
+            const link = (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={onNavigate}
+                end={item.to === '/app'}
+                aria-label={compact ? item.label : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    'flex h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    isActive
+                      ? 'bg-accent font-semibold text-foreground'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                    compact && 'mx-auto h-12 w-12 justify-center rounded-xl px-0',
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={cn(
+                        'grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors',
+                        isActive
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    {!compact && <span className="truncate">{item.label}</span>}
+                  </>
+                )}
+              </NavLink>
+            );
+
+            return compact ? (
+              <Tooltip key={item.to}>
+                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                <TooltipContent side="right">{item.label}</TooltipContent>
+              </Tooltip>
+            ) : link;
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
