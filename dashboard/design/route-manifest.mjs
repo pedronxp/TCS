@@ -622,6 +622,17 @@ export const routeManifest = [
     automatedVisualBaselines: null,
   }),
   route({
+    id: 'console-ia-access',
+    path: '/app/ia/acessos',
+    audience: ['owner', 'developer'],
+    permission: 'ia.read',
+    template: 'settings',
+    penpot: '12 · Equipe interna',
+    approvalStatus: 'approved-in-penpot',
+    visualSource: 'Penpot/TCS — Web Dashboard/12 · Equipe interna',
+    automatedVisualBaselines: null,
+  }),
+  route({
     id: 'console-ia-logs',
     path: '/app/ia/logs',
     audience: ['owner', 'developer'],

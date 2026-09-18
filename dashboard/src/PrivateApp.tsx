@@ -40,6 +40,7 @@ import { IaOverviewPage } from '@/pages/ia/IaOverviewPage';
 import { IaKeysPage } from '@/pages/ia/IaKeysPage';
 import { IaAgentPage } from '@/pages/ia/IaAgentPage';
 import { IaRolloutPage } from '@/pages/ia/IaRolloutPage';
+import { IaAcessosPage } from '@/pages/ia/IaAcessosPage';
 import { IaLogsPage } from '@/pages/ia/IaLogsPage';
 import { legacyCustomerDetailPath, legacyCustomerMemberPath } from '@/lib/customerRoutes';
 
@@ -120,6 +121,7 @@ export default function PrivateApp() {
           <Route path="ia/chaves" element={<ProtectedRoute requirePermission="ia.read"><IaKeysPage /></ProtectedRoute>} />
           <Route path="ia/agente" element={<ProtectedRoute requirePermission="ia.read"><IaAgentPage /></ProtectedRoute>} />
           <Route path="ia/rollout" element={<ProtectedRoute requirePermission="ia.read"><IaRolloutPage /></ProtectedRoute>} />
+          <Route path="ia/acessos" element={<ProtectedRoute requirePermission="ia.read"><IaAcessosPage /></ProtectedRoute>} />
           <Route path="ia/logs" element={<ProtectedRoute requirePermission="ia.read"><IaLogsPage /></ProtectedRoute>} />
           <Route path="dispositivo" element={<ProtectedRoute requirePermission="session.read"><DevicesPage /></ProtectedRoute>} />
           <Route path="suporte" element={<ProtectedRoute requirePermission="support.read"><SupportPage /></ProtectedRoute>} />

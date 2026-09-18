@@ -4,6 +4,7 @@ import { SendHorizonal } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { ErrorState, LoadingState } from '@/components/ui/AsyncState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -14,6 +15,29 @@ import { useAuth } from '@/contexts/AuthContext';
 import { IaNav } from './IaNav';
 
 interface ChatMessage { from: 'user' | 'bot'; text: string }
+
+const BOT_FUNCTIONS = [
+  { key: 'buscar_vistoria', label: 'Buscar vistoria', help: 'Por protocolo, rua, solicitante, agente, cidade ou UF.' },
+  { key: 'baixar_laudo', label: 'Baixar laudo/relatório', help: 'Gera link temporário (30 min) do documento mais recente da vistoria.' },
+  { key: 'minhas_vistorias', label: 'Minhas vistorias recentes', help: 'Lista as últimas 5 vistorias feitas pelo próprio agente.' },
+  { key: 'vistorias_equipe', label: 'Vistorias da equipe', help: 'Lista vistorias de toda a organização (para quem gerencia).' },
+  { key: 'estatisticas', label: 'Estatísticas do mês', help: 'Contagem de vistorias e de risco alto no mês corrente.' },
+] as const;
+
+const ORG_ROLES = [
+  { key: 'agent', label: 'Agente' },
+  { key: 'supervisor', label: 'Supervisor' },
+  { key: 'admin', label: 'Admin da org' },
+  { key: 'master', label: 'Master' },
+] as const;
+
+const DEFAULT_PERMS: Record<string, string[]> = {
+  buscar_vistoria: ['agent', 'supervisor', 'admin', 'master'],
+  baixar_laudo: ['agent', 'supervisor', 'admin', 'master'],
+  minhas_vistorias: ['agent', 'supervisor', 'admin', 'master'],
+  vistorias_equipe: ['supervisor', 'admin', 'master'],
+  estatisticas: ['supervisor', 'admin', 'master'],
+};
 
 export function IaAgentPage() {
   const { can, user } = useAuth();
@@ -177,6 +201,83 @@ export function IaAgentPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>O que o bot oferece — por perfil</CardTitle>
+          <CardDescription>
+            Cada linha é uma função do bot; cada coluna é um perfil dentro da organização.
+            Desmarque para esconder a opção do menu daquele perfil. Sem marcação, valem os padrões do sistema.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="pb-2 pr-4">Função</th>
+                  {ORG_ROLES.map((r) => <th key={r.key} className="pb-2 pr-4 text-center">{r.label}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {BOT_FUNCTIONS.map((f) => {
+                  const perms = (current.feature_permissions as Record<string, string[]>) ?? {};
+                  const allowed = perms[f.key] ?? DEFAULT_PERMS[f.key];
+                  return (
+                    <tr key={f.key} className="border-t">
+                      <td className="py-2.5 pr-4">
+                        <p className="font-medium">{f.label}</p>
+                        <p className="text-xs text-muted-foreground">{f.help}</p>
+                      </td>
+                      {ORG_ROLES.map((r) => (
+                        <td key={r.key} className="text-center">
+                          <Checkbox
+                            checked={allowed.includes(r.key)}
+                            disabled={!mayManage}
+                            aria-label={`${f.label} para ${r.label}`}
+                            onCheckedChange={(checked) => {
+                              if (!mayManage) return;
+                              const next = checked
+                                ? [...new Set([...allowed, r.key])]
+                                : allowed.filter((x) => x !== r.key);
+                              set('feature_permissions', { ...perms, [f.key]: next });
+                            }}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="handoff">Telefone de atendimento humano (opcional)</Label>
+              <Input
+                id="handoff"
+                value={current.human_handoff_phone ?? ''}
+                onChange={(e) => mayManage && set('human_handoff_phone', e.target.value)}
+                placeholder="5541..."
+                disabled={!mayManage}
+              />
+              <p className="text-xs text-muted-foreground">Quando o usuário pedir “falar com humano”, o bot envia este contato.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="model_nlu">Modelo de interpretação do WhatsApp</Label>
+              <Input
+                id="model_nlu"
+                value={((current.model_overrides as Record<string, string> | null)?.whatsapp_nlu) ?? ''}
+                onChange={(e) => mayManage && set('model_overrides', { ...((current.model_overrides as Record<string, string> | null) ?? {}), whatsapp_nlu: e.target.value })}
+                placeholder="vazio = modelo da chave ativa"
+                disabled={!mayManage}
+              />
+              <p className="text-xs text-muted-foreground">Usado só para entender o que o usuário escreveu. Ex.: z-ai/glm-5.3</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
