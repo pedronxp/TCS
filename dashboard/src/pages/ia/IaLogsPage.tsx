@@ -19,6 +19,7 @@ export function IaLogsPage() {
 
   const usage = useQuery({ queryKey: ['ia', 'usage'], queryFn: () => iaApi.usageRecent(50) });
   const sessions = useQuery({ queryKey: ['ia', 'wa-sessions'], queryFn: iaApi.whatsappSessions });
+  const cron = useQuery({ queryKey: ['ia', 'cron'], queryFn: iaApi.cronStatus, refetchInterval: 60_000 });
 
   const revoke = useMutation({
     mutationFn: (id: string) => iaApi.whatsappSessionRevoke(id),
@@ -40,6 +41,39 @@ export function IaLogsPage() {
       </header>
 
       <IaNav />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rotinas automáticas</CardTitle>
+          <CardDescription>Agendamentos do sistema (pg_cron) e últimas execuções.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {(cron.data?.jobs ?? []).map((j) => (
+            <div key={j.jobname} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+              <div>
+                <p className="font-medium">{j.jobname}</p>
+                <p className="text-xs text-muted-foreground">Agenda: {j.schedule} (UTC)</p>
+              </div>
+              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${j.active ? 'border-success/30 bg-success-soft text-success' : 'border-border bg-muted text-muted-foreground'}`}>
+                {j.active ? 'Ativa' : 'Pausada'}
+              </span>
+            </div>
+          ))}
+          {(cron.data?.recent_runs ?? []).length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Últimas execuções</p>
+              <ul className="divide-y divide-border text-sm">
+                {cron.data!.recent_runs.map((r, i) => (
+                  <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span>{r.jobname} — {r.status === 'succeeded' ? '✅' : '❌'} {r.return_message === '' ? 'ok' : r.return_message}</span>
+                    <span className="text-xs text-muted-foreground">{fmtDate(r.start_time)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

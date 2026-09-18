@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/AsyncState';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { iaApi, type AiFeatureRow } from '@/lib/ia';
@@ -27,6 +28,9 @@ export function IaRolloutPage() {
   const [orgId, setOrgId] = useState('');
   const [userId, setUserId] = useState('');
   const [note, setNote] = useState('');
+  const [featureFilter, setFeatureFilter] = useState('');
+  const [grantFilter, setGrantFilter] = useState('');
+  const [orgFilter, setOrgFilter] = useState('all');
 
   const features = useQuery({ queryKey: ['ia', 'features'], queryFn: iaApi.featuresList });
   const grants = useQuery({ queryKey: ['ia', 'grants'], queryFn: iaApi.grantsList });
@@ -72,6 +76,37 @@ export function IaRolloutPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const toggleGrant = useMutation({
+    mutationFn: (g: { id: string; feature_key: string; organization_id: string | null; user_id: string | null; enabled: boolean; note: string | null }) =>
+      iaApi.grantSet({
+        feature_key: g.feature_key,
+        organization_id: g.organization_id,
+        user_id: g.user_id,
+        enabled: !g.enabled,
+        note: g.note,
+      }),
+    onSuccess: () => { toast.success('Checkbox atualizado.'); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const visibleFeatures = useMemo(() => {
+    const q = featureFilter.trim().toLowerCase();
+    return (features.data ?? []).filter((f) =>
+      !q || f.name.toLowerCase().includes(q) || f.key.toLowerCase().includes(q));
+  }, [features.data, featureFilter]);
+
+  const grantsOf = (featureKey: string) => {
+    const q = grantFilter.trim().toLowerCase();
+    return (grants.data ?? [])
+      .filter((g) => g.feature_key === featureKey)
+      .filter((g) => (orgFilter === 'all' ? true : g.organization_id === orgFilter))
+      .filter((g) =>
+        !q ||
+        (g.organization_name ?? '').toLowerCase().includes(q) ||
+        (g.user_email ?? '').toLowerCase().includes(q) ||
+        (g.user_name ?? '').toLowerCase().includes(q));
+  };
+
   if (features.isLoading) return <LoadingState label="Carregando funcionalidades" />;
   if (features.isError || !features.data) return <ErrorState error="Não foi possível carregar" onRetry={() => void features.refetch()} />;
 
@@ -86,7 +121,35 @@ export function IaRolloutPage() {
 
       <IaNav />
 
-      {features.data.map((f) => (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Filtros</CardTitle>
+          <CardDescription>Filtre funcionalidades e liberações por organização ou usuário.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="f-feature">Funcionalidade</Label>
+            <Input id="f-feature" value={featureFilter} onChange={(e) => setFeatureFilter(e.target.value)} placeholder="buscar por nome..." />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="f-grant">Organização ou usuário</Label>
+            <Input id="f-grant" value={grantFilter} onChange={(e) => setGrantFilter(e.target.value)} placeholder="nome ou e-mail..." />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Organização específica</Label>
+            <div className="flex flex-wrap gap-1.5">
+              <Button size="sm" variant={orgFilter === 'all' ? 'default' : 'outline'} onClick={() => setOrgFilter('all')}>Todas</Button>
+              {(orgs.data ?? []).map((o) => (
+                <Button key={o.id} size="sm" variant={orgFilter === o.id ? 'default' : 'outline'} onClick={() => setOrgFilter(o.id)}>
+                  {o.display_name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {visibleFeatures.map((f) => (
         <Card key={f.key}>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -156,14 +219,22 @@ export function IaRolloutPage() {
               </form>
             )}
 
-            {(grants.data ?? []).filter((g) => g.feature_key === f.key).length > 0 && (
+            {grantsOf(f.key).length > 0 && (
               <ul className="divide-y divide-border rounded-lg border">
-                {(grants.data ?? []).filter((g) => g.feature_key === f.key).map((g) => (
+                {grantsOf(f.key).map((g) => (
                   <li key={g.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                    <span>
-                      {g.organization_id ? `🏢 ${g.organization_name ?? g.organization_id}` : `👤 ${g.user_email ?? g.user_id}`}
-                      {g.note ? <span className="text-muted-foreground"> — {g.note}</span> : null}
-                    </span>
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <Checkbox
+                        checked={g.enabled}
+                        disabled={!mayManage || toggleGrant.isPending}
+                        onCheckedChange={() => toggleGrant.mutate(g)}
+                        aria-label={`Liberação de ${f.name} para ${g.organization_name ?? g.user_email}`}
+                      />
+                      <span className={g.enabled ? '' : 'text-muted-foreground line-through'}>
+                        {g.organization_id ? `🏢 ${g.organization_name ?? g.organization_id}` : `👤 ${g.user_email ?? g.user_id}`}
+                        {g.note ? <span className="text-muted-foreground"> — {g.note}</span> : null}
+                      </span>
+                    </label>
                     {mayManage && (
                       <Button size="sm" variant="ghost" onClick={() => removeGrant.mutate(g.id)}>Remover</Button>
                     )}
@@ -175,7 +246,7 @@ export function IaRolloutPage() {
         </Card>
       ))}
 
-      {features.data.length === 0 && <EmptyState title="Nenhuma funcionalidade cadastrada" description="O catálogo de funcionalidades de IA aparecerá aqui." />}
+      {visibleFeatures.length === 0 && <EmptyState title="Nenhuma funcionalidade encontrada" description="Ajuste os filtros acima." />}
     </div>
   );
 }
