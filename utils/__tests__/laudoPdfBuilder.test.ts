@@ -66,6 +66,29 @@ describe('laudoPdfBuilder', () => {
     expect(riskPanels).toHaveLength(1);
   });
 
+  it('exibe a justificativa técnica do fluxo altura x distância no relatório', async () => {
+    const html = await buildLaudoHtml({
+      id: 'vistoria-test-justificativa',
+      nivelRisco: 'r4',
+      pontuacaoTotal: 9.5,
+      endereco: 'Rua do Talude, 45',
+      municipio: 'Cidade Teste',
+      dataVistoria: '2026-09-17T12:00:00.000Z',
+      agenteNome: 'Agente Teste',
+      formularioId: 'vistoria_deslizamento_v3',
+      respostasJson: JSON.stringify({
+        desl2_q1: 'q1_a',
+        desl2_q2: 'q2_f',
+        desl2_q2_exposicao_altura_distancia: 'muito_alto',
+        desl2_q2_justificativa_tecnica: 'Talude com cerca de 10 m de altura, imóvel a 8 m da base, base solapada e trincas na crista.',
+      }),
+    });
+
+    expect(html).toContain('Justificativa técnica da classificação');
+    expect(html).toContain('Muito alto');
+    expect(html).toContain('Talude com cerca de 10 m de altura');
+  });
+
   it('renderiza relatório CBMMG com metodologia, total e resultado sem R1/R4', async () => {
     const html = await buildLaudoHtml({
       id: 'arvore-test-123456', nivelRisco: 'r4', pontuacaoTotal: 10,
