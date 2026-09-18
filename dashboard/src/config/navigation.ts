@@ -18,6 +18,7 @@ import {
   Smartphone,
   KeyRound,
   BellRing,
+  Sparkles,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -64,6 +65,7 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
       { to: '/app/mensagens', label: 'Caixa de mensagens', icon: Mail, permission: 'console.read' },
       { to: '/app/comunicacoes', label: 'Comunicados e comunidades', icon: Megaphone, permission: 'communication.manage' },
       { to: '/app/whatsapp', label: 'WhatsApp Bot', icon: MessageCircleMore, permission: 'whatsapp.read' },
+      { to: '/app/ia', label: 'IA & Automação', icon: Sparkles, permission: 'ia.read' },
       { to: '/app/sessoes', label: 'Sessões e segurança', icon: Smartphone, permission: 'session.read' },
       { to: '/app/dispositivo', label: 'Dispositivos', icon: Smartphone, permission: 'session.read' },
       { to: '/app/auditoria', label: 'Auditoria', icon: History, permission: 'audit.read' },
@@ -104,6 +106,7 @@ export const DEVELOPER_NAVIGATION: NavigationGroup[] = [
       { to: '/app/mensagens', label: 'Caixa de mensagens', icon: Mail, permission: 'console.read' },
       { to: '/app/comunicacoes', label: 'Comunicados e comunidades', icon: Megaphone, permission: 'communication.manage' },
       { to: '/app/whatsapp', label: 'WhatsApp Bot', icon: MessageCircleMore, permission: 'whatsapp.read' },
+      { to: '/app/ia', label: 'IA & Automação', icon: Sparkles, permission: 'ia.read' },
       { to: '/app/sessoes', label: 'Sessões e segurança', icon: Smartphone, permission: 'session.read' },
       { to: '/app/dispositivo', label: 'Dispositivos', icon: Smartphone, permission: 'session.read' },
     ],

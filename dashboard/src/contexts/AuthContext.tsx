@@ -38,13 +38,14 @@ const internalPermissions = new Set<string>([
   'account.approve', 'account.lock', 'account.recover_invite', 'token.manage', 'notification.manage',
   'communication.manage',
   'whatsapp.read', 'whatsapp.recover', 'whatsapp.manage',
+  'ia.read', 'ia.manage',
 ]);
 
 const whatsappRoleFallbacks: Partial<Record<InternalStaffProfile['role'], ReadonlySet<InternalPermission>>> = {
-  owner: new Set(['whatsapp.read', 'whatsapp.recover', 'whatsapp.manage']),
-  developer: new Set(['whatsapp.read', 'whatsapp.recover', 'whatsapp.manage']),
-  support: new Set(['whatsapp.read', 'whatsapp.recover']),
-  auditor: new Set(['whatsapp.read']),
+  owner: new Set(['whatsapp.read', 'whatsapp.recover', 'whatsapp.manage', 'ia.read', 'ia.manage']),
+  developer: new Set(['whatsapp.read', 'whatsapp.recover', 'whatsapp.manage', 'ia.read', 'ia.manage']),
+  support: new Set(['whatsapp.read', 'whatsapp.recover', 'ia.read']),
+  auditor: new Set(['whatsapp.read', 'ia.read']),
 };
 
 function isInternalRole(value: string | null): value is InternalRole {

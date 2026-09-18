@@ -36,6 +36,11 @@ import { ConsoleWhatsAppPage } from '@/pages/ConsoleWhatsAppPage';
 import { ConsoleWhatsAppOrgPage } from '@/pages/ConsoleWhatsAppOrgPage';
 import { ConsoleWhatsAppCommunitiesPage } from '@/pages/ConsoleWhatsAppCommunitiesPage';
 import { InboxPage } from '@/pages/InboxPage';
+import { IaOverviewPage } from '@/pages/ia/IaOverviewPage';
+import { IaKeysPage } from '@/pages/ia/IaKeysPage';
+import { IaAgentPage } from '@/pages/ia/IaAgentPage';
+import { IaRolloutPage } from '@/pages/ia/IaRolloutPage';
+import { IaLogsPage } from '@/pages/ia/IaLogsPage';
 import { legacyCustomerDetailPath, legacyCustomerMemberPath } from '@/lib/customerRoutes';
 
 const queryClient = new QueryClient({
@@ -111,6 +116,11 @@ export default function PrivateApp() {
           <Route path="whatsapp/:orgId/comunidades" element={<ProtectedRoute requirePermission="whatsapp.read"><ConsoleWhatsAppCommunitiesPage /></ProtectedRoute>} />
           <Route path="whatsapp/:orgId" element={<ProtectedRoute requirePermission="whatsapp.read"><ConsoleWhatsAppOrgPage /></ProtectedRoute>} />
           <Route path="sessoes" element={<ProtectedRoute requirePermission="session.read"><SessionsPage /></ProtectedRoute>} />
+          <Route path="ia" element={<ProtectedRoute requirePermission="ia.read"><IaOverviewPage /></ProtectedRoute>} />
+          <Route path="ia/chaves" element={<ProtectedRoute requirePermission="ia.read"><IaKeysPage /></ProtectedRoute>} />
+          <Route path="ia/agente" element={<ProtectedRoute requirePermission="ia.read"><IaAgentPage /></ProtectedRoute>} />
+          <Route path="ia/rollout" element={<ProtectedRoute requirePermission="ia.read"><IaRolloutPage /></ProtectedRoute>} />
+          <Route path="ia/logs" element={<ProtectedRoute requirePermission="ia.read"><IaLogsPage /></ProtectedRoute>} />
           <Route path="dispositivo" element={<ProtectedRoute requirePermission="session.read"><DevicesPage /></ProtectedRoute>} />
           <Route path="suporte" element={<ProtectedRoute requirePermission="support.read"><SupportPage /></ProtectedRoute>} />
           <Route path="staff" element={<ProtectedRoute requirePermission="staff.read"><StaffPage /></ProtectedRoute>} />
