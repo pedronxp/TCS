@@ -37,12 +37,15 @@ vi.mock('@/contexts/AuthContext', () => ({
 }));
 
 vi.mock('@/hooks/useCustomers', () => ({
-  useCustomers: (search: string, status: string, page: number) => {
+  useCustomers: (params?: { search?: string; status?: string; page?: number }) => {
+    const search = params?.search ?? '';
+    const status = params?.status ?? '';
+    const page = params?.page ?? 0;
     mocks.calls.push([search, status, page]);
     const totals: Record<string, number> = { '': 148, onboarding: 12, pilot: 4, active: 129, suspended: 7 };
     return {
       data: {
-        items: status === '' ? [customer] : [],
+        items: status === '' && search === '' && page === 0 ? [customer] : [],
         total: totals[status] ?? 0,
         limit: 25,
         offset: 0,
