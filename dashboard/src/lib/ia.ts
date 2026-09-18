@@ -105,6 +105,11 @@ export interface WhatsappSessionRow {
   organization_name: string | null;
 }
 
+export interface CronStatus {
+  jobs: { jobname: string; schedule: string; active: boolean }[];
+  recent_runs: { jobname: string; status: string; return_message: string | null; start_time: string; end_time: string | null }[];
+}
+
 // ---------- chamadas RPC ----------
 
 async function rpc<T>(fn: string, params?: Record<string, unknown>): Promise<T> {
@@ -175,6 +180,8 @@ export const iaApi = {
 
   whatsappSessions: () => rpc<WhatsappSessionRow[]>('whatsapp_sessions_list'),
   whatsappSessionRevoke: (id: string) => rpc<void>('whatsapp_session_revoke', { p_id: id }),
+
+  cronStatus: () => rpc<CronStatus>('ai_cron_status'),
 
   /** Simulador do bot dentro do painel (equipe interna). */
   simulateBot: async (phone: string, message: string): Promise<{ replies: string[]; documents: { name: string; url: string }[] }> => {
