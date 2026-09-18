@@ -36,6 +36,8 @@ export type InternalPermission =
   | 'whatsapp.read'
   | 'whatsapp.recover'
   | 'whatsapp.manage'
+  | 'ia.read'
+  | 'ia.manage'
   | 'mobile.inspection.manage'
   | 'mobile.map.read';
 
