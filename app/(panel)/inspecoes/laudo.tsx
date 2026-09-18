@@ -26,7 +26,6 @@ import {
   ASSETS,
   getObservacaoCondicionalRiscoKey,
   getPerguntaIdFromObservacaoCondicionalRiscoKey,
-  opcaoAcionaObservacaoCondicionalRisco,
 } from '../../../utils/formulariosAssets';
 import { AppHeader, Badge, Button, LoadingState, SectionHeader, StateBanner } from '../../../components/ui';
 import { Spacing } from '../../../constants/Spacing';
@@ -87,9 +86,7 @@ function resolverItensVistoriados(
         respostaTexto = `${respostaTexto} ${p.unidade}`;
       }
       const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
-      const observacao = itemCalculado?.observacao || (opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
-        ? respostas[observacaoKey]?.trim()
-        : undefined);
+      const observacao = itemCalculado?.observacao || respostas[observacaoKey]?.trim() || undefined;
       itens.push({ pergunta: p.texto, resposta: respostaTexto, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, itens });

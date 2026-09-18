@@ -18,6 +18,8 @@ export interface ReportDraft {
   foto_url?: string | null;
   fotosUrls?: string[] | null;
   modoTreinamento?: boolean;
+  // Nome do solicitante/responsável da vistoria (vem da coluna responsavel_nome)
+  responsavelNome?: string;
   // Campos editáveis pelo técnico
   condutaRecomendada: string;
   observacoesTecnicas: string;
@@ -48,12 +50,15 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = useState<ReportDraft | null>(null);
 
   const initReport = (data: Omit<ReportDraft, 'geradoEm'>) => {
-    setDraft({
-      ...data,
-      condutaRecomendada: data.condutaRecomendada || CONDUTA_DEFAULT[data.nivelRisco] || CONDUTA_DEFAULT.r1,
-      observacoesTecnicas: data.observacoesTecnicas || '',
-      cargo: data.cargo || 'Agente de Defesa Civil',
-      geradoEm: new Date().toISOString(),
+    setDraft(prev => {
+      const mesmaVistoria = prev?.vistoriaId === data.vistoriaId;
+      return {
+        ...data,
+        condutaRecomendada: (mesmaVistoria && prev?.condutaRecomendada) ? prev.condutaRecomendada : (data.condutaRecomendada || CONDUTA_DEFAULT[data.nivelRisco] || CONDUTA_DEFAULT.r1),
+        observacoesTecnicas: (mesmaVistoria && prev?.observacoesTecnicas) ? prev.observacoesTecnicas : (data.observacoesTecnicas || ''),
+        cargo: (mesmaVistoria && prev?.cargo) ? prev.cargo : (data.cargo || 'Agente de Defesa Civil'),
+        geradoEm: mesmaVistoria && prev?.geradoEm ? prev.geradoEm : new Date().toISOString(),
+      };
     });
   };
 

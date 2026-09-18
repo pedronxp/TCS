@@ -31,7 +31,6 @@ import {
   ASSETS,
   getObservacaoCondicionalRiscoKey,
   getPerguntaIdFromObservacaoCondicionalRiscoKey,
-  opcaoAcionaObservacaoCondicionalRisco,
 } from '../../../utils/formulariosAssets';
 import { safeBack } from '../../../utils/navigationUtils';
 import { AppHeader, Button, EmptyState } from '../../../components/ui';
@@ -113,9 +112,7 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
       }
 
       const observacaoKey = getObservacaoCondicionalRiscoKey(p.id);
-      const observacao = itemCalculado?.observacao || (opcaoAcionaObservacaoCondicionalRisco(formularioId, p, raw)
-        ? respostas[observacaoKey]?.trim()
-        : undefined);
+      const observacao = itemCalculado?.observacao || respostas[observacaoKey]?.trim() || undefined;
       itens.push({ perguntaId: p.id, pergunta: p.texto, resposta: respostaTexto, tipo: p.tipo, pesoRisco, observacao: observacao || undefined });
     }
     if (itens.length) grupos.push({ grupo: fase.titulo, faseId: fase.id, peso: fase.peso, itens });
@@ -426,7 +423,7 @@ export default function RelatorioScreen() {
         cargo: draft.cargo,
         foto_url: draft.foto_url ?? null,
         fotosUrls: draft.fotosUrls ?? (draft.foto_url ? [draft.foto_url] : null),
-        responsavelNome: (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
+        responsavelNome: draft.responsavelNome || (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
         bairro: (draft.respostas || {})['Bairro'],
         modoTreinamento: isTrainingReport,
       };
@@ -570,6 +567,7 @@ export default function RelatorioScreen() {
         cargo: draft.cargo,
         foto_url: draft.foto_url ?? null,
         fotosUrls: draft.fotosUrls ?? (draft.foto_url ? [draft.foto_url] : null),
+        responsavelNome: draft.responsavelNome || (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
         modoTreinamento: isTrainingReport,
       };
 
