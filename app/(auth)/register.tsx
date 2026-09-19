@@ -7,7 +7,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
 import { supabase } from '../../utils/supabase';
 import { traduzirErroAuth } from '../../utils/authErrors';
 import { Feather } from '@expo/vector-icons';
@@ -148,7 +147,6 @@ export default function RegisterScreen() {
   // Permissões
   const [permCamera, setPermCamera]           = useState<PermStatus>('pendente');
   const [permLocalizacao, setPermLocalizacao] = useState<PermStatus>('pendente');
-  const [permNotificacoes, setPermNotificacoes] = useState<PermStatus>('pendente');
 
   // ── Verificar token inline ───────────────────────────────────────────────
   const verificarToken = async (valor: string) => {
@@ -274,13 +272,8 @@ export default function RegisterScreen() {
     setPermLocalizacao(status === 'granted' ? 'concedida' : 'negada');
   };
 
-  const solicitarNotificacoes = async () => {
-    const { status } = await Notifications.requestPermissionsAsync();
-    setPermNotificacoes(status === 'granted' ? 'concedida' : 'negada');
-  };
-
   const solicitarTodas = async () => {
-    await Promise.all([solicitarCamera(), solicitarLocalizacao(), solicitarNotificacoes()]);
+    await Promise.all([solicitarCamera(), solicitarLocalizacao()]);
   };
 
   // ── Etapa 4: registrar ───────────────────────────────────────────────────
@@ -406,14 +399,6 @@ export default function RegisterScreen() {
         status: permLocalizacao,
         solicitar: solicitarLocalizacao,
       },
-      {
-        icon: 'bell' as const,
-        color: theme.warning,
-        titulo: 'Notificações',
-        desc: 'Receber alertas operacionais e agendamentos de vistorias.',
-        status: permNotificacoes,
-        solicitar: solicitarNotificacoes,
-      },
     ];
 
     return (
@@ -469,7 +454,7 @@ export default function RegisterScreen() {
             ))}
           </View>
 
-          {(permCamera === 'pendente' || permLocalizacao === 'pendente' || permNotificacoes === 'pendente') && (
+          {(permCamera === 'pendente' || permLocalizacao === 'pendente') && (
             <TouchableOpacity
               style={[styles.solicitarTodasBtn, { borderColor: theme.primary }]}
               onPress={solicitarTodas}
