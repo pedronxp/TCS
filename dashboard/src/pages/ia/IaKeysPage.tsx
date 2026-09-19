@@ -13,6 +13,17 @@ import { IaNav } from './IaNav';
 
 const PROVIDERS = ['nvidia', 'openai', 'gemini'] as const;
 
+function formatError(code: string | null): { label: string; hint: string } {
+  if (!code) return { label: '', hint: '' };
+  const map: Record<string, { label: string; hint: string }> = {
+    http_0: { label: 'Timeout/conexão', hint: 'Provedor demorou demais para responder. Pode ser sobrecarga — tente testar novamente.' },
+    http_429: { label: 'Limite de taxa', hint: 'A chave atingiu o limite de requests/min. Cooldown automático em 15 min.' },
+    http_401: { label: 'Chave inválida', hint: 'A chave foi rejeitada. Verifique se está correta e ativa no NVIDIA.' },
+    http_403: { label: 'Acesso negado', hint: 'A chave não tem permissão. Verifique a conta.' },
+  };
+  return map[code] ?? { label: code, hint: '' };
+}
+
 function StatusPill({ status }: { status: AiKeyRow['status'] }) {
   const map = {
     active: 'border-success/30 bg-success-soft text-success',
@@ -202,7 +213,10 @@ export function IaKeysPage() {
                       {k.monthly_token_limit ? ` · limite ${k.monthly_token_limit.toLocaleString('pt-BR')}` : ''}
                     </p>
                     {k.last_error_code && (
-                      <p className="text-xs text-destructive">Último erro: {k.last_error_code} {k.last_error_at ? `(${new Date(k.last_error_at).toLocaleString('pt-BR')})` : ''}</p>
+                      <p className="text-xs text-destructive">
+                        {formatError(k.last_error_code).label} · {formatError(k.last_error_code).hint && <span className="text-muted-foreground">{formatError(k.last_error_code).hint}</span>}
+                        {k.last_error_at && <span className="text-muted-foreground"> ({new Date(k.last_error_at).toLocaleString('pt-BR')})</span>}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
