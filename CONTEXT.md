@@ -70,7 +70,7 @@
 | **F5 Templates dashboard** | ✅ **CONCLUÍDA (19/set/2026)** — agente + supervisor + admin widget-driven | — |
 | **F6 Analytics owner** | ✅ **CONCLUÍDA (19/set/2026)** — /app/analytics (KPIs, 2 gráficos, QE, top orgs, CSV) | — |
 | **F7 Suporte** | ✅ **CONCLUÍDA (19/set/2026)** — app lista + conversa + resposta + notificação | — |
-| **F8 Retenção** | ❌ Não existe | alertas de inatividade, relatório mensal |
+| **F8 Retenção** | ✅ **CONCLUÍDA (19/set/2026)** — alerta de inatividade + relatório mensal email | — |
 
 ### O que a F1 entregou (migrações `f1_complete_multi_tenancy` + `f1b_form_rpcs_organization`):
 - `organization_id UUID → organizations(id)` adicionado em **`formularios`**, **`atribuicoes`**, **`audit_logs`** (+ índices)
@@ -239,6 +239,16 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 ---
 
 ## NOTAS DE SESSÃO
+
+> **Sessão 20 (19/set/2026) — F8 RETENÇÃO (última fase).**
+> Banco (`f8_retencao`): retention_settings (inatividade_dias configurável, relatorio_ativo),
+> org_monthly_reports (UNIQUE org+competencia, resumo JSONB), retention_daily_engine (alerta
+> org parada → notifica admins, dedup 7d; dia 1 gera relatório + notificação), notificacoes.tipo
+> += 'inatividade_org','relatorio_mensal'. Crons: retention-daily-engine (06h30 BRT) e
+> send-monthly-report (10h BRT, dias 1-3 → edge function de mesmo nome via x-cron-secret
+> = ai_cron_settings). Edge function send-monthly-report (Resend, HTML com comparativo).
+> Console: AnalyticsPage ganhou bloco Retenção (lista de relatórios + editor de dias).
+> ROADMAP F1-F8 COMPLETO.
 
 > **Sessão 19 (19/set/2026) — F6 ANALYTICS OWNER.**
 > RPC get_owner_analytics (MRR, recebido no mês, orgs por status, séries 6m receita+vistorias,

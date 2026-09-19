@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -215,9 +215,7 @@ export function AnalyticsPage() {
             <Row label="Nota média" value={data.qe.nota_media != null ? `${data.qe.nota_media}/10` : '—'} />
             <Row label="Tempo médio de revisão" value={data.qe.tempo_media_horas != null ? `${data.qe.tempo_medio_horas}h` : '—'} />
           </CardContent>
-        </Card>
-
-        <Card>
+        </Card>        <Card>
           <CardHeader><h2 className="text-sm font-semibold">Vistorias por organização (90 dias)</h2></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {data.top_orgs_90d.length === 0
@@ -231,6 +229,8 @@ export function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <RetencaoBloco />
     </div>
   );
 }
@@ -240,6 +240,107 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-semibold">{value}</span>
+    </div>
+  );
+}
+
+// ─── Retenção (F8): relatórios mensais + configuração ────────────────────────
+
+interface RelatorioRow {
+  id: string;
+  competencia: string;
+  enviado_em: string | null;
+  resumo: { vistorias?: number; vistorias_mes_anterior?: number };
+  organizations: { display_name: string } | null;
+}
+
+function RetencaoBloco() {
+  const [dias, setDias] = useState(14);
+  const [salvando, setSalvando] = useState(false);
+
+  const relatorios = useQuery({
+    queryKey: ['org-monthly-reports'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('org_monthly_reports')
+        .select('id, competencia, enviado_em, resumo, organizations(display_name)')
+        .order('competencia', { ascending: false })
+        .limit(24);
+      if (error) throw error;
+      return (data ?? []) as RelatorioRow[];
+    },
+  });
+
+  const cfg = useQuery({
+    queryKey: ['retention-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('retention_settings')
+        .select('inatividade_dias')
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (cfg.data?.inatividade_dias) setDias(cfg.data.inatividade_dias);
+  }, [cfg.data]);
+
+  const salvar = async () => {
+    setSalvando(true);
+    const { error } = await supabase
+      .from('retention_settings')
+      .update({ inatividade_dias: dias, atualizado_em: new Date().toISOString() })
+      .eq('singleton', true);
+    setSalvando(false);
+    if (error) toast.error('Falha ao salvar: ' + error.message);
+    else toast.success('Alerta de inatividade atualizado.');
+  };
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <CardHeader><h2 className="text-sm font-semibold">Relatórios mensais (retenção)</h2></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {(relatorios.data ?? []).length === 0
+            ? <p className="text-muted-foreground">Gerados automaticamente todo dia 1º. Nenhum ainda.</p>
+            : (relatorios.data ?? []).map(r => (
+              <div key={r.id} className="flex items-center justify-between border-b pb-2 last:border-0">
+                <div>
+                  <p className="font-medium">{r.organizations?.display_name ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.competencia} · {r.resumo.vistorias ?? 0} vistorias
+                  </p>
+                </div>
+                <span className={`text-xs font-medium ${r.enviado_em ? 'text-success' : 'text-warning'}`}>
+                  {r.enviado_em ? 'E-mail enviado' : 'Pendente de e-mail'}
+                </span>
+              </div>
+            ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><h2 className="text-sm font-semibold">Alerta de inatividade</h2></CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            Os administradores de uma organização recebem um aviso no app quando ela fica
+            este número de dias sem registrar vistoria.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="space-y-1">
+              <label htmlFor="inat" className="text-xs font-medium">Dias sem vistoria</label>
+              <input
+                id="inat" type="number" min={3} max={90}
+                className="w-28 rounded-md border bg-background px-3 py-2 text-sm"
+                value={dias} onChange={e => setDias(Number(e.target.value))}
+              />
+            </div>
+            <Button size="sm" onClick={() => void salvar()} disabled={salvando}>Salvar</Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
