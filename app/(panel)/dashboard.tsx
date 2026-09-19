@@ -18,6 +18,8 @@ import { useTraining } from '../../context/TrainingContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { DashboardGuide } from '../../components/DashboardGuide';
 import BillingBanner from '../../components/billing/BillingBanner';
+import { AlertasRiscoWidget, QePendenciasWidget } from '../../components/dashboard/widgets';
+import { buscarLayoutDashboard, DEFAULT_LAYOUT, LayoutItem } from '../../utils/dashboardLayout';
 import { Button, ErrorState, MetricCard, ModuleCard, SectionHeader, StateBanner } from '../../components/ui';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -40,6 +42,7 @@ export default function DashboardScreen() {
   const [pendingAppointments, setPendingAppointments] = useState(0);
   const [pendingSync, setPendingSync] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [layout, setLayout] = useState<LayoutItem[]>(DEFAULT_LAYOUT);
   const cacheTimestamp = useRef(0);
 
   const dateLabel = useMemo(() => {
@@ -81,6 +84,7 @@ export default function DashboardScreen() {
     setPendingAppointments(countAgendamentosPendentesAgente(profile.uid));
     verificarLaudosExpirando().catch(() => null);
     if (Date.now() - cacheTimestamp.current >= 60_000 && isOnlineReal) fetchMetrics(profile.uid);
+    buscarLayoutDashboard('agent').then(setLayout).catch(() => null);
   }, [fetchMetrics, isOnlineReal, isTrainingActive, profile]);
 
   const onRefresh = useCallback(() => {
@@ -208,64 +212,86 @@ export default function DashboardScreen() {
           />
         ) : null}
 
-        <View>
-          <SectionHeader
-            title={individualAccount ? 'Sua atividade' : 'Seu turno'}
-            subtitle={individualAccount ? 'Resumo das suas vistorias profissionais' : 'Resumo da atividade de hoje'}
-          />
-          {metricsError ? <ErrorState message={metricsError} onRetry={onRefresh} /> : (
-            <View style={styles.metricGrid}>
-              <MetricCard
-                value={metricsLoading ? '—' : metrics.today}
-                label="Vistorias hoje"
-                detail="Atividade do turno"
-                tone="primary"
-                style={styles.metricWide}
-              />
-              <MetricCard value={metricsLoading ? '—' : metrics.attention} label="Requer atenção" tone="danger" style={styles.metricHalf} />
-              <MetricCard value={metricsLoading ? '—' : metrics.total} label="Total realizado" tone="success" style={styles.metricHalf} />
-            </View>
-          )}
-        </View>
+        {layout.filter(w => w.visivel).map(item => {
+          switch (item.widget) {
+            case 'metricas_turno':
+              return (
+                <View key={item.widget}>
+                  <SectionHeader
+                    title={individualAccount ? 'Sua atividade' : 'Seu turno'}
+                    subtitle={individualAccount ? 'Resumo das suas vistorias profissionais' : 'Resumo da atividade de hoje'}
+                  />
+                  {metricsError ? <ErrorState message={metricsError} onRetry={onRefresh} /> : (
+                    <View style={styles.metricGrid}>
+                      <MetricCard
+                        value={metricsLoading ? '—' : metrics.today}
+                        label="Vistorias hoje"
+                        detail="Atividade do turno"
+                        tone="primary"
+                        style={styles.metricWide}
+                      />
+                      <MetricCard value={metricsLoading ? '—' : metrics.attention} label="Requer atenção" tone="danger" style={styles.metricHalf} />
+                      <MetricCard value={metricsLoading ? '—' : metrics.total} label="Total realizado" tone="success" style={styles.metricHalf} />
+                    </View>
+                  )}
+                </View>
+              );
 
-        <View style={[styles.primaryPanel, { backgroundColor: theme.primary }]}>
-          <View style={styles.primaryPanelTop}>
-            <View style={styles.primaryIcon}>
-              <Feather name="clipboard" size={24} color={theme.onPrimary} />
-            </View>
-            <View style={styles.primaryCopy}>
-            <Text style={[styles.primaryEyebrow, { color: `${theme.onPrimary}B8` }]}>AÇÃO PRINCIPAL</Text>
-            <Text style={[styles.primaryTitle, { color: theme.onPrimary }]}>Nova vistoria</Text>
-            <Text style={[styles.primaryDescription, { color: `${theme.onPrimary}C7` }]}>{isOnlineReal ? 'Inicie uma coleta técnica completa.' : 'Disponível offline e salva localmente.'}</Text>
-            </View>
-          </View>
-          <Button
-            variant="secondary"
-            fullWidth
-            onPress={() => router.push('/(panel)/inspecoes/dados-iniciais')}
-            iconRight={<Feather name="arrow-right" size={18} color={theme.primaryDark} />}
-          >
-            Iniciar vistoria
-          </Button>
-        </View>
+            case 'alertas_risco':
+              return <AlertasRiscoWidget key={item.widget} agenteUid={profile?.uid} />;
 
-        <View>
-          <SectionHeader title="Acesso rápido" subtitle="Módulos usados com mais frequência" />
-          <View style={styles.moduleGrid}>
-            {[
-              { title: 'Vistorias', description: 'Histórico e laudos', icon: 'clipboard' as const, route: '/(panel)/inspecoes' },
-              { title: 'Mapa tático', description: 'Ocorrências no território', icon: 'map-pin' as const, route: '/(panel)/mapas' },
-              { title: 'Agenda', description: 'Tarefas atribuídas', icon: 'calendar' as const, route: '/(panel)/agendamentos' },
-              ...(individualAccount || !access.hasOrganization
-                ? [{ title: 'Minha conta', description: 'Plano e preferências', icon: 'user' as const, route: '/(panel)/perfil' }]
-                : [{ title: 'Avisos', description: 'Comunicados da organização', icon: 'bell' as const, route: '/(panel)/avisos' }]),
-            ].map(item => (
-              <View key={item.title} style={styles.moduleCell}>
-                <ModuleCard {...item} onPress={() => router.push(item.route as any)} />
-              </View>
-            ))}
-          </View>
-        </View>
+            case 'qe_pendencias':
+              return <QePendenciasWidget key={item.widget} />;
+
+            case 'acao_principal':
+              return (
+                <View key={item.widget} style={[styles.primaryPanel, { backgroundColor: theme.primary }]}>
+                  <View style={styles.primaryPanelTop}>
+                    <View style={styles.primaryIcon}>
+                      <Feather name="clipboard" size={24} color={theme.onPrimary} />
+                    </View>
+                    <View style={styles.primaryCopy}>
+                      <Text style={[styles.primaryEyebrow, { color: `${theme.onPrimary}B8` }]}>AÇÃO PRINCIPAL</Text>
+                      <Text style={[styles.primaryTitle, { color: theme.onPrimary }]}>Nova vistoria</Text>
+                      <Text style={[styles.primaryDescription, { color: `${theme.onPrimary}C7` }]}>{isOnlineReal ? 'Inicie uma coleta técnica completa.' : 'Disponível offline e salva localmente.'}</Text>
+                    </View>
+                  </View>
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    onPress={() => router.push('/(panel)/inspecoes/dados-iniciais')}
+                    iconRight={<Feather name="arrow-right" size={18} color={theme.primaryDark} />}
+                  >
+                    Iniciar vistoria
+                  </Button>
+                </View>
+              );
+
+            case 'acesso_rapido':
+              return (
+                <View key={item.widget}>
+                  <SectionHeader title="Acesso rápido" subtitle="Módulos usados com mais frequência" />
+                  <View style={styles.moduleGrid}>
+                    {[
+                      { title: 'Vistorias', description: 'Histórico e laudos', icon: 'clipboard' as const, route: '/(panel)/inspecoes' },
+                      { title: 'Mapa tático', description: 'Ocorrências no território', icon: 'map-pin' as const, route: '/(panel)/mapas' },
+                      { title: 'Agenda', description: 'Tarefas atribuídas', icon: 'calendar' as const, route: '/(panel)/agendamentos' },
+                      ...(individualAccount || !access.hasOrganization
+                        ? [{ title: 'Minha conta', description: 'Plano e preferências', icon: 'user' as const, route: '/(panel)/perfil' }]
+                        : [{ title: 'Avisos', description: 'Comunicados da organização', icon: 'bell' as const, route: '/(panel)/avisos' }]),
+                    ].map(mod => (
+                      <View key={mod.title} style={styles.moduleCell}>
+                        <ModuleCard {...mod} onPress={() => router.push(mod.route as any)} />
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              );
+
+            default:
+              return null;
+          }
+        })}
       </ScrollView>
     </SafeAreaView>
   );

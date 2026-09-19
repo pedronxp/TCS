@@ -178,6 +178,7 @@ function PanelContent() {
         <Stack.Screen name="admin/risco-config" />
         <Stack.Screen name="admin/logs" />
         <Stack.Screen name="admin/protocolo-doc" />
+        <Stack.Screen name="admin/personalizar-dashboard" />
         <Stack.Screen name="admin/editor-perguntas" />
         <Stack.Screen name="inspecoes/laudo" />
         <Stack.Screen name="treinamento/index" />

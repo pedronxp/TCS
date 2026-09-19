@@ -67,7 +67,7 @@
 | **F2 Onboarding/ativação** | ✅ Existe (`customer-onboarding.tsx`, RPCs bootstrap, trial) | polir: trial por org, UX de suspensão |
 | **F3 Billing manual** | ✅ **CONCLUÍDA (18–19/set/2026)** — schema + RPCs + motor cron + app + console web | teste E2E real; confirmar push do aviso "cobranca" |
 | **F4 QE de vistorias** | ✅ **CONCLUÍDA (19/set/2026)** — tabela revisoes_qe + trigger + RPCs + telas app | teste real de fluxo (devolver→corrigir→reenviar) |
-| **F5 Templates dashboard** | ⚠️ Só entitlements (liga/desliga módulo) | sistema de widgets + layouts por org + editor |
+| **F5 Templates dashboard** | ✅ **CONCLUÍDA (19/set/2026)** — dashboard_templates + editor no app + widgets | estender a outros painéis (supervisor/admin) |
 | **F6 Analytics owner** | ⚠️ Parcial (RPCs do console web) | gráficos MRR/vistorias, exports |
 | **F7 Suporte** | ⚠️ App só ABRE ticket | app: listar/acompanhar/responder tickets |
 | **F8 Retenção** | ❌ Não existe | alertas de inatividade, relatório mensal |
@@ -239,6 +239,18 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 ---
 
 ## NOTAS DE SESSÃO
+
+> **Sessão 16 (19/set/2026) — F5 TEMPLATES DE DASHBOARD.**
+> Decisões: template por org × papel (agent/supervisor/admin), editado pelo admin DA ORG
+> no app; widgets cobrem métricas/ação principal/acesso rápido + 2 novos (alertas de
+> risco R3/R4, pendências QE). Precedência: (org,papel) > global (owner) > default em código.
+> Banco (`f5a_dashboard_templates`): tabela dashboard_templates (UNIQUE coalesce(org)+role),
+> RPCs get_dashboard_layout / save_dashboard_layout / save_dashboard_layout_global.
+> App: utils/dashboardLayout.ts (WIDGETS + DEFAULT_LAYOUT + normalizar), dashboard.tsx
+> vira widget-driven, components/dashboard/widgets.tsx (AlertasRisco + QePendencias),
+> editor (panel)/admin/personalizar-dashboard.tsx (toggle + reorder + restaurar).
+> tsc limpo. Obs: dashboard.tsx só serve AGENTE — supervisor/admin têm telas próprias
+> ainda não widget-driven (próximo passo).
 
 > **Sessão 13 (18/set/2026) — F1 EXECUTADA.**
 > Migrações `f1_complete_multi_tenancy` + `f1b_form_rpcs_organization` aplicadas com sucesso.

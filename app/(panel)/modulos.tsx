@@ -115,6 +115,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
         key: 'technical', title: 'Operação técnica', description: 'Vistorias e inteligência local', items: [
           ...baseOperation,
           { title: 'Qualidade (QE)', description: 'Revisão de vistorias da equipe', icon: 'check-square', route: '/(panel)/qe' },
+          { title: 'Personalizar painel', description: 'Ordem e blocos do dashboard do agente', icon: 'sliders', route: '/(panel)/admin/personalizar-dashboard' },
           { title: 'Relatórios', description: 'Consultar laudos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
           { title: 'Estatísticas', description: 'Métricas municipais', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas' },
         ],
