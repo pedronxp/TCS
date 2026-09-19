@@ -31,14 +31,36 @@ Deno.serve(async () => {
 
   let enviadas = 0;
 
+  const EXPO_TOKEN_PATTERN = /^(ExponentPushToken|ExpoPushToken)\[[^\]\r\n]{10,255}\]$/;
+
+  const pushTokensFor = async (userId: string): Promise<string[]> => {
+    const [endpoints, profiles] = await Promise.all([
+      supabase.from('notification_endpoints')
+        .select('endpoint')
+        .eq('user_id', userId)
+        .eq('provider', 'expo')
+        .eq('active', true),
+      supabase.from('users')
+        .select('fcmToken')
+        .eq('uid', userId)
+        .not('fcmToken', 'is', null),
+    ]);
+    const tokens = new Set<string>();
+    for (const row of endpoints.data ?? []) {
+      if (EXPO_TOKEN_PATTERN.test(row.endpoint)) tokens.add(row.endpoint);
+    }
+    for (const row of profiles.data ?? []) {
+      if (typeof row.fcmToken === 'string' && EXPO_TOKEN_PATTERN.test(row.fcmToken)) tokens.add(row.fcmToken);
+    }
+    return [...tokens];
+  };
+
   for (const token of tokens) {
     if (!token.criadoPor) continue;
 
-    // Buscar push token do admin que criou o token
-    const { data: adminData } = await supabase
-      .rpc('get_push_token_by_uid', { p_uid: token.criadoPor });
+    const pushTokens = await pushTokensFor(token.criadoPor);
 
-    if (adminData) {
+    if (pushTokens.length > 0) {
       const minutosRestantes = Math.round(
         (new Date(token.expiraEm).getTime() - agora.getTime()) / 60000
       );
@@ -46,22 +68,24 @@ Deno.serve(async () => {
         ? `${Math.round(minutosRestantes / 60)}h`
         : `${minutosRestantes}min`;
 
-      await fetch(EXPO_PUSH_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: adminData,
-          title: '⏰ Token expirando',
-          body: `Token de ${token.municipio} expira em ${tempoTexto}. Gere um novo se necessário.`,
-          data: { tipo: 'token_expirando', municipio: token.municipio, codigo: token.codigo },
-          sound: 'default',
-          channelId: 'tokens',
-          priority: 'normal',
-          ttl: 7200,
-        }),
-      });
+      await Promise.all(pushTokens.map(async (to) => {
+        await fetch(EXPO_PUSH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to,
+            title: '⏰ Token expirando',
+            body: `Token de ${token.municipio} expira em ${tempoTexto}. Gere um novo se necessário.`,
+            data: { tipo: 'token_expirando', municipio: token.municipio, codigo: token.codigo },
+            sound: 'default',
+            channelId: 'tokens',
+            priority: 'normal',
+            ttl: 7200,
+          }),
+        });
+      }));
 
-      enviadas++;
+      enviadas += pushTokens.length;
     }
 
     // Marcar como notificado para não enviar de novo

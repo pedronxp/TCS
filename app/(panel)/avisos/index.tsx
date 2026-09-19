@@ -48,6 +48,28 @@ interface ComunicadoApp {
   destinos: Array<{ bairro_nome: string | null; todo_municipio: boolean }>;
 }
 
+interface CampanhaInbox {
+  id: string;
+  titulo: string;
+  conteudo: string;
+  severidade: Severidade;
+  criado_em: string;
+  lido: boolean;
+}
+
+interface InboxRpcResult {
+  unread_count?: number;
+  items?: Array<{
+    id?: string;
+    module_key?: string;
+    severity?: string;
+    title?: string;
+    body?: string;
+    created_at?: string;
+    read_at?: string | null;
+  }>;
+}
+
 const SEVERIDADE_LABEL: Record<Severidade, string> = {
   informacao: 'Informação',
   alerta: 'Alerta',
@@ -88,6 +110,8 @@ export default function AvisosScreen() {
   const pendingReadsKey = profile?.uid && organizationId
     ? `@tcs_avisos_leituras_${profile.uid}_${organizationId}`
     : null;
+  const campanhasCacheKey = profile?.uid ? `@tcs_avisos_campanhas_${profile.uid}` : null;
+  const campanhasReadsKey = profile?.uid ? `@tcs_avisos_campanhas_leituras_${profile.uid}` : null;
   // Cadastro de comunicado é exclusivo do painel web; no app apenas
   // admin/master podem disparar um aviso já publicado nas comunidades.
   const podeDisparar = profile?.role === 'admin' || profile?.role === 'master_admin' || profile?.role === 'owner';
@@ -98,7 +122,8 @@ export default function AvisosScreen() {
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [comunicados, setComunicados] = useState<ComunicadoApp[]>([]);
-  const [selecionado, setSelecionado] = useState<ComunicadoApp | null>(null);
+  const [campanhas, setCampanhas] = useState<CampanhaInbox[]>([]);
+  const [selecionado, setSelecionado] = useState<ComunicadoApp | CampanhaInbox | null>(null);
   const [pedindoPermissao, setPedindoPermissao] = useState(false);
 
   const ativarNotificacoes = useCallback(async () => {
@@ -123,17 +148,17 @@ export default function AvisosScreen() {
     }
   }, [noticeCacheKey]);
 
-  const carregarCache = useCallback(async () => {
-    if (!noticeCacheKey) return false;
+  const carregarCache = useCallback(async (): Promise<ComunicadoApp[] | null> => {
+    if (!noticeCacheKey) return null;
     try {
       const raw = await AsyncStorage.getItem(noticeCacheKey);
       const cached = raw ? JSON.parse(raw) as unknown : null;
-      if (!Array.isArray(cached)) return false;
+      if (!Array.isArray(cached)) return null;
       const lista = cached as ComunicadoApp[];
       setComunicados(lista);
-      return true;
+      return lista;
     } catch {
-      return false;
+      return null;
     }
   }, [noticeCacheKey]);
 
@@ -182,45 +207,159 @@ export default function AvisosScreen() {
     await salvarLeiturasPendentes(restantes);
   }, [carregarLeiturasPendentes, salvarLeiturasPendentes]);
 
+  const persistirCampanhas = useCallback(async (lista: CampanhaInbox[]) => {
+    if (!campanhasCacheKey) return;
+    try {
+      await AsyncStorage.setItem(campanhasCacheKey, JSON.stringify(lista));
+    } catch (excecao) {
+      logger.warn('notifications', 'Não foi possível atualizar o cache dos avisos do sistema', excecao);
+    }
+  }, [campanhasCacheKey]);
+
+  const carregarCacheCampanhas = useCallback(async (): Promise<CampanhaInbox[] | null> => {
+    if (!campanhasCacheKey) return null;
+    try {
+      const raw = await AsyncStorage.getItem(campanhasCacheKey);
+      const cached = raw ? JSON.parse(raw) as unknown : null;
+      if (!Array.isArray(cached)) return null;
+      return cached as CampanhaInbox[];
+    } catch {
+      return null;
+    }
+  }, [campanhasCacheKey]);
+
+  const carregarLeiturasCampanhasPendentes = useCallback(async (): Promise<string[]> => {
+    if (!campanhasReadsKey) return [];
+    try {
+      const raw = await AsyncStorage.getItem(campanhasReadsKey);
+      const parsed = raw ? JSON.parse(raw) as unknown : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((id): id is string => typeof id === 'string');
+    } catch {
+      return [];
+    }
+  }, [campanhasReadsKey]);
+
+  const salvarLeiturasCampanhasPendentes = useCallback(async (ids: string[]) => {
+    if (!campanhasReadsKey) return;
+    if (ids.length === 0) {
+      await AsyncStorage.removeItem(campanhasReadsKey);
+      return;
+    }
+    await AsyncStorage.setItem(campanhasReadsKey, JSON.stringify([...new Set(ids)]));
+  }, [campanhasReadsKey]);
+
+  const enfileirarLeituraCampanha = useCallback(async (id: string) => {
+    const atuais = await carregarLeiturasCampanhasPendentes();
+    await salvarLeiturasCampanhasPendentes([...atuais, id]);
+  }, [carregarLeiturasCampanhasPendentes, salvarLeiturasCampanhasPendentes]);
+
+  const sincronizarLeiturasCampanhasPendentes = useCallback(async () => {
+    const pendentes = await carregarLeiturasCampanhasPendentes();
+    if (!pendentes.length) return;
+    const restantes: string[] = [];
+    for (const eventId of pendentes) {
+      try {
+        const { error } = await supabase.rpc('mark_inbox_message_read', {
+          p_event_id: eventId,
+          p_workspace_kind: 'organization',
+        });
+        if (error) restantes.push(eventId);
+      } catch {
+        restantes.push(eventId);
+      }
+    }
+    await salvarLeiturasCampanhasPendentes(restantes);
+  }, [carregarLeiturasCampanhasPendentes, salvarLeiturasCampanhasPendentes]);
+
+  const carregarCampanhasServidor = useCallback(async (): Promise<CampanhaInbox[]> => {
+    const { data, error } = await supabase.rpc('get_my_inbox', {
+      p_workspace_kind: 'organization',
+      p_limit: 50,
+      p_unread_only: false,
+    });
+    if (error) throw error;
+    const result = data as InboxRpcResult | null;
+    const pendentes = new Set(await carregarLeiturasCampanhasPendentes());
+    return (result?.items ?? [])
+      .filter((item) => item.module_key === 'notifications')
+      .map((item) => ({
+        id: String(item.id ?? ''),
+        titulo: String(item.title ?? ''),
+        conteudo: String(item.body ?? ''),
+        severidade: (item.severity === 'warning'
+          ? 'alerta'
+          : item.severity === 'error' || item.severity === 'critical'
+            ? 'emergencia'
+            : 'informacao') as Severidade,
+        criado_em: String(item.created_at ?? ''),
+        lido: Boolean(item.read_at) || pendentes.has(String(item.id ?? '')),
+      }))
+      .filter((item) => item.id && item.titulo && item.conteudo);
+  }, [carregarLeiturasCampanhasPendentes]);
+
   const carregar = useCallback(async (mostrarSpinner: boolean) => {
-    if (!organizationId || !noticesEnabled) {
+    if (!organizationId) {
       setComunicados([]);
+      setCampanhas([]);
       setCarregando(false);
       setAtualizando(false);
       return;
     }
     if (mostrarSpinner) setCarregando(true);
     setErro(null);
+    let proximosComunicados: ComunicadoApp[] = [];
     try {
       await sincronizarLeiturasPendentes().catch(() => null);
-      const { data, error: rpcError } = await supabase.rpc('portal_list_comunicados');
-      if (rpcError) throw rpcError;
-      const lista = Array.isArray(data) ? data as ComunicadoApp[] : [];
-      const leiturasPendentes = new Set(await carregarLeiturasPendentes());
-      const publicados = lista.filter((item) => (
-        item.status === 'publicado'
-        && (!item.expira_em || new Date(item.expira_em).getTime() > Date.now())
-      )).map((item) => (
-        leiturasPendentes.has(item.id) ? { ...item, lido: true } : item
-      ));
-      setComunicados(publicados);
-      await persistirComunicados(publicados);
-      await atualizarBadge(publicados.filter((item) => !item.lido).length).catch(() => null);
+      await sincronizarLeiturasCampanhasPendentes().catch(() => null);
+      if (noticesEnabled) {
+        const { data, error: rpcError } = await supabase.rpc('portal_list_comunicados');
+        if (rpcError) throw rpcError;
+        const lista = Array.isArray(data) ? data as ComunicadoApp[] : [];
+        const leiturasPendentes = new Set(await carregarLeiturasPendentes());
+        proximosComunicados = lista.filter((item) => (
+          item.status === 'publicado'
+          && (!item.expira_em || new Date(item.expira_em).getTime() > Date.now())
+        )).map((item) => (
+          leiturasPendentes.has(item.id) ? { ...item, lido: true } : item
+        ));
+        setComunicados(proximosComunicados);
+        await persistirComunicados(proximosComunicados);
+      } else {
+        setComunicados([]);
+      }
     } catch (excecao) {
       logger.warn('notifications', 'Falha ao carregar comunicados', excecao);
       const cached = await carregarCache();
+      proximosComunicados = cached ?? [];
       if (!cached) setErro('Não foi possível carregar os avisos agora.');
-    } finally {
-      setCarregando(false);
-      setAtualizando(false);
     }
+    let proximasCampanhas: CampanhaInbox[] | null = null;
+    try {
+      proximasCampanhas = await carregarCampanhasServidor();
+      setCampanhas(proximasCampanhas);
+      await persistirCampanhas(proximasCampanhas);
+    } catch (excecao) {
+      logger.warn('notifications', 'Falha ao carregar avisos do sistema', excecao);
+      proximasCampanhas = await carregarCacheCampanhas();
+      if (proximasCampanhas) setCampanhas(proximasCampanhas);
+    }
+    const totalNaoLidos = proximosComunicados.filter((item) => !item.lido).length
+      + (proximasCampanhas?.filter((item) => !item.lido).length ?? 0);
+    await atualizarBadge(totalNaoLidos).catch(() => null);
+    setCarregando(false);
+    setAtualizando(false);
   }, [
     atualizarBadge,
     carregarCache,
+    carregarCacheCampanhas,
+    carregarCampanhasServidor,
     carregarLeiturasPendentes,
     noticesEnabled,
     organizationId,
+    persistirCampanhas,
     persistirComunicados,
+    sincronizarLeiturasCampanhasPendentes,
     sincronizarLeiturasPendentes,
   ]);
 
@@ -432,14 +571,21 @@ export default function AvisosScreen() {
                     <Feather name="x" size={18} color={theme.text} />
                   </TouchableOpacity>
                 </View>
-                <Text style={[styles.modalMeta, { color: theme.textSecondary }]}>
-                  {SEVERIDADE_LABEL[selecionado.severidade]} · {destinoLabel(selecionado.destinos)} ·{' '}
-                  {formatarData(selecionado.publicado_em ?? selecionado.criado_em)}
-                </Text>
+                {selecionado && 'destinos' in selecionado ? (
+                  <Text style={[styles.modalMeta, { color: theme.textSecondary }]}>
+                    {SEVERIDADE_LABEL[selecionado.severidade]} · {destinoLabel(selecionado.destinos)} ·{' '}
+                    {formatarData(selecionado.publicado_em ?? selecionado.criado_em)}
+                  </Text>
+                ) : selecionado ? (
+                  <Text style={[styles.modalMeta, { color: theme.textSecondary }]}>
+                    Aviso do sistema · {SEVERIDADE_LABEL[selecionado.severidade]} ·{' '}
+                    {formatarData(selecionado.criado_em)}
+                  </Text>
+                ) : null}
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.modalConteudo}>
                   <Text style={[styles.modalTexto, { color: theme.text }]}>{selecionado.conteudo}</Text>
                 </ScrollView>
-                {podeDisparar && (
+                {podeDisparar && 'destinos' in selecionado && (
                   <>
                     <Button
                       label={disparando === selecionado.id ? 'Disparando…' : 'Disparar nas comunidades'}

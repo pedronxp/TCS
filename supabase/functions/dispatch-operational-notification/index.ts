@@ -34,15 +34,32 @@ async function sendExpo(payloads: Record<string, unknown>[]) {
   }
 }
 
+async function userPushTokens(userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const [endpoints, profiles] = await Promise.all([
+    admin.from('notification_endpoints').select('endpoint').eq('provider', 'expo').eq('active', true).in('user_id', userIds),
+    admin.from('users').select('fcmToken').in('uid', userIds).not('fcmToken', 'is', null),
+  ]);
+  if (endpoints.error) console.error('endpoint_lookup_failed', endpoints.error.message);
+  if (profiles.error) console.error('legacy_token_lookup_failed', profiles.error.message);
+  const tokens = new Set<string>();
+  for (const row of endpoints.data ?? []) {
+    if (validExpoToken(row.endpoint)) tokens.add(row.endpoint);
+  }
+  for (const row of profiles.data ?? []) {
+    if (validExpoToken(row.fcmToken)) tokens.add(row.fcmToken);
+  }
+  return [...tokens];
+}
+
 async function masterTokens() {
   const { data, error } = await admin
     .from('users')
-    .select('fcmToken')
+    .select('uid')
     .eq('role', 'master_admin')
-    .eq('isApproved', true)
-    .not('fcmToken', 'is', null);
+    .eq('isApproved', true);
   if (error) throw error;
-  return [...new Set((data ?? []).map((user) => user.fcmToken).filter(validExpoToken))];
+  return userPushTokens([...new Set((data ?? []).map((user) => user.uid))]);
 }
 
 function profileName(profile: Profile) {
@@ -145,12 +162,16 @@ Deno.serve(async (request) => {
   const municipio = inspection.municipio || inspection.municipio_agente || '';
   const [agentResult, staffResult] = await Promise.all([
     inspection.agenteUid
-      ? admin.from('users').select('fcmToken').eq('uid', inspection.agenteUid).not('fcmToken', 'is', null)
+      ? admin.from('users').select('uid').eq('uid', inspection.agenteUid)
       : Promise.resolve({ data: [], error: null }),
-    admin.from('users').select('fcmToken').eq('municipio', municipio).in('role', ['admin', 'supervisor']).eq('isApproved', true).not('fcmToken', 'is', null),
+    admin.from('users').select('uid').eq('municipio', municipio).in('role', ['admin', 'supervisor']).eq('isApproved', true),
   ]);
   if (agentResult.error || staffResult.error) console.error('push_recipient_lookup_failed');
-  const tokens = [...new Set([...(agentResult.data ?? []), ...(staffResult.data ?? [])].map((row) => row.fcmToken).filter(validExpoToken))];
+  const recipientIds = [...new Set([
+    ...(agentResult.data ?? []).map((row) => row.uid),
+    ...(staffResult.data ?? []).map((row) => row.uid),
+  ])];
+  const tokens = await userPushTokens(recipientIds);
   const address = String(inspection.endereco ?? 'Endereço não informado');
   const shortAddress = address.length > 50 ? `${address.slice(0, 47)}…` : address;
   await sendExpo(tokens.map((token) => ({

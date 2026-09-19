@@ -41,9 +41,11 @@ async function sendExpo(campaign: Campaign, rows: Recipient[]) {
     to: recipient.endpoint,
     title: campaign.title,
     body: campaign.body,
-    data: { ...campaign.payload, notification_campaign_id: campaign.id, category: campaign.category },
+    data: { ...campaign.payload, tipo: 'campanha', notification_campaign_id: campaign.id, category: campaign.category },
     sound: 'default',
     priority: campaign.priority,
+    channelId: campaign.priority === 'high' ? 'alertas' : 'default',
+    ttl: 86400,
   }));
   const response = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
