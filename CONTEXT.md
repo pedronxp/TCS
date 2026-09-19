@@ -67,7 +67,7 @@
 | **F2 Onboarding/ativação** | ✅ Existe (`customer-onboarding.tsx`, RPCs bootstrap, trial) | polir: trial por org, UX de suspensão |
 | **F3 Billing manual** | ✅ **CONCLUÍDA (18–19/set/2026)** — schema + RPCs + motor cron + app + console web | teste E2E real; confirmar push do aviso "cobranca" |
 | **F4 QE de vistorias** | ✅ **CONCLUÍDA (19/set/2026)** — tabela revisoes_qe + trigger + RPCs + telas app | teste real de fluxo (devolver→corrigir→reenviar) |
-| **F5 Templates dashboard** | ✅ **CONCLUÍDA (19/set/2026)** — dashboard_templates + editor no app + widgets | estender a outros painéis (supervisor/admin) |
+| **F5 Templates dashboard** | ✅ **CONCLUÍDA (19/set/2026)** — agente + supervisor + admin widget-driven | — |
 | **F6 Analytics owner** | ⚠️ Parcial (RPCs do console web) | gráficos MRR/vistorias, exports |
 | **F7 Suporte** | ⚠️ App só ABRE ticket | app: listar/acompanhar/responder tickets |
 | **F8 Retenção** | ❌ Não existe | alertas de inatividade, relatório mensal |
@@ -239,6 +239,13 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 ---
 
 ## NOTAS DE SESSÃO
+
+> **Sessão 17 (19/set/2026) — F5b TEMPLATES nos painéis supervisor/admin.**
+> `utils/dashboardLayout.ts` virou role-aware: WIDGET_SETS/DEFAULT_LAYOUTS por papel
+> (agent: métricas/alertas/ação/QE/acesso; supervisor e admin: kpis_gerais/ranking_equipe/
+> atividade_recente). supervisor/index.tsx e admin/index.tsx viraram widget-driven com
+> layout de (org,papel). Editor personalizar-dashboard ganhou abas Agente/Supervisor/Admin.
+> tsc limpo. Editor criado para admin da org no app permanece em (panel)/admin/.
 
 > **Sessão 16 (19/set/2026) — F5 TEMPLATES DE DASHBOARD.**
 > Decisões: template por org × papel (agent/supervisor/admin), editado pelo admin DA ORG

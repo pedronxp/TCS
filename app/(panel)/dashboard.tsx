@@ -19,7 +19,7 @@ import { useSubscription } from '../../context/SubscriptionContext';
 import { DashboardGuide } from '../../components/DashboardGuide';
 import BillingBanner from '../../components/billing/BillingBanner';
 import { AlertasRiscoWidget, QePendenciasWidget } from '../../components/dashboard/widgets';
-import { buscarLayoutDashboard, DEFAULT_LAYOUT, LayoutItem } from '../../utils/dashboardLayout';
+import { buscarLayoutDashboard, DEFAULT_LAYOUTS, LayoutItem } from '../../utils/dashboardLayout';
 import { Button, ErrorState, MetricCard, ModuleCard, SectionHeader, StateBanner } from '../../components/ui';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -42,7 +42,7 @@ export default function DashboardScreen() {
   const [pendingAppointments, setPendingAppointments] = useState(0);
   const [pendingSync, setPendingSync] = useState(0);
   const [syncing, setSyncing] = useState(false);
-  const [layout, setLayout] = useState<LayoutItem[]>(DEFAULT_LAYOUT);
+  const [layout, setLayout] = useState<LayoutItem[]>(DEFAULT_LAYOUTS.agent);
   const cacheTimestamp = useRef(0);
 
   const dateLabel = useMemo(() => {

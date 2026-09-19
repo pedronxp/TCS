@@ -12,6 +12,7 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useSubscription } from '../../../context/SubscriptionContext';
 import { resolveMobileOrganizationAccess } from '../../../services/MobileAccessService';
 import { DashboardGuide } from '../../../components/DashboardGuide';
+import { buscarLayoutDashboard, DEFAULT_LAYOUTS, LayoutItem } from '../../../utils/dashboardLayout';
 import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { ErrorState } from '../../../components/ui/ErrorState';
@@ -47,6 +48,7 @@ export default function AdminDashboardScreen() {
   const [atividade, setAtividade] = useState<AtividadeItem[]>([]);
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
   const [ranking, setRanking] = useState<{ nome: string; count: number }[]>([]);
+  const [layout, setLayout] = useState<LayoutItem[]>(DEFAULT_LAYOUTS.admin);
 
   const carregar = async (showRefresh = false) => {
     if (!profile) return;
@@ -100,6 +102,7 @@ export default function AdminDashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+    buscarLayoutDashboard('admin').then(setLayout).catch(() => null);
   };
 
   useFocusEffect(useCallback(() => {
@@ -204,134 +207,148 @@ export default function AdminDashboardScreen() {
           />
         ) : null}
 
-        {/* KPI Grid */}
-        <SectionHeader title="Métricas do município" subtitle="Visão consolidada da operação local" />
-        {erro && kpis.length === 0 ? (
-          <ErrorState
-            title="Erro ao carregar métricas"
-            message="Não foi possível buscar os dados do município. Puxe para atualizar."
-            onRetry={() => carregar()}
-          />
-        ) : (
-        <View style={styles.metricGrid}>
-          <MetricCard value={kpis[0]?.value || 0} label="Total de vistorias" detail="Base municipal" tone="primary" style={styles.metricWide} />
-          <MetricCard value={kpis[1]?.value || 0} label="Realizadas hoje" tone="success" style={styles.metricHalf} />
-          <MetricCard value={kpis[2]?.value || 0} label="Alto risco" tone="danger" style={styles.metricHalf} />
-          <MetricCard value={kpis[3]?.value || 0} label="Risco médio" tone="warning" style={styles.metricHalf} />
-          <MetricCard value={kpis[4]?.value || 0} label="Agentes ativos" tone="primary" style={styles.metricHalf} />
-        </View>
-        )}
-
-        {/* Barra de Distribuição de Risco (Admin) */}
-        {kpis.length > 0 && kpis[0].value > 0 && (
-          <View style={[styles.riskDistributionCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={[styles.riskCardTitle, { color: theme.text }]}>Severidade Municipal</Text>
-              <Text style={[styles.riskCardSubtitle, { color: theme.textSecondary }]}>{kpis[0].value} laudos</Text>
-            </View>
-            <View style={styles.riskBarContainer}>
-              {kpis[2].value > 0 && (
-                <View style={[styles.riskSegment, { width: `${(kpis[2].value / kpis[0].value) * 100}%`, backgroundColor: theme.error }]} />
-              )}
-              {kpis[3].value > 0 && (
-                <View style={[styles.riskSegment, { width: `${(kpis[3].value / kpis[0].value) * 100}%`, backgroundColor: theme.warning }]} />
-              )}
-              {kpis[0].value - kpis[2].value - kpis[3].value > 0 && (
-                <View style={[styles.riskSegment, { width: `${((kpis[0].value - kpis[2].value - kpis[3].value) / kpis[0].value) * 100}%`, backgroundColor: theme.border }]} />
-              )}
-            </View>
-            <View style={styles.riskLegend}>
-              <View style={styles.riskLegendItem}>
-                <View style={[styles.riskDot, { backgroundColor: theme.error }]} />
-                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Alto ({kpis[2].value})</Text>
-              </View>
-              <View style={styles.riskLegendItem}>
-                <View style={[styles.riskDot, { backgroundColor: theme.warning }]} />
-                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Médio ({kpis[3].value})</Text>
-              </View>
-              <View style={styles.riskLegendItem}>
-                <View style={[styles.riskDot, { backgroundColor: theme.border }]} />
-                <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Baixo/Outros</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Ranking de agentes (mês atual) */}
-        {ranking.length > 0 && (
-          <>
-            <View style={styles.sectionRow}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Desempenho da Equipe</Text>
-              <TouchableOpacity onPress={() => router.push('/(panel)/equipe')}>
-                <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe completa</Text>
-              </TouchableOpacity>
-            </View>
-            {ranking.map(({ nome, count }) => {
-              const META = 10;
-              const progresso = Math.min(count / META, 1);
-              const cor = count >= META ? theme.success : count >= META / 2 ? theme.primary : theme.warning;
+        {layout.filter(w => w.visivel).map(item => {
+          switch (item.widget) {
+            case 'kpis_gerais':
               return (
-                <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-                  <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
-                    <Text style={[styles.rankAvatarText, { color: theme.primary }]}>{nome[0]?.toUpperCase() || '?'}</Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <View style={styles.rankRow}>
-                      <Text style={[styles.rankName, { color: theme.text }]} numberOfLines={1}>{nome}</Text>
-                      <Text style={[styles.rankCount, { color: cor }]}>{count}/{META}</Text>
+                <View key={item.widget}>
+                  <SectionHeader title="Métricas do município" subtitle="Visão consolidada da operação local" />
+                  {erro && kpis.length === 0 ? (
+                    <ErrorState
+                      title="Erro ao carregar métricas"
+                      message="Não foi possível buscar os dados do município. Puxe para atualizar."
+                      onRetry={() => carregar()}
+                    />
+                  ) : (
+                    <View style={styles.metricGrid}>
+                      <MetricCard value={kpis[0]?.value || 0} label="Total de vistorias" detail="Base municipal" tone="primary" style={styles.metricWide} />
+                      <MetricCard value={kpis[1]?.value || 0} label="Realizadas hoje" tone="success" style={styles.metricHalf} />
+                      <MetricCard value={kpis[2]?.value || 0} label="Alto risco" tone="danger" style={styles.metricHalf} />
+                      <MetricCard value={kpis[3]?.value || 0} label="Risco médio" tone="warning" style={styles.metricHalf} />
+                      <MetricCard value={kpis[4]?.value || 0} label="Agentes ativos" tone="primary" style={styles.metricHalf} />
                     </View>
-                    <View style={[styles.progressBg, { backgroundColor: theme.iconBackground }]}>
-                      <View style={[styles.progressFill, { width: `${progresso * 100}%`, backgroundColor: cor }]} />
+                  )}
+
+                  {kpis.length > 0 && kpis[0].value > 0 && (
+                    <View style={[styles.riskDistributionCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+                        <Text style={[styles.riskCardTitle, { color: theme.text }]}>Severidade Municipal</Text>
+                        <Text style={[styles.riskCardSubtitle, { color: theme.textSecondary }]}>{kpis[0].value} laudos</Text>
+                      </View>
+                      <View style={styles.riskBarContainer}>
+                        {kpis[2].value > 0 && (
+                          <View style={[styles.riskSegment, { width: `${(kpis[2].value / kpis[0].value) * 100}%`, backgroundColor: theme.error }]} />
+                        )}
+                        {kpis[3].value > 0 && (
+                          <View style={[styles.riskSegment, { width: `${(kpis[3].value / kpis[0].value) * 100}%`, backgroundColor: theme.warning }]} />
+                        )}
+                        {kpis[0].value - kpis[2].value - kpis[3].value > 0 && (
+                          <View style={[styles.riskSegment, { width: `${((kpis[0].value - kpis[2].value - kpis[3].value) / kpis[0].value) * 100}%`, backgroundColor: theme.border }]} />
+                        )}
+                      </View>
+                      <View style={styles.riskLegend}>
+                        <View style={styles.riskLegendItem}>
+                          <View style={[styles.riskDot, { backgroundColor: theme.error }]} />
+                          <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Alto ({kpis[2].value})</Text>
+                        </View>
+                        <View style={styles.riskLegendItem}>
+                          <View style={[styles.riskDot, { backgroundColor: theme.warning }]} />
+                          <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Médio ({kpis[3].value})</Text>
+                        </View>
+                        <View style={styles.riskLegendItem}>
+                          <View style={[styles.riskDot, { backgroundColor: theme.border }]} />
+                          <Text style={[styles.riskLegendText, { color: theme.textSecondary }]}>Baixo/Outros</Text>
+                        </View>
+                      </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               );
-            })}
-          </>
-        )}
 
-        {/* Atividade recente */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Atividade Recente</Text>
-        {erro && atividade.length === 0 ? (
-          <ErrorState
-            title="Erro ao carregar atividades"
-            message="Não foi possível listar as atividades recentes. Puxe para atualizar."
-            onRetry={() => carregar()}
-          />
-        ) : atividade.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma atividade registrada.</Text>
-          </View>
-        ) : (
-          atividade.map(v => {
-            const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
-            const cor = apresentacao.cor;
-            return (
-              <TouchableOpacity
-                key={v.id}
-                style={[styles.atividadeCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-                onPress={() => router.push(`/(panel)/inspecoes/${v.id}`)}
-              >
-                <View style={[styles.atividadeIcon, { backgroundColor: `${cor}15`, borderColor: `${cor}30` }]}>
-                  <Feather name="clipboard" size={20} color={cor} />
+            case 'ranking_equipe':
+              return ranking.length > 0 ? (
+                <View key={item.widget}>
+                  <View style={styles.sectionRow}>
+                    <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Desempenho da Equipe</Text>
+                    <TouchableOpacity onPress={() => router.push('/(panel)/equipe')}>
+                      <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe completa</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {ranking.map(({ nome, count }) => {
+                    const META = 10;
+                    const progresso = Math.min(count / META, 1);
+                    const cor = count >= META ? theme.success : count >= META / 2 ? theme.primary : theme.warning;
+                    return (
+                      <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                        <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
+                          <Text style={[styles.rankAvatarText, { color: theme.primary }]}>{nome[0]?.toUpperCase() || '?'}</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <View style={styles.rankRow}>
+                            <Text style={[styles.rankName, { color: theme.text }]} numberOfLines={1}>{nome}</Text>
+                            <Text style={[styles.rankCount, { color: cor }]}>{count}/{META}</Text>
+                          </View>
+                          <View style={[styles.progressBg, { backgroundColor: theme.iconBackground }]}>
+                            <View style={[styles.progressFill, { width: `${progresso * 100}%`, backgroundColor: cor }]} />
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.atividadeEnd, { color: theme.text }]} numberOfLines={1}>
-                    {v.endereco || 'Sem endereço'}
-                  </Text>
-                  <Text style={[styles.atividadeInfo, { color: theme.textSecondary }]}>
-                    {v.agenteNome || '—'} · {tempoRelativo(v.dataVistoria)}
-                  </Text>
+              ) : null;
+
+            case 'atividade_recente':
+              return (
+                <View key={item.widget}>
+                  <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Atividade Recente</Text>
+                  {erro && atividade.length === 0 ? (
+                    <ErrorState
+                      title="Erro ao carregar atividades"
+                      message="Não foi possível listar as atividades recentes. Puxe para atualizar."
+                      onRetry={() => carregar()}
+                    />
+                  ) : atividade.length === 0 ? (
+                    <View style={[styles.emptyCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                      <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Nenhuma atividade registrada.</Text>
+                    </View>
+                  ) : (
+                    atividade.map(v => {
+                      const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
+                      const cor = apresentacao.cor;
+                      return (
+                        <TouchableOpacity
+                          key={v.id}
+                          style={[styles.atividadeCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                          onPress={() => router.push(`/(panel)/inspecoes/${v.id}`)}
+                        >
+                          <View style={[styles.atividadeIcon, { backgroundColor: `${cor}15`, borderColor: `${cor}30` }]}>
+                            <Feather name="clipboard" size={20} color={cor} />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={[styles.atividadeEnd, { color: theme.text }]} numberOfLines={1}>
+                              {v.endereco || 'Sem endereço'}
+                            </Text>
+                            <Text style={[styles.atividadeInfo, { color: theme.textSecondary }]}>
+                              {v.agenteNome || '—'} · {tempoRelativo(v.dataVistoria)}
+                            </Text>
+                          </View>
+                          <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
+                            <Text style={[styles.nivelText, { color: cor }]}>
+                              {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
                 </View>
-                <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
-                  <Text style={[styles.nivelText, { color: cor }]}>
-                    {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
+              );
+
+            default:
+              return null;
+          }
+        })}
 
         {/* Link para guia de protocolo */}
         <TouchableOpacity
