@@ -276,8 +276,89 @@ export function IaAgentPage() {
               <p className="text-xs text-muted-foreground">Usado só para entender o que o usuário escreveu. Ex.: z-ai/glm-5.3</p>
             </div>
           </div>
+          </CardContent>
+        </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mensagens do bot</CardTitle>
+          <CardDescription>
+            Textos enviados em cada situação. Edite e salve — vale na hora, sem deploy.
+            Variáveis disponíveis aparecem na descrição (ex.: {'{email}'}, {'{tentativa}'}, {'{minutos}'}).
+            Botão “Padrão” restaura o texto original do sistema.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BotTemplatesEditor mayManage={mayManage} />
         </CardContent>
       </Card>
     </div>
   );
 }
+
+function BotTemplatesEditor({ mayManage }: { mayManage: boolean }) {
+  const queryClient = useQueryClient();
+  const templates = useQuery({ queryKey: ['ia', 'templates'], queryFn: iaApi.botTemplates });
+  const [edited, setEdited] = useState<Record<string, string>>({});
+
+  const save = useMutation({
+    mutationFn: ({ key, texto }: { key: string; texto: string | null }) => iaApi.botTemplateSet(key, texto),
+    onSuccess: (_d, v) => {
+      toast.success(v.texto === null ? 'Template restaurado ao padrão.' : 'Mensagem atualizada — já vale no bot.');
+      setEdited((e) => {
+        const next = { ...e };
+        delete next[v.key];
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: ['ia', 'templates'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (templates.isLoading) return <LoadingState label="Carregando mensagens" />;
+  if (templates.isError) return <ErrorState error="Erro ao carregar templates" onRetry={() => void templates.refetch()} />;
+
+  return (
+    <ul className="space-y-4">
+      {(templates.data ?? []).map((tpl) => {
+        const value = edited[tpl.key] ?? tpl.texto;
+        const isCustom = tpl.texto !== tpl.default_text;
+        const dirty = edited[tpl.key] !== undefined && edited[tpl.key] !== tpl.texto;
+        return (
+          <li key={tpl.key} className="rounded-lg border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">{tpl.description ?? tpl.key}</p>
+                <p className="text-xs text-muted-foreground">
+                  <code>{tpl.key}</code>
+                  {isCustom && <span className="ml-2 rounded bg-warning-soft px-1.5 py-0.5 text-xs">personalizado</span>}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {mayManage && isCustom && (
+                  <Button size="sm" variant="outline" disabled={save.isPending} onClick={() => save.mutate({ key: tpl.key, texto: null })}>
+                    Padrão
+                  </Button>
+                )}
+                {mayManage && (
+                  <Button size="sm" disabled={save.isPending || !dirty} onClick={() => save.mutate({ key: tpl.key, texto: value })}>
+                    Salvar
+                  </Button>
+                )}
+              </div>
+            </div>
+            <Textarea
+              className="mt-2"
+              rows={3}
+              value={value}
+              disabled={!mayManage}
+              onChange={(e) => setEdited((prev) => ({ ...prev, [tpl.key]: e.target.value }))}
+              aria-label={`Mensagem ${tpl.key}`}
+            />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
