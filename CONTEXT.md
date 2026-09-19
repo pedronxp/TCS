@@ -68,7 +68,7 @@
 | **F3 Billing manual** | ✅ **CONCLUÍDA (18–19/set/2026)** — schema + RPCs + motor cron + app + console web | teste E2E real; confirmar push do aviso "cobranca" |
 | **F4 QE de vistorias** | ✅ **CONCLUÍDA (19/set/2026)** — tabela revisoes_qe + trigger + RPCs + telas app | teste real de fluxo (devolver→corrigir→reenviar) |
 | **F5 Templates dashboard** | ✅ **CONCLUÍDA (19/set/2026)** — agente + supervisor + admin widget-driven | — |
-| **F6 Analytics owner** | ⚠️ Parcial (RPCs do console web) | gráficos MRR/vistorias, exports |
+| **F6 Analytics owner** | ✅ **CONCLUÍDA (19/set/2026)** — /app/analytics (KPIs, 2 gráficos, QE, top orgs, CSV) | — |
 | **F7 Suporte** | ✅ **CONCLUÍDA (19/set/2026)** — app lista + conversa + resposta + notificação | — |
 | **F8 Retenção** | ❌ Não existe | alertas de inatividade, relatório mensal |
 
@@ -239,6 +239,12 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 ---
 
 ## NOTAS DE SESSÃO
+
+> **Sessão 19 (19/set/2026) — F6 ANALYTICS OWNER.**
+> RPC get_owner_analytics (MRR, recebido no mês, orgs por status, séries 6m receita+vistorias,
+> resumo QE, top orgs 90d, agentes ativos). Página /app/analytics no console: 4 KPI cards,
+> 2 gráficos de barras (recharts já instalado), bloco QE, ranking de orgs, export CSV
+> (faturas/orgs/vistorias) via blob download. tsc limpo.
 
 > **Sessão 18 (19/set/2026) — F7 SUPORTE IN-APP.**
 > Decisões: cliente responde no ticket (conversa), só texto, notificação automática ao responder.

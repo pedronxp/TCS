@@ -55,6 +55,7 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
       { to: '/app/planos', label: 'Planos', icon: CreditCard, permission: 'commercial.read' },
       { to: '/app/assinaturas', label: 'Assinaturas', icon: ClipboardList, permission: 'commercial.read' },
       { to: '/app/faturas', label: 'Faturas', icon: Receipt, permission: 'commercial.read' },
+      { to: '/app/analytics', label: 'Analytics', icon: TrendingUp, permission: 'commercial.read' },
       { to: '/app/protocolos', label: 'Protocolos', icon: Hash, permission: 'protocol.read' },
     ],
   },
