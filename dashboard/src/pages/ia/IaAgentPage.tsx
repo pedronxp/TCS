@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SendHorizonal } from 'lucide-react';
 import { toast } from 'sonner';
@@ -177,10 +177,28 @@ export function IaAgentPage() {
               )}
               {chat.map((m, i) => (
                 <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${m.from === 'user' ? 'ml-auto bg-primary text-primary-foreground' : 'bg-card border'}`}>
-                  {m.text}
+                  {renderWhatsAppText(m.text)}
                 </div>
               ))}
               <div ref={chatEndRef} />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {['ACEITO', 'menu', 'cancelar', 'sair'].map((label) => (
+                <Button
+                  key={label}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 rounded-full px-3 text-xs"
+                  disabled={sendSim.isPending}
+                  onClick={() => {
+                    setChat((c) => [...c, { from: 'user', text: label }]);
+                    sendSim.mutate(label);
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
             </div>
             <form
               className="flex gap-2"
@@ -294,6 +312,28 @@ export function IaAgentPage() {
       </Card>
     </div>
   );
+}
+
+/** Renderiza texto estilo WhatsApp: \n vira quebra de linha, *texto* vira negrito, _texto_ vira itálico. */
+function renderWhatsAppText(text: string) {
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    const parts = line.split(/(\*[^*]+\*|_[^_]+_)/g);
+    return (
+      <Fragment key={i}>
+        {i > 0 && <br />}
+        {parts.map((part, j) => {
+          if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+            return <strong key={j}>{part.slice(1, -1)}</strong>;
+          }
+          if (part.startsWith('_') && part.endsWith('_') && part.length > 2) {
+            return <em key={j}>{part.slice(1, -1)}</em>;
+          }
+          return <Fragment key={j}>{part}</Fragment>;
+        })}
+      </Fragment>
+    );
+  });
 }
 
 function BotTemplatesEditor({ mayManage }: { mayManage: boolean }) {
