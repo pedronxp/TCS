@@ -66,7 +66,7 @@
 | **F1 Multi-tenancy** | ✅ **CONCLUÍDA** (18/set/2026) | validar no Expo Go |
 | **F2 Onboarding/ativação** | ✅ Existe (`customer-onboarding.tsx`, RPCs bootstrap, trial) | polir: trial por org, UX de suspensão |
 | **F3 Billing manual** | ✅ **CONCLUÍDA (18–19/set/2026)** — schema + RPCs + motor cron + app + console web | teste E2E real; confirmar push do aviso "cobranca" |
-| **F4 QE de vistorias** | ❌ Não existe | tudo: revisão, checklist, nota, aprovar/devolver |
+| **F4 QE de vistorias** | ✅ **CONCLUÍDA (19/set/2026)** — tabela revisoes_qe + trigger + RPCs + telas app | teste real de fluxo (devolver→corrigir→reenviar) |
 | **F5 Templates dashboard** | ⚠️ Só entitlements (liga/desliga módulo) | sistema de widgets + layouts por org + editor |
 | **F6 Analytics owner** | ⚠️ Parcial (RPCs do console web) | gráficos MRR/vistorias, exports |
 | **F7 Suporte** | ⚠️ App só ABRE ticket | app: listar/acompanhar/responder tickets |
@@ -245,6 +245,18 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 > organization_id em formularios/atribuicoes/audit_logs; my_organization_ids(); RLS híbrida
 > (NULL=template global); 5 RPCs org-aware; auditLogger + 5 telas passando organizationId;
 > tsc limpo. Muriaé fica no legado por município (decisão de Pedro).
+
+> **Sessão 15 (19/set/2026) — F4 QE DE VISTORIAS.**
+> Decisões com Pedro: QE SEMPRE retroativa (calamidade não pode travar campo), revisor =
+> supervisor+admin, nota 0-10 + checklist + parecer, reenvio = novo ciclo, rascunho sai
+> na hora e laudo oficial só após aprovação; ciência do morador NUNCA passa pelo QE.
+> Banco (`f4a_qe_vistorias`): tabela `revisoes_qe` (UNIQUE vistoria+ciclo), trigger
+> `enqueue_qe_review` (vistoria→'concluida' entra na fila), RPCs qe_fila/qe_revisar/
+> qe_status_vistoria, notificacoes.tipo += 'qe_devolvida'.
+> App: `(panel)/qe/index.tsx` (fila) + `(panel)/qe/[id].tsx` (revisão: checklist, nota,
+> parecer, aprovar/devolver), selo `QeStatusBanner` em resultado.tsx, módulo "Qualidade
+> (QE)" em modulos.tsx p/ supervisor/admin/master, rota protegida em _layout (qe role).
+> tsc limpo. Vistorias antigas NÃO entram na fila (só novas conclusões).
 
 > **Sessão 14 (18–19/set/2026) — F3 BILLING COMPLETA (banco + app + console).**
 > Banco: `f3a_billing_manual_schema` (billing_invoices, billing_notice_rules, billing_settings,

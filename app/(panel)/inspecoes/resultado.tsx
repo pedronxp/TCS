@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import QeStatusBanner from '../../../components/qe/QeStatusBanner';
 import { safeBack } from '../../../utils/navigationUtils';
 import { logger } from '../../../utils/logger';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
@@ -708,6 +709,7 @@ export default function ResultadoScreen() {
       />
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
+        <QeStatusBanner vistoriaId={typeof id === 'string' ? id : undefined} />
         {/* Status Card */}
         <View style={[styles.statusCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.statusHeading}>

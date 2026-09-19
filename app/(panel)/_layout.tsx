@@ -23,6 +23,7 @@ import { canAccessMobileFieldOperation } from '../../services/MobileAccessServic
 const ROUTE_ROLES: Record<string, readonly string[]> = {
   'admin':        ['admin', 'master_admin'],
   'supervisor':   ['supervisor', 'admin', 'master_admin'],
+  'qe':           ['supervisor', 'admin', 'master_admin'],
   'master':       ['master_admin'],
   'internal':     ['owner', 'developer', 'support', 'auditor'],
 };
@@ -190,6 +191,8 @@ function PanelContent() {
         <Stack.Screen name="modulos" />
         <Stack.Screen name="avisos/index" />
         <Stack.Screen name="assinatura" />
+        <Stack.Screen name="qe/index" />
+        <Stack.Screen name="qe/[id]" />
         <Stack.Screen name="planos" />
         <Stack.Screen name="coordenacao" />
         <Stack.Screen name="suporte" />
