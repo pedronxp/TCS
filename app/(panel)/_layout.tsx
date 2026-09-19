@@ -41,6 +41,7 @@ const WEB_ONLY_ROUTES = new Set([
 function useRouteGuard() {
   const segments = useSegments() as string[];
   const { profile, loading } = useAuth();
+  const { context: subscriptionContext } = useSubscription();
 
   useEffect(() => {
     if (loading || !profile) return;
@@ -48,6 +49,20 @@ function useRouteGuard() {
     // segments[0] = "(panel)", segments[1] = section (admin/supervisor/master/...)
     const section = segments[1] as string | undefined;
     if (!section) return;
+
+    // ── Bloqueio por suspensão de cobrança (F3) ──
+    // Org/assinatura suspensa → só acessa cobrança, suporte e dashboard.
+    const suspensa =
+      subscriptionContext?.organization?.status === 'suspended' ||
+      subscriptionContext?.subscription?.status === 'suspended';
+    if (suspensa) {
+      const permitidas = ['assinatura', 'suporte', 'dashboard'];
+      if (!permitidas.includes(section)) {
+        logger.warn('auth', `Acesso bloqueado (suspensão): seção "${section}"`);
+        router.replace('/(panel)/assinatura');
+        return;
+      }
+    }
 
     if (section === 'inspecoes'
       && !canAccessMobileFieldOperation(profile.role, profile.permissions, 'inspections')) {
@@ -78,7 +93,7 @@ function useRouteGuard() {
       // Redireciona para dashboard sem permissão de navegar de volta
       router.replace('/(panel)/dashboard');
     }
-  }, [segments, profile, loading]);
+  }, [segments, profile, loading, subscriptionContext]);
 }
 
 function PanelContent() {

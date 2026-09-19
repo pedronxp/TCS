@@ -9,6 +9,7 @@ import { usagePercent } from '../../utils/subscription';
 import { supabase } from '../../utils/supabase';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { PortalStateCard, PortalStatusBadge } from '../../components/portal';
+import SecaoFaturas from '../../components/billing/SecaoFaturas';
 import { AppHeader, Button, FormField, SectionHeader, StateBanner } from '../../components/ui';
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -150,6 +151,8 @@ export default function AssinaturaScreen() {
               </View>
             ) : null}
           </View>
+
+          <SecaoFaturas />
 
           <SectionHeader title="Consumo" subtitle="Uso atual dos limites contratados" />
           {usage.length === 0 ? (

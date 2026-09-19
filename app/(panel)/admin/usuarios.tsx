@@ -100,6 +100,7 @@ export default function UsuariosScreen() {
         adminUid: profile?.uid ?? '',
         adminNome: profile?.name ?? '',
         municipio: profile?.municipio ?? '',
+        organizationId: profile?.organizationId ?? null,
         alvoId: user.uid,
         alvoNome: user.name,
       });
@@ -140,6 +141,7 @@ export default function UsuariosScreen() {
         adminUid: profile?.uid ?? '',
         adminNome: profile?.name ?? '',
         municipio: profile?.municipio ?? '',
+        organizationId: profile?.organizationId ?? null,
         alvoId: passUser.uid,
         alvoNome: passUser.name,
         detalhes: { msg: 'Senha de usuário redefinida pelo Admin' }

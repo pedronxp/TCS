@@ -59,6 +59,7 @@ interface TrainingContextData {
     role: 'agent';
     municipio: string;
     isApproved: boolean;
+    organizationId?: string | null;
   } | null;
   enter: (input: { nome: string; token: string }) => Promise<TrainingEntryResult>;
   enterPreview: (name?: string) => Promise<PublicPreviewAccess>;

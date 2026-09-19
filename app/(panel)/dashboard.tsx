@@ -17,6 +17,7 @@ import { useConnectivity } from '../../context/ConnectivityContext';
 import { useTraining } from '../../context/TrainingContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { DashboardGuide } from '../../components/DashboardGuide';
+import BillingBanner from '../../components/billing/BillingBanner';
 import { Button, ErrorState, MetricCard, ModuleCard, SectionHeader, StateBanner } from '../../components/ui';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -184,6 +185,8 @@ export default function DashboardScreen() {
         {!isConnected ? (
           <StateBanner title="Modo offline ativo" description="Você pode criar vistorias normalmente. A sincronização retorna com a conexão." variant="warning" />
         ) : null}
+
+        <BillingBanner />
 
         {access.requiresOrganizationLink ? (
           <StateBanner

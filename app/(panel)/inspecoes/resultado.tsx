@@ -238,6 +238,7 @@ export default function ResultadoScreen() {
             adminNome: profile.name || '—',
             adminRole: profile.role,
             municipio: norm.municipio || profile.municipio || '',
+            organizationId: profile.organizationId ?? null,
             alvoId: norm.id,
           });
         }
@@ -437,7 +438,8 @@ export default function ResultadoScreen() {
           adminNome: profile.name || '—',
           adminRole: profile.role,
             municipio: vistoria?.municipio || profile.municipio || '',
-          alvoId: vistoria?.id,
+            organizationId: profile.organizationId ?? null,
+            alvoId: vistoria?.id,
           detalhes: { protocolo: vistoria?.protocolo, nivel_risco: vistoria?.nivelRisco },
         });
       }
