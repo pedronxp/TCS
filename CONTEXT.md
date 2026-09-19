@@ -69,7 +69,7 @@
 | **F4 QE de vistorias** | ✅ **CONCLUÍDA (19/set/2026)** — tabela revisoes_qe + trigger + RPCs + telas app | teste real de fluxo (devolver→corrigir→reenviar) |
 | **F5 Templates dashboard** | ✅ **CONCLUÍDA (19/set/2026)** — agente + supervisor + admin widget-driven | — |
 | **F6 Analytics owner** | ⚠️ Parcial (RPCs do console web) | gráficos MRR/vistorias, exports |
-| **F7 Suporte** | ⚠️ App só ABRE ticket | app: listar/acompanhar/responder tickets |
+| **F7 Suporte** | ✅ **CONCLUÍDA (19/set/2026)** — app lista + conversa + resposta + notificação | — |
 | **F8 Retenção** | ❌ Não existe | alertas de inatividade, relatório mensal |
 
 ### O que a F1 entregou (migrações `f1_complete_multi_tenancy` + `f1b_form_rpcs_organization`):
@@ -239,6 +239,14 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 ---
 
 ## NOTAS DE SESSÃO
+
+> **Sessão 18 (19/set/2026) — F7 SUPORTE IN-APP.**
+> Decisões: cliente responde no ticket (conversa), só texto, notificação automática ao responder.
+> Banco (`f7_suporte_in_app`): RPCs reply_support_ticket (reabre resolvido) e my_ticket_events
+> (filtra notas internas), trigger trg_notify_ticket_reply (event 'message' do staff notifica
+> solicitante, tipo 'suporte_resposta' adicionado ao CHECK de notificacoes).
+> App: suporte.tsx lista "Meus chamados"; nova tela suporte/[id].tsx (conversa em bolhas,
+> status, reabrir). Leitura de tickets usa RLS existente (tickets_portal_select). tsc limpo.
 
 > **Sessão 17 (19/set/2026) — F5b TEMPLATES nos painéis supervisor/admin.**
 > `utils/dashboardLayout.ts` virou role-aware: WIDGET_SETS/DEFAULT_LAYOUTS por papel

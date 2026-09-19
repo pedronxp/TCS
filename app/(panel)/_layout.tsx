@@ -197,6 +197,7 @@ function PanelContent() {
         <Stack.Screen name="planos" />
         <Stack.Screen name="coordenacao" />
         <Stack.Screen name="suporte" />
+        <Stack.Screen name="suporte/[id]" />
       </Stack>
       <BottomNavBar />
     </View>
