@@ -65,7 +65,7 @@
 |---|---|---|
 | **F1 Multi-tenancy** | ✅ **CONCLUÍDA** (18/set/2026) | validar no Expo Go |
 | **F2 Onboarding/ativação** | ✅ Existe (`customer-onboarding.tsx`, RPCs bootstrap, trial) | polir: trial por org, UX de suspensão |
-| **F3 Billing manual** | ⚠️ Base existe (subscriptions, purchase requests, grace) | **motor de cobrança (cron), dia de cobrança, avisos programados, comprovante manual, faturas** |
+| **F3 Billing manual** | ✅ **CONCLUÍDA (18–19/set/2026)** — schema + RPCs + motor cron + app + console web | teste E2E real; confirmar push do aviso "cobranca" |
 | **F4 QE de vistorias** | ❌ Não existe | tudo: revisão, checklist, nota, aprovar/devolver |
 | **F5 Templates dashboard** | ⚠️ Só entitlements (liga/desliga módulo) | sistema de widgets + layouts por org + editor |
 | **F6 Analytics owner** | ⚠️ Parcial (RPCs do console web) | gráficos MRR/vistorias, exports |
@@ -246,6 +246,21 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 > (NULL=template global); 5 RPCs org-aware; auditLogger + 5 telas passando organizationId;
 > tsc limpo. Muriaé fica no legado por município (decisão de Pedro).
 
+> **Sessão 14 (18–19/set/2026) — F3 BILLING COMPLETA (banco + app + console).**
+> Banco: `f3a_billing_manual_schema` (billing_invoices, billing_notice_rules, billing_settings,
+> billing_day em subscriptions, bucket comprovantes, tipo 'cobranca' em notificacoes);
+> `f3b_billing_rpcs_engine` (RPCs is_owner_admin / my_billing_invoices / submit_invoice_receipt /
+> approve_invoice_payment / reject_invoice_receipt + billing_daily_engine + cron 06h BRT);
+> `f3c_billing_console_helper` (run_billing_engine_now p/ console).
+> App: utils/billing.ts + components/billing/SecaoFaturas (em assinatura.tsx) + BillingBanner
+> (dashboard) + trava de rotas p/ org suspensa (só assinatura/suporte/dashboard).
+> Pacote novo: expo-document-picker. SubscriptionStatus += 'suspended'.
+> Console web: /app/faturas (FaturasPage — fila comprovantes, aprovar/rejeitar, regras de aviso,
+> tolerância/antecedência) + rota/nav/header.
+> Migrações espelhadas localmente em supabase/migrations/. Commits: d40e668, e14a3e6, 7696f51.
+> ⚠️ incidente: outra sessão trocou de branch no meio do trabalho — recuperado via stash
+> inacessível (207600b0). WIP da outra sessão preservado (commit 55751f5).
+
 > **Sessão 12 (set/2026) — Planejamento SaaS + auditoria completa.**
 > Descoberta: banco já tinha infra SaaS extensa (orgs, subscriptions, planos, purchase
 > requests, MP OAuth, suporte, staff). Confirmado com Pedro: usar como base.
@@ -266,4 +281,4 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 - `users.fcmToken` vs `notification_endpoints`: migração pendente
 - Catálogo de planos do app é hardcoded (`COMMERCIAL_PLANS`) — ideal ler de `plans`
 - Tickets de suporte: app não lista/acompanha (só abre) — F7
-- **Próxima fase recomendada: F3 (billing manual)** — motor de cobrança, avisos, comprovante
+- **Todas as fases base prontas: F1 ✅ F3 ✅ (banco + app + console). Próximas: F4 QE, F5 templates, F7 suporte**
