@@ -10,6 +10,7 @@ import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
 import { BuildsPage } from '@/pages/BuildsPage';
 import { PlansPage } from '@/pages/PlansPage';
 import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
+import { FaturasPage } from '@/pages/FaturasPage';
 import { SessionsPage } from '@/pages/SessionsPage';
 import { DevicesPage } from '@/pages/DevicesPage';
 import { SupportPage } from '@/pages/SupportPage';
@@ -100,6 +101,7 @@ export default function PrivateApp() {
           <Route path="planos" element={<ProtectedRoute requirePermission="commercial.read"><PlansPage /></ProtectedRoute>} />
           <Route path="negocio/indicadores" element={<ProtectedRoute requirePermission="commercial.read"><CommercialMetricsPage /></ProtectedRoute>} />
           <Route path="assinaturas" element={<ProtectedRoute requirePermission="commercial.read"><SubscriptionsPage /></ProtectedRoute>} />
+          <Route path="faturas" element={<ProtectedRoute requirePermission="commercial.read"><FaturasPage /></ProtectedRoute>} />
           <Route path="protocolos" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolsPage /></ProtectedRoute>} />
           <Route path="protocolos/:inspectionId/laudo" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="laudo" /></ProtectedRoute>} />
           <Route path="protocolos/:inspectionId/relatorio" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="relatorio" /></ProtectedRoute>} />
