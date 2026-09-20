@@ -18,6 +18,8 @@ const routes: InternalRoute[] = [
   { id: 'agent-detail', path: '/app/clientes/organization%3Aaurora/usuarios/agent-7/resumo', heading: 'Prefeitura de Aurora', role: 'owner' },
   { id: 'plans', path: '/app/planos', heading: 'Planos', role: 'owner' },
   { id: 'subscriptions', path: '/app/assinaturas', heading: 'Assinaturas', role: 'owner' },
+  { id: 'faturas', path: '/app/faturas', heading: 'Faturas', role: 'owner' },
+  { id: 'analytics', path: '/app/analytics', heading: 'Analytics', role: 'owner' },
   { id: 'sessions', path: '/app/sessoes', heading: 'Sessões', role: 'owner' },
   { id: 'support', path: '/app/suporte', heading: 'Suporte', role: 'owner' },
   { id: 'staff', path: '/app/staff', heading: 'Pessoas e acessos', role: 'owner' },
