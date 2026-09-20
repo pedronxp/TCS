@@ -240,6 +240,29 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 
 ## NOTAS DE SESSÃO
 
+> **Sessão 21 (19/set/2026) — Reestruturação do console web + reparo do portal.**
+> Achado grave: duas migrations antigas NUNCA foram aplicadas ao banco remoto
+> (20260729150000_customer_portals_foundation, 20260801143939_customer_auth_capabilities_audit),
+> deixando 5 RPCs do portal do cliente órfãs apesar de o código chamar: portal_get_inspection,
+> portal_create_appointment, portal_update_organization_settings, record_google_identity_reconciled
+> (restauradas em `restore_portal_orphan_rpcs`) e portal_get_invite_preview
+> (`portal_invite_preview_restore`). Sem restaurar: authorize_inspection_document (sem chamador),
+> create_checkout/process_payment_event (MP desligado), revoke_organization_invite (sem chamador)
+> — removidas do contrato de testes. `mutate_internal_agent_access` ganhou DEFAULT NULL
+> (compat de tipos). Tipos supabase do dashboard regenerados — antes estavam desatualizados
+> (tsc vermelho em Faturas/Analytics).
+> Branches empilhadas:
+> - `feat/console-nav-restructure`: menu lateral em grupos semânticos (Principal, Negócio,
+>   Comunicação, WhatsApp & IA, Formulários, Administração); páginas REMOVIDAS:
+>   Arquivamento (RPCs de archive nunca existiram) e Estatísticas da operação (dados
+>   fake/hardcoded); rodapé do sidebar com nome/Sair removido (redundante com o topo);
+>   contexts do header alinhados; tsc do dashboard limpo.
+> - `feat/console-header-polish`: dropdown do avatar = identidade → Alterar senha →
+>   Preferências (Tema/Densidade em submenus com radio) → Sair; busca global compacta.
+> - `feat/console-home-refresh`: home com saudação por horário + data, cards
+>   Renovações/Chamados/Implantação clicáveis, banner do bot só quando degradado
+>   (BotServiceStatus.hideWhenHealthy).
+
 > **Sessão 20 (19/set/2026) — F8 RETENÇÃO (última fase).**
 > Banco (`f8_retencao`): retention_settings (inatividade_dias configurável, relatorio_ativo),
 > org_monthly_reports (UNIQUE org+competencia, resumo JSONB), retention_daily_engine (alerta
@@ -337,3 +360,8 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 - Catálogo de planos do app é hardcoded (`COMMERCIAL_PLANS`) — ideal ler de `plans`
 - Tickets de suporte: app não lista/acompanha (só abre) — F7
 - **Todas as fases base prontas: F1 ✅ F3 ✅ (banco + app + console). Próximas: F4 QE, F5 templates, F7 suporte**
+- RPCs do portal sem uso que permanecem AUSENTES propositalmente (removidas do contrato):
+  portal_authorize_inspection_document, portal_create_checkout, portal_process_payment_event,
+  portal_revoke_organization_invite
+- Console web depende de tipos gerados: se surgir erro TS em pages novas, regerar
+  `dashboard/src/types/supabase.ts` via MCP generate_typescript_types antes de debugar
