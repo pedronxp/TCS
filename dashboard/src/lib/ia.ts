@@ -198,7 +198,6 @@ export const iaApi = {
   botTemplates: () => rpc<BotTemplate[]>('bot_templates_list'),
   botTemplateSet: (key: string, texto: string | null) => rpc<void>('bot_template_set', { p_key: key, p_texto: texto }),
 
-
   /** Simulador do bot dentro do painel (equipe interna). */
   simulateBot: async (phone: string, message: string): Promise<{ replies: string[]; documents: { name: string; url: string }[] }> => {
     const { data, error } = await supabase.functions.invoke('whatsapp-agent', { body: { phone, message } });
