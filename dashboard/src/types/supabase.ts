@@ -6349,6 +6349,15 @@ export type Database = {
       }
       portal_bot_runtime_status: { Args: never; Returns: Json }
       portal_bot_session_pairing_metadata: { Args: never; Returns: Json }
+      portal_create_appointment: {
+        Args: {
+          p_inspection_id?: string
+          p_notes?: string
+          p_scheduled_at?: string
+          p_title?: string
+        }
+        Returns: Json
+      }
       portal_create_document_acknowledgement_link: {
         Args: { p_document_id: string; p_expires_in_hours?: number }
         Returns: Json
@@ -6385,6 +6394,11 @@ export type Database = {
         Returns: Json
       }
       portal_get_dashboard: { Args: never; Returns: Json }
+      portal_get_inspection: {
+        Args: { p_inspection_id: string }
+        Returns: Json
+      }
+      portal_get_invite_preview: { Args: { p_token: string }; Returns: Json }
       portal_get_map_workspace: { Args: never; Returns: Json }
       portal_get_workspace: { Args: { p_section: string }; Returns: Json }
       portal_get_workspace_unchecked: {
@@ -6464,6 +6478,17 @@ export type Database = {
           p_reason: string
           p_role: string
           p_status: string
+        }
+        Returns: Json
+      }
+      portal_update_organization_settings: {
+        Args: {
+          p_confirmation: string
+          p_contact_email: string
+          p_contact_name: string
+          p_display_name: string
+          p_reason: string
+          p_session_timeout_minutes: number
         }
         Returns: Json
       }
@@ -6556,6 +6581,7 @@ export type Database = {
         Returns: boolean
       }
       record_denied_owner_access: { Args: never; Returns: undefined }
+      record_google_identity_reconciled: { Args: never; Returns: boolean }
       record_internal_access_denied: {
         Args: {
           p_action: string
