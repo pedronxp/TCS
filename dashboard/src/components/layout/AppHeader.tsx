@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Sun } from 'lucide-react';
+import { Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Rows3, Sun } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { GlobalCustomerSearch } from '@/components/GlobalCustomerSearch';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +8,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { useAuth } from '@/contexts/AuthContext';
@@ -117,7 +122,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
           <p className="mt-1 truncate text-[13px] font-semibold">{pageContext.title}</p>
         </div>
 
-        <div className="min-w-0 flex-1 xl:max-w-[390px]">
+        <div className="min-w-0 flex-1 xl:max-w-[300px]">
           <GlobalCustomerSearch />
         </div>
 
@@ -222,41 +227,56 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
                 {initials}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-60">
               <DropdownMenuLabel>
                 <span className="block truncate">{profile?.displayName}</span>
                 <span className="mt-1 block text-xs font-normal text-muted-foreground">{ptBrLabel(profile?.role)}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Densidade</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => onDensityChange('comfortable')}>
-                {density === 'comfortable' && <Check />}
-                Confortável
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onDensityChange('compact')}>
-                {density === 'compact' && <Check />}
-                Compacta
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Tema</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => setThemePickerOpen(true)}>
-                <Palette className="h-4 w-4 text-primary" />
-                Personalizar tema...
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onThemeChange('light')}>
-                {theme === 'light' && <Check />}
-                <Sun className="h-4 w-4" />
-                Claro
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onThemeChange('dark')}>
-                {theme === 'dark' && <Check />}
-                <Moon className="h-4 w-4" />
-                Escuro
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setChangePasswordOpen(true)}>
                 <KeyRound />
                 Alterar minha senha
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Preferências</DropdownMenuLabel>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {theme === 'light' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  Tema
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-48">
+                  <DropdownMenuRadioGroup value={theme} onValueChange={(value) => onThemeChange(value as Theme)}>
+                    <DropdownMenuRadioItem value="light">
+                      <Sun className="mr-2 h-4 w-4" />
+                      Claro
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      <Moon className="mr-2 h-4 w-4" />
+                      Escuro
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setThemePickerOpen(true)}>
+                    <Palette className="h-4 w-4 text-primary" />
+                    Personalizar tema…
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Rows3 className="h-4 w-4" />
+                  Densidade
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-44">
+                  <DropdownMenuRadioGroup
+                    value={density}
+                    onValueChange={(value) => onDensityChange(value as 'comfortable' | 'compact')}
+                  >
+                    <DropdownMenuRadioItem value="comfortable">Confortável</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="compact">Compacta</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void signOut()}>
                 <LogOut />

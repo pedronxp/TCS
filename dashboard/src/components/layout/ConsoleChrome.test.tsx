@@ -105,7 +105,7 @@ describe('Chrome do console', () => {
 
     expect(screen.getByLabelText('Navegação do console')).toHaveClass('w-[232px]');
     expect(screen.getAllByRole('link', { name: /Visão executiva/ }).some((link) => link.getAttribute('href') === '/app')).toBe(true);
-    expect(screen.getByPlaceholderText('Buscar cliente por nome ou documento…')).toBeVisible();
+    expect(screen.getByPlaceholderText('Buscar cliente…')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Novo cliente/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Abrir notificações' })).toBeVisible();
   });
