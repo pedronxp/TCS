@@ -147,6 +147,8 @@ export function DashboardHome() {
   const attention = data?.attention ?? [];
   const actions = (technical ? technicalActions : executiveActions).filter((action) => can(action.permission));
   const firstName = profile.displayName.split(/\s+/).filter(Boolean)[0] || 'equipe';
+  const greeting = timeGreeting();
+  const todayLabel = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
   return (
     <div className="mx-auto max-w-[1240px] space-y-7 pb-8">
@@ -160,8 +162,8 @@ export function DashboardHome() {
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             {technical
-              ? `Olá, ${firstName}. Acompanhe builds, falhas recentes e versões ativas sem misturar indicadores comerciais.`
-              : `Olá, ${firstName}. Acompanhe carteira, assinaturas e filas operacionais sem substituir dados por estimativas.`}
+              ? `${greeting}, ${firstName}. ${capitalize(todayLabel)}. Acompanhe builds, falhas recentes e versões ativas sem misturar indicadores comerciais.`
+              : `${greeting}, ${firstName}. ${capitalize(todayLabel)}. Acompanhe carteira, assinaturas e filas operacionais sem substituir dados por estimativas.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -175,7 +177,7 @@ export function DashboardHome() {
         </div>
       </header>
 
-      <BotServiceStatus workspace="internal" />
+      <BotServiceStatus workspace="internal" hideWhenHealthy />
 
       {!technical && <ExecutiveBrief metrics={metrics} attention={attention} can={can} />}
 
@@ -319,17 +321,26 @@ function ExecutiveBrief({ metrics, attention, can }: { metrics: DashboardMetric[
       </Card>
       <Card className="bg-muted/40 shadow-none">
         <CardContent className="grid grid-cols-3 gap-2 p-4">
-          <BriefStat label="Renovações" value={renewals} icon={CalendarClock} />
-          <BriefStat label="Chamados" value={support} icon={Headphones} />
-          <BriefStat label="Implantação" value={onboarding} icon={TrendingUp} />
+          <BriefStat label="Renovações" value={renewals} icon={CalendarClock} to="/app/assinaturas" />
+          <BriefStat label="Chamados" value={support} icon={Headphones} to="/app/suporte" />
+          <BriefStat label="Implantação" value={onboarding} icon={TrendingUp} to="/app/clientes" />
         </CardContent>
       </Card>
     </section>
   );
 }
 
-function BriefStat({ label, value, icon: Icon }: { label: string; value: number; icon: LucideIcon }) {
-  return <div className="rounded-xl bg-card p-4"><Icon className="h-4 w-4 text-primary" aria-hidden="true" /><p className="mt-4 text-2xl font-semibold tabular-nums">{value.toLocaleString('pt-BR')}</p><p className="mt-1 text-[11px] font-medium text-muted-foreground">{label}</p></div>;
+function BriefStat({ label, value, icon: Icon, to }: { label: string; value: number; icon: LucideIcon; to: string }) {
+  return (
+    <Link to={to} className="group rounded-xl bg-card p-4 outline-none transition-colors hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring">
+      <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+      <p className="mt-4 text-2xl font-semibold tabular-nums">{value.toLocaleString('pt-BR')}</p>
+      <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+        {label}
+        <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+      </p>
+    </Link>
+  );
 }
 
 function ReleasePanel({ release }: { release: DashboardData['release'] }) {
@@ -516,6 +527,18 @@ function EmptyPanel({ icon: Icon, title, description }: { icon: LucideIcon; titl
 
 function isUrgentMetric(metric: DashboardMetric) {
   return metric.value > 0 && ['past_due', 'sla', 'builds_failed', 'sync', 'storage', 'errors'].includes(metric.key);
+}
+
+function timeGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 6) return 'Boa noite';
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function attentionAction(item: DashboardAttention, technical: boolean, can: CanAccess): AttentionAction {
