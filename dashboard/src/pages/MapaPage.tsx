@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Layers, MapPin, Calendar, RotateCcw, Loader2, Search, X, Navigation } from 'lucide-react';
 import { useMapaDados, type PinVistoria, type PinAgendamento } from '@/hooks/useMapaDados';

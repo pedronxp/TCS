@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layers3, MapPin, Maximize2 } from 'lucide-react';
-import maplibregl, { type StyleSpecification } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/Button';
 
@@ -17,7 +17,7 @@ export interface PortalMapPoint {
 type LocatedPortalMapPoint = PortalMapPoint & { latitude: number; longitude: number };
 type MarkerEntry = { marker: maplibregl.Marker; signature: string };
 
-const rasterStyle: StyleSpecification = {
+const rasterStyle: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
     openstreetmap: {
