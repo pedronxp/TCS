@@ -40,20 +40,28 @@ type PortalFunctionContract = {
   portal_get_workspace: { Args: { p_section: string }; Returns: Json };
   portal_create_appointment: {
     Args: {
-      p_inspection_id: string | null;
-      p_notes?: string | null;
-      p_scheduled_at: string;
-      p_title: string;
+      p_inspection_id?: string;
+      p_notes?: string;
+      p_scheduled_at?: string;
+      p_title?: string;
     };
     Returns: Json;
   };
   portal_get_inspection: { Args: { p_inspection_id: string }; Returns: Json };
-  portal_list_own_sessions: { Args: never; Returns: Json };
-  portal_end_own_session: { Args: { p_session_id: string }; Returns: boolean };
-  portal_authorize_inspection_document: {
-    Args: { p_inspection_id: string };
-    Returns: Json;
+  portal_list_own_sessions: {
+    Args: never;
+    Returns: {
+      id: string;
+      device_name: string;
+      platform: string;
+      status: string;
+      started_at: string;
+      last_heartbeat_at: string;
+      last_ip_masked: string;
+      mac_masked: string;
+    }[];
   };
+  portal_end_own_session: { Args: { p_session_id: string }; Returns: boolean };
   portal_get_invite_preview: { Args: { p_token: string }; Returns: Json };
   portal_create_organization_invite: {
     Args: { p_email: string; p_expires_in_hours?: number; p_role: string };
@@ -63,22 +71,15 @@ type PortalFunctionContract = {
     Args: { p_token: string };
     Returns: Json;
   };
-  portal_revoke_organization_invite: {
-    Args: { p_invite_id: string };
-    Returns: boolean;
-  };
-  portal_create_checkout: {
-    Args: {
-      p_idempotency_key: string;
-      p_periodicity: string;
-      p_plan_code: string;
-    };
-    Returns: Json;
-  };
   portal_get_checkout_status: {
     Args: { p_checkout_id: string };
     Returns: Json;
   };
+  // Removidos do contrato (set/2026) por não existirem no backend atual e não
+  // terem chamadores no frontend: portal_authorize_inspection_document (fluxo
+  // de laudos migrou para acknowledgement links), portal_create_checkout e
+  // portal_process_payment_event (checkout Mercado Pago desligado) e
+  // portal_revoke_organization_invite (sem tela que o utilize).
   portal_update_organization_member: {
     Args: {
       p_confirmation: string;
@@ -97,19 +98,6 @@ type PortalFunctionContract = {
       p_display_name: string;
       p_reason: string;
       p_session_timeout_minutes: number;
-    };
-    Returns: Json;
-  };
-  portal_process_payment_event: {
-    Args: {
-      p_event_type: string;
-      p_payload_hash: string;
-      p_provider: string;
-      p_provider_event_id: string;
-      p_provider_event_time: string;
-      p_provider_session_id: string;
-      p_provider_subscription_id?: string | null;
-      p_subscription_status: string;
     };
     Returns: Json;
   };

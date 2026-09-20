@@ -70,9 +70,9 @@ export function useCreateCustomerAppointment() {
         p_customer_id: input.customerId,
         p_title: input.title,
         p_scheduled_at: input.scheduledAt,
-        p_address: input.address?.trim() || null,
-        p_agent_id: input.agentId || null,
-        p_notes: input.notes?.trim() || null,
+        p_address: input.address?.trim() || undefined,
+        p_agent_id: input.agentId || undefined,
+        p_notes: input.notes?.trim() || undefined,
         p_operation_id: input.operationId,
       });
       if (error) throw new Error(appointmentErrorMessage(error));

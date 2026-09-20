@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { supabase } from '@/lib/supabase';
 import {
-  Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 
 // ─── Analytics do owner (F6) ─────────────────────────────────────────────────
@@ -40,7 +40,7 @@ const mesLabel = (yyyyMm: string) => {
 };
 
 function csvDownload(nome: string, linhas: string[][]) {
-  const csv = linhas.map(l => l.map(c => `"${String(c).replaceAll('"', '""')}"`).join(';')).join('\n');
+  const csv = linhas.map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -58,7 +58,7 @@ export function AnalyticsPage() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_owner_analytics');
       if (error) throw error;
-      return data as Analytics;
+      return data as unknown as Analytics;
     },
   });
 
@@ -213,7 +213,7 @@ export function AnalyticsPage() {
             <Row label="Aguardando revisão" value={String(data.qe.pendentes)} />
             <Row label="Taxa de aprovação" value={qePct !== null ? `${qePct}%` : '—'} />
             <Row label="Nota média" value={data.qe.nota_media != null ? `${data.qe.nota_media}/10` : '—'} />
-            <Row label="Tempo médio de revisão" value={data.qe.tempo_media_horas != null ? `${data.qe.tempo_medio_horas}h` : '—'} />
+            <Row label="Tempo médio de revisão" value={data.qe.tempo_medio_horas != null ? `${data.qe.tempo_medio_horas}h` : '—'} />
           </CardContent>
         </Card>        <Card>
           <CardHeader><h2 className="text-sm font-semibold">Vistorias por organização (90 dias)</h2></CardHeader>
