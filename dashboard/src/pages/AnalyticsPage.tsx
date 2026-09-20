@@ -125,12 +125,12 @@ export function AnalyticsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Analytics</h1>
           <p className="text-sm text-muted-foreground">Receita, cobrança e operação em tempo real.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => exportar('vistorias')} disabled={baixando !== null}>
             <Download className="mr-1 h-4 w-4" />Vistorias
           </Button>

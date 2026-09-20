@@ -119,7 +119,9 @@ export function FaturasPage() {
   });
 
   useEffect(() => {
-    if (configQuery.data) setSettings(configQuery.data);
+    if (configQuery.data && typeof configQuery.data === 'object' && !Array.isArray(configQuery.data)) {
+      setSettings((prev) => ({ ...prev, ...configQuery.data }));
+    }
   }, [configQuery.data]);
 
   // ── Mutations ──
