@@ -6,7 +6,6 @@ import { AppLayout } from '@/components/AppLayout';
 import { Toaster } from '@/components/ui/Sonner';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardHome } from '@/pages/DashboardHome';
-import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
 import { BuildsPage } from '@/pages/BuildsPage';
 import { PlansPage } from '@/pages/PlansPage';
 import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
@@ -30,7 +29,6 @@ import { ProtocolInspectionPage } from '@/pages/ProtocolInspectionPage';
 import { ProtocolDocumentWorkspacePage } from '@/pages/ProtocolDocumentWorkspacePage';
 import { TokensConsolePage } from '@/pages/TokensConsolePage';
 import { TokenAnalyticsPage } from '@/pages/TokenAnalyticsPage';
-import { OperationalStatisticsPage } from '@/pages/OperationalStatisticsPage';
 import { NotificationCampaignsPage } from '@/pages/NotificationCampaignsPage';
 import { ConsoleComunicadosPage } from '@/pages/ConsoleComunicadosPage';
 import { ConsoleComunicadoOrgPage } from '@/pages/ConsoleComunicadoOrgPage';
@@ -112,7 +110,6 @@ export default function PrivateApp() {
           <Route path="protocolos/:inspectionId" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolInspectionPage /></ProtectedRoute>} />
           <Route path="tokens" element={<ProtectedRoute requirePermission="token.manage"><TokensConsolePage /></ProtectedRoute>} />
           <Route path="tokens/analise" element={<ProtectedRoute requirePermission="token.manage"><TokenAnalyticsPage /></ProtectedRoute>} />
-          <Route path="operacao/estatisticas" element={<ProtectedRoute requirePermission="technical.read"><OperationalStatisticsPage /></ProtectedRoute>} />
           <Route path="avisos" element={<ProtectedRoute requirePermission="technical.write"><NotificationCampaignsPage /></ProtectedRoute>} />
           <Route path="mensagens" element={<ProtectedRoute requirePermission="console.read"><InboxPage workspace="internal" /></ProtectedRoute>} />
           <Route path="comunicacoes" element={<ProtectedRoute requirePermission="communication.manage"><ConsoleComunicadosPage /></ProtectedRoute>} />
@@ -140,7 +137,6 @@ export default function PrivateApp() {
           <Route path="desenvolvimento/armazenamento" element={<ProtectedRoute requirePermission="technical.read"><TechnicalEventsPage category="storage" title="Armazenamento" /></ProtectedRoute>} />
           <Route path="desenvolvimento/logs" element={<ProtectedRoute requirePermission="technical.read"><TechnicalEventsPage title="Logs e erros" /></ProtectedRoute>} />
           <Route path="governanca/configuracoes" element={<Navigate to="/app/auditoria" replace />} />
-          <Route path="governanca/arquivamento" element={<ProtectedRoute requirePermission="configuration.publish"><ArquivamentoPage /></ProtectedRoute>} />
           <Route path="referencia-ui" element={<ProtectedRoute requirePermission="console.read"><StyleGuidePage /></ProtectedRoute>} />
         </Route>
       </Route>

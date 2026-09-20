@@ -6165,10 +6165,10 @@ export type Database = {
         Args: {
           p_action: string
           p_customer_id: string
-          p_new_password: string
-          p_operation_id: string
-          p_reason: string
-          p_session_id: string
+          p_new_password?: string
+          p_operation_id?: string
+          p_reason?: string
+          p_session_id?: string
           p_user_id: string
         }
         Returns: Json

@@ -80,7 +80,6 @@ describe('Chrome do console', () => {
     ['/app/desenvolvimento/sincronizacao', 'Sincronização'],
     ['/app/desenvolvimento/armazenamento', 'Armazenamento'],
     ['/app/desenvolvimento/logs', 'Logs e erros'],
-    ['/app/governanca/arquivamento', 'Arquivamento e retenção'],
     ['/app/referencia-ui', 'Interface do produto'],
   ])('mantém contexto visível na rota %s', (path, title) => {
     render(
@@ -171,15 +170,14 @@ describe('Chrome do console', () => {
     expect(screen.queryByRole('link', { name: 'Visão executiva' })).not.toBeInTheDocument();
   });
 
-  it('encerra a sessão pela navegação do console', async () => {
-    const user = userEvent.setup();
+  it('não repete no menu lateral a identidade/saída já disponíveis no topo', () => {
     render(
       <MemoryRouter initialEntries={['/app']}>
         <AppSidebar collapsed={false} onCollapsedChange={vi.fn()} />
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Sair' }));
-    expect(signOut).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Sair' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Pedro Paulo')).not.toBeInTheDocument();
   });
 });

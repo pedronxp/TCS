@@ -23,7 +23,6 @@ const routes: InternalRoute[] = [
   { id: 'staff', path: '/app/staff', heading: 'Pessoas e acessos', role: 'owner' },
   { id: 'audit', path: '/app/auditoria', heading: 'Auditoria', role: 'owner' },
   { id: 'configuration', path: '/app/governanca/configuracoes', heading: 'Auditoria', role: 'owner' },
-  { id: 'archive', path: '/app/governanca/arquivamento', heading: 'Arquivamento', role: 'owner' },
   { id: 'ui-reference', path: '/app/referencia-ui', heading: 'Referência da interface TCS', role: 'owner' },
   { id: 'dashboard-developer', path: '/app', heading: 'O que exige investigação agora', role: 'developer' },
   { id: 'versions', path: '/app/desenvolvimento/versoes', heading: 'Versões', role: 'developer' },

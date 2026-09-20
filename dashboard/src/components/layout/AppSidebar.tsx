@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronsLeft, ChevronsRight, LogOut, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronsLeft, ChevronsRight, Search, X } from 'lucide-react';
 import { TcsMark } from '@/components/brand/TcsMark';
-import { RoleBadge } from '@/components/domain/Badges';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveNavigation } from '@/config/navigation';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +19,7 @@ type AppSidebarProps = {
 // Sidebar glass minimalista: fundo translúcido + blur, item ativo com
 // fundo success-soft e texto primary (verde). Funciona em light e dark.
 export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = false }: AppSidebarProps) {
-  const { profile, signOut } = useAuth();
+  const { profile } = useAuth();
   const [query, setQuery] = useState('');
   const groups = resolveNavigation(
     profile?.role === 'developer' ? 'developer' : 'owner',
@@ -35,13 +34,6 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
     }))
     .filter((group) => group.items.length > 0), [groups, normalizedQuery]);
   const consoleLabel = profile?.role === 'developer' ? 'Saúde técnica' : 'Visão executiva';
-  const initials = profile?.displayName
-    ?.split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || 'TC';
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -138,43 +130,6 @@ export function AppSidebar({ collapsed, onCollapsedChange, onNavigate, mobile = 
             />
           ))}
         </nav>
-
-        <div className={cn('group/footer flex min-h-[95px] items-center border-t border-border', compact ? 'mx-4 justify-center' : 'mx-6')}>
-          {compact ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  onClick={() => void signOut()}
-                  aria-label="Sair"
-                >
-                  <LogOut aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Sair</TooltipContent>
-            </Tooltip>
-          ) : (
-            <>
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-                {initials}
-              </span>
-              <div className="ml-3 min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-foreground">{profile?.displayName}</p>
-                {profile?.role && <RoleBadge role={profile.role} className="mt-1.5" />}
-              </div>
-              <button
-                type="button"
-                onClick={() => void signOut()}
-                className="rounded-md p-2 text-muted-foreground opacity-0 hover:bg-secondary hover:text-foreground focus-visible:opacity-100 group-hover/footer:opacity-100"
-                aria-label="Sair"
-              >
-                <LogOut className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </>
-          )}
-        </div>
       </aside>
     </TooltipProvider>
   );

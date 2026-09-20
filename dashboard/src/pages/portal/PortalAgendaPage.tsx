@@ -68,7 +68,7 @@ export function PortalAgendaPage() {
     setMessage(null);
     try {
       const { error } = await supabase.rpc('portal_create_appointment', {
-        p_inspection_id: inspectionId || null,
+        p_inspection_id: inspectionId || undefined,
         p_title: title.trim(),
         p_scheduled_at: parsedDate.toISOString(),
         p_notes: notes.trim() || undefined,
