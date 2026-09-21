@@ -28,6 +28,7 @@ export interface AuditEntry {
   adminNome: string;
   adminRole?: string;
   municipio: string;
+  organizationId?: string | null;
   alvoId?: string;
   alvoNome?: string;
   detalhes?: Record<string, any>;
@@ -47,6 +48,7 @@ export function registrarAuditoria(entry: AuditEntry): void {
     ator_role: entry.adminRole ?? null,
     alvo_id: entry.alvoId ?? null,
     alvo_tipo: entry.alvoNome ?? null,
+    organization_id: entry.organizationId ?? null,
     detalhes: {
       ...(entry.detalhes ?? {}),
       municipio: entry.municipio,

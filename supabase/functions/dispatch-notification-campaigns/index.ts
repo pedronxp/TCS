@@ -41,9 +41,11 @@ async function sendExpo(campaign: Campaign, rows: Recipient[]) {
     to: recipient.endpoint,
     title: campaign.title,
     body: campaign.body,
-    data: { ...campaign.payload, notification_campaign_id: campaign.id, category: campaign.category },
+    data: { ...campaign.payload, tipo: 'campanha', notification_campaign_id: campaign.id, category: campaign.category },
     sound: 'default',
     priority: campaign.priority,
+    channelId: campaign.priority === 'high' ? 'alertas' : 'default',
+    ttl: 86400,
   }));
   const response = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
@@ -114,8 +116,11 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   if (!await canDispatch(request)) return json({ error: 'unauthorized' }, 401);
+  const nowIso = new Date().toISOString();
   const { data: queued, error } = await admin.from('notification_campaigns')
-    .select('id,title,body,priority,category,payload').eq('status', 'queued').order('created_at').limit(10);
+    .select('id,title,body,priority,category,payload').eq('status', 'queued')
+    .or(`scheduled_at.is.null,scheduled_at.lte.${nowIso}`)
+    .order('created_at').limit(10);
   if (error) return json({ error: 'campaign_query_failed' }, 500);
   const results = [];
   for (const campaign of (queued ?? []) as Campaign[]) {

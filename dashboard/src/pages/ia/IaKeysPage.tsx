@@ -13,6 +13,17 @@ import { IaNav } from './IaNav';
 
 const PROVIDERS = ['nvidia', 'openai', 'gemini'] as const;
 
+function formatError(code: string | null): { label: string; hint: string } {
+  if (!code) return { label: '', hint: '' };
+  const map: Record<string, { label: string; hint: string }> = {
+    http_0: { label: 'Timeout/conexão', hint: 'Provedor demorou demais para responder. Pode ser sobrecarga — tente testar novamente.' },
+    http_429: { label: 'Limite de taxa', hint: 'A chave atingiu o limite de requests/min. Cooldown automático em 15 min.' },
+    http_401: { label: 'Chave inválida', hint: 'A chave foi rejeitada. Verifique se está correta e ativa no NVIDIA.' },
+    http_403: { label: 'Acesso negado', hint: 'A chave não tem permissão. Verifique a conta.' },
+  };
+  return map[code] ?? { label: code, hint: '' };
+}
+
 function StatusPill({ status }: { status: AiKeyRow['status'] }) {
   const map = {
     active: 'border-success/30 bg-success-soft text-success',
@@ -30,8 +41,22 @@ export function IaKeysPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ provider: 'nvidia', label: '', api_key: '', model: 'z-ai/glm-5.3', priority: 10, monthly_token_limit: '' });
+  const [testResults, setTestResults] = useState<{ key: string; result: string; latency_ms: number; resposta_real?: string | null }[] | null>(null);
 
   const keys = useQuery({ queryKey: ['ia', 'keys'], queryFn: iaApi.keysList, refetchInterval: 60_000 });
+
+  const health = useMutation({
+    mutationFn: iaApi.healthCheckNow,
+    onSuccess: (r) => {
+      const list = (r.results ?? []) as { key: string; result: string; latency_ms: number; resposta_real?: string | null }[];
+      setTestResults(list);
+      const ok = list.filter((x) => x.result === 'active').length;
+      if (ok === list.length) toast.success(`Teste real concluído: ${ok}/${list.length} chave(s) respondendo com conteúdo.`);
+      else toast.warning(`${ok}/${list.length} chave(s) ok. Veja os detalhes abaixo.`);
+      void queryClient.invalidateQueries({ queryKey: ['ia'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const save = useMutation({
     mutationFn: () => iaApi.keySave({
@@ -72,13 +97,44 @@ export function IaKeysPage() {
           <p className="text-sm text-muted-foreground">Fallback automático por prioridade (menor número tenta primeiro).</p>
         </div>
         {mayManage && (
-          <Button onClick={() => setShowForm((v) => !v)}>
-            <Plus className="mr-2 h-4 w-4" /> Nova chave
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => health.mutate()} disabled={health.isPending}>
+              {health.isPending ? 'Testando (gasta API real)…' : 'Testar chaves agora'}
+            </Button>
+            <Button onClick={() => setShowForm((v) => !v)}>
+              <Plus className="mr-2 h-4 w-4" /> Nova chave
+            </Button>
+          </div>
         )}
       </header>
 
       <IaNav />
+
+      {testResults && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Resultado do teste real</CardTitle>
+            <CardDescription>Cada chave recebeu uma chamada de verdade ao provedor e precisou responder com conteúdo.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border text-sm">
+              {testResults.map((t) => (
+                <li key={t.key} className="flex flex-col gap-1 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{t.key}</span>
+                    <span className={t.result === 'active' ? 'text-success' : 'text-destructive'}>
+                      {t.result === 'active' ? `✅ OK em ${t.latency_ms}ms` : `❌ ${t.result}`}
+                    </span>
+                  </div>
+                  {t.resposta_real && (
+                    <p className="text-xs text-muted-foreground">IA respondeu: “{t.resposta_real}”</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {showForm && mayManage && (
         <Card>
@@ -157,7 +213,10 @@ export function IaKeysPage() {
                       {k.monthly_token_limit ? ` · limite ${k.monthly_token_limit.toLocaleString('pt-BR')}` : ''}
                     </p>
                     {k.last_error_code && (
-                      <p className="text-xs text-destructive">Último erro: {k.last_error_code} {k.last_error_at ? `(${new Date(k.last_error_at).toLocaleString('pt-BR')})` : ''}</p>
+                      <p className="text-xs text-destructive">
+                        {formatError(k.last_error_code).label} · {formatError(k.last_error_code).hint && <span className="text-muted-foreground">{formatError(k.last_error_code).hint}</span>}
+                        {k.last_error_at && <span className="text-muted-foreground"> ({new Date(k.last_error_at).toLocaleString('pt-BR')})</span>}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">

@@ -14,6 +14,7 @@ const presentations: Record<Status, {
   active: { term: 'active', tone: 'success' },
   grace: { term: 'grace', tone: 'warning' },
   past_due: { term: 'pastDue', tone: 'warning' },
+  suspended: { term: 'planLocked', tone: 'danger' },
   canceled: { term: 'canceled', tone: 'danger' },
   expired: { term: 'expired', tone: 'danger' },
   none: { term: 'none', tone: 'danger' },

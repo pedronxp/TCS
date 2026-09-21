@@ -1,12 +1,38 @@
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../utils/supabase';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
-import { AppHeader, Button, FormField, StateBanner } from '../../components/ui';
+import { AppHeader, Badge, Button, FormField, StateBanner } from '../../components/ui';
+
+type TicketStatus = 'open' | 'in_progress' | 'waiting_customer' | 'resolved' | 'closed';
+
+const STATUS_LABEL: Record<string, string> = {
+  open: 'Aberto',
+  in_progress: 'Em atendimento',
+  waiting_customer: 'Aguardando você',
+  resolved: 'Resolvido',
+  closed: 'Encerrado',
+};
+const STATUS_VARIANT: Record<string, 'info' | 'warning' | 'success' | 'neutral'> = {
+  open: 'info',
+  in_progress: 'warning',
+  waiting_customer: 'warning',
+  resolved: 'success',
+  closed: 'neutral',
+};
+
+interface MeuTicket {
+  id: string;
+  public_code: string | null;
+  subject: string;
+  status: TicketStatus;
+  created_at: string;
+  updated_at: string;
+}
 
 export default function SuporteScreen() {
   const { theme } = useTheme();
@@ -16,9 +42,29 @@ export default function SuporteScreen() {
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const [tickets, setTickets] = useState<MeuTicket[]>([]);
+  const [carregando, setCarregando] = useState(false);
 
   const subjectError = attempted && subject.trim().length < 5 ? 'Use pelo menos 5 caracteres.' : undefined;
   const descriptionError = attempted && description.trim().length < 10 ? 'Descreva o problema com pelo menos 10 caracteres.' : undefined;
+
+  const carregarTickets = useCallback(async () => {
+    setCarregando(true);
+    try {
+      const { data } = await supabase
+        .from('support_tickets')
+        .select('id, public_code, subject, status, created_at, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(30);
+      setTickets((data ?? []) as MeuTicket[]);
+    } catch {
+      /* lista opcional */
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { void carregarTickets(); }, [carregarTickets]));
 
   const submit = async () => {
     setAttempted(true);
@@ -36,8 +82,11 @@ export default function SuporteScreen() {
       Alert.alert(
         'Chamado aberto',
         `Protocolo ${data?.public_code || 'registrado'}. A equipe TCS analisará sua solicitação.`,
-        [{ text: 'OK', onPress: () => router.back() }],
       );
+      setSubject('');
+      setDescription('');
+      setAttempted(false);
+      void carregarTickets();
     } catch (error: any) {
       Alert.alert('Não foi possível abrir o chamado', error?.message || 'Verifique sua conexão e tente novamente.');
     } finally {
@@ -58,7 +107,32 @@ export default function SuporteScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={carregando} onRefresh={() => void carregarTickets()} tintColor={theme.primary} />}
       >
+        {tickets.length > 0 && (
+          <View style={{ gap: 10 }}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Meus chamados</Text>
+            {tickets.map(t => (
+              <TouchableOpacity
+                key={t.id}
+                style={[styles.ticket, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={() => router.push({ pathname: '/(panel)/suporte/[id]', params: { id: t.id } })}
+                accessibilityRole="button"
+                accessibilityLabel={`Abrir chamado ${t.public_code ?? t.subject}`}
+              >
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={[styles.ticketTitulo, { color: theme.text }]} numberOfLines={1}>{t.subject}</Text>
+                  <Text style={[styles.ticketMeta, { color: theme.textSecondary }]}>
+                    {t.public_code ?? '—'} · {new Date(t.updated_at).toLocaleDateString('pt-BR')}
+                  </Text>
+                </View>
+                <Badge label={STATUS_LABEL[t.status] ?? t.status} variant={STATUS_VARIANT[t.status] ?? 'neutral'} size="sm" />
+                <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         <View style={[styles.hero, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={[styles.heroIcon, { backgroundColor: theme.secondary }]}>
             <Feather name="message-circle" size={24} color={theme.primary} />
@@ -118,6 +192,10 @@ export default function SuporteScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 20, gap: 16 },
+  sectionTitle: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
+  ticket: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, padding: 14 },
+  ticketTitulo: { fontSize: 14, fontWeight: '700' },
+  ticketMeta: { fontSize: 11 },
   hero: { borderWidth: 1, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
   heroIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   heroCopy: { flex: 1 },

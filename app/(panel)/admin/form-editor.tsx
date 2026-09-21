@@ -81,6 +81,7 @@ export default function FormEditorScreen() {
         adminUid: profile?.uid ?? '',
         adminNome: profile?.name ?? '',
         municipio: profile?.municipio ?? '',
+        organizationId: profile?.organizationId ?? null,
         alvoNome: novoTitulo.trim(),
       });
       Alert.alert('Criado!', 'Formulário criado como rascunho. Adicione perguntas na edição.');
@@ -114,6 +115,7 @@ export default function FormEditorScreen() {
                 adminUid: profile?.uid ?? '',
                 adminNome: profile?.name ?? '',
                 municipio: profile?.municipio ?? '',
+        organizationId: profile?.organizationId ?? null,
                 alvoId: form.id,
                 alvoNome: form.titulo,
               });
@@ -162,6 +164,7 @@ export default function FormEditorScreen() {
               adminUid: profile?.uid ?? '',
               adminNome: profile?.name ?? '',
               municipio: profile?.municipio ?? '',
+        organizationId: profile?.organizationId ?? null,
               alvoId: form.id,
               alvoNome: form.titulo,
             });

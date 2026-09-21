@@ -165,10 +165,10 @@ export function parseAgentOperations(value: Json | null): AgentOperations {
 
 function filterArgs(filters: AgentFilters) {
   return {
-    p_from: filters.from || null, p_to: filters.to || null,
-    p_risks: filters.risk ? [filters.risk.toLowerCase()] : null,
-    p_status: filters.status || null, p_form_id: filters.formId || null,
-    p_search: filters.search.trim() || null,
+    p_from: filters.from || undefined, p_to: filters.to || undefined,
+    p_risks: filters.risk ? [filters.risk.toLowerCase()] : undefined,
+    p_status: filters.status || undefined, p_form_id: filters.formId || undefined,
+    p_search: filters.search.trim() || undefined,
   };
 }
 
@@ -193,7 +193,7 @@ export function useAgentInspections(customerId: string, userId: string, filters:
     queryFn: async () => {
       const { data, error } = await supabase.rpc('list_internal_agent_inspections', {
         p_customer_id: customerId, p_user_id: userId, ...filterArgs(filters),
-        p_cursor_at: cursorAt, p_cursor_id: cursorId, p_page_size: pageSize,
+        p_cursor_at: cursorAt ?? undefined, p_cursor_id: cursorId ?? undefined, p_page_size: pageSize,
       });
       if (error) throw error;
       return parseAgentInspectionPage(data);
@@ -208,7 +208,7 @@ export function useAgentMap(customerId: string, userId: string, filters: AgentFi
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_internal_agent_map', {
         p_customer_id: customerId, p_user_id: userId, ...filterArgs(filters),
-        p_west: null, p_south: null, p_east: null, p_north: null, p_zoom: 10,
+        p_west: undefined, p_south: undefined, p_east: undefined, p_north: undefined, p_zoom: 10,
       });
       if (error) throw error;
       return parseAgentMap(data);

@@ -1530,8 +1530,8 @@ function MemberAccessSheet({ customerId, user, onOpenChange }: {
         p_customer_id: customerId,
         p_user_id: user.user_id,
         p_action: action,
-        p_session_id: null,
-        p_new_password: action === 'reset_password' ? password : null,
+        p_session_id: undefined,
+        p_new_password: action === 'reset_password' ? password : undefined,
         p_reason: reason,
         p_operation_id: operationId,
       });

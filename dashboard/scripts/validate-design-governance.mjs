@@ -6,7 +6,7 @@ const governedPages = [
   'PlansPage.tsx', 'SubscriptionsPage.tsx', 'SessionsPage.tsx', 'SupportPage.tsx',
   'StaffPage.tsx', 'AuditPage.tsx', 'VersionsPage.tsx', 'BuildsPage.tsx', 'FormsPage.tsx',
   'RiskRulesPage.tsx', 'TechnicalEventsPage.tsx',
-  'ArquivamentoPage.tsx', 'LoginPage.tsx', 'StyleGuidePage.tsx',
+  'LoginPage.tsx', 'StyleGuidePage.tsx',
   'OcorrenciasPage.tsx',
 ];
 

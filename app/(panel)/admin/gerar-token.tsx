@@ -146,6 +146,7 @@ export default function GerarTokenScreen() {
         adminUid: profile?.uid ?? '',
         adminNome: profile?.name ?? '',
         municipio: municipio || profile?.municipio || '',
+        organizationId: profile?.organizationId ?? null,
         alvoId: codigo,
         detalhes: { role, duracao: labelDuracao },
       });

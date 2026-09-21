@@ -110,6 +110,14 @@ export interface CronStatus {
   recent_runs: { jobname: string; status: string; return_message: string | null; start_time: string; end_time: string | null }[];
 }
 
+export interface BotTemplate {
+  key: string;
+  texto: string;
+  default_text: string;
+  description: string | null;
+  updated_at: string;
+}
+
 // ---------- chamadas RPC ----------
 
 async function rpc<T>(fn: string, params?: Record<string, unknown>): Promise<T> {
@@ -182,6 +190,13 @@ export const iaApi = {
   whatsappSessionRevoke: (id: string) => rpc<void>('whatsapp_session_revoke', { p_id: id }),
 
   cronStatus: () => rpc<CronStatus>('ai_cron_status'),
+
+  modulesMatrix: () => rpc<{ modules: string[]; rows: { organization_id: string; org: string; module_key: string; enabled: boolean }[]; orgs: { id: string; name: string }[] }>('ai_modules_matrix'),
+  moduleSet: (orgId: string, moduleKey: string, enabled: boolean) =>
+    rpc<void>('ai_module_set', { p_organization_id: orgId, p_module_key: moduleKey, p_enabled: enabled }),
+
+  botTemplates: () => rpc<BotTemplate[]>('bot_templates_list'),
+  botTemplateSet: (key: string, texto: string | null) => rpc<void>('bot_template_set', { p_key: key, p_texto: texto }),
 
   /** Simulador do bot dentro do painel (equipe interna). */
   simulateBot: async (phone: string, message: string): Promise<{ replies: string[]; documents: { name: string; url: string }[] }> => {

@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
+import QeStatusBanner from '../../../components/qe/QeStatusBanner';
 import { safeBack } from '../../../utils/navigationUtils';
 import { logger } from '../../../utils/logger';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
@@ -238,6 +239,7 @@ export default function ResultadoScreen() {
             adminNome: profile.name || '—',
             adminRole: profile.role,
             municipio: norm.municipio || profile.municipio || '',
+            organizationId: profile.organizationId ?? null,
             alvoId: norm.id,
           });
         }
@@ -437,7 +439,8 @@ export default function ResultadoScreen() {
           adminNome: profile.name || '—',
           adminRole: profile.role,
             municipio: vistoria?.municipio || profile.municipio || '',
-          alvoId: vistoria?.id,
+            organizationId: profile.organizationId ?? null,
+            alvoId: vistoria?.id,
           detalhes: { protocolo: vistoria?.protocolo, nivel_risco: vistoria?.nivelRisco },
         });
       }
@@ -706,6 +709,7 @@ export default function ResultadoScreen() {
       />
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
+        <QeStatusBanner vistoriaId={typeof id === 'string' ? id : undefined} />
         {/* Status Card */}
         <View style={[styles.statusCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.statusHeading}>

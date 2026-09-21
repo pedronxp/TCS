@@ -17,7 +17,7 @@ const runtimeCopy: Record<BotRuntimeState, { label: string; detail: string; vari
   banned: { label: 'Número banido', detail: 'Todos os números configurados precisam ser substituídos.', variant: 'destructive' },
 };
 
-export function BotServiceStatus({ workspace }: { workspace: 'internal' | 'organization' }) {
+export function BotServiceStatus({ workspace, hideWhenHealthy = false }: { workspace: 'internal' | 'organization'; hideWhenHealthy?: boolean }) {
   const [online, setOnline] = useState<boolean | null>(null);
   const [runtime, setRuntime] = useState<BotOrganizationRuntime | null>(null);
   const [checking, setChecking] = useState(true);
@@ -53,6 +53,8 @@ export function BotServiceStatus({ workspace }: { workspace: 'internal' | 'organ
   const destination = workspace === 'internal' ? '/app/whatsapp' : '/portal/municipal/whatsapp';
   const presentation = runtime ? runtimeCopy[runtime.state] : null;
   const healthy = runtime ? ['online', 'degraded'].includes(runtime.state) : online === true;
+
+  if (hideWhenHealthy && !checking && healthy) return null;
 
   return (
     <section className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Status do bot WhatsApp">

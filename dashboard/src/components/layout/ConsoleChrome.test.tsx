@@ -80,7 +80,6 @@ describe('Chrome do console', () => {
     ['/app/desenvolvimento/sincronizacao', 'Sincronização'],
     ['/app/desenvolvimento/armazenamento', 'Armazenamento'],
     ['/app/desenvolvimento/logs', 'Logs e erros'],
-    ['/app/governanca/arquivamento', 'Arquivamento e retenção'],
     ['/app/referencia-ui', 'Interface do produto'],
   ])('mantém contexto visível na rota %s', (path, title) => {
     render(
@@ -106,7 +105,7 @@ describe('Chrome do console', () => {
 
     expect(screen.getByLabelText('Navegação do console')).toHaveClass('w-[232px]');
     expect(screen.getAllByRole('link', { name: /Visão executiva/ }).some((link) => link.getAttribute('href') === '/app')).toBe(true);
-    expect(screen.getByPlaceholderText('Buscar cliente por nome ou documento…')).toBeVisible();
+    expect(screen.getByPlaceholderText('Buscar cliente…')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Novo cliente/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Abrir notificações' })).toBeVisible();
   });
@@ -171,15 +170,14 @@ describe('Chrome do console', () => {
     expect(screen.queryByRole('link', { name: 'Visão executiva' })).not.toBeInTheDocument();
   });
 
-  it('encerra a sessão pela navegação do console', async () => {
-    const user = userEvent.setup();
+  it('não repete no menu lateral a identidade/saída já disponíveis no topo', () => {
     render(
       <MemoryRouter initialEntries={['/app']}>
         <AppSidebar collapsed={false} onCollapsedChange={vi.fn()} />
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Sair' }));
-    expect(signOut).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Sair' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Pedro Paulo')).not.toBeInTheDocument();
   });
 });

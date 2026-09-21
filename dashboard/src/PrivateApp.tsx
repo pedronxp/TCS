@@ -6,10 +6,11 @@ import { AppLayout } from '@/components/AppLayout';
 import { Toaster } from '@/components/ui/Sonner';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardHome } from '@/pages/DashboardHome';
-import { ArquivamentoPage } from '@/pages/ArquivamentoPage';
 import { BuildsPage } from '@/pages/BuildsPage';
 import { PlansPage } from '@/pages/PlansPage';
 import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
+import { FaturasPage } from '@/pages/FaturasPage';
+import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { SessionsPage } from '@/pages/SessionsPage';
 import { DevicesPage } from '@/pages/DevicesPage';
 import { SupportPage } from '@/pages/SupportPage';
@@ -28,7 +29,6 @@ import { ProtocolInspectionPage } from '@/pages/ProtocolInspectionPage';
 import { ProtocolDocumentWorkspacePage } from '@/pages/ProtocolDocumentWorkspacePage';
 import { TokensConsolePage } from '@/pages/TokensConsolePage';
 import { TokenAnalyticsPage } from '@/pages/TokenAnalyticsPage';
-import { OperationalStatisticsPage } from '@/pages/OperationalStatisticsPage';
 import { NotificationCampaignsPage } from '@/pages/NotificationCampaignsPage';
 import { ConsoleComunicadosPage } from '@/pages/ConsoleComunicadosPage';
 import { ConsoleComunicadoOrgPage } from '@/pages/ConsoleComunicadoOrgPage';
@@ -40,6 +40,7 @@ import { IaOverviewPage } from '@/pages/ia/IaOverviewPage';
 import { IaKeysPage } from '@/pages/ia/IaKeysPage';
 import { IaAgentPage } from '@/pages/ia/IaAgentPage';
 import { IaRolloutPage } from '@/pages/ia/IaRolloutPage';
+import { IaAcessosPage } from '@/pages/ia/IaAcessosPage';
 import { IaLogsPage } from '@/pages/ia/IaLogsPage';
 import { legacyCustomerDetailPath, legacyCustomerMemberPath } from '@/lib/customerRoutes';
 
@@ -99,6 +100,8 @@ export default function PrivateApp() {
           <Route path="planos" element={<ProtectedRoute requirePermission="commercial.read"><PlansPage /></ProtectedRoute>} />
           <Route path="negocio/indicadores" element={<ProtectedRoute requirePermission="commercial.read"><CommercialMetricsPage /></ProtectedRoute>} />
           <Route path="assinaturas" element={<ProtectedRoute requirePermission="commercial.read"><SubscriptionsPage /></ProtectedRoute>} />
+          <Route path="faturas" element={<ProtectedRoute requirePermission="commercial.read"><FaturasPage /></ProtectedRoute>} />
+          <Route path="analytics" element={<ProtectedRoute requirePermission="commercial.read"><AnalyticsPage /></ProtectedRoute>} />
           <Route path="protocolos" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolsPage /></ProtectedRoute>} />
           <Route path="protocolos/:inspectionId/laudo" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="laudo" /></ProtectedRoute>} />
           <Route path="protocolos/:inspectionId/relatorio" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolDocumentWorkspacePage kind="relatorio" /></ProtectedRoute>} />
@@ -107,7 +110,6 @@ export default function PrivateApp() {
           <Route path="protocolos/:inspectionId" element={<ProtectedRoute requirePermission="protocol.read"><ProtocolInspectionPage /></ProtectedRoute>} />
           <Route path="tokens" element={<ProtectedRoute requirePermission="token.manage"><TokensConsolePage /></ProtectedRoute>} />
           <Route path="tokens/analise" element={<ProtectedRoute requirePermission="token.manage"><TokenAnalyticsPage /></ProtectedRoute>} />
-          <Route path="operacao/estatisticas" element={<ProtectedRoute requirePermission="technical.read"><OperationalStatisticsPage /></ProtectedRoute>} />
           <Route path="avisos" element={<ProtectedRoute requirePermission="technical.write"><NotificationCampaignsPage /></ProtectedRoute>} />
           <Route path="mensagens" element={<ProtectedRoute requirePermission="console.read"><InboxPage workspace="internal" /></ProtectedRoute>} />
           <Route path="comunicacoes" element={<ProtectedRoute requirePermission="communication.manage"><ConsoleComunicadosPage /></ProtectedRoute>} />
@@ -120,6 +122,7 @@ export default function PrivateApp() {
           <Route path="ia/chaves" element={<ProtectedRoute requirePermission="ia.read"><IaKeysPage /></ProtectedRoute>} />
           <Route path="ia/agente" element={<ProtectedRoute requirePermission="ia.read"><IaAgentPage /></ProtectedRoute>} />
           <Route path="ia/rollout" element={<ProtectedRoute requirePermission="ia.read"><IaRolloutPage /></ProtectedRoute>} />
+          <Route path="ia/acessos" element={<ProtectedRoute requirePermission="ia.read"><IaAcessosPage /></ProtectedRoute>} />
           <Route path="ia/logs" element={<ProtectedRoute requirePermission="ia.read"><IaLogsPage /></ProtectedRoute>} />
           <Route path="dispositivo" element={<ProtectedRoute requirePermission="session.read"><DevicesPage /></ProtectedRoute>} />
           <Route path="suporte" element={<ProtectedRoute requirePermission="support.read"><SupportPage /></ProtectedRoute>} />
@@ -134,7 +137,6 @@ export default function PrivateApp() {
           <Route path="desenvolvimento/armazenamento" element={<ProtectedRoute requirePermission="technical.read"><TechnicalEventsPage category="storage" title="Armazenamento" /></ProtectedRoute>} />
           <Route path="desenvolvimento/logs" element={<ProtectedRoute requirePermission="technical.read"><TechnicalEventsPage title="Logs e erros" /></ProtectedRoute>} />
           <Route path="governanca/configuracoes" element={<Navigate to="/app/auditoria" replace />} />
-          <Route path="governanca/arquivamento" element={<ProtectedRoute requirePermission="configuration.publish"><ArquivamentoPage /></ProtectedRoute>} />
           <Route path="referencia-ui" element={<ProtectedRoute requirePermission="console.read"><StyleGuidePage /></ProtectedRoute>} />
         </Route>
       </Route>

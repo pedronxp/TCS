@@ -577,6 +577,7 @@ export default function WizardAvaliacaoScreen() {
           adminNome: activeProfile.name || '—',
           adminRole: activeProfile.role,
           municipio: municipioVistoria,
+          organizationId: activeProfile.organizationId ?? null,
           alvoId: id,
           detalhes: { nivel_risco: nivel, formulario_id: params.formularioId },
         });

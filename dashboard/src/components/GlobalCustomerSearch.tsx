@@ -12,17 +12,17 @@ export function GlobalCustomerSearch() {
 
   return (
     <div className="relative w-full">
-      <Search className="pointer-events-none absolute left-4 top-3.5 h-4 w-4 text-muted-foreground" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
       <input
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        placeholder="Buscar cliente por nome ou documento…"
+        placeholder="Buscar cliente…"
         aria-label="Buscar cliente"
-        className="h-11 w-full rounded-md border bg-background pl-12 pr-4 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20"
+        className="h-9 w-full rounded-lg border border-transparent bg-secondary/60 pl-9 pr-3 text-[13px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 hover:bg-secondary focus-visible:border-ring focus-visible:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/20"
       />
       {open && (
         <div
-          className="glass absolute left-0 right-0 top-[52px] z-50 overflow-hidden rounded-lg border border-border text-popover-foreground"
+          className="glass absolute left-0 right-0 top-[44px] z-50 overflow-hidden rounded-lg border border-border text-popover-foreground"
           role="listbox"
         >
           {query.isLoading ? (

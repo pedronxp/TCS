@@ -33,14 +33,12 @@ vi.mock('maplibre-gl', () => {
   class PopupMock { setDOMContent() { return this; } }
   class BoundsMock { extend() { return this; } }
   return {
-    default: {
-      Map: MapMock,
-      Marker: MarkerMock,
-      Popup: PopupMock,
-      LngLatBounds: BoundsMock,
-      NavigationControl: class {},
-      AttributionControl: class {},
-    },
+    Map: MapMock,
+    Marker: MarkerMock,
+    Popup: PopupMock,
+    LngLatBounds: BoundsMock,
+    NavigationControl: class {},
+    AttributionControl: class {},
   };
 });
 

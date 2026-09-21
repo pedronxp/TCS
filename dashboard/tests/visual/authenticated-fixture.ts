@@ -258,8 +258,26 @@ function rpcResponse(name: string, role: InternalRole): unknown {
         total: 0,
         overview: { active_total: 0, platforms: { web: 0, android: 0, ios: 0 } },
       };
-    case 'list_internal_archive_lifecycle':
-      return { config: { mode: 'manual', enabled: false, days_threshold: 7 }, pending: [], history: [], restore_requests: [] };
+    case 'get_owner_analytics':
+      return {
+        mrr_centavos: 4850000,
+        recebido_mes_centavos: 1620000,
+        organizacoes: { active: 6, trial: 2, suspended: 1 },
+        agentes_ativos_30d: 23,
+        series_6m: [
+          { mes: '2026-04', receita_centavos: 1210000, vistorias: 341 },
+          { mes: '2026-05', receita_centavos: 1340000, vistorias: 388 },
+          { mes: '2026-06', receita_centavos: 1420000, vistorias: 402 },
+          { mes: '2026-07', receita_centavos: 1510000, vistorias: 419 },
+          { mes: '2026-08', receita_centavos: 1580000, vistorias: 433 },
+          { mes: '2026-09', receita_centavos: 1620000, vistorias: 421 },
+        ],
+        qe: { pendentes: 5, avaliadas_30d: 118, aprovadas_30d: 102, nota_media: 8.4, tempo_medio_horas: 6.2 },
+        top_orgs_90d: [
+          { org: 'Prefeitura de Cataguases', vistorias: 812 },
+          { org: 'Prefeitura de Ubá', vistorias: 476 },
+        ],
+      };
     default:
       return [];
   }

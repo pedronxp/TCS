@@ -23,6 +23,7 @@ import { canAccessMobileFieldOperation } from '../../services/MobileAccessServic
 const ROUTE_ROLES: Record<string, readonly string[]> = {
   'admin':        ['admin', 'master_admin'],
   'supervisor':   ['supervisor', 'admin', 'master_admin'],
+  'qe':           ['supervisor', 'admin', 'master_admin'],
   'master':       ['master_admin'],
   'internal':     ['owner', 'developer', 'support', 'auditor'],
 };
@@ -41,6 +42,7 @@ const WEB_ONLY_ROUTES = new Set([
 function useRouteGuard() {
   const segments = useSegments() as string[];
   const { profile, loading } = useAuth();
+  const { context: subscriptionContext } = useSubscription();
 
   useEffect(() => {
     if (loading || !profile) return;
@@ -48,6 +50,20 @@ function useRouteGuard() {
     // segments[0] = "(panel)", segments[1] = section (admin/supervisor/master/...)
     const section = segments[1] as string | undefined;
     if (!section) return;
+
+    // ── Bloqueio por suspensão de cobrança (F3) ──
+    // Org/assinatura suspensa → só acessa cobrança, suporte e dashboard.
+    const suspensa =
+      subscriptionContext?.organization?.status === 'suspended' ||
+      subscriptionContext?.subscription?.status === 'suspended';
+    if (suspensa) {
+      const permitidas = ['assinatura', 'suporte', 'dashboard'];
+      if (!permitidas.includes(section)) {
+        logger.warn('auth', `Acesso bloqueado (suspensão): seção "${section}"`);
+        router.replace('/(panel)/assinatura');
+        return;
+      }
+    }
 
     if (section === 'inspecoes'
       && !canAccessMobileFieldOperation(profile.role, profile.permissions, 'inspections')) {
@@ -78,7 +94,7 @@ function useRouteGuard() {
       // Redireciona para dashboard sem permissão de navegar de volta
       router.replace('/(panel)/dashboard');
     }
-  }, [segments, profile, loading]);
+  }, [segments, profile, loading, subscriptionContext]);
 }
 
 function PanelContent() {
@@ -162,6 +178,7 @@ function PanelContent() {
         <Stack.Screen name="admin/risco-config" />
         <Stack.Screen name="admin/logs" />
         <Stack.Screen name="admin/protocolo-doc" />
+        <Stack.Screen name="admin/personalizar-dashboard" />
         <Stack.Screen name="admin/editor-perguntas" />
         <Stack.Screen name="inspecoes/laudo" />
         <Stack.Screen name="treinamento/index" />
@@ -175,9 +192,12 @@ function PanelContent() {
         <Stack.Screen name="modulos" />
         <Stack.Screen name="avisos/index" />
         <Stack.Screen name="assinatura" />
+        <Stack.Screen name="qe/index" />
+        <Stack.Screen name="qe/[id]" />
         <Stack.Screen name="planos" />
         <Stack.Screen name="coordenacao" />
         <Stack.Screen name="suporte" />
+        <Stack.Screen name="suporte/[id]" />
       </Stack>
       <BottomNavBar />
     </View>

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layers3, MapPin, Maximize2 } from 'lucide-react';
-import maplibregl, { type StyleSpecification } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { CustomerMapPoint } from '@/types/domain';
 import { Button } from '@/components/ui/Button';
 
-const rasterStyle: StyleSpecification = {
+const rasterStyle: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
     openstreetmap: {
@@ -61,7 +61,7 @@ export function CustomerMap({ points }: { points: CustomerMapPoint[] }) {
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     map.once('load', () => { setMapError(false); setMapReady(true); });
-    map.on('error', (event) => {
+    map.on('error', (event: maplibregl.ErrorEvent) => {
       if (event.error?.message?.toLowerCase().includes('style')) setMapError(true);
     });
     const resizeObserver = new ResizeObserver(() => map.resize());

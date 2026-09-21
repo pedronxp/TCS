@@ -92,6 +92,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
       {
         key: 'operation', title: 'Acompanhamento operacional', description: 'Informações úteis durante o uso do aplicativo', items: [
           ...baseOperation,
+          { title: 'Qualidade (QE)', description: 'Revisar vistorias da operação', icon: 'check-square', route: '/(panel)/qe' },
           { title: 'Equipe', description: 'Acompanhar profissionais', icon: 'user-check', route: '/(panel)/equipe' },
           { title: 'Agenda', description: 'Compromissos e atividades', icon: 'calendar', route: '/(panel)/agendamentos' },
           { title: 'Relatórios', description: 'Consultar laudos disponíveis', icon: 'file-text', route: '/(panel)/admin/relatorios' },
@@ -113,6 +114,8 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
       {
         key: 'technical', title: 'Operação técnica', description: 'Vistorias e inteligência local', items: [
           ...baseOperation,
+          { title: 'Qualidade (QE)', description: 'Revisão de vistorias da equipe', icon: 'check-square', route: '/(panel)/qe' },
+          { title: 'Personalizar painel', description: 'Ordem e blocos do dashboard do agente', icon: 'sliders', route: '/(panel)/admin/personalizar-dashboard' },
           { title: 'Relatórios', description: 'Consultar laudos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
           { title: 'Estatísticas', description: 'Métricas municipais', icon: 'bar-chart-2', route: '/(panel)/admin/estatisticas' },
         ],
@@ -126,6 +129,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
       {
         key: 'operation', title: 'Operação da equipe', description: 'Campo, agenda e cobertura', items: [
           ...baseOperation,
+          { title: 'Qualidade (QE)', description: 'Revisão de vistorias', icon: 'check-square', route: '/(panel)/qe' },
           { title: 'Grupos', description: 'Agentes por área ou turno', icon: 'grid', route: '/(panel)/grupos' },
           { title: 'Agenda', description: 'Distribuição de tarefas', icon: 'calendar', route: '/(panel)/agendamentos' },
         ],

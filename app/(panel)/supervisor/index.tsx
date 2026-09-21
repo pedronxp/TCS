@@ -17,6 +17,7 @@ import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useSubscription } from '../../../context/SubscriptionContext';
 import { resolveMobileOrganizationAccess } from '../../../services/MobileAccessService';
 import { DashboardGuide } from '../../../components/DashboardGuide';
+import { buscarLayoutDashboard, DEFAULT_LAYOUTS, LayoutItem } from '../../../utils/dashboardLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { MetricCard, SectionHeader, StateBanner } from '../../../components/ui';
@@ -36,6 +37,7 @@ export default function SupervisorDashboardScreen() {
   const [agentesAtivos, setAgentesAtivos] = useState(0);
   const [totais, setTotais] = useState({ vistorias: 0, altoRisco: 0 });
   const [pendingAgendamentos, setPendingAgendamentos] = useState(0);
+  const [layout, setLayout] = useState<LayoutItem[]>(DEFAULT_LAYOUTS.supervisor);
 
   const carregar = async (showRefresh = false) => {
     if (!profile) return;
@@ -75,6 +77,7 @@ export default function SupervisorDashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+    buscarLayoutDashboard('supervisor').then(setLayout).catch(() => null);
   };
 
   useFocusEffect(useCallback(() => {
@@ -197,84 +200,98 @@ export default function SupervisorDashboardScreen() {
           />
         ) : null}
 
-        {/* KPIs */}
-        <SectionHeader title="Visão geral" subtitle="Operação municipal acompanhada pela supervisão" />
-        <View style={styles.metricGrid}>
-          <MetricCard value={totalVistorias} label="Vistorias da organização" detail="Total confirmado no backend" tone="primary" style={styles.metricWide} />
-          <MetricCard value={altoRisco} label="Alertas críticos" tone="danger" style={styles.metricHalf} />
-          <MetricCard value={agentesAtivos} label="Agentes ativos" tone="success" style={styles.metricHalf} />
-        </View>
-
-        {/* Ranking da equipe */}
-        {ranking.length > 0 && (
-          <>
-            <View style={styles.sectionRow}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Desempenho da Equipe</Text>
-              <TouchableOpacity onPress={() => router.push('/(panel)/equipe')}>
-                <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe</Text>
-              </TouchableOpacity>
-            </View>
-            {ranking.map(([nome, count]) => {
-              const progresso = Math.min(count / META_MENSAL, 1);
-              const cor = count >= META_MENSAL ? theme.success : count >= META_MENSAL / 2 ? theme.primary : theme.warning;
+        {layout.filter(w => w.visivel).map(item => {
+          switch (item.widget) {
+            case 'kpis_gerais':
               return (
-                <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
-                  <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
-                    <Text style={[styles.rankAvatarText, { color: theme.primary }]}>
-                      {nome[0]?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <View style={styles.rankRow}>
-                      <Text style={[styles.rankName, { color: theme.text }]} numberOfLines={1}>{nome}</Text>
-                      <Text style={[styles.rankCount, { color: cor }]}>{count}/{META_MENSAL}</Text>
-                    </View>
-                    <View style={[styles.progressBg, { backgroundColor: theme.iconBackground }]}>
-                      <View style={[styles.progressFill, { width: `${progresso * 100}%`, backgroundColor: cor }]} />
-                    </View>
+                <View key={item.widget}>
+                  <SectionHeader title="Visão geral" subtitle="Operação municipal acompanhada pela supervisão" />
+                  <View style={styles.metricGrid}>
+                    <MetricCard value={totalVistorias} label="Vistorias da organização" detail="Total confirmado no backend" tone="primary" style={styles.metricWide} />
+                    <MetricCard value={altoRisco} label="Alertas críticos" tone="danger" style={styles.metricHalf} />
+                    <MetricCard value={agentesAtivos} label="Agentes ativos" tone="success" style={styles.metricHalf} />
                   </View>
                 </View>
               );
-            })}
-          </>
-        )}
 
+            case 'ranking_equipe':
+              return ranking.length > 0 ? (
+                <View key={item.widget}>
+                  <View style={styles.sectionRow}>
+                    <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Desempenho da Equipe</Text>
+                    <TouchableOpacity onPress={() => router.push('/(panel)/equipe')}>
+                      <Text style={[styles.seeAll, { color: theme.primary }]}>Ver equipe</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {ranking.map(([nome, count]) => {
+                    const progresso = Math.min(count / META_MENSAL, 1);
+                    const cor = count >= META_MENSAL ? theme.success : count >= META_MENSAL / 2 ? theme.primary : theme.warning;
+                    return (
+                      <View key={nome} style={[styles.rankCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}>
+                        <View style={[styles.rankAvatar, { backgroundColor: theme.iconBackground }]}>
+                          <Text style={[styles.rankAvatarText, { color: theme.primary }]}>
+                            {nome[0]?.toUpperCase() || '?'}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <View style={styles.rankRow}>
+                            <Text style={[styles.rankName, { color: theme.text }]} numberOfLines={1}>{nome}</Text>
+                            <Text style={[styles.rankCount, { color: cor }]}>{count}/{META_MENSAL}</Text>
+                          </View>
+                          <View style={[styles.progressBg, { backgroundColor: theme.iconBackground }]}>
+                            <View style={[styles.progressFill, { width: `${progresso * 100}%`, backgroundColor: cor }]} />
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null;
 
-        {/* Atividade recente */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Registro de Operações</Text>
-        {vistorias.slice(0, 5).map(v => {
-          const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
-          const nivel = String(v.nivelRisco || '').toLowerCase();
-          const cor = ['r3', 'r4', 'alto', 'critico', 'iminente'].includes(nivel)
-            ? theme.error
-            : ['r2', 'medio', 'médio'].includes(nivel) ? theme.warning : theme.success;
-          return (
-            <TouchableOpacity
-              key={v.id}
-              style={[styles.vistoriaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
-              onPress={() => router.push(`/(panel)/inspecoes/${v.id}`)}
-            >
-              <View style={[styles.riscoDot, { backgroundColor: `${cor}20`, borderColor: `${cor}40` }]}>
-                <Feather
-                  name={cor === theme.error ? 'alert-triangle' : cor === theme.warning ? 'alert-circle' : 'check-circle'}
-                  size={20} color={cor}
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.vistoriaEnd, { color: theme.text }]} numberOfLines={1}>
-                  {v.endereco || 'Endereço não informado'}
-                </Text>
-                <Text style={[styles.vistoriaInfo, { color: theme.textSecondary }]}>
-                  {v.agenteNome || '?'} · {tempoRelativo(v.dataVistoria)}
-                </Text>
-              </View>
-              <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
-                <Text style={[styles.nivelText, { color: cor }]}>
-                  {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
+            case 'atividade_recente':
+              return (
+                <View key={item.widget}>
+                  <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Registro de Operações</Text>
+                  {vistorias.slice(0, 5).map(v => {
+                    const apresentacao = resolverApresentacaoRisco({ formularioId: v.formularioId, pontuacao: v.pontuacaoTotal, nivelRisco: v.nivelRisco, calculoRisco: v.calculoRisco });
+                    const nivel = String(v.nivelRisco || '').toLowerCase();
+                    const cor = ['r3', 'r4', 'alto', 'critico', 'iminente'].includes(nivel)
+                      ? theme.error
+                      : ['r2', 'medio', 'médio'].includes(nivel) ? theme.warning : theme.success;
+                    return (
+                      <TouchableOpacity
+                        key={v.id}
+                        style={[styles.vistoriaCard, { backgroundColor: theme.surfaceHighlight, borderColor: theme.cardBorder }]}
+                        onPress={() => router.push(`/(panel)/inspecoes/${v.id}`)}
+                      >
+                        <View style={[styles.riscoDot, { backgroundColor: `${cor}20`, borderColor: `${cor}40` }]}>
+                          <Feather
+                            name={cor === theme.error ? 'alert-triangle' : cor === theme.warning ? 'alert-circle' : 'check-circle'}
+                            size={20} color={cor}
+                          />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[styles.vistoriaEnd, { color: theme.text }]} numberOfLines={1}>
+                            {v.endereco || 'Endereço não informado'}
+                          </Text>
+                          <Text style={[styles.vistoriaInfo, { color: theme.textSecondary }]}>
+                            {v.agenteNome || '?'} · {tempoRelativo(v.dataVistoria)}
+                          </Text>
+                        </View>
+                        <View style={[styles.nivelBadge, { backgroundColor: `${cor}20` }]}>
+                          <Text style={[styles.nivelText, { color: cor }]}>
+                            {v.formularioId === 'avaliacao_arvore_cbmmg_v1' ? apresentacao.label : (v.nivelRisco?.toUpperCase() || '—')}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              );
+
+            default:
+              return null;
+          }
         })}
       </ScrollView>
     </View>

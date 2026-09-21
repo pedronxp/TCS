@@ -16,6 +16,10 @@ export default defineConfig({
     host: true,
     fs: { allow: [path.resolve(__dirname, '..')] },
   },
+  // O web worker do maplibre-gl v6 não sobrevive ao dep optimizer do dev
+  // server (maplibre-gl-worker.mjs ausente no cache), quebrando os testes
+  // visuais com servidor frio. O build de produção empacota normalmente.
+  optimizeDeps: { exclude: ['maplibre-gl'] },
   build: {
     chunkSizeWarningLimit: 2000,
     rollupOptions: {

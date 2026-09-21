@@ -50,10 +50,13 @@ function RootNavigator() {
   useEffect(() => {
     if (!lastResponse) return;
     const data = lastResponse.notification.request.content.data as Record<string, any>;
-    if (data?.tipo === 'atribuicao' || data?.tipo === 'vistoria_salva' || data?.tipo === 'sync') {
+    const tipo = typeof data?.tipo === 'string' ? data.tipo : '';
+    if (tipo === 'atribuicao' || tipo === 'vistoria_salva' || tipo === 'sync' || tipo === 'vistoria_deletada') {
       router.push('/(panel)/inspecoes');
-    } else if (data?.tipo === 'comunicado' || data?.tipo === 'aviso' || data?.tipo === 'emergencia') {
+    } else if (tipo === 'comunicado' || tipo === 'aviso' || tipo === 'emergencia' || tipo === 'campanha') {
       router.push('/(panel)/avisos');
+    } else if (tipo === 'token_gerado' || tipo === 'solicita_tokens' || tipo === 'token_expirando') {
+      router.push('/(panel)/admin/tokens');
     }
   }, [lastResponse]);
 

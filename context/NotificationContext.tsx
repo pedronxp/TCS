@@ -68,13 +68,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         logger.warn('notifications', 'Não foi possível verificar a permissão de notificações', { erro: String(error) });
       });
 
-    // Listener: notificação recebida com app em foreground
+    // Listener: notificação recebida com app em foreground. O badge é
+    // derivado exclusivamente dos não-lidos exibidos na central de avisos;
+    // incrementos por push eram sobrescritos e perdiam o contador.
     receivedRef.current = addNotificationReceivedListener(notification => {
       const data = notification.request.content.data as Record<string, any>;
       logger.info('system', 'Notificação recebida', { tipo: data?.tipo });
-      if (data?.tipo === 'comunicado' || data?.tipo === 'aviso' || data?.tipo === 'emergencia') {
-        setBadgeState((current) => current + 1);
-      }
     });
 
     // Listener: usuário tocou — armazena resposta para RootNavigator navegar

@@ -7,7 +7,7 @@ Plataforma para registrar, acompanhar e administrar vistorias técnicas de risco
 [![Expo](https://img.shields.io/badge/Expo-54-000020?style=flat-square&logo=expo)](https://expo.dev/)
 [![React Native](https://img.shields.io/badge/React%20Native-0.81-61DAFB?style=flat-square&logo=react)](https://reactnative.dev/)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase-3FCF8E?style=flat-square&logo=supabase)](https://supabase.com/)
-[![Versão](https://img.shields.io/badge/Versão-1.3.26-2563EB?style=flat-square)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/Versão-1.3.60-2563EB?style=flat-square)](./CHANGELOG.md)
 
 </div>
 
@@ -29,17 +29,28 @@ O projeto está em desenvolvimento ativo. Recursos que envolvem autenticação, 
 - Classificação de risco, histórico, busca, mapa e rota até o local vistoriado.
 - Geração, armazenamento e compartilhamento de laudos e relatórios.
 - Operação offline-first com SQLite local e serviço de sincronização.
-- Agendamentos, avisos, notificações, grupos, equipe e perfis com permissões distintas.
+- Agendamentos, grupos, equipe e perfis com permissões distintas.
+- Avisos municipais com leitura registrada e campanhas do sistema com estado de leitura individual.
 - Áreas administrativas para usuários, tokens de convite, formulários, regras de risco, estatísticas, relatórios, logs e protocolos.
-- Assinaturas e planos para contas individuais ou organizações.
+- Revisão de qualidade das vistorias (QE): fila retroativa, checklist, nota e parecer por ciclo.
+- Assinaturas e planos para contas individuais ou organizações, com faturas, comprovantes e avisos de vencimento.
+
+### Sistema de notificações e comunicação
+
+- Notificações locais com canais Android dedicados (`default`, `alertas`, `tokens`) para vistorias, sincronização, atribuições e lembretes.
+- Push multi-dispositivo via Expo, registrado por usuário em `notification_endpoints` com fallback legado e roteamento de toque por tipo de evento.
+- Inbox unificado (`domain_events` + `inbox_recipients`) com estado de leitura individual, atualização em tempo real no painel e espelho das campanhas para todos os destinatários elegíveis.
+- Campanhas do console com audiência calculada no servidor (município, perfis e plataformas), MFA de segundo fator, justificativa, idempotência, agendamento real (`scheduled_at`) e dispatch automático por cron a cada 5 minutos como rede de segurança.
+- Higiene automática de dispositivos: endpoints rejeitados (`DeviceNotRegistered`) são desativados no ato da entrega e endpoints sem atividade por 180 dias entram em manutenção diária.
+- Comunicados municipais com publicação agendada, leitura registrada, disparo assistido pelo bot do WhatsApp e disponibilidade offline no aplicativo.
 
 ### Portal e console web
 
 O diretório `dashboard/` contém uma aplicação React/Vite com três experiências:
 
 - site comercial público;
-- portal do cliente para acompanhar vistorias, documentos, equipe, agenda, comunicados e assinatura;
-- console interno para suporte, clientes, planos, protocolos, dispositivos, comunicações, auditoria e configuração operacional.
+- portal do cliente para acompanhar vistorias, documentos, equipe, agenda, comunicados, assinatura e faturas;
+- console interno para suporte, clientes, planos, protocolos, dispositivos, financeiro, avisos e campanhas, comunicações, auditoria e configuração operacional.
 
 As operações sensíveis são validadas no backend, com funções, políticas RLS, trilhas de auditoria e contratos de permissão versionados nas migrations do Supabase.
 
@@ -168,6 +179,7 @@ Antes de aplicar migrations ou publicar funções em um ambiente compartilhado, 
 ## Segurança
 
 - Não versione arquivos `.env`, chaves privadas, tokens, sessões do WhatsApp ou a chave `service_role` do Supabase.
+- Nunca versione credenciais de assinatura (keystore) nem binários de build (`.apk`); esses arquivos devem permanecer fora do repositório.
 - Use somente a chave pública `anon` nos clientes mobile e web.
 - Mantenha autorização, limites e validações críticas no backend; controles de interface não substituem RLS e RPCs seguras.
 - Revise migrations e políticas antes de qualquer implantação em produção.

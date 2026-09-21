@@ -14,6 +14,7 @@ import {
   Megaphone,
   Mail,
   MessageCircleMore,
+  Receipt,
   Shield,
   Smartphone,
   KeyRound,
@@ -36,6 +37,9 @@ export interface NavigationGroup {
   items: NavigationItem[];
 }
 
+// Estrutura revisada (set/2026): grupos semânticos; WhatsApp/Bot/LLM isolados
+// em "WhatsApp & IA"; páginas obsoletas (Arquivamento, Estatísticas da
+// operação) removidas do produto.
 export const OWNER_NAVIGATION: NavigationGroup[] = [
   {
     label: 'Principal',
@@ -43,8 +47,6 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
       { to: '/app', label: 'Visão executiva', icon: Gauge, permission: 'dashboard.executive.read' },
       { to: '/app/clientes', label: 'Clientes', icon: Building2, permission: 'customer.read' },
       { to: '/app/suporte', label: 'Suporte', icon: Headphones, permission: 'support.read' },
-      { to: '/app/operacao/estatisticas', label: 'Estatísticas da operação', icon: Activity, permission: 'dashboard.executive.read' },
-      { to: '/app/desenvolvimento/formularios', label: 'Formulários', icon: FileCode2, permission: 'technical.read' },
     ],
   },
   {
@@ -53,23 +55,40 @@ export const OWNER_NAVIGATION: NavigationGroup[] = [
       { to: '/app/negocio/indicadores', label: 'Indicadores', icon: TrendingUp, permission: 'commercial.read' },
       { to: '/app/planos', label: 'Planos', icon: CreditCard, permission: 'commercial.read' },
       { to: '/app/assinaturas', label: 'Assinaturas', icon: ClipboardList, permission: 'commercial.read' },
+      { to: '/app/faturas', label: 'Faturas', icon: Receipt, permission: 'commercial.read' },
+      { to: '/app/analytics', label: 'Analytics', icon: TrendingUp, permission: 'commercial.read' },
       { to: '/app/protocolos', label: 'Protocolos', icon: Hash, permission: 'protocol.read' },
     ],
   },
   {
-    label: 'Governança',
+    label: 'Comunicação',
     items: [
-      { to: '/app/staff', label: 'Pessoas e acessos', icon: Users, permission: 'staff.read' },
-      { to: '/app/tokens', label: 'Tokens de convite', icon: KeyRound, permission: 'token.manage' },
       { to: '/app/avisos', label: 'Avisos e notificações', icon: BellRing, permission: 'technical.write' },
       { to: '/app/mensagens', label: 'Caixa de mensagens', icon: Mail, permission: 'console.read' },
       { to: '/app/comunicacoes', label: 'Comunicados e comunidades', icon: Megaphone, permission: 'communication.manage' },
+    ],
+  },
+  {
+    label: 'WhatsApp & IA',
+    items: [
       { to: '/app/whatsapp', label: 'WhatsApp Bot', icon: MessageCircleMore, permission: 'whatsapp.read' },
       { to: '/app/ia', label: 'IA & Automação', icon: Sparkles, permission: 'ia.read' },
+    ],
+  },
+  {
+    label: 'Formulários',
+    items: [
+      { to: '/app/desenvolvimento/formularios', label: 'Formulários', icon: FileCode2, permission: 'technical.read' },
+    ],
+  },
+  {
+    label: 'Administração',
+    items: [
+      { to: '/app/staff', label: 'Pessoas e acessos', icon: Users, permission: 'staff.read' },
+      { to: '/app/tokens', label: 'Tokens de convite', icon: KeyRound, permission: 'token.manage' },
       { to: '/app/sessoes', label: 'Sessões e segurança', icon: Smartphone, permission: 'session.read' },
       { to: '/app/dispositivo', label: 'Dispositivos', icon: Smartphone, permission: 'session.read' },
       { to: '/app/auditoria', label: 'Auditoria', icon: History, permission: 'audit.read' },
-      { to: '/app/governanca/arquivamento', label: 'Arquivamento', icon: Boxes, permission: 'configuration.publish' },
     ],
   },
 ];
@@ -82,7 +101,6 @@ export const DEVELOPER_NAVIGATION: NavigationGroup[] = [
       { to: '/app/clientes', label: 'Clientes', icon: Building2, permission: 'customer.read' },
       { to: '/app/suporte', label: 'Suporte', icon: Headphones, permission: 'support.read' },
       { to: '/app/protocolos', label: 'Protocolos', icon: Hash, permission: 'protocol.read' },
-      { to: '/app/operacao/estatisticas', label: 'Estatísticas da operação', icon: Activity, permission: 'dashboard.technical.read' },
     ],
   },
   {
@@ -98,15 +116,25 @@ export const DEVELOPER_NAVIGATION: NavigationGroup[] = [
     ],
   },
   {
-    label: 'Governança',
+    label: 'Comunicação',
     items: [
-      { to: '/app/auditoria', label: 'Auditoria', icon: History, permission: 'audit.read' },
-      { to: '/app/tokens', label: 'Tokens de convite', icon: KeyRound, permission: 'token.manage' },
       { to: '/app/avisos', label: 'Avisos e notificações', icon: BellRing, permission: 'technical.write' },
       { to: '/app/mensagens', label: 'Caixa de mensagens', icon: Mail, permission: 'console.read' },
       { to: '/app/comunicacoes', label: 'Comunicados e comunidades', icon: Megaphone, permission: 'communication.manage' },
+    ],
+  },
+  {
+    label: 'WhatsApp & IA',
+    items: [
       { to: '/app/whatsapp', label: 'WhatsApp Bot', icon: MessageCircleMore, permission: 'whatsapp.read' },
       { to: '/app/ia', label: 'IA & Automação', icon: Sparkles, permission: 'ia.read' },
+    ],
+  },
+  {
+    label: 'Administração',
+    items: [
+      { to: '/app/auditoria', label: 'Auditoria', icon: History, permission: 'audit.read' },
+      { to: '/app/tokens', label: 'Tokens de convite', icon: KeyRound, permission: 'token.manage' },
       { to: '/app/sessoes', label: 'Sessões e segurança', icon: Smartphone, permission: 'session.read' },
       { to: '/app/dispositivo', label: 'Dispositivos', icon: Smartphone, permission: 'session.read' },
     ],

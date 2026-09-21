@@ -5,7 +5,8 @@ const ITEMS = [
   { to: '/app/ia', label: 'Visão geral', end: true },
   { to: '/app/ia/chaves', label: 'Chaves de API', end: false },
   { to: '/app/ia/agente', label: 'Agente WhatsApp', end: false },
-  { to: '/app/ia/rollout', label: 'Liberação (rollout)', end: false },
+  { to: '/app/ia/rollout', label: 'IA: rollout', end: false },
+  { to: '/app/ia/acessos', label: 'Liberação do projeto', end: false },
   { to: '/app/ia/logs', label: 'Uso e sessões', end: false },
 ];
 

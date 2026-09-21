@@ -3,7 +3,7 @@ import { supabase } from '../utils/supabase';
 import { useAuth } from './AuthContext';
 import { featureIsAvailable } from '../utils/subscription';
 
-export type SubscriptionStatus = 'trial' | 'active' | 'grace' | 'past_due' | 'canceled' | 'expired';
+export type SubscriptionStatus = 'trial' | 'active' | 'grace' | 'past_due' | 'suspended' | 'canceled' | 'expired';
 
 export interface UsageItem {
   resource: 'users' | 'inspections' | 'invitations' | 'storage_bytes' | 'sessions';

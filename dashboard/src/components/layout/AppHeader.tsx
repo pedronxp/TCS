@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Sun } from 'lucide-react';
+import { Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Rows3, Sun } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { GlobalCustomerSearch } from '@/components/GlobalCustomerSearch';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +8,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,18 +44,24 @@ const STATIC_PAGE_CONTEXTS: ReadonlyArray<{ prefix: string; context: PageContext
   { prefix: '/app/desenvolvimento/sincronizacao', context: { eyebrow: 'Desenvolvimento', title: 'Sincronização' } },
   { prefix: '/app/desenvolvimento/armazenamento', context: { eyebrow: 'Desenvolvimento', title: 'Armazenamento' } },
   { prefix: '/app/desenvolvimento/logs', context: { eyebrow: 'Desenvolvimento', title: 'Logs e erros' } },
-  { prefix: '/app/governanca/arquivamento', context: { eyebrow: 'Governança', title: 'Arquivamento e retenção' } },
   { prefix: '/app/referencia-ui', context: { eyebrow: 'Referência', title: 'Interface do produto' } },
   { prefix: '/app/planos', context: { eyebrow: 'Negócio', title: 'Planos e limites' } },
   { prefix: '/app/negocio/indicadores', context: { eyebrow: 'Negócio', title: 'Indicadores comerciais' } },
   { prefix: '/app/assinaturas', context: { eyebrow: 'Negócio', title: 'Assinaturas e ciclos' } },
-  { prefix: '/app/protocolos', context: { eyebrow: 'Rastreabilidade', title: 'Registro de protocolos' } },
-  { prefix: '/app/sessoes', context: { eyebrow: 'Segurança', title: 'Sessões e dispositivos' } },
-  { prefix: '/app/dispositivo', context: { eyebrow: 'Segurança', title: 'Inventário de dispositivos' } },
-  { prefix: '/app/suporte', context: { eyebrow: 'Suporte', title: 'Central de atendimento' } },
-  { prefix: '/app/mensagens', context: { eyebrow: 'Operação', title: 'Caixa de mensagens' } },
-  { prefix: '/app/staff', context: { eyebrow: 'Governança', title: 'Equipe e permissões' } },
-  { prefix: '/app/auditoria', context: { eyebrow: 'Governança', title: 'Auditoria e eventos' } },
+  { prefix: '/app/faturas', context: { eyebrow: 'Negócio', title: 'Faturas e comprovantes' } },
+  { prefix: '/app/analytics', context: { eyebrow: 'Negócio', title: 'Analytics do ecossistema' } },
+  { prefix: '/app/whatsapp', context: { eyebrow: 'WhatsApp & IA', title: 'Bot WhatsApp' } },
+  { prefix: '/app/ia', context: { eyebrow: 'WhatsApp & IA', title: 'IA e automação' } },
+  { prefix: '/app/comunicacoes', context: { eyebrow: 'Comunicação', title: 'Comunicados e comunidades' } },
+  { prefix: '/app/avisos', context: { eyebrow: 'Comunicação', title: 'Avisos e notificações' } },
+  { prefix: '/app/mensagens', context: { eyebrow: 'Comunicação', title: 'Caixa de mensagens' } },
+  { prefix: '/app/suporte', context: { eyebrow: 'Principal', title: 'Central de atendimento' } },
+  { prefix: '/app/protocolos', context: { eyebrow: 'Negócio', title: 'Registro de protocolos' } },
+  { prefix: '/app/staff', context: { eyebrow: 'Administração', title: 'Equipe e permissões' } },
+  { prefix: '/app/auditoria', context: { eyebrow: 'Administração', title: 'Auditoria e eventos' } },
+  { prefix: '/app/tokens', context: { eyebrow: 'Administração', title: 'Tokens de convite' } },
+  { prefix: '/app/sessoes', context: { eyebrow: 'Administração', title: 'Sessões e dispositivos' } },
+  { prefix: '/app/dispositivo', context: { eyebrow: 'Administração', title: 'Inventário de dispositivos' } },
 ];
 
 function resolvePageContext(pathname: string, role: 'owner' | 'developer' | undefined): PageContext {
@@ -111,7 +122,7 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
           <p className="mt-1 truncate text-[13px] font-semibold">{pageContext.title}</p>
         </div>
 
-        <div className="min-w-0 flex-1 xl:max-w-[390px]">
+        <div className="min-w-0 flex-1 xl:max-w-[300px]">
           <GlobalCustomerSearch />
         </div>
 
@@ -216,41 +227,56 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
                 {initials}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-60">
               <DropdownMenuLabel>
                 <span className="block truncate">{profile?.displayName}</span>
                 <span className="mt-1 block text-xs font-normal text-muted-foreground">{ptBrLabel(profile?.role)}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Densidade</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => onDensityChange('comfortable')}>
-                {density === 'comfortable' && <Check />}
-                Confortável
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onDensityChange('compact')}>
-                {density === 'compact' && <Check />}
-                Compacta
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Tema</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => setThemePickerOpen(true)}>
-                <Palette className="h-4 w-4 text-primary" />
-                Personalizar tema...
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onThemeChange('light')}>
-                {theme === 'light' && <Check />}
-                <Sun className="h-4 w-4" />
-                Claro
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onThemeChange('dark')}>
-                {theme === 'dark' && <Check />}
-                <Moon className="h-4 w-4" />
-                Escuro
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setChangePasswordOpen(true)}>
                 <KeyRound />
                 Alterar minha senha
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Preferências</DropdownMenuLabel>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {theme === 'light' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  Tema
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-48">
+                  <DropdownMenuRadioGroup value={theme} onValueChange={(value) => onThemeChange(value as Theme)}>
+                    <DropdownMenuRadioItem value="light">
+                      <Sun className="mr-2 h-4 w-4" />
+                      Claro
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      <Moon className="mr-2 h-4 w-4" />
+                      Escuro
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setThemePickerOpen(true)}>
+                    <Palette className="h-4 w-4 text-primary" />
+                    Personalizar tema…
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Rows3 className="h-4 w-4" />
+                  Densidade
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-44">
+                  <DropdownMenuRadioGroup
+                    value={density}
+                    onValueChange={(value) => onDensityChange(value as 'comfortable' | 'compact')}
+                  >
+                    <DropdownMenuRadioItem value="comfortable">Confortável</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="compact">Compacta</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void signOut()}>
                 <LogOut />
