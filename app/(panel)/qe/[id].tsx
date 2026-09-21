@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../utils/supabase';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
-import { AppHeader, Badge, Button, FormField, LoadingState, ErrorState, StateBanner } from '../../../components/ui';
+import { AppHeader, Badge, ErrorState, FormField, LoadingState, OptionSheet, StateBanner } from '../../../components/ui';
 
 const CHECKLIST_PADRAO = [
   'Fotos legíveis e suficientes',
@@ -14,6 +14,20 @@ const CHECKLIST_PADRAO = [
   'Endereço/localização corretos',
   'Classificação de risco condizente com as respostas',
   'Ciência coletada do responsável',
+];
+
+const NOTAS_LABELS = [
+  '0 — Falhas graves',
+  '1 — Muito fraca',
+  '2 — Fraca',
+  '3 — Insuficiente',
+  '4 — Regular, precisa melhorar',
+  '5 — Razoável',
+  '6 — Acima da média',
+  '7 — Boa, com ressalvas',
+  '8 — Boa',
+  '9 — Muito boa',
+  '10 — Excelente',
 ];
 
 interface VistoriaDetalhe {
@@ -48,6 +62,7 @@ export default function QeRevisarScreen() {
   const [nota, setNota] = useState<number>(7);
   const [parecer, setParecer] = useState('');
   const [salvando, setSalvando] = useState<'aprovar' | 'devolver' | null>(null);
+  const [notaSheetVisible, setNotaSheetVisible] = useState(false);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -109,84 +124,103 @@ export default function QeRevisarScreen() {
   if (loading) return <LoadingState message="Abrindo revisão..." />;
   if (erro || !revisao || !vistoria) return <ErrorState message={erro ?? 'Revisão não encontrada.'} onRetry={() => void carregar()} />;
 
+  const marcados = checklist.filter(Boolean).length;
   const tudoOk = checklist.every(Boolean);
+  const nivel = (vistoria.nivelRisco ?? 'r1').toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={{ paddingTop: insets.top }}>
         <AppHeader
-          title={`Revisão · ciclo ${revisao.ciclo}`}
-          subtitle={vistoria.agenteNome ?? 'Agente'}
+          title="Revisar vistoria"
+          subtitle={`Ciclo ${revisao.ciclo}${vistoria.dataVistoria ? ` · ${new Date(vistoria.dataVistoria).toLocaleDateString('pt-BR')}` : ''}`}
           onBack={() => router.back()}
         />
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}>
-        {/* Resumo da vistoria */}
+        {/* Resumo */}
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Resumo</Text>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>{vistoria.endereco ?? 'Endereço não informado'}</Text>
-          <View style={styles.resumoLinha}>
-            <Badge label={`Risco ${vistoria.nivelRisco ?? '—'}`.toUpperCase()} variant="info" size="sm" />
-            <Text style={[styles.metaTexto, { color: theme.textSecondary }]}>
-              {vistoria.pontuacaoTotal != null ? `${vistoria.pontuacaoTotal} pts` : ''}
-              {vistoria.dataVistoria ? ` · ${new Date(vistoria.dataVistoria).toLocaleDateString('pt-BR')}` : ''}
-            </Text>
+          <View style={styles.resumoRow}>
+            <View style={styles.resumoLeft}>
+              <Text style={[styles.resumoNome, { color: theme.text }]}>{vistoria.agenteNome ?? 'Agente'}</Text>
+              <Text style={[styles.resumoEndereco, { color: theme.textSecondary }]} numberOfLines={2}>
+                {vistoria.endereco ?? 'Endereço não informado'}
+              </Text>
+            </View>
+            <View style={styles.resumoRight}>
+              <Badge label={nivel} variant={nivel} showDot size="sm" />
+              <Text style={[styles.resumoPts, { color: theme.textSecondary }]}>
+                {vistoria.pontuacaoTotal != null ? `${vistoria.pontuacaoTotal} pts` : '—'}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Fotos */}
+        {/* Evidências */}
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+          Evidências{vistoria.fotosUrls?.length ? ` (${vistoria.fotosUrls.length})` : ''}
+        </Text>
         {vistoria.fotosUrls && vistoria.fotosUrls.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.fotosStrip}>
             {vistoria.fotosUrls.map((url, i) => (
               <Image key={i} source={{ uri: url }} style={styles.foto} accessibilityLabel={`Foto ${i + 1} da vistoria`} />
             ))}
           </ScrollView>
-        ) : null}
+        ) : (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Nenhuma foto registrada nesta vistoria.</Text>
+          </View>
+        )}
 
         {/* Checklist */}
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Checklist de qualidade</Text>
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Checklist</Text>
+        <View style={[styles.checklistCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={[styles.checklistHead, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.checklistHeadTitle, { color: theme.text }]}>Critérios de conferência</Text>
+            <Text style={[styles.checklistHeadCount, { color: theme.textSecondary }]}>{marcados}/{CHECKLIST_PADRAO.length}</Text>
+          </View>
           {CHECKLIST_PADRAO.map((item, i) => (
             <TouchableOpacity
               key={i}
-              style={styles.checkItem}
+              style={[styles.checkItem, i < CHECKLIST_PADRAO.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}
               onPress={() => setChecklist(prev => prev.map((v, j) => (j === i ? !v : v)))}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: checklist[i] }}
               accessibilityLabel={item}
             >
-              <View style={[styles.checkbox, { borderColor: theme.border, backgroundColor: checklist[i] ? theme.success : 'transparent' }]}>
-                {checklist[i] ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+              <View style={[styles.checkbox, { borderColor: checklist[i] ? theme.primary : theme.border, backgroundColor: checklist[i] ? theme.primary : 'transparent' }]}>
+                {checklist[i] ? <Feather name="check" size={13} color={theme.onPrimary} /> : null}
               </View>
-              <Text style={[styles.checkTexto, { color: theme.text }]}>{item}</Text>
+              <Text style={[styles.checkTexto, { color: checklist[i] ? theme.text : theme.textSecondary }]}>{item}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Nota */}
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Nota da vistoria</Text>
-          <View style={styles.notaLinha}>
-            <TouchableOpacity onPress={() => setNota(n => Math.max(0, n - 1))} style={[styles.notaBtn, { borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel="Diminuir nota">
-              <Feather name="minus" size={18} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={[styles.notaValor, { color: theme.primary }]}>{nota}</Text>
-            <TouchableOpacity onPress={() => setNota(n => Math.min(10, n + 1))} style={[styles.notaBtn, { borderColor: theme.border }]} accessibilityRole="button" accessibilityLabel="Aumentar nota">
-              <Feather name="plus" size={18} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={[styles.notaDe, { color: theme.textSecondary }]}>/ 10</Text>
-          </View>
-        </View>
+        {/* Avaliação */}
+        <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Avaliação</Text>
+        <View style={styles.avaliacaoGroup}>
+          <Text style={[styles.fieldLabel, { color: theme.text }]}>Nota de qualidade</Text>
+          <TouchableOpacity
+            style={[styles.notaDropdown, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={() => setNotaSheetVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Nota atual ${nota} de 10`}
+          >
+            <Text style={[styles.notaDropdownText, { color: theme.text }]}>{NOTAS_LABELS[nota]}</Text>
+            <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+          </TouchableOpacity>
 
-        {/* Parecer */}
-        <FormField
-          label="Parecer (obrigatório ao devolver)"
-          value={parecer}
-          onChangeText={setParecer}
-          placeholder="Descreva o que precisa ser corrigido ou observações da revisão."
-          multiline
-          inputStyle={{ minHeight: 90, textAlignVertical: 'top' }}
-        />
+          <FormField
+            label="Parecer técnico (obrigatório ao devolver)"
+            value={parecer}
+            onChangeText={setParecer}
+            placeholder="Escreva o parecer da revisão."
+            multiline
+            inputStyle={{ minHeight: 90, textAlignVertical: 'top' }}
+          />
+        </View>
 
         {tudoOk ? null : (
           <StateBanner
@@ -196,42 +230,92 @@ export default function QeRevisarScreen() {
           />
         )}
 
-        <View style={{ gap: 10 }}>
-          <Button
-            label="Aprovar vistoria"
-            loading={salvando === 'aprovar'}
-            onPress={() => void finalizar(true)}
-            fullWidth
-            iconLeft={<Feather name="check-circle" size={18} color="#FFFFFF" />}
-          />
-          <Button
-            label="Devolver para correção"
-            variant="secondary"
-            loading={salvando === 'devolver'}
+        {/* Ações */}
+        <View style={styles.acoesRow}>
+          <TouchableOpacity
+            style={[styles.acaoBtn, styles.acaoDevolver, { borderColor: theme.error }]}
             onPress={() => void finalizar(false)}
-            fullWidth
-            iconLeft={<Feather name="rotate-ccw" size={18} color={theme.primary} />}
-          />
+            disabled={salvando !== null}
+            accessibilityRole="button"
+          >
+            {salvando === 'devolver'
+              ? <ActivityIndicator size="small" color={theme.error} />
+              : <Feather name="rotate-ccw" size={16} color={theme.error} />}
+            <Text style={[styles.acaoDevolverText, { color: theme.error }]}>Devolver</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.acaoBtn, { backgroundColor: theme.primary }]}
+            onPress={() => void finalizar(true)}
+            disabled={salvando !== null}
+            accessibilityRole="button"
+          >
+            {salvando === 'aprovar'
+              ? <ActivityIndicator size="small" color={theme.onPrimary} />
+              : <Feather name="check" size={16} color={theme.onPrimary} />}
+            <Text style={[styles.acaoAprovarText, { color: theme.onPrimary }]}>Aprovar</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Nota 0–10 como dropdown (muitas opções) */}
+      <OptionSheet
+        visible={notaSheetVisible}
+        title="Nota de qualidade"
+        description="Zero é vistoria com falhas graves; dez é impecável."
+        options={NOTAS_LABELS.map((texto, valor) => ({
+          key: String(valor),
+          title: texto,
+          selected: nota === valor,
+        }))}
+        onSelect={key => {
+          setNota(Number(key));
+          setNotaSheetVisible(false);
+        }}
+        onDismiss={() => setNotaSheetVisible(false)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, gap: 14 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 8 },
-  cardTitle: { fontSize: 15, fontWeight: '700' },
-  resumoLinha: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  metaTexto: { fontSize: 12 },
-  foto: { width: 120, height: 120, borderRadius: 12 },
-  sectionTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
-  checkItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  checkTexto: { flex: 1, fontSize: 13 },
-  notaLinha: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  notaBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  notaValor: { fontSize: 30, fontWeight: '800', minWidth: 44, textAlign: 'center' },
-  notaDe: { fontSize: 13 },
+  content: { padding: 16, paddingTop: 12, gap: 4 },
+  sectionLabel: {
+    fontSize: 11, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase',
+    marginTop: 14, marginBottom: 8, marginLeft: 2,
+  },
+  card: { borderWidth: 1, borderRadius: 16, padding: 16 },
+  resumoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  resumoLeft: { flex: 1, minWidth: 0 },
+  resumoNome: { fontSize: 15, fontWeight: '800' },
+  resumoEndereco: { fontSize: 12.5, lineHeight: 18, marginTop: 3 },
+  resumoRight: { alignItems: 'flex-end', gap: 5 },
+  resumoPts: { fontSize: 11.5, fontWeight: '700' },
+  fotosStrip: { gap: 10, paddingRight: 4 },
+  foto: { width: 110, height: 84, borderRadius: 12 },
+  checklistCard: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
+  checklistHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 15, paddingVertical: 12, borderBottomWidth: 1,
+  },
+  checklistHeadTitle: { fontSize: 13, fontWeight: '800' },
+  checklistHeadCount: { fontSize: 12, fontWeight: '800' },
+  checkItem: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 15, paddingVertical: 12 },
+  checkbox: { width: 21, height: 21, borderRadius: 6, borderWidth: 1.6, alignItems: 'center', justifyContent: 'center' },
+  checkTexto: { flex: 1, fontSize: 13, lineHeight: 18 },
+  avaliacaoGroup: { gap: 4 },
+  fieldLabel: { fontSize: 12.5, fontWeight: '700', marginBottom: 6, marginTop: 4 },
+  notaDropdown: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, minHeight: 50, marginBottom: 10,
+  },
+  notaDropdownText: { fontSize: 14, fontWeight: '700' },
+  acoesRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  acaoBtn: {
+    flex: 1, minHeight: 50, borderRadius: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  acaoDevolver: { borderWidth: 1.5, backgroundColor: 'transparent' },
+  acaoDevolverText: { fontSize: 14, fontWeight: '800' },
+  acaoAprovarText: { fontSize: 14, fontWeight: '800' },
 });

@@ -130,6 +130,7 @@ function InspectionWorkspace({ inspection }: { inspection: InspectionDetail }) {
               <span className="flex items-center gap-2"><Image className="h-4 w-4" />Fotos registradas <strong>{inspection.photoCount}</strong></span>
               <div className="flex flex-wrap gap-2">{inspection.photoCount > 0 && <Button size="sm" variant="outline" onClick={() => void authorizeResource('photo')} disabled={requesting !== null}><Eye aria-hidden="true" />{requesting === 'photo:view' ? 'Abrindo…' : 'Visualizar fotos'}</Button>}<Button asChild size="sm" variant="ghost"><Link to={`/app/protocolos/${inspection.id}/fotos`}>Área das fotos<ExternalLink aria-hidden="true" /></Link></Button></div>
             </div>
+            <LaudoVersions inspectionId={inspection.id} />
             {authorizedLaudo && <div className="rounded-lg border border-success/30 bg-success-soft/30 p-3 text-sm" role="status"><p>Link temporário autorizado. Ele expira em breve para proteger o documento.</p><Button asChild size="sm" className="mt-3"><a href={authorizedLaudo.url} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" />{resource?.mode === 'download' ? 'Baixar laudo autorizado' : 'Abrir laudo autorizado'}</a></Button></div>}
             {resourceError && <p className="text-sm text-destructive" role="alert">{resourceError}</p>}
           </CardContent>
@@ -167,6 +168,79 @@ function InspectionWorkspace({ inspection }: { inspection: InspectionDetail }) {
 
 function EvidenceRow({ label: name, available, detail, children }: { label: string; available: boolean; detail?: string; children?: ReactNode }) {
   return <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm"><div><p>{name}</p>{detail && <p className="mt-1 max-w-sm text-xs text-muted-foreground">{detail}</p>}</div><div className="flex items-center gap-2"><Badge variant={available ? 'success' : 'secondary'}>{available ? 'Disponível' : 'Não gerado'}</Badge>{children}</div></div>;
+}
+
+type LaudoVersionRow = {
+  id: string;
+  document_type: string;
+  document_version: number;
+  status: string;
+  training_mode: boolean | null;
+  created_at: string | null;
+};
+
+function outcomeLabel(outcome: string | undefined): string {
+  if (outcome === 'acknowledged') return 'Ciência confirmada';
+  if (outcome === 'refused') return 'Recusa registrada';
+  if (outcome === 'unable_to_sign') return 'Impossibilidade registrada';
+  return 'Ciência pendente';
+}
+
+/**
+ * Histórico de versões do laudo (F-preview set/2026): cada geração com
+ * conteúdo diferente vira uma versão; a ciência fica presa à versão coletada.
+ */
+function LaudoVersions({ inspectionId }: { inspectionId: string }) {
+  const query = useQuery({
+    queryKey: ['protocol-laudo-versions', inspectionId],
+    enabled: Boolean(inspectionId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('generated_documents')
+        .select('id, document_type, document_version, status, training_mode, created_at')
+        .eq('vistoria_id', inspectionId)
+        .in('document_type', ['report', 'technical_report'])
+        .order('document_version', { ascending: false });
+      if (error) throw error;
+      const docs = (data ?? []) as LaudoVersionRow[];
+      if (!docs.length) return { docs, outcomes: {} as Record<string, string> };
+
+      const { data: events } = await supabase
+        .from('document_acknowledgement_events')
+        .select('document_id, outcome, created_at')
+        .in('document_id', docs.map(doc => doc.id))
+        .order('created_at', { ascending: false });
+      const outcomes: Record<string, string> = {};
+      for (const event of (events ?? []) as { document_id: string; outcome: string }[]) {
+        if (!outcomes[event.document_id]) outcomes[event.document_id] = event.outcome;
+      }
+      return { docs, outcomes };
+    },
+  });
+
+  const docs = query.data?.docs ?? [];
+  if (!docs.length) return null;
+
+  return (
+    <div className="rounded-lg border p-3 text-sm">
+      <p className="font-medium">Versões do laudo</p>
+      <ul className="mt-3 space-y-2">
+        {docs.map(doc => (
+          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-mono font-semibold">v{doc.document_version}{doc.training_mode ? ' · treino' : ''}</span>
+            <span className="text-muted-foreground">{formatDate(doc.created_at)}</span>
+            <Badge variant={doc.status === 'superseded' ? 'secondary' : 'success'}>
+              {doc.status === 'superseded' ? 'Substituída' : 'Atual'}
+            </Badge>
+            <span className="text-muted-foreground">{outcomeLabel(query.data?.outcomes[doc.id])}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Apenas a versão atual abre/compartilha; as demais ficam como registro de auditoria.
+      </p>
+    </div>
+  );
 }
 
 function Info({ label: name, value }: { label: string; value: string }) {

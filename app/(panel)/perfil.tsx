@@ -16,12 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnectivity } from '../../context/ConnectivityContext';
-import { useSessionGuard } from '../../context/SessionGuardContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { resolveMobileOrganizationAccess } from '../../services/MobileAccessService';
 import { supabase } from '../../utils/supabase';
-import { AppHeader, Badge, StateBanner } from '../../components/ui';
+import { AppHeader, Badge, OptionSheet, StateBanner } from '../../components/ui';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import {
   linkCustomerGoogleIdentity,
@@ -87,7 +86,6 @@ export default function PerfilScreen() {
     refreshProfile,
   } = useAuth();
   const { isOnlineReal } = useConnectivity();
-  const { biometricAvailable, biometricEnabled, biometricLabel, setBiometricEnabled } = useSessionGuard();
   const { hasPermission, pushSupported, solicitarPermissao } = useNotifications();
   const { context: subscriptionContext } = useSubscription();
   const access = resolveMobileOrganizationAccess(authProfile, subscriptionContext);
@@ -103,8 +101,8 @@ export default function PerfilScreen() {
   const [resetLoading, setResetLoading] = useState(false);
   const [googleLinking, setGoogleLinking] = useState(false);
   const [googleLinkedLocally, setGoogleLinkedLocally] = useState(false);
-  const [biometricUpdating, setBiometricUpdating] = useState(false);
   const [notificationUpdating, setNotificationUpdating] = useState(false);
+  const [themeSheetVisible, setThemeSheetVisible] = useState(false);
 
   useEffect(() => {
     setNewName(authProfile?.name || '');
@@ -184,21 +182,6 @@ export default function PerfilScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Sair', style: 'destructive', onPress: async () => signOut() },
     ]);
-  };
-
-  const toggleBiometric = async () => {
-    if (biometricUpdating || !biometricAvailable) return;
-    setBiometricUpdating(true);
-    try {
-      const changed = await setBiometricEnabled(!biometricEnabled);
-      if (!changed) {
-        Alert.alert('Não foi possível confirmar', `Confira se ${biometricLabel} está configurado neste aparelho e tente novamente.`);
-      }
-    } catch {
-      Alert.alert('Não foi possível atualizar', 'Tente novamente em alguns instantes.');
-    } finally {
-      setBiometricUpdating(false);
-    }
   };
 
   const ativarNotificacoes = async () => {
@@ -419,25 +402,6 @@ export default function PerfilScreen() {
           <Divider color={theme.border} />
 
           <SettingsRow
-            icon="shield"
-            title={biometricAvailable ? `Acesso com ${biometricLabel}` : 'Acesso biométrico'}
-            description={
-              !biometricAvailable
-                ? 'Indisponível ou não configurado neste aparelho'
-                : biometricEnabled
-                  ? 'Ativado — toque para desativar'
-                  : 'Desativado — toque para ativar'
-            }
-            onPress={toggleBiometric}
-            loading={biometricUpdating}
-            disabled={!biometricAvailable || biometricUpdating}
-            success={biometricEnabled}
-            theme={theme}
-          />
-
-          <Divider color={theme.border} />
-
-          <SettingsRow
             icon="lock"
             title="Senha"
             description={resetSent ? 'Link enviado por e-mail' : 'Enviar link de redefinição'}
@@ -478,49 +442,14 @@ export default function PerfilScreen() {
 
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferências</Text>
         <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-          <View style={styles.themeBlock}>
-            <View style={styles.themeHeading}>
-              <View style={[styles.rowIcon, { backgroundColor: `${theme.primary}14` }]}>
-                <Feather name="sun" size={18} color={theme.primary} />
-              </View>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>Aparência</Text>
-            </View>
-            <View
-              accessibilityRole="radiogroup"
-              style={[styles.themeOptions, { backgroundColor: theme.background }]}
-            >
-              {THEME_OPTIONS.map(option => {
-                const selected = themeMode === option.value;
-                return (
-                  <TouchableOpacity
-                    key={option.value}
-                    accessibilityRole="radio"
-                    accessibilityLabel={`Tema ${option.label}`}
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.themeOption,
-                      selected && { backgroundColor: theme.surface, borderColor: theme.cardBorder },
-                    ]}
-                    onPress={() => setThemeMode(option.value)}
-                  >
-                    <Feather
-                      name={option.icon}
-                      size={15}
-                      color={selected ? theme.primary : theme.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.themeOptionText,
-                        { color: selected ? theme.primary : theme.textSecondary },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+          <SettingsRow
+            icon="sun"
+            title="Aparência"
+            description={`Tema atual: ${THEME_OPTIONS.find(o => o.value === themeMode)?.label ?? 'Sistema'}`}
+            onPress={() => setThemeSheetVisible(true)}
+            trailingIcon="chevron-down"
+            theme={theme}
+          />
 
           <Divider color={theme.border} />
 
@@ -571,6 +500,23 @@ export default function PerfilScreen() {
           <Text style={[styles.logoutText, { color: theme.error }]}>Encerrar sessão</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <OptionSheet
+        visible={themeSheetVisible}
+        title="Aparência"
+        description="Escolha o tema do aplicativo neste aparelho."
+        options={THEME_OPTIONS.map(option => ({
+          key: option.value,
+          title: option.label,
+          icon: option.icon,
+          selected: themeMode === option.value,
+        }))}
+        onSelect={key => {
+          setThemeMode(key as ThemeMode);
+          setThemeSheetVisible(false);
+        }}
+        onDismiss={() => setThemeSheetVisible(false)}
+      />
     </View>
   );
 }
@@ -718,22 +664,6 @@ const styles = StyleSheet.create({
   },
   phoneEditor: { padding: 15 },
   editorLabel: { fontSize: 13, fontWeight: '700', marginBottom: 9 },
-
-  themeBlock: { paddingHorizontal: 15, paddingTop: 13, paddingBottom: 15 },
-  themeHeading: { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
-  themeOptions: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 13, padding: 4, gap: 4 },
-  themeOption: {
-    width: '48.5%',
-    minHeight: 39,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  themeOptionText: { fontSize: 11, fontWeight: '700' },
 
   privacyCard: {
     borderRadius: 18,

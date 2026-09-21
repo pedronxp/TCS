@@ -31,3 +31,5 @@ export { StateBanner } from './StateBanner';
 export type { StateBannerProps, StateBannerVariant } from './StateBanner';
 export { ConfirmSheet } from './ConfirmSheet';
 export type { ConfirmSheetAction, ConfirmSheetProps } from './ConfirmSheet';
+export { OptionSheet } from './OptionSheet';
+export type { OptionSheetOption, OptionSheetProps } from './OptionSheet';

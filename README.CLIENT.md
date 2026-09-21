@@ -117,7 +117,7 @@ app_defesa_civil_expo/
 │   │   ├── register.tsx              # Validação de token + registro
 │   │   └── forgot-password.tsx       # Recuperação de senha
 │   └── (panel)/
-│       ├── _layout.tsx               # Panel layout + SessionGuard + sync
+│       ├── _layout.tsx               # Panel layout + sync
 │       ├── dashboard.tsx             # KPIs + redirect por role
 │       ├── perfil.tsx                # Perfil do usuário
 │       ├── mapas.tsx                 # Mapa nativo (Google Maps / Apple Maps)
@@ -157,16 +157,14 @@ app_defesa_civil_expo/
 ├── components/
 │   ├── ui/                           # Design system: Button, Card, Input, Badge...
 │   ├── BottomNavBar.tsx              # Navegação inferior por role
-│   ├── ConnectivityBanner.tsx        # Banner de status offline
-│   └── SessionLockScreen.tsx         # Tela de bloqueio após inatividade
+│   └── ConnectivityBanner.tsx        # Banner de status offline
 │
 ├── context/
 │   ├── AuthContext.tsx               # Sessão Supabase + perfil do usuário
 │   ├── ThemeContext.tsx              # Tema claro/escuro
 │   ├── ConnectivityContext.tsx       # Estado real de internet (ping)
 │   ├── NotificationContext.tsx       # Gerenciamento de push tokens
-│   ├── ReportContext.tsx             # Estado do relatório em andamento
-│   └── SessionGuardContext.tsx       # Proteção de sessão — bloqueio 8h
+│   └── ReportContext.tsx             # Estado do relatório em andamento
 │
 ├── services/
 │   ├── NotificationService.ts        # Push tokens, canais Android, agendamentos
@@ -233,7 +231,7 @@ app_defesa_civil_expo/
 | ✅ Offline-first (SQLite → Supabase) | Garante zero perda de dados em campo sem sinal |
 | ✅ Formulários em JSON built-in | Funciona 100% offline, imagens locais, sem CDN |
 | ✅ Expo Router (file-based) | Deep links nativos, code splitting automático |
-| ❌ expo-local-authentication | Não instalado — SessionGuard usa timeout sem biometria |
+| ❌ expo-local-authentication | Removido — acesso por digital/Face ID descontinuado (set/2026) |
 | ❌ expo-crypto | Não instalado — hash de token reservado para versão futura |
 
 ---

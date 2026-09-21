@@ -104,6 +104,8 @@ export default function AvisosScreen() {
   const noticesEnabled = !subscriptionContext?.features
     || !('comunicados' in subscriptionContext.features)
     || hasFeature('comunicados');
+  // App: cliente individual lê na caixa 'individual'; membro de org lê 'organization'.
+  const workspaceKind: 'organization' | 'individual' = profile?.organizationId ? 'organization' : 'individual';
   const noticeCacheKey = profile?.uid && organizationId
     ? `@tcs_avisos_${profile.uid}_${organizationId}`
     : null;
@@ -258,11 +260,11 @@ export default function AvisosScreen() {
     const pendentes = await carregarLeiturasCampanhasPendentes();
     if (!pendentes.length) return;
     const restantes: string[] = [];
-    for (const eventId of pendentes) {
+      for (const eventId of pendentes) {
       try {
         const { error } = await supabase.rpc('mark_inbox_message_read', {
           p_event_id: eventId,
-          p_workspace_kind: 'organization',
+          p_workspace_kind: workspaceKind,
         });
         if (error) restantes.push(eventId);
       } catch {
@@ -270,11 +272,13 @@ export default function AvisosScreen() {
       }
     }
     await salvarLeiturasCampanhasPendentes(restantes);
-  }, [carregarLeiturasCampanhasPendentes, salvarLeiturasCampanhasPendentes]);
+  }, [carregarLeiturasCampanhasPendentes, salvarLeiturasCampanhasPendentes, workspaceKind]);
 
+  // Inclui TODOS os módulos do inbox (campanhas, QE, suporte, cobrança, retenção…),
+  // não só 'notifications' — antes, avisos operacionais nunca apareciam na tela.
   const carregarCampanhasServidor = useCallback(async (): Promise<CampanhaInbox[]> => {
     const { data, error } = await supabase.rpc('get_my_inbox', {
-      p_workspace_kind: 'organization',
+      p_workspace_kind: workspaceKind,
       p_limit: 50,
       p_unread_only: false,
     });
@@ -282,7 +286,6 @@ export default function AvisosScreen() {
     const result = data as InboxRpcResult | null;
     const pendentes = new Set(await carregarLeiturasCampanhasPendentes());
     return (result?.items ?? [])
-      .filter((item) => item.module_key === 'notifications')
       .map((item) => ({
         id: String(item.id ?? ''),
         titulo: String(item.title ?? ''),
@@ -296,10 +299,12 @@ export default function AvisosScreen() {
         lido: Boolean(item.read_at) || pendentes.has(String(item.id ?? '')),
       }))
       .filter((item) => item.id && item.titulo && item.conteudo);
-  }, [carregarLeiturasCampanhasPendentes]);
+  }, [carregarLeiturasCampanhasPendentes, workspaceKind]);
 
   const carregar = useCallback(async (mostrarSpinner: boolean) => {
-    if (!organizationId) {
+    // Conta sem org (individual) não tem comunicados municipais,
+    // mas ainda recebe a caixa de entrada do sistema (suporte, cobrança…).
+    if (!organizationId && workspaceKind !== 'individual') {
       setComunicados([]);
       setCampanhas([]);
       setCarregando(false);
@@ -312,7 +317,7 @@ export default function AvisosScreen() {
     try {
       await sincronizarLeiturasPendentes().catch(() => null);
       await sincronizarLeiturasCampanhasPendentes().catch(() => null);
-      if (noticesEnabled) {
+      if (noticesEnabled && organizationId) {
         const { data, error: rpcError } = await supabase.rpc('portal_list_comunicados');
         if (rpcError) throw rpcError;
         const lista = Array.isArray(data) ? data as ComunicadoApp[] : [];
@@ -367,8 +372,9 @@ export default function AvisosScreen() {
     useCallback(() => {
       if (subscriptionLoading) return;
 
-      if (!organizationId || !noticesEnabled) {
+      if (!noticesEnabled) {
         setComunicados([]);
+        setCampanhas([]);
         setErro(null);
         setCarregando(false);
         return;

@@ -240,6 +240,50 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 
 ## NOTAS DE SESSÃO
 
+> **Sessão 22 (21/set/2026) — Pacote UX/polish aprovado por Pedro (6 itens + QE + versões).**
+> **App:** onboarding corrigido (rodapé absoluto ignorava padding do SafeAreaView → agora
+> `edges=['top']` + `paddingBottom: insets.bottom`); biometria REMOVIDA por completo
+> (linha em perfil.tsx, SessionGuardContext/SessionLockScreen/BiometricAuthService deletados,
+> app.config.js removido, pacote expo-local-authentication desinstalado); Aparência vira linha
+> com bottom sheet (`components/ui/OptionSheet.tsx` — novo componente compartilhado, exportado
+> no barrel ui/index.ts); mapa sem flicker (loadMarkers não desmonta mais o MapView após a 1ª
+> carga `hasLoadedRef`; efeito de carga passa a depender de `profileKey` estável em vez do
+> objeto profile inteiro; geolocalização só no mount).
+> **Resultado da vistoria redesenhado (Proposta B):** resumo neutro (só selo de risco tem cor),
+> timeline Andamento (salva → QE → ciência), Documentos em cards com dropdown OptionSheet,
+> seletor de modelo de relatório (persistido em `@laudo_layout_preferido`), limitador de geração
+> de PDF (15 min, aviso pedindo para salvar cópia atual + botão "Abrir cópia salva"), assinatura
+> do agente pedida 1× por sessão da tela (imprimir/compartilhar reutilizam o último PDF local),
+> ciência do morador virou linha própria com status (sem alerta forçado pós-geração),
+> histórico de versões via OptionSheet. QeStatusBanner removido (substituído pela timeline).
+> **Relatório PDF:** `buildLaudoPdfLaudoData.layout` — 4 modelos ('classico' painel colorido,
+> 'ficha' hero navy+quadro lateral, 'oficio' formal com classificação em linha de tabela,
+> 'resumo' quadro 2×2); padrão 'classico' preserva console web; testes para os 4.
+> **QE:** telas fila/revisão redesenhadas (badge pequeno, contador de checklist, nota 0-10 em
+> dropdown OptionSheet, botões Devolver/Aprovar lado a lado). Migrações f4b/f4b2/f4c: tipos
+> 'qe_fila_nova' + 'qe_aprovada' no CHECK de notificacoes; supervisor/admin avisados quando
+> vistoria entra na fila; agente avisado na aprovação (antes só na devolução).
+> ⚠️ **Achado importante:** `notificacoes` está APOSENTADA desde 18/set (REVOKE em
+> f2a_campaign_mirror_to_unified_inbox) e o app lê o sino via `get_my_inbox`
+> (domain_events+inbox_recipients) — ou seja, os avisos de F4 (qe_devolvida), F7 (suporte) e
+> F8 (retenção) iam para uma tabela que nenhuma tela lê. f4c corrige isso para QE com fan-out
+> real (domain_events + inbox_recipients, testado com rollback-transaction: 3 destinatários
+> corretos em Cataguases, autor excluído). **F7 suporte e F8 retenção ainda precisam do mesmo
+> fan-out** (pendência). Edge case: org sem supervisor/admin (ex.: Astolfo Dutra) não tem quem
+> receber o aviso de fila.
+> **Painel web:** ProtocolInspectionPage ganhou card "Versões do laudo" (generated_documents +
+> último outcome de ciência por versão). Verificação: tsc app+dashboard limpos, jest 311/311,
+> vitest dashboard 382/382 (5 falhas de arquivo são specs Playwright/timeout pré-existentes).
+> **Depois, ainda na mesma sessão — remendo do achado da caixa de entrada:** migrações
+> f9 (helper `private.emit_inbox_event` + suporte F7), f9b (retenção F8 + cobrança F3),
+> f9c (5 gatilhos legados fn_notificar_*). Todo aviso do sistema agora sai na caixa de
+> entrada unificada com dedupe; o helper tem EXCEPTION guard (nunca derruba a operação).
+> App: avisos/index.tsx passa a listar TODOS os módulos do inbox (antes filtrava só
+> 'notifications') e usa workspace por perfil (organization/individual); _layout.tsx ganhou
+> rotas de toque para suporte_resposta → /suporte, cobranca → /assinatura,
+> inatividade_org/relatorio_mensal → /dashboard. Testes com rollback: helper (emite,
+> destina, deduplica) + notify_ticket_reply (solicitante recebe) validados no banco.
+
 > **Sessão 21 (19/set/2026) — Reestruturação do console web + reparo do portal.**
 > Achado grave: duas migrations antigas NUNCA foram aplicadas ao banco remoto
 > (20260729150000_customer_portals_foundation, 20260801143939_customer_auth_capabilities_audit),
@@ -353,6 +397,9 @@ Mercado Pago (desligado), Resend (email), WhatsApp+IA (bot)
 
 ## PENDÊNCIAS CONHECIDAS
 
+- **Notificações in-app:** ✅ RESOLVIDO em 21/set — QE (f4c), suporte (f9), retenção e cobrança (f9b) e os 5 gatilhos legados (f9c) agora fazem fan-out para `domain_events`+`inbox_recipients` via helper `private.emit_inbox_event` (idempotente por dedupe_key, falha nunca derruba a operação). Avisos do sistema aparecem na tela Avisos (todos os módulos; workspace por perfil).
+- **CPF no Termo de Interdição** (resultado.tsx): viola a regra "nunca CPF" — aguardando decisão de Pedro
+- Astolfo Dutra não tem supervisor/admin de plantão — aviso de fila QE não encontra destinatário nessa org
 - EAS `projectId` em app.json: placeholder — configurar antes do build APK
 - Muriaé: usuário aprovado sem org — criar org quando contratar
 - Tabelas órfãs/congeladas: activity_logs, system_logs, risk_configs, configuracoes, contadores_protocolo

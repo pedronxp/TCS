@@ -62,11 +62,29 @@ export interface LaudoData {
   bairro?: string;
   responsavelNome?: string;
   modoTreinamento?: boolean;
+  /**
+   * Modelo visual do relatório. 'classico' preserva o painel colorido por risco;
+   * os demais são layouts neutros aprovados na revisão visual de set/2026.
+   * Ausente = 'classico' (mantém o comportamento atual do painel web).
+   */
+  layout?: LaudoLayout;
   /** Traço coletado no momento da emissão, incorporado à versão imutável do PDF. */
   agentSignatureStrokes?: SignatureStroke[] | null;
   /** Imagem de assinatura escolhida pelo agente, incorporada somente na emissão atual. */
   agentSignatureImageBase64?: string | null;
 }
+
+/** Modelos de relatório disponíveis para o agente escolher ao gerar o PDF. */
+export type LaudoLayout = 'classico' | 'oficio' | 'ficha' | 'resumo';
+
+export const LAUDO_LAYOUTS: { id: LaudoLayout; titulo: string; descricao: string }[] = [
+  { id: 'classico', titulo: 'Clássico', descricao: 'Painel colorido na cor do risco' },
+  { id: 'ficha', titulo: 'Ficha técnica', descricao: 'Bloco azul com classificação em destaque lateral' },
+  { id: 'oficio', titulo: 'Ofício', descricao: 'Documento formal, classificação em linha de tabela' },
+  { id: 'resumo', titulo: 'Resumo executivo', descricao: 'Quadro-resumo 2×2 no topo da página' },
+];
+
+const LAUDO_LAYOUT_IDS: LaudoLayout[] = ['classico', 'oficio', 'ficha', 'resumo'];
 
 /** Dados extras para o Termo de Interdição (R3/R4) */
 export interface TermoInterdicaoData {
@@ -581,7 +599,12 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
       </div>`
     : '';
 
-  // Cor de fundo suave para o painel de risco
+  const layout: LaudoLayout = LAUDO_LAYOUT_IDS.includes(dados.layout as LaudoLayout)
+    ? (dados.layout as LaudoLayout)
+    : 'classico';
+  const isClassico = layout === 'classico';
+
+  // Cor de fundo suave para o painel de risco (apenas layout clássico)
   const corBg = apresentacao.codigo === 'nao_iminente' || nivel === 'r1'
     ? PDF_COLORS.successSoft
     : nivel === 'r2'
@@ -589,14 +612,156 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
       : PDF_COLORS.dangerSoft;
   const corBorder = PDF_COLORS.line;
   const riskDetailsHtml = agravantesHtml || regrasCondicionaisHtml
-    ? `<div class="risk-details">${agravantesHtml}${regrasCondicionaisHtml}</div>`
+    ? `<div class="risk-details${isClassico ? '' : ' neutral'}">${agravantesHtml}${regrasCondicionaisHtml}</div>`
     : '';
-  const riskPanelHtml = `
+
+  const classificacaoValor = isAvaliacaoArvore ? label : nivel.toUpperCase();
+  const classificacaoLegenda = isAvaliacaoArvore ? 'Resultado CBMMG' : 'Classificação Técnica';
+  const labelSuave = label ? label.charAt(0).toUpperCase() + label.slice(1).toLowerCase() : '';
+  const classificacaoCompleta = isAvaliacaoArvore ? label : `${nivel.toUpperCase()} — ${labelSuave}`;
+  const pontuacaoTxt = `${formatarPontuacaoRisco(pontuacaoTotal)} pontos`;
+  const municipioTxt = dados.municipio || '-';
+  const solicitanteTxt = dados.responsavelNome || '-';
+  const logoImg = DEFESA_CIVIL_LOGO_BASE64;
+
+  // ═══════════ CABEÇALHO + ÁREA DE CLASSIFICAÇÃO, por layout ═══════════
+  let headerHtml = '';
+  let dadosSectionHtml = '';
+  let layoutCss = '';
+
+  if (layout === 'oficio') {
+    headerHtml = `
+  <div class="lx-head">
+    <img class="lx-head-logo" src="${logoImg}" alt="Defesa Civil" />
+    <div class="lx-head-org">Defesa Civil${dados.municipio ? ` · ${escapeHtml(dados.municipio)}` : ''}</div>
+    <div class="lx-head-title">Relatório Técnico de Vistoria</div>
+    <div class="lx-head-proto">Protocolo ${escapeHtml(protocolo)} · ${escapeHtml(data)}</div>
+  </div>
+  ${riskDetailsHtml}`;
+    dadosSectionHtml = `
+  <div class="section">
+    <div class="section-title">Identificação</div>
+    <table class="data-table">
+      <tr><td class="dt-label">Protocolo</td><td class="dt-value">${escapeHtml(protocolo)}</td></tr>
+      <tr><td class="dt-label">Data e hora</td><td class="dt-value">${escapeHtml(data)}</td></tr>
+      <tr><td class="dt-label">Município</td><td class="dt-value">${escapeHtml(municipioTxt)}</td></tr>
+      <tr><td class="dt-label">Endereço</td><td class="dt-value">${escapeHtml(dados.endereco || '-')}</td></tr>
+      <tr><td class="dt-label">Agente responsável</td><td class="dt-value">${escapeHtml(dados.agenteNome || '-')}</td></tr>
+      <tr><td class="dt-label">Solicitante ou responsável</td><td class="dt-value">${escapeHtml(solicitanteTxt)}</td></tr>
+      <tr><td class="dt-label">${classificacaoLegenda}</td><td class="dt-value"><strong>${escapeHtml(classificacaoCompleta)}</strong></td></tr>
+      <tr><td class="dt-label">Pontuação apurada</td><td class="dt-value"><strong>${escapeHtml(pontuacaoTxt)}</strong></td></tr>
+    </table>
+  </div>`;
+    layoutCss = `
+  .lx-head { text-align: center; border-bottom: 3px double ${PDF_COLORS.navy}; padding-bottom: 14px; margin-bottom: 18px; }
+  .lx-head-logo { height: 52px; margin-bottom: 8px; }
+  .lx-head-org { font-size: 8pt; letter-spacing: 2px; text-transform: uppercase; color: ${PDF_COLORS.muted}; font-weight: 700; }
+  .lx-head-title { font-size: 15pt; font-weight: 900; color: ${PDF_COLORS.navy}; text-transform: uppercase; letter-spacing: 1px; margin: 6px 0 4px; }
+  .lx-head-proto { font-size: 9pt; color: ${PDF_COLORS.text}; font-weight: 700; }
+  .risk-details.neutral { background: ${PDF_COLORS.surface}; border-color: ${PDF_COLORS.lineSoft}; }
+  .risk-details.neutral .risk-aggravants-title,
+  .risk-details.neutral .risk-rules-title { color: ${PDF_COLORS.navy}; }`;
+  } else if (layout === 'ficha') {
+    headerHtml = `
+  <div class="lf-hero pdf-avoid-break">
+    <div class="lf-hero-logo"><img src="${logoImg}" alt="Defesa Civil" /></div>
+    <div class="lf-hero-text">
+      <div class="lf-hero-org">Defesa Civil${dados.municipio ? ` · ${escapeHtml(dados.municipio)}` : ''}</div>
+      <div class="lf-hero-title">Relatório Técnico de Vistoria</div>
+      <div class="lf-hero-proto">Protocolo ${escapeHtml(protocolo)}</div>
+    </div>
+    <div class="lf-class">
+      <div class="lf-class-lbl">${escapeHtml(classificacaoLegenda)}</div>
+      <div class="lf-class-val"${isAvaliacaoArvore ? ' style="font-size:12pt;letter-spacing:0;"' : ''}>${escapeHtml(classificacaoValor)}</div>
+      <div class="lf-class-pts">${escapeHtml(pontuacaoTxt)}</div>
+    </div>
+  </div>
+  <div class="lf-grid pdf-avoid-break">
+    <div class="lf-cell"><div class="lf-k">Data e hora</div><div class="lf-v">${escapeHtml(data)}</div></div>
+    <div class="lf-cell"><div class="lf-k">Município</div><div class="lf-v">${escapeHtml(municipioTxt)}</div></div>
+    <div class="lf-cell"><div class="lf-k">Agente responsável</div><div class="lf-v">${escapeHtml(dados.agenteNome || '-')}</div></div>
+    <div class="lf-cell"><div class="lf-k">Solicitante</div><div class="lf-v">${escapeHtml(solicitanteTxt)}</div></div>
+    <div class="lf-cell lf-wide"><div class="lf-k">Endereço</div><div class="lf-v">${escapeHtml(dados.endereco || '-')}</div></div>
+  </div>
+  ${riskDetailsHtml}`;
+    dadosSectionHtml = '';
+    layoutCss = `
+  .lf-hero { background: ${PDF_COLORS.navy}; color: #fff; border-radius: 10px; padding: 16px 18px; display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .lf-hero-logo { width: 54px; height: 54px; background: #fff; border-radius: 10px; padding: 4px; flex: none; }
+  .lf-hero-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .lf-hero-text { flex: 1; }
+  .lf-hero-org { font-size: 7.5pt; letter-spacing: 1.6px; text-transform: uppercase; opacity: .75; font-weight: 700; }
+  .lf-hero-title { font-size: 12.5pt; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; margin: 4px 0 3px; }
+  .lf-hero-proto { font-size: 8.5pt; opacity: .85; font-weight: 600; }
+  .lf-class { text-align: center; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.35); border-radius: 10px; padding: 10px 16px; flex: none; }
+  .lf-class-lbl { font-size: 7pt; letter-spacing: 1.2px; text-transform: uppercase; opacity: .8; font-weight: 700; }
+  .lf-class-val { font-size: 22pt; font-weight: 900; line-height: 1.05; }
+  .lf-class-pts { font-size: 8pt; opacity: .85; font-weight: 700; }
+  .lf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 16px; }
+  .lf-cell { border: 1px solid ${PDF_COLORS.lineSoft}; border-radius: 8px; padding: 9px 12px; }
+  .lf-cell.lf-wide { grid-column: 1 / -1; }
+  .lf-k { font-size: 7pt; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: ${PDF_COLORS.muted}; }
+  .lf-v { font-size: 10pt; font-weight: 700; color: ${PDF_COLORS.ink}; margin-top: 3px; }
+  .risk-details.neutral { background: ${PDF_COLORS.surface}; border-color: ${PDF_COLORS.lineSoft}; }
+  .risk-details.neutral .risk-aggravants-title,
+  .risk-details.neutral .risk-rules-title { color: ${PDF_COLORS.navy}; }`;
+  } else if (layout === 'resumo') {
+    headerHtml = `
+  <div class="lr-head">
+    <img class="lr-logo" src="${logoImg}" alt="Defesa Civil" />
+    <div class="lr-head-text">
+      <div class="lr-title">Relatório Técnico de Vistoria</div>
+      <div class="lr-sub">Defesa Civil${dados.municipio ? ` · ${escapeHtml(dados.municipio)}` : ''}</div>
+    </div>
+    <div class="lr-proto">Protocolo<br/><strong>${escapeHtml(protocolo)}</strong></div>
+  </div>
+  <div class="lr-quad pdf-avoid-break">
+    <div class="lr-q"><div class="lr-qk">${escapeHtml(classificacaoLegenda)}</div><div class="lr-qv"${classificacaoValor.length > 3 ? ' style="font-size:11pt;"' : ''}>${escapeHtml(classificacaoValor)}${!isAvaliacaoArvore ? ` — ${escapeHtml(labelSuave)}` : ''}</div></div>
+    <div class="lr-q"><div class="lr-qk">Pontuação apurada</div><div class="lr-qv">${escapeHtml(formatarPontuacaoRisco(pontuacaoTotal))}</div></div>
+    <div class="lr-q"><div class="lr-qk">Data da vistoria</div><div class="lr-qv lr-small">${escapeHtml(data)}</div></div>
+    <div class="lr-q"><div class="lr-qk">Agente responsável</div><div class="lr-qv lr-small">${escapeHtml(dados.agenteNome || '-')}</div></div>
+  </div>
+  <div class="lr-addr pdf-avoid-break"><span class="lr-addr-lbl">Local vistoriado</span>${escapeHtml(dados.endereco || '-')} · ${escapeHtml(municipioTxt)}</div>
+  <div class="lr-subdata">Solicitante ou responsável: ${escapeHtml(solicitanteTxt)}</div>
+  ${riskDetailsHtml}`;
+    dadosSectionHtml = '';
+    layoutCss = `
+  .lr-head { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid ${PDF_COLORS.navy}; padding-bottom: 10px; }
+  .lr-logo { width: 44px; height: 44px; object-fit: contain; }
+  .lr-head-text { flex: 1; }
+  .lr-title { font-size: 12pt; font-weight: 800; color: ${PDF_COLORS.navy}; text-transform: uppercase; letter-spacing: .8px; }
+  .lr-sub { font-size: 9px; font-weight: 600; color: ${PDF_COLORS.muted}; margin-top: 2px; }
+  .lr-proto { font-size: 9px; color: ${PDF_COLORS.muted}; text-align: right; }
+  .lr-proto strong { color: ${PDF_COLORS.ink}; }
+  .lr-quad { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0; }
+  .lr-q { background: ${PDF_COLORS.surface}; border: 1px solid ${PDF_COLORS.lineSoft}; border-radius: 8px; padding: 12px 14px; }
+  .lr-qk { font-size: 7pt; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: ${PDF_COLORS.muted}; }
+  .lr-qv { font-size: 15pt; font-weight: 900; color: ${PDF_COLORS.ink}; margin-top: 4px; }
+  .lr-qv.lr-small { font-size: 10.5pt; font-weight: 700; }
+  .lr-addr { background: ${PDF_COLORS.navy}; color: #fff; border-radius: 8px; padding: 10px 14px; font-weight: 700; font-size: 10.5pt; margin-bottom: 6px; }
+  .lr-addr-lbl { font-size: 7pt; letter-spacing: 1.2px; text-transform: uppercase; opacity: .75; display: block; margin-bottom: 3px; }
+  .lr-subdata { font-size: 8.5pt; color: ${PDF_COLORS.muted}; margin-bottom: 16px; }
+  .risk-details.neutral { background: ${PDF_COLORS.surface}; border-color: ${PDF_COLORS.lineSoft}; }
+  .risk-details.neutral .risk-aggravants-title,
+  .risk-details.neutral .risk-rules-title { color: ${PDF_COLORS.navy}; }`;
+  } else {
+    headerHtml = `
+  <!-- CABEÇALHO -->
+  <div class="doc-header">
+    <div class="doc-brand">
+      <img src="${logoImg}" alt="Defesa Civil Municipal" />
+    </div>
+    <div class="doc-info">
+      <div class="doc-type">RELATÓRIO TÉCNICO DE VISTORIA</div>
+      <div class="doc-num">Protocolo ${escapeHtml(protocolo)}</div>
+    </div>
+  </div>
+
   <!-- PAINEL DE RISCO -->
   <div class="risk-panel pdf-avoid-break">
     <div class="risk-indicator">
-      <div class="risk-level-label">${isAvaliacaoArvore ? 'Resultado CBMMG' : 'Classificação Técnica'}</div>
-      <div class="risk-level-value">${escapeHtml(isAvaliacaoArvore ? label : nivel.toUpperCase())}</div>
+      <div class="risk-level-label">${escapeHtml(classificacaoLegenda)}</div>
+      <div class="risk-level-value">${escapeHtml(classificacaoValor)}</div>
     </div>
     <div class="risk-score">
       <div class="risk-score-label">Pontuação apurada</div>
@@ -604,6 +769,20 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     </div>
   </div>
   ${riskDetailsHtml}`;
+    dadosSectionHtml = `
+  <!-- DADOS DA VISTORIA -->
+  <div class="section">
+    <div class="section-title">Dados da Vistoria</div>
+    <table class="data-table">
+      <tr><td class="dt-label">Protocolo</td><td class="dt-value">${escapeHtml(protocolo)}</td></tr>
+      <tr><td class="dt-label">Data e hora</td><td class="dt-value">${escapeHtml(data)}</td></tr>
+      <tr><td class="dt-label">Município</td><td class="dt-value">${escapeHtml(municipioTxt)}</td></tr>
+      <tr><td class="dt-label">Agente responsável</td><td class="dt-value">${escapeHtml(dados.agenteNome || '-')}</td></tr>
+      <tr><td class="dt-label">Solicitante ou responsável</td><td class="dt-value">${escapeHtml(solicitanteTxt)}</td></tr>
+      <tr><td class="dt-label">Endereço</td><td class="dt-value">${escapeHtml(dados.endereco || '-')}</td></tr>
+    </table>
+  </div>`;
+  }
 
   const metodologiaHtml = isAvaliacaoArvore ? `
   <div class="section" style="page-break-inside: avoid;">
@@ -957,54 +1136,15 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   body.document-tree .pdf-page-footer {
     margin-top: 2mm;
   }
+  ${layoutCss}
 </style>
 </head>
 <body class="${isAvaliacaoArvore ? 'document-tree' : ''}">
   ${trainingNotice}
 
-  <!-- CABEÇALHO -->
-  <div class="doc-header">
-    <div class="doc-brand">
-      <img src="${DEFESA_CIVIL_LOGO_BASE64}" alt="Defesa Civil Municipal" />
-    </div>
-    <div class="doc-info">
-      <div class="doc-type">RELATÓRIO TÉCNICO DE VISTORIA</div>
-      <div class="doc-num">Protocolo ${escapeHtml(protocolo)}</div>
-    </div>
-  </div>
+  ${headerHtml}
 
-  ${riskPanelHtml}
-
-  <!-- DADOS DA VISTORIA -->
-  <div class="section">
-    <div class="section-title">Dados da Vistoria</div>
-    <table class="data-table">
-      <tr>
-        <td class="dt-label">Protocolo</td>
-        <td class="dt-value">${escapeHtml(protocolo)}</td>
-      </tr>
-      <tr>
-        <td class="dt-label">Data e hora</td>
-        <td class="dt-value">${escapeHtml(data)}</td>
-      </tr>
-      <tr>
-        <td class="dt-label">Município</td>
-        <td class="dt-value">${escapeHtml(dados.municipio || '-')}</td>
-      </tr>
-      <tr>
-        <td class="dt-label">Agente responsável</td>
-        <td class="dt-value">${escapeHtml(dados.agenteNome || '-')}</td>
-      </tr>
-      <tr>
-        <td class="dt-label">Solicitante ou responsável</td>
-        <td class="dt-value">${escapeHtml(dados.responsavelNome || '-')}</td>
-      </tr>
-      <tr>
-        <td class="dt-label">Endereço</td>
-        <td class="dt-value">${escapeHtml(dados.endereco || '-')}</td>
-      </tr>
-    </table>
-  </div>
+  ${dadosSectionHtml}
 
   ${metodologiaHtml}
 
