@@ -199,4 +199,47 @@ describe('laudoPdfBuilder', () => {
     expect(html).toContain('Modelo v2');
     expect(html).not.toContain('pdf-page-number');
   });
+
+  const baseLaudo = {
+    id: 'vistoria-layouts-1', nivelRisco: 'r4', pontuacaoTotal: 9.6,
+    endereco: 'Rua Marlene, 531 - Dico Leite', municipio: 'Cataguases',
+    dataVistoria: '2026-09-20T21:16:00.000Z', agenteNome: 'Pedro Alves',
+    responsavelNome: 'Paulo Pedro', formularioId: 'vistoria_deslizamento_v3',
+    respostasJson: JSON.stringify({ item_teste: 'Resposta técnica' }),
+  };
+
+  it('layout "oficio": classificação em linha de tabela, sem painel colorido', async () => {
+    const html = await buildLaudoHtml({ ...baseLaudo, layout: 'oficio' });
+    expect(html).toContain('lx-head');
+    expect(html).toContain('Identificação');
+    expect(html).toContain('R4 — Crítico');
+    expect(html).toContain('9,6 pontos');
+    expect(html).toContain('data:image/jpeg;base64,');
+    expect(html).not.toMatch(/class="risk-panel/);
+  });
+
+  it('layout "ficha": hero azul com quadro de classificação e grade de dados', async () => {
+    const html = await buildLaudoHtml({ ...baseLaudo, layout: 'ficha' });
+    expect(html).toContain('lf-hero');
+    expect(html).toContain('lf-class-val');
+    expect(html).toContain('>R4<');
+    expect(html).toContain('lf-grid');
+    expect(html).toContain('Rua Marlene, 531 - Dico Leite');
+    expect(html).toContain('data:image/jpeg;base64,');
+  });
+
+  it('layout "resumo": quadro 2×2 no topo e endereço em faixa', async () => {
+    const html = await buildLaudoHtml({ ...baseLaudo, layout: 'resumo' });
+    expect(html).toContain('lr-quad');
+    expect(html).toContain('lr-addr');
+    expect(html).toContain('R4 — Crítico');
+    expect(html).toContain('Paulo Pedro');
+    expect(html).toContain('data:image/jpeg;base64,');
+  });
+
+  it('layout inválido cai no clássico com painel de risco', async () => {
+    const html = await buildLaudoHtml({ ...baseLaudo, layout: 'inexistente' as never });
+    expect(html).toMatch(/class="risk-panel/);
+    expect(html).toContain('Classificação Técnica');
+  });
 });

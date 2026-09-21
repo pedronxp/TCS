@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, Share, Modal, TextInput, Image,
+  ActivityIndicator, Alert, Share, Modal, TextInput, Image, Linking,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,7 +18,7 @@ import { supabase } from '../../../utils/supabase';
 import { getOfficialVistoriaById, getTrainingVistoriaById, queueLaudoUpload, updateLaudoUrl } from '../../../utils/database';
 import { syncPendentes } from '../../../services/SyncService';
 import { getSignedUrl } from '../../../services/StorageService';
-import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
+import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, LaudoLayout, LAUDO_LAYOUTS, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { formatarPontuacaoRisco, normalizarNivelRisco, resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { protocolDisplay } from '../../../utils/protocoloDisplay';
 import { buildShareMessage } from '../../../utils/shareUtils';
@@ -27,13 +28,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
-import QeStatusBanner from '../../../components/qe/QeStatusBanner';
 import { safeBack } from '../../../utils/navigationUtils';
 import { logger } from '../../../utils/logger';
 import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
-import { documentReleaseMessage, resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
+import { resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled, SignatureStroke } from '../../../types/documentAcknowledgement';
-import { listAcknowledgementEventsForDocument, listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
+import { listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
 import { SignaturePad } from '../../../components/SignaturePad';
 import {
   AppHeader,
@@ -42,6 +42,7 @@ import {
   ErrorState,
   ListRow,
   LoadingState,
+  OptionSheet,
   SectionHeader,
 } from '../../../components/ui';
 import { FontSize, FontWeight } from '../../../constants/Typography';
@@ -93,6 +94,48 @@ async function resolverMidias(vistoria: any): Promise<any> {
 }
 
 
+const LAUDO_LAYOUT_STORAGE_KEY = '@laudo_layout_preferido';
+/** Janela mínima entre gerações de PDF da mesma vistoria (limitador). */
+const PDF_COOLDOWN_MINUTES = 15;
+
+function formatarHora(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '—';
+  }
+}
+
+function formatarDataCurta(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('pt-BR');
+  } catch {
+    return '—';
+  }
+}
+
+function statusCienciaLabel(status: string): string {
+  const map: Record<string, string> = {
+    not_collected: 'ciência pendente',
+    pending_sync: 'ciência coletada · aguardando sincronização',
+    confirmed: 'ciência confirmada',
+    refused: 'recusa registrada',
+    unable_to_sign: 'impossibilidade registrada',
+    superseded: 'versão substituída',
+    sync_failed: 'falha de sincronização',
+  };
+  return map[status] ?? status;
+}
+
+interface QeResumo {
+  status: 'pendente' | 'aprovada' | 'devolvida';
+  ciclo: number;
+  nota: number | null;
+  parecer: string | null;
+}
+
 export default function ResultadoScreen() {
   const { id, formularioId: formularioIdParam, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam, treinamento } = useLocalSearchParams<{
     id: string; formularioId?: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string;
@@ -118,6 +161,44 @@ export default function ResultadoScreen() {
   const [agentSignatureImage, setAgentSignatureImage] = useState<string | null>(null);
   const [showAgentSignatureModal, setShowAgentSignatureModal] = useState(false);
   const [pendingGenerationAction, setPendingGenerationAction] = useState<'generate' | 'print' | 'share' | 'term' | null>(null);
+
+  // Novo fluxo (set/2026): estado da QE, sheets de opções e modelo de relatório
+  const [qe, setQe] = useState<QeResumo | null>(null);
+  const [laudoSheetVisible, setLaudoSheetVisible] = useState(false);
+  const [layoutSheetVisible, setLayoutSheetVisible] = useState(false);
+  const [versionsSheetVisible, setVersionsSheetVisible] = useState(false);
+  const [laudoLayout, setLaudoLayout] = useState<LaudoLayout>('ficha');
+  const [lastPdfUri, setLastPdfUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(LAUDO_LAYOUT_STORAGE_KEY);
+        if (saved && LAUDO_LAYOUTS.some(l => l.id === saved)) {
+          setLaudoLayout(saved as LaudoLayout);
+        }
+      } catch {
+        /* preferência de modelo é opcional */
+      }
+    })();
+  }, []);
+
+  // Status da revisão de qualidade desta vistoria (QE é retroativa; não bloqueia o fluxo)
+  useEffect(() => {
+    if (!id || isolatedMode) return;
+    let ativo = true;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('qe_status_vistoria', { p_vistoria_id: id });
+        if (ativo && !error && Array.isArray(data) && data.length > 0) {
+          setQe(data[0] as QeResumo);
+        }
+      } catch {
+        /* selo de QE é opcional */
+      }
+    })();
+    return () => { ativo = false; };
+  }, [id, isolatedMode]);
 
   // Modal Termo de Interdição
   const [showTermoModal, setShowTermoModal] = useState(false);
@@ -295,6 +376,7 @@ export default function ResultadoScreen() {
     foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
     fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
     modoTreinamento: isolatedMode,
+    layout: laudoLayout,
     agentSignatureStrokes,
     agentSignatureImageBase64: agentSignatureImage,
   });
@@ -376,37 +458,24 @@ export default function ResultadoScreen() {
     }
   };
 
-  const liberarDocumento = async (
+  /**
+   * Após gerar o PDF: a ciência NÃO é cobrada aqui — virou um passo próprio
+   * e visível na tela (linha "Ciência do morador"). Só bloqueia quando a
+   * versão do documento não pôde ser preservada localmente.
+   */
+  const liberarPdfGerado = async (
     result: Awaited<ReturnType<typeof prepararCiencia>>,
-    titulo: string,
-    liberarSemCiencia: () => Promise<unknown>,
+    liberar: () => Promise<unknown>,
   ) => {
     const decision = resolveDocumentRelease(result);
-    if (decision === 'share') {
-      await liberarSemCiencia();
+    if (decision === 'blocked') {
+      Alert.alert(
+        'Documento não liberado',
+        'A versão usada na geração não foi preservada. Tente gerar novamente.',
+      );
       return;
     }
-    const copy = documentReleaseMessage(result, titulo);
-    if (decision === 'collect_acknowledgement' && result.documentId) {
-      const existingEvent = listAcknowledgementEventsForDocument(result.documentId)[0] ?? null;
-      if (existingEvent) {
-        Alert.alert(
-          'Esta versão já possui ciência',
-          'O conteúdo do documento não mudou, portanto nenhuma nova versão foi criada.',
-          [
-            { text: 'Fechar', style: 'cancel' },
-            { text: 'Ver registro', onPress: () => router.push(`/(panel)/inspecoes/ciencia?documentId=${result.documentId}`) },
-          ]
-        );
-        return;
-      }
-      Alert.alert(copy.title, copy.message, [
-        { text: 'Depois', style: 'cancel' },
-        { text: 'Coletar ciência', onPress: () => router.push(`/(panel)/inspecoes/ciencia?documentId=${result.documentId}`) },
-      ]);
-      return;
-    }
-    Alert.alert(copy.title, `${copy.message}\n\nDetalhe: ${result.errorMessage || result.errorCode || 'erro desconhecido'}`);
+    await liberar();
   };
 
   const gerarPdf = async (agentSignatureStrokes?: SignatureStroke[]) => {
@@ -428,6 +497,7 @@ export default function ResultadoScreen() {
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
+      setLastPdfUri(uri);
 
       // O PDF completo do app é a cópia oficial enviada ao Storage.
       salvarLaudoNoStorage(uri).catch(() => null);
@@ -441,11 +511,11 @@ export default function ResultadoScreen() {
             municipio: vistoria?.municipio || profile.municipio || '',
             organizationId: profile.organizationId ?? null,
             alvoId: vistoria?.id,
-          detalhes: { protocolo: vistoria?.protocolo, nivel_risco: vistoria?.nivelRisco },
+          detalhes: { protocolo: vistoria?.protocolo, nivel_risco: vistoria?.nivelRisco, layout: laudoLayout },
         });
       }
 
-      await liberarDocumento(acknowledgementDocument, 'Relatório', async () => {
+      await liberarPdfGerado(acknowledgementDocument, async () => {
         const disponivel = await Sharing.isAvailableAsync();
         if (disponivel) {
           await Sharing.shareAsync(uri, {
@@ -468,13 +538,29 @@ export default function ResultadoScreen() {
   const imprimir = async (agentSignatureStrokes?: SignatureStroke[]) => {
     if (!(await ensureTrainingActionsAllowed())) return;
 
+    // Reaproveita o arquivo gerado nesta sessão — sem pedir assinatura de novo
+    // e sem criar versão nova do documento.
+    if (lastPdfUri) {
+      setGerando(true);
+      try {
+        await Print.printAsync({ uri: lastPdfUri });
+      } catch {
+        Alert.alert('Erro', 'Não foi possível abrir a impressão.');
+      } finally {
+        setGerando(false);
+      }
+      return;
+    }
+
     setGerando(true);
     try {
       const dados = buildDados(agentSignatureStrokes);
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
-      await liberarDocumento(acknowledgementDocument, 'Relatório', () => Print.printAsync({ html }));
+      setLastPdfUri(uri);
+      salvarLaudoNoStorage(uri).catch(() => null);
+      await liberarPdfGerado(acknowledgementDocument, () => Print.printAsync({ html }));
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
     } finally {
@@ -485,12 +571,33 @@ export default function ResultadoScreen() {
   const compartilhar = async (agentSignatureStrokes?: SignatureStroke[]) => {
     if (!(await ensureTrainingActionsAllowed())) return;
 
+    // Reaproveita o arquivo gerado nesta sessão — sem nova assinatura/versão.
+    if (lastPdfUri) {
+      setGerando(true);
+      try {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(lastPdfUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `TCS — ${protocolDisplay(vistoria?.protocolo).value}`,
+            UTI: 'com.adobe.pdf',
+          });
+        }
+      } catch {
+        Alert.alert('Erro', 'Não foi possível compartilhar o laudo.');
+      } finally {
+        setGerando(false);
+      }
+      return;
+    }
+
     setGerando(true);
     try {
       const dados = buildDados(agentSignatureStrokes);
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
+      setLastPdfUri(uri);
 
       const protocolo = protocolDisplay(vistoria?.protocolo).value;
       const mensagem = buildShareMessage({
@@ -510,7 +617,7 @@ export default function ResultadoScreen() {
       // Upload para Storage em background
       salvarLaudoNoStorage(uri).catch(() => null);
 
-      await liberarDocumento(acknowledgementDocument, 'Relatório', async () => {
+      await liberarPdfGerado(acknowledgementDocument, async () => {
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(uri, {
@@ -548,7 +655,7 @@ export default function ResultadoScreen() {
       const html = buildTermoInterdicaoHtml(dados, termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('interdiction_term', { ...dados, notified: termoForm }, html, uri);
-      await liberarDocumento(acknowledgementDocument, 'Termo', async () => {
+      await liberarPdfGerado(acknowledgementDocument, async () => {
         const disponivel = await Sharing.isAvailableAsync();
         if (disponivel) {
           await Sharing.shareAsync(uri, {
@@ -571,10 +678,87 @@ export default function ResultadoScreen() {
     }
   };
 
+  /** Ações de documento passam por aqui: assinatura do agente é pedida só 1x por sessão da tela. */
+  const executarAcaoDocumento = async (
+    action: 'generate' | 'print' | 'share' | 'term',
+    strokes: SignatureStroke[],
+  ) => {
+    if (action === 'generate') await gerarPdf(strokes);
+    else if (action === 'print') await imprimir(strokes);
+    else if (action === 'share') await compartilhar(strokes);
+    else if (action === 'term') await gerarTermoInterdicao(strokes);
+  };
+
   const solicitarAssinaturaAgente = (action: 'generate' | 'print' | 'share' | 'term') => {
     if (gerando) return;
+    if (agentSignature.length > 0 || agentSignatureImage) {
+      void executarAcaoDocumento(action, agentSignature);
+      return;
+    }
     setPendingGenerationAction(action);
     setShowAgentSignatureModal(true);
+  };
+
+  const abrirCopiaSalva = useCallback(() => {
+    if (vistoria?.laudo_url) void Linking.openURL(vistoria.laudo_url);
+  }, [vistoria?.laudo_url]);
+
+  /**
+   * Limitador de geração (aprovado em set/2026):
+   * - Primeira geração: livre.
+   * - Já existe PDF: avisa para salvar/enviar o arquivo atual.
+   * - Dentro da janela de 15 min: bloqueia e aponta a cópia salva.
+   */
+  const iniciarGeracaoLaudo = () => {
+    const geradoEmMs = vistoria?.laudo_gerado_em ? new Date(vistoria.laudo_gerado_em).getTime() : null;
+    if (geradoEmMs) {
+      const liberaEm = geradoEmMs + PDF_COOLDOWN_MINUTES * 60_000;
+      if (Date.now() < liberaEm) {
+        Alert.alert(
+          'PDF recém-gerado',
+          `Este documento foi gerado às ${formatarHora(vistoria?.laudo_gerado_em)}. Salve ou envie o arquivo atual antes de criar outro — a próxima geração libera às ${formatarHora(new Date(liberaEm).toISOString())}.`,
+          [
+            ...(vistoria?.laudo_url && !laudoExpirado()
+              ? [{ text: 'Abrir cópia salva', onPress: abrirCopiaSalva }]
+              : []),
+            { text: 'Entendi', style: 'cancel' as const },
+          ],
+        );
+        return;
+      }
+      Alert.alert(
+        'Gerar nova versão',
+        'Salve ou envie o PDF atual antes de continuar. A nova geração cria uma versão oficial e a anterior sai de circulação.',
+        [
+          { text: 'Cancelar', style: 'cancel' as const },
+          { text: 'Escolher modelo e gerar', onPress: () => setLayoutSheetVisible(true) },
+        ],
+      );
+      return;
+    }
+    setLayoutSheetVisible(true);
+  };
+
+  const escolherLayoutEGerar = (layout: LaudoLayout) => {
+    setLaudoLayout(layout);
+    void AsyncStorage.setItem(LAUDO_LAYOUT_STORAGE_KEY, layout).catch(() => null);
+    setLayoutSheetVisible(false);
+    solicitarAssinaturaAgente('generate');
+  };
+
+  const abrirCiencia = () => {
+    if (acknowledgementRequiresInspectionSync) {
+      void sincronizarVistoriaAntesDaCiencia();
+      return;
+    }
+    if (activeReportAcknowledgement) {
+      router.push(`/(panel)/inspecoes/ciencia?documentId=${activeReportAcknowledgement.document.id}`);
+      return;
+    }
+    Alert.alert(
+      'Laudo ainda não gerado',
+      'Gere o PDF do laudo primeiro — a ciência do morador é coletada sobre a versão oficial.',
+    );
   };
 
   const sincronizarVistoriaAntesDaCiencia = async () => {
@@ -629,10 +813,7 @@ export default function ResultadoScreen() {
     const signatureForDocument = agentSignature;
     setShowAgentSignatureModal(false);
     setPendingGenerationAction(null);
-    if (action === 'generate') void gerarPdf(signatureForDocument);
-    if (action === 'print') void imprimir(signatureForDocument);
-    if (action === 'share') void compartilhar(signatureForDocument);
-    if (action === 'term') void gerarTermoInterdicao(signatureForDocument);
+    if (action) void executarAcaoDocumento(action, signatureForDocument);
   };
 
   if (loading) {
@@ -672,13 +853,52 @@ export default function ResultadoScreen() {
   const isAltoRisco = nivel === 'r3' || nivel === 'r4';
   const currentAcknowledgements = acknowledgementHistory.filter(item => item.document.status !== 'superseded');
   const activeReportAcknowledgement = currentAcknowledgements.find(item => item.document.documentType === 'report') ?? null;
-  const activeReportNeedsAttention = activeReportAcknowledgement
-    && ['not_collected', 'pending_sync', 'sync_failed'].includes(activeReportAcknowledgement.historyStatus);
   const acknowledgementRequiresInspectionSync = !isolatedMode && !vistoria?.protocolo;
   const displayedEvidence = Array.from(new Set([
     vistoria?.foto_url,
     ...(vistoria?.fotosUrls ?? []),
   ].filter((value): value is string => Boolean(value))));
+
+  // ── Resumo de andamento (QE + ciência) para a timeline ──
+  const activeTermoAcknowledgement = currentAcknowledgements.find(
+    item => item.document.documentType === 'interdiction_term',
+  ) ?? null;
+
+  const qeLinha: { icon: keyof typeof Feather.glyphMap; detail: string; tone: 'done' | 'pending' | 'warning' | 'muted' } = (() => {
+    if (isolatedMode) return { icon: 'clock', detail: 'Não se aplica ao modo treinamento', tone: 'muted' };
+    if (!qe) return { icon: 'clock', detail: 'Verificando status da revisão…', tone: 'muted' };
+    if (qe.status === 'pendente') return { icon: 'clock', detail: 'Na fila do supervisor — não bloqueia seu trabalho', tone: 'pending' };
+    if (qe.status === 'aprovada') return { icon: 'check-circle', detail: `Aprovada${qe.nota != null ? ` · nota ${qe.nota}/10` : ''}`, tone: 'done' };
+    return { icon: 'rotate-ccw', detail: `Devolvida para correção${qe.ciclo > 1 ? ` · ciclo ${qe.ciclo}` : ''}`, tone: 'warning' };
+  })();
+
+  const cienciaStatus = activeReportAcknowledgement?.historyStatus ?? null;
+  const cienciaLinha: { icon: keyof typeof Feather.glyphMap; detail: string; tone: 'done' | 'pending' | 'warning' | 'muted' } = (() => {
+    if (acknowledgementRequiresInspectionSync) {
+      return { icon: 'upload-cloud', detail: 'Sincronize a vistoria para liberar a coleta', tone: 'muted' };
+    }
+    if (!activeReportAcknowledgement) {
+      return { icon: 'circle', detail: 'Disponível após gerar o laudo', tone: 'pending' };
+    }
+    if (cienciaStatus === 'confirmed') return { icon: 'check-circle', detail: 'Coletada e confirmada', tone: 'done' };
+    if (cienciaStatus === 'refused') return { icon: 'check-circle', detail: 'Recusa registrada', tone: 'done' };
+    if (cienciaStatus === 'unable_to_sign') return { icon: 'check-circle', detail: 'Impossibilidade registrada', tone: 'done' };
+    if (cienciaStatus === 'pending_sync') return { icon: 'upload-cloud', detail: 'Coletada — aguardando sincronização', tone: 'pending' };
+    if (cienciaStatus === 'sync_failed') return { icon: 'alert-circle', detail: 'Falha na sincronização — toque para revisar', tone: 'warning' };
+    return { icon: 'circle', detail: 'Pendente — colete com o morador', tone: 'pending' };
+  })();
+
+  const cienciaBadge = !activeReportAcknowledgement
+    ? undefined
+    : cienciaStatus === 'confirmed'
+      ? 'Coletada'
+      : 'Pendente';
+  const cienciaBadgeVariant = cienciaStatus === 'confirmed' ? 'success' as const : 'neutral' as const;
+
+  const versaoAtual = activeReportAcknowledgement?.document.documentVersion ?? null;
+  const laudoSubtitulo = vistoria?.laudo_gerado_em
+    ? `Gerado ${formatarDataCurta(vistoria.laudo_gerado_em)} às ${formatarHora(vistoria.laudo_gerado_em)}${versaoAtual ? ` · versão ${versaoAtual}` : ''}`
+    : 'Não gerado ainda — toque para ver as opções';
 
   // CPF mask
   const handleCpfChange = (t: string) => {
@@ -699,6 +919,56 @@ export default function ResultadoScreen() {
     setTermoForm(f => ({ ...f, telefone: formatted }));
   };
 
+  // ── Opções do dropdown do laudo ──
+  const laudoSheetOptions = (() => {
+    const opts: {
+      key: string;
+      title: string;
+      subtitle?: string;
+      icon: React.ComponentProps<typeof Feather>['name'];
+    }[] = [];
+    if (!vistoria?.laudo_gerado_em) {
+      opts.push({ key: 'gerar', title: 'Gerar PDF', subtitle: 'Escolher o modelo e assinar', icon: 'file-text' });
+    } else {
+      if (vistoria.laudo_url && !laudoExpirado()) {
+        opts.push({ key: 'abrir', title: 'Abrir cópia salva', subtitle: `Gerada às ${formatarHora(vistoria.laudo_gerado_em)}`, icon: 'download' });
+      }
+      opts.push({ key: 'imprimir', title: 'Imprimir', subtitle: lastPdfUri ? 'Usa o arquivo gerado agora' : 'Gera e imprime', icon: 'printer' });
+      opts.push({ key: 'compartilhar', title: 'Compartilhar', subtitle: 'WhatsApp, e-mail e outros', icon: 'share-2' });
+      opts.push({ key: 'nova_versao', title: 'Gerar nova versão', subtitle: `Limite: 1 geração a cada ${PDF_COOLDOWN_MINUTES} min`, icon: 'refresh-cw' });
+    }
+    if (acknowledgementHistory.length > 0) {
+      opts.push({ key: 'versoes', title: 'Histórico de versões', subtitle: `${acknowledgementHistory.length} versão(ões) registrada(s)`, icon: 'clock' });
+    }
+    return opts;
+  })();
+
+  const onLaudoSheetSelect = (key: string) => {
+    setLaudoSheetVisible(false);
+    if (key === 'gerar' || key === 'nova_versao') iniciarGeracaoLaudo();
+    else if (key === 'abrir') abrirCopiaSalva();
+    else if (key === 'imprimir') solicitarAssinaturaAgente('print');
+    else if (key === 'compartilhar') solicitarAssinaturaAgente('share');
+    else if (key === 'versoes') setVersionsSheetVisible(true);
+  };
+
+  // ── Opções do sheet de versões ──
+  const versionsOptions = acknowledgementHistory.map(item => ({
+    key: item.document.id,
+    title: `Versão ${item.document.documentVersion} · ${item.document.documentType === 'interdiction_term' ? 'Termo de interdição' : item.document.documentType === 'technical_report' ? 'Relatório técnico' : 'Laudo'}`,
+    subtitle: `${formatarDataCurta(item.document.createdAtDevice)} às ${formatarHora(item.document.createdAtDevice)} · ${statusCienciaLabel(item.historyStatus)}`,
+    icon: (item.document.status === 'superseded' ? 'archive' : 'file-text') as 'archive' | 'file-text',
+    selected: item.document.status !== 'superseded',
+  }));
+
+  const onVersionSelect = (key: string) => {
+    setVersionsSheetVisible(false);
+    const item = acknowledgementHistory.find(h => h.document.id === key);
+    if (item && item.document.status !== 'superseded') {
+      router.push(`/(panel)/inspecoes/ciencia?documentId=${item.document.id}`);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <AppHeader
@@ -709,28 +979,72 @@ export default function ResultadoScreen() {
       />
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
-        <QeStatusBanner vistoriaId={typeof id === 'string' ? id : undefined} />
-        {/* Status Card */}
-        <View style={[styles.statusCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-          <View style={styles.statusHeading}>
-            <View style={[styles.statusIcon, { backgroundColor: `${cor}15` }]}>
-              <Feather name="file-text" size={28} color={cor} />
-            </View>
-            <View style={styles.statusHeadingText}>
-              <Text style={[styles.statusEyebrow, { color: theme.textSecondary }]}>REGISTRO SALVO</Text>
-              <Text style={[styles.statusTitle, { color: theme.text }]}>Vistoria concluída</Text>
-            </View>
-          </View>
-          <View style={styles.statusRiskRow}>
+        {/* RESUMO — só o selo de risco mantém cor semântica; resto neutro */}
+        <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
+          <View style={styles.summaryTopRow}>
             <Badge label={isAvaliacaoArvore ? label : `Risco ${label}`} variant={riskVariant} showDot />
-            <Text style={[styles.statusScore, { color: theme.textSecondary }]}>{formatarPontuacaoRisco(vistoria?.pontuacaoTotal ?? 0)} pontos</Text>
+            <Text style={[styles.summaryPoints, { color: theme.textSecondary }]}>
+              {formatarPontuacaoRisco(vistoria?.pontuacaoTotal ?? 0)} pontos
+            </Text>
           </View>
-          <Text style={[styles.statusDesc, { color: theme.textSecondary }]}>
-            {vistoria?.endereco
-              ? vistoria.endereco
-              : 'Dados salvos localmente. PDF disponível após sincronização.'}
+          <Text style={[styles.summaryTitle, { color: theme.text }]}>Vistoria concluída</Text>
+          <Text style={[styles.summaryAddress, { color: theme.text }]}>
+            {vistoria?.endereco || 'Endereço não informado'}
           </Text>
-          {vistoria?.endereco && <Text style={[styles.statusAgent, { color: theme.textSecondary }]}>{vistoria.agenteNome || activeProfile?.name || 'Agente responsável'}</Text>}
+          <Text style={[styles.summaryMeta, { color: theme.textSecondary }]}>
+            {(vistoria?.agenteNome || activeProfile?.name || 'Agente responsável')}
+            {' · '}
+            {formatarDataCurta(vistoria?.dataVistoria ?? null)} às {formatarHora(vistoria?.dataVistoria ?? null)}
+          </Text>
+        </View>
+
+        {/* ANDAMENTO — timeline do processo (QE é retroativa, nunca bloqueia) */}
+        <SectionHeader title="Andamento" />
+        <View style={[styles.timelineCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
+          <View style={styles.timelineRow}>
+            <View style={[styles.timelineIcon, { backgroundColor: theme.successLight }]}>
+              <Feather name="check" size={15} color={theme.success} />
+            </View>
+            <View style={styles.timelineCopy}>
+              <Text style={[styles.timelineTitle, { color: theme.text }]}>Vistoria salva</Text>
+              <Text style={[styles.timelineDetail, { color: theme.textSecondary }]}>Registro concluído e preservado</Text>
+            </View>
+          </View>
+
+          <View style={[styles.timelineConnector, { backgroundColor: theme.border }]} />
+          <View style={styles.timelineRow}>
+            <View style={[styles.timelineIcon, { backgroundColor: qeLinha.tone === 'done' ? theme.successLight : theme.iconBackground }]}>
+              <Feather
+                name={qeLinha.icon}
+                size={15}
+                color={qeLinha.tone === 'done' ? theme.success : theme.textSecondary}
+              />
+            </View>
+            <View style={styles.timelineCopy}>
+              <Text style={[styles.timelineTitle, { color: theme.text }]}>Revisão de qualidade</Text>
+              <Text style={[styles.timelineDetail, { color: qeLinha.tone === 'warning' ? theme.warning : theme.textSecondary }]}>
+                {qeLinha.detail}
+              </Text>
+              {qe?.status === 'devolvida' && qe.parecer ? (
+                <Text style={[styles.timelineNote, { color: theme.warning }]}>Parecer: {qe.parecer}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={[styles.timelineConnector, { backgroundColor: theme.border }]} />
+          <View style={styles.timelineRow}>
+            <View style={[styles.timelineIcon, { backgroundColor: cienciaLinha.tone === 'done' ? theme.successLight : theme.iconBackground }]}>
+              <Feather
+                name={cienciaLinha.icon}
+                size={15}
+                color={cienciaLinha.tone === 'done' ? theme.success : theme.textSecondary}
+              />
+            </View>
+            <View style={styles.timelineCopy}>
+              <Text style={[styles.timelineTitle, { color: theme.text }]}>Ciência do morador</Text>
+              <Text style={[styles.timelineDetail, { color: theme.textSecondary }]}>{cienciaLinha.detail}</Text>
+            </View>
+          </View>
         </View>
 
         {isAvaliacaoArvore && (
@@ -743,222 +1057,144 @@ export default function ResultadoScreen() {
           </View>
         )}
 
-        {/* Botão Termo de Interdição — SÓ R3/R4 */}
+        {/* DOCUMENTOS — ações reunidas em dropdown (OptionSheet) */}
+        <SectionHeader title="Documentos" subtitle="Gerar, abrir, imprimir ou compartilhar" />
+        <TouchableOpacity
+          style={[styles.docCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
+          onPress={() => setLaudoSheetVisible(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir opções do laudo técnico"
+          disabled={gerando}
+        >
+          <View style={[styles.docIcon, { backgroundColor: theme.iconBackground }]}>
+            {gerando
+              ? <ActivityIndicator size="small" color={theme.textSecondary} />
+              : <Feather name="file-text" size={19} color={theme.text} />}
+          </View>
+          <View style={styles.docCopy}>
+            <Text style={[styles.docTitle, { color: theme.text }]}>Laudo técnico (PDF)</Text>
+            <Text style={[styles.docSub, { color: theme.textSecondary }]}>{laudoSubtitulo}</Text>
+          </View>
+          <Feather name="chevron-down" size={20} color={theme.textSecondary} />
+        </TouchableOpacity>
+
         {isAltoRisco && !isAvaliacaoArvore && (
           <TouchableOpacity
-            style={[styles.termoBtn, { backgroundColor: theme.error }]}
+            style={[styles.docCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
             onPress={() => setShowTermoModal(true)}
             disabled={gerando}
+            activeOpacity={0.8}
+            accessibilityRole="button"
           >
-            <View style={styles.termoBtnInner}>
-              <View style={styles.termoBtnIconWrap}>
-                <Feather name="alert-triangle" size={22} color="#FFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.termoBtnTitle}>Gerar Termo de Interdição</Text>
-                <Text style={styles.termoBtnDesc}>
-                  Documento oficial — apenas para risco {label}
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+            <View style={[styles.docIcon, { backgroundColor: theme.errorLight }]}>
+              <Feather name="alert-triangle" size={17} color={theme.error} />
             </View>
+            <View style={styles.docCopy}>
+              <Text style={[styles.docTitle, { color: theme.text }]}>Termo de interdição</Text>
+              <Text style={[styles.docSub, { color: theme.textSecondary }]}>Documento oficial — risco {label}</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         )}
 
-        <SectionHeader title="Próximas ações" subtitle="Complete o registro técnico e os documentos" />
-        <ListRow
-          title="Relatório técnico"
-          subtitle="Revisar, editar e personalizar o documento"
-          icon="edit-3"
-          onPress={() => router.push('/(panel)/inspecoes/relatorio')}
-        />
-
-        {!formalTrainingMode && (
-          <View style={styles.evidenceBlock}>
+        {/* REGISTRO */}
+        <SectionHeader title="Registro" subtitle="Revisão, ciência e evidências" />
+        <View style={styles.registroGroup}>
+          <ListRow
+            title="Revisar relatório técnico"
+            subtitle="Editar textos e personalizar o documento"
+            icon="edit-3"
+            onPress={() => router.push('/(panel)/inspecoes/relatorio')}
+          />
+          <ListRow
+            title="Ciência do morador"
+            subtitle={cienciaLinha.detail}
+            badge={cienciaBadge}
+            badgeVariant={cienciaBadgeVariant}
+            icon="check-square"
+            onPress={abrirCiencia}
+          />
+          {activeTermoAcknowledgement && (
             <ListRow
-              title="Evidências fotográficas"
-              subtitle={displayedEvidence.length > 0
-                ? `${displayedEvidence.length} de 3 fotos registradas`
-                : 'Adicionar fotos que sustentem a avaliação'}
-              icon="camera"
-              badge={displayedEvidence.length ? String(displayedEvidence.length) : undefined}
-              onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+              title={`Ciência do termo · versão ${activeTermoAcknowledgement.document.documentVersion}`}
+              subtitle={statusCienciaLabel(activeTermoAcknowledgement.historyStatus)}
+              icon="check-square"
+              onPress={() => router.push(`/(panel)/inspecoes/ciencia?documentId=${activeTermoAcknowledgement.document.id}`)}
             />
-            {displayedEvidence.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.evidenceStrip}>
-                {displayedEvidence.map((uri, index) => (
-                  <TouchableOpacity
-                    key={`${uri}-${index}`}
-                    onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
-                  >
-                    <Image source={{ uri }} style={styles.evidenceThumb} resizeMode="cover" />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-        )}
-
-        {currentAcknowledgements.length > 0 && (
-          <>
-            <SectionHeader title="Ciência eletrônica" subtitle="Acompanhamento por versão do documento" />
-            {currentAcknowledgements.map(({ document, historyStatus }) => {
-              const statusLabel = {
-                not_collected: 'Pronta para coletar',
-                pending_sync: 'Coletada · aguardando sincronização',
-                confirmed: 'Confirmada · comprovante disponível',
-                refused: 'Recusa registrada',
-                unable_to_sign: 'Impossibilidade registrada',
-                superseded: 'Resultado já registrado no servidor',
-                sync_failed: 'Falha de sincronização · toque para revisar',
-              }[historyStatus];
-              const documentLabel = {
-                report: 'Relatório de risco',
-                technical_report: 'Relatório técnico',
-                interdiction_term: 'Termo de interdição',
-              }[document.documentType];
-              const statusVariant = historyStatus === 'confirmed' ? 'success'
-                : historyStatus === 'sync_failed' ? 'error'
-                  : historyStatus === 'pending_sync' ? 'warning'
-                    : 'info';
-              return (
-                <ListRow
-                  key={document.id}
-                  title={`${documentLabel} · versão ${document.documentVersion}`}
-                  subtitle={statusLabel}
-                  icon="edit-3"
-                  badge={historyStatus === 'confirmed' ? 'Confirmada' : historyStatus === 'pending_sync' ? 'Pendente' : undefined}
-                  badgeVariant={statusVariant}
-                  onPress={() => router.push(`/(panel)/inspecoes/ciencia?documentId=${document.id}`)}
-                />
-              );
-            })}
-          </>
-        )}
-
-        <SectionHeader title="Documento" subtitle="Gerar, abrir, imprimir ou compartilhar" />
-
-        {/* Botão Baixar do Storage (se laudo válido) ou Regenerar (se expirado) */}
-        {vistoria?.laudo_url && !laudoExpirado() && (
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.success }]}
-            onPress={() => {
-              const { Linking } = require('react-native');
-              Linking.openURL(vistoria.laudo_url);
-            }}
-          >
-            <View style={[styles.exportIcon, { backgroundColor: theme.success }]}>
-              <Feather name="download" size={22} color={theme.onPrimary} />
+          )}
+          {!formalTrainingMode && (
+            <View style={styles.evidenceBlock}>
+              <ListRow
+                title="Evidências fotográficas"
+                subtitle={displayedEvidence.length > 0
+                  ? `${displayedEvidence.length} de 3 fotos registradas`
+                  : 'Adicionar fotos que sustentem a avaliação'}
+                icon="camera"
+                badge={displayedEvidence.length ? String(displayedEvidence.length) : undefined}
+                onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+              />
+              {displayedEvidence.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.evidenceStrip}>
+                  {displayedEvidence.map((uri, index) => (
+                    <TouchableOpacity
+                      key={`${uri}-${index}`}
+                      onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+                    >
+                      <Image source={{ uri }} style={styles.evidenceThumb} resizeMode="cover" />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
             </View>
-            <View style={styles.exportTextWrap}>
-              <Text style={[styles.exportTitle, { color: theme.text }]}>Abrir última cópia salva</Text>
-              <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
-                O documento não expira; este link temporário vence em até 7 dias
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {vistoria?.laudo_url && laudoExpirado() && (
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.warning }]}
-            onPress={() => solicitarAssinaturaAgente('generate')}
-            disabled={gerando}
-          >
-            <View style={[styles.exportIcon, { backgroundColor: theme.warning }]}>
-              {gerando ? <ActivityIndicator size="small" color={theme.onPrimary} /> : <Feather name="refresh-cw" size={22} color={theme.onPrimary} />}
-            </View>
-            <View style={styles.exportTextWrap}>
-              <Text style={[styles.exportTitle, { color: theme.text }]}>
-                {gerando ? 'Gerando nova versão...' : 'Gerar nova versão'}
-              </Text>
-              <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
-                O link anterior expirou; cria nova cópia e oferece ciência
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.primary }]}
-          onPress={acknowledgementRequiresInspectionSync
-            ? sincronizarVistoriaAntesDaCiencia
-            : activeReportNeedsAttention
-              ? () => router.push(`/(panel)/inspecoes/ciencia?documentId=${activeReportAcknowledgement.document.id}`)
-              : () => solicitarAssinaturaAgente('generate')}
-          disabled={gerando}
-        >
-          <View style={[styles.exportIcon, { backgroundColor: theme.primary }]}>
-            {gerando
-              ? <ActivityIndicator size="small" color={theme.onPrimary} />
-              : <Feather name="download" size={22} color={theme.onPrimary} />
-            }
-          </View>
-          <View style={styles.exportTextWrap}>
-            <Text style={[styles.exportTitle, { color: theme.text }]}>
-              {gerando
-                ? 'Gerando documento...'
-                : acknowledgementRequiresInspectionSync
-                  ? 'Sincronizar vistoria para coletar ciência'
-                : activeReportAcknowledgement?.historyStatus === 'not_collected'
-                  ? `Coletar ciência da versão ${activeReportAcknowledgement.document.documentVersion}`
-                  : activeReportNeedsAttention
-                    ? `Revisar ciência da versão ${activeReportAcknowledgement.document.documentVersion}`
-                : vistoria?.laudo_url
-                  ? 'Gerar nova versão se o relatório mudou'
-                  : 'Gerar PDF e coletar ciência'}
-            </Text>
-            <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
-              {acknowledgementRequiresInspectionSync
-                ? 'A ciência exige que a vistoria exista no servidor e receba protocolo oficial'
-                : activeReportNeedsAttention
-                ? 'Já existe uma versão aberta; outra não será criada'
-                : activeReportAcknowledgement
-                  ? 'Conteúdo igual reutiliza a versão atual; alterações criam nova versão'
-                  : 'Cria uma versão identificada para assinatura, recusa ou impossibilidade'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={() => solicitarAssinaturaAgente('print')}
-          disabled={gerando}
-        >
-          <View style={[styles.exportIcon, { backgroundColor: theme.iconBackground }]}>
-            <Feather name="printer" size={22} color={theme.textSecondary} />
-          </View>
-          <View style={styles.exportTextWrap}>
-            <Text style={[styles.exportTitle, { color: theme.text }]}>Imprimir Laudo</Text>
-            <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>Enviar para impressora</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={() => solicitarAssinaturaAgente('share')}
-          disabled={gerando}
-        >
-          <View style={[styles.exportIcon, { backgroundColor: theme.iconBackground }]}>
-            <Feather name="share-2" size={22} color={theme.textSecondary} />
-          </View>
-          <View style={styles.exportTextWrap}>
-            <Text style={[styles.exportTitle, { color: theme.text }]}>Compartilhar</Text>
-            <Text style={[styles.exportDesc, { color: theme.textSecondary }]}>
-              Enviar via WhatsApp, e-mail, etc.
-            </Text>
-          </View>
-        </TouchableOpacity>
+          )}
+        </View>
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, Spacing[4]) }]}>
         <Button
-          label="Voltar ao painel"
+          label="Concluir e voltar ao painel"
           onPress={() => router.replace(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/dashboard')}
           iconLeft={<Feather name="home" size={18} color={theme.onPrimary} />}
           fullWidth
         />
       </View>
+
+      {/* Dropdown de ações do laudo */}
+      <OptionSheet
+        visible={laudoSheetVisible}
+        title="Laudo técnico (PDF)"
+        description={laudoSubtitulo}
+        options={laudoSheetOptions}
+        onSelect={onLaudoSheetSelect}
+        onDismiss={() => setLaudoSheetVisible(false)}
+      />
+
+      {/* Escolha do modelo do relatório (persistida no aparelho) */}
+      <OptionSheet
+        visible={layoutSheetVisible}
+        title="Modelo do relatório"
+        description="Vale para este PDF; a escolha fica salva neste aparelho."
+        options={LAUDO_LAYOUTS.map(l => ({
+          key: l.id,
+          title: l.titulo,
+          subtitle: l.descricao,
+          icon: 'layout' as const,
+          selected: laudoLayout === l.id,
+        }))}
+        onSelect={key => escolherLayoutEGerar(key as LaudoLayout)}
+        onDismiss={() => setLayoutSheetVisible(false)}
+      />
+
+      {/* Histórico de versões do documento */}
+      <OptionSheet
+        visible={versionsSheetVisible}
+        title="Versões do documento"
+        description="Cada geração com mudança de conteúdo cria uma versão; a ciência fica presa à versão coletada."
+        options={versionsOptions}
+        onSelect={onVersionSelect}
+        onDismiss={() => setVersionsSheetVisible(false)}
+      />
 
       {/* ═══════════════ MODAL TERMO DE INTERDIÇÃO ═══════════════ */}
       <Modal visible={showTermoModal} animationType="slide" transparent>
@@ -1188,74 +1424,49 @@ const styles = StyleSheet.create({
   titleSection: { flex: 1 },
   title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
   subtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
-  scrollContent: { padding: 24, paddingBottom: 100 },
-  statusCard: {
-    padding: 20, borderRadius: 20, borderWidth: 1, marginBottom: 24,
+  scrollContent: { padding: 20, paddingBottom: 100, gap: 0 },
+  summaryCard: {
+    padding: 20, borderRadius: 20, borderWidth: 1, marginBottom: 4, gap: 6,
   },
-  statusHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statusHeadingText: { flex: 1 },
-  statusIcon: {
-    width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
+  summaryTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  summaryPoints: { fontSize: 13, fontWeight: '700' },
+  summaryTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
+  summaryAddress: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  summaryMeta: { fontSize: 12.5, lineHeight: 18 },
+
+  timelineCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 4 },
+  timelineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  timelineIcon: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
   },
-  statusEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  statusRiskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
-  statusScore: { fontSize: 13, fontWeight: '600' },
-  nivelBadge: {
-    paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 12,
-  },
-  nivelText: { color: '#FFF', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  statusTitle: { fontSize: 21, fontWeight: '800', marginTop: 2 },
-  statusDesc: { fontSize: 15, fontWeight: '600', lineHeight: 21, marginTop: 16 },
-  statusAgent: { fontSize: 13, lineHeight: 19, marginTop: 3 },
-  condutaCard: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 18, alignItems: 'flex-start' },
+  timelineConnector: { width: 2, height: 16, marginLeft: 14, marginVertical: 2 },
+  timelineCopy: { flex: 1, minWidth: 0 },
+  timelineTitle: { fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  timelineDetail: { fontSize: 12, lineHeight: 17, marginTop: 1 },
+  timelineNote: { fontSize: 12, lineHeight: 17, marginTop: 5, fontWeight: '600' },
+
+  condutaCard: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 16, borderWidth: 1, marginTop: 14, marginBottom: 4, alignItems: 'flex-start' },
   condutaTitle: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 },
   condutaText: { fontSize: 13, lineHeight: 20 },
 
-  // Termo de Interdição button
-  termoBtn: {
-    borderRadius: 18, marginBottom: 16, overflow: 'hidden',
-  },
-  termoBtnInner: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18,
-  },
-  termoBtnIconWrap: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  termoBtnTitle: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  termoBtnDesc: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 },
-
-  reportBtn: {
+  docCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: 18, borderRadius: 18, marginBottom: 24,
+    borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12,
   },
-  reportBtnText: { flex: 1 },
-  reportBtnTitle: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  reportBtnDesc: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 },
-  evidenceBlock: { marginBottom: 4 },
-  evidenceStrip: { gap: 10, paddingHorizontal: 16, paddingTop: 0, paddingBottom: 14, marginTop: -8 },
+  docIcon: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  docCopy: { flex: 1, minWidth: 0 },
+  docTitle: { fontSize: 15, fontWeight: '700' },
+  docSub: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+
+  registroGroup: { gap: 12 },
+  evidenceBlock: { gap: 10 },
+  evidenceStrip: { gap: 10, paddingHorizontal: 4, paddingTop: 2, paddingBottom: 4 },
   evidenceThumb: { width: 92, height: 72, borderRadius: 12 },
-  sectionTitle: {
-    fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
-    letterSpacing: 1, marginBottom: 16,
-  },
-  exportBtn: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
-    borderRadius: 16, borderWidth: 1, marginBottom: 12,
-  },
-  exportIcon: {
-    width: 48, height: 48, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center', marginRight: 16,
-  },
-  exportTextWrap: { flex: 1 },
-  exportTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
-  exportDesc: { fontSize: 13 },
   footer: { padding: 24, paddingBottom: 40, borderTopWidth: 1 },
-  primaryBtn: {
-    height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
-  },
-  primaryBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
 
   // Modal
   modalOverlay: {

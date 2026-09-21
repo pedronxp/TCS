@@ -1,6 +1,6 @@
 import { Stack, useSegments, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, AppState, View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import {
   syncPendentes,
@@ -10,8 +10,6 @@ import {
 } from '../../services/SyncService';
 import { logger } from '../../utils/logger';
 import { BottomNavBar } from '../../components/BottomNavBar';
-import { SessionGuardProvider, useSessionGuard } from '../../context/SessionGuardContext';
-import { SessionLockScreen } from '../../components/SessionLockScreen';
 import { pingSupabaseKeepAlive } from '../../services/KeepAliveService';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
@@ -98,7 +96,6 @@ function useRouteGuard() {
 }
 
 function PanelContent() {
-  const { isLocked, ready } = useSessionGuard();
   const { refreshProfile } = useAuth();
   const { refresh: refreshSubscription } = useSubscription();
   const { isOnlineReal } = useConnectivity();
@@ -142,14 +139,6 @@ function PanelContent() {
     });
     return () => subscription.remove();
   }, [isolatedMode, refreshProfile, refreshSubscription]);
-
-  if (!ready && !isolatedMode) {
-    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator /></View>;
-  }
-
-  if (isLocked && !isolatedMode) {
-    return <SessionLockScreen />;
-  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -205,9 +194,5 @@ function PanelContent() {
 }
 
 export default function PanelLayout() {
-  return (
-    <SessionGuardProvider>
-      <PanelContent />
-    </SessionGuardProvider>
-  );
+  return <PanelContent />;
 }

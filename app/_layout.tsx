@@ -53,6 +53,18 @@ function RootNavigator() {
     const tipo = typeof data?.tipo === 'string' ? data.tipo : '';
     if (tipo === 'atribuicao' || tipo === 'vistoria_salva' || tipo === 'sync' || tipo === 'vistoria_deletada') {
       router.push('/(panel)/inspecoes');
+    } else if (tipo === 'qe_fila_nova') {
+      router.push('/(panel)/qe');
+    } else if (tipo === 'suporte_resposta') {
+      router.push('/(panel)/suporte');
+    } else if (tipo === 'cobranca') {
+      router.push('/(panel)/assinatura');
+    } else if (tipo === 'inatividade_org' || tipo === 'relatorio_mensal') {
+      router.push('/(panel)/dashboard');
+    } else if (tipo === 'qe_devolvida' || tipo === 'qe_aprovada') {
+      const inner = (data as Record<string, any>)?.payload;
+      const vistoriaId = typeof inner?.vistoria_id === 'string' ? inner.vistoria_id : null;
+      router.push(vistoriaId ? `/(panel)/inspecoes/${vistoriaId}` : '/(panel)/inspecoes');
     } else if (tipo === 'comunicado' || tipo === 'aviso' || tipo === 'emergencia' || tipo === 'campanha') {
       router.push('/(panel)/avisos');
     } else if (tipo === 'token_gerado' || tipo === 'solicita_tokens' || tipo === 'token_expirando') {

@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Card } from '../components/ui';
 import { ProductIdentity, RiskBar } from '../components/brand';
 import { useTheme } from '../context/ThemeContext';
@@ -83,6 +83,7 @@ const SLIDES: SlideData[] = [
 
 export default function OnboardingScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [current, setCurrent] = useState(0);
   const listRef = useRef<FlatList<SlideData>>(null);
@@ -111,7 +112,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar style="dark" />
       <View style={styles.topBar}>
         <View style={[styles.stepChip, { backgroundColor: theme.secondary }]}>
@@ -164,7 +165,9 @@ export default function OnboardingScreen() {
         )}
       />
 
-      <View style={styles.bottomBar}>
+      {/* bottomBar é absolute: o padding do SafeAreaView NÃO protege esse bloco.
+          Por isso o inset inferior é aplicado aqui explicitamente. */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, Spacing[5]) }]}>
         <View style={styles.progressRow}>
           {SLIDES.map((slide, index) => (
             <View
@@ -207,7 +210,7 @@ const styles = StyleSheet.create({
   tileIcon: { width: 42, height: 42, borderRadius: SpacingAlias.radiusMd, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[3] },
   tileTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold },
   tileCaption: { fontSize: FontSize.xs, lineHeight: 16, marginTop: 3 },
-  bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: Spacing[5], paddingTop: Spacing[4], paddingBottom: Spacing[5], gap: Spacing[4] },
+  bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: Spacing[5], paddingTop: Spacing[4], gap: Spacing[4] },
   progressRow: { flexDirection: 'row', gap: Spacing[2] },
   progressSegment: { flex: 1, height: 4, borderRadius: SpacingAlias.radiusFull },
 });

@@ -279,6 +279,7 @@ export default function MapasScreen() {
   const currentRegionRef = useRef<any>(null); // região atual do mapa (atualizada pelo onRegionChangeComplete)
   const isInitialLoadRef = useRef(true);
   const mountedRef = useRef(true);
+  const hasLoadedRef = useRef(false); // primeira carga concluída — recargas NÃO desmontam o mapa
   const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markerRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -308,15 +309,26 @@ export default function MapasScreen() {
     markerRenderTimerRef.current = null;
   }, []);
 
+  // Chave estável do perfil: recarrega só se uid/papel/município mudarem de fato.
+  // Antes o objeto `profile` inteiro era dependência — qualquer refresh do AuthContext
+  // reiniciava a carga, desmontava o MapView inteiro e causava o "pisca" do mapa.
+  const profileKey = profile ? `${profile.uid}|${profile.role}|${profile.municipio ?? ''}` : 'anon';
+
   useEffect(() => {
     mountedRef.current = true;
-    getUserLocation();
     loadMarkers();
     return () => {
       mountedRef.current = false;
       clearMapTimers();
     };
-  }, [profile, isOnlineReal, clearMapTimers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileKey, isOnlineReal, clearMapTimers]);
+
+  // Localização do usuário: apenas na abertura da tela (initialRegion só vale no mount).
+  useEffect(() => {
+    getUserLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getUserLocation = async () => {
     try {
@@ -392,7 +404,9 @@ export default function MapasScreen() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Tela cheia de loading SÓ na primeira carga; recargas (rede, refresh manual)
+    // atualizam os marcadores com o mapa já montado — sem flicker.
+    if (!hasLoadedRef.current) setLoading(true);
     setLoadError(null);
     refreshMarkerRendering();
     try {
@@ -577,6 +591,7 @@ export default function MapasScreen() {
         setLoadError('Não foi possível carregar as vistorias online. Tente atualizar o mapa.');
       }
     } finally {
+      hasLoadedRef.current = true;
       if (mountedRef.current) setLoading(false);
     }
   };
