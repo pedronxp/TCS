@@ -93,7 +93,7 @@ export default function DadosIniciaisScreen() {
     try {
       const resp = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=16`,
-        { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'DefesaCivilApp/1.0' } }
+        { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'TCS-Vistoria/1.0 (+https://github.com/pedronxp/TCS)' } }
       );
       const json = await resp.json();
       const addr = json.address || {};
@@ -154,11 +154,14 @@ export default function DadosIniciaisScreen() {
       setForm(f => ({ ...f, lat: valid.latitude, lng: valid.longitude, gpsAcuracia: loc.coords.accuracy }));
       await reverseGeocode(valid.latitude, valid.longitude);
     } catch (e) {
-      // Try last known position
+      // Última posição conhecida só é aceitável se for recente: leitura antiga
+      // pode apontar outro local e gerar coordenada errada na vistoria.
       try {
+        const IDADE_MAXIMA_ULTIMA_POSICAO_MS = 15 * 60 * 1000;
         const last = await Location.getLastKnownPositionAsync();
+        const recente = !!last && Date.now() - last.timestamp <= IDADE_MAXIMA_ULTIMA_POSICAO_MS;
         const valid = last ? normalizeCoordinatePair(last.coords.latitude, last.coords.longitude) : null;
-        if (last && valid) {
+        if (recente && valid) {
           setForm(f => ({ ...f, lat: valid.latitude, lng: valid.longitude }));
           await reverseGeocode(valid.latitude, valid.longitude);
         } else {
