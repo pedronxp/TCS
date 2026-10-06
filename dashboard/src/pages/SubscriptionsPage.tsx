@@ -91,10 +91,12 @@ interface SubscriptionRow {
 
 export function SubscriptionsPage() {
   const [editing, setEditing] = useState<SubscriptionRow | 'new' | null>(null);
+  const [activating, setActivating] = useState<SubscriptionRow | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const { can } = useAuth();
   const customers = useCustomers('', '', 0, 100);
+  const activation = useSubscriptionMutation();
   const plans = useQuery({
     queryKey: ['commercial-plans-options'],
     queryFn: async () => {
@@ -210,8 +212,23 @@ export function SubscriptionsPage() {
                       <td className="p-3">{subscription.current_period_end ? formatShortDate(subscription.current_period_end) : '—'}</td>
                       <td className="p-3 font-semibold">{formatCurrency(monthlyPriceCents(subscription))}</td>
                       <td className="p-3 pr-6">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <StatusBadge value={subscription.status} />
+                          {trialOverdueDays(subscription) !== null && (
+                            <span className="text-[11px] font-semibold text-destructive">
+                              vencido há {trialOverdueDays(subscription)}d
+                            </span>
+                          )}
+                          {can('commercial.write') && subscription.status === 'trial' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={activation.isPending}
+                              onClick={() => setActivating(subscription)}
+                            >
+                              Encerrar teste → Ativar
+                            </Button>
+                          )}
                           {can('commercial.write') && (
                             <Button
                               variant="ghost"
@@ -247,6 +264,30 @@ export function SubscriptionsPage() {
         customers={customers.data?.items ?? []}
         plans={plans.data ?? []}
         onClose={() => setEditing(null)}
+      />
+
+      <HighRiskDialog
+        open={Boolean(activating)}
+        title="Encerrar período de teste"
+        description="A assinatura passa ao status ativo mantendo o ciclo de cobrança atual. A decisão fica registrada na auditoria com motivo e horário."
+        confirmLabel="Ativar assinatura"
+        onClose={() => setActivating(null)}
+        onConfirm={async (reason) => {
+          const target = activating;
+          const customer = target
+            ? customerMap.get(target.organization_id || target.user_id || '')
+            : undefined;
+          if (!target || !customer) throw new Error('Assinatura sem cliente vinculado.');
+          const result = await activation.mutateAsync({
+            customerId: customer.customer_id,
+            subscriptionId: target.id,
+            action: 'update',
+            payload: { status: 'active' },
+            reason,
+          });
+          if (!result.ok) throw new Error(result.error);
+          setActivating(null);
+        }}
       />
     </section>
   );
@@ -726,6 +767,14 @@ function monthlyPriceCents(subscription: SubscriptionRow) {
 
 function daysUntil(value: string | null) {
   return value ? Math.ceil((new Date(value).getTime() - Date.now()) / (24 * 60 * 60 * 1000)) : Number.POSITIVE_INFINITY;
+}
+
+/** Dias de atraso do fim do trial quando o ciclo continua no status 'trial'. */
+function trialOverdueDays(subscription: SubscriptionRow): number | null {
+  if (subscription.status !== 'trial' || !subscription.trial_ends_at) return null;
+  const end = new Date(subscription.trial_ends_at).getTime();
+  const days = Math.floor((Date.now() - end) / (24 * 60 * 60 * 1000));
+  return days >= 0 ? days : null;
 }
 
 function formatCompactCurrency(cents: number) {
