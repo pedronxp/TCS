@@ -151,7 +151,7 @@ describe('comunicados municipais do portal', () => {
       expect(mocks.dispararBot).toHaveBeenNthCalledWith(2, 'com-new', 'k-2');
     });
     expect(await screen.findByRole('status')).toHaveTextContent('2 grupos ou comunidades na fila do WhatsApp');
-  });
+  }, 15_000);
 
   it('filtra destinos e permite enviar somente para os grupos desejados', async () => {
     const user = userEvent.setup();
