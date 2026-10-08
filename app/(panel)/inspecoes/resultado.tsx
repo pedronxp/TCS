@@ -463,7 +463,7 @@ export default function ResultadoScreen() {
    * e visível na tela (linha "Ciência do morador"). Só bloqueia quando a
    * versão do documento não pôde ser preservada localmente.
    */
-  const liberarPdfGerado = async (
+  const liberarDocumento = async (
     result: Awaited<ReturnType<typeof prepararCiencia>>,
     liberar: () => Promise<unknown>,
   ) => {
@@ -515,7 +515,7 @@ export default function ResultadoScreen() {
         });
       }
 
-      await liberarPdfGerado(acknowledgementDocument, async () => {
+      await liberarDocumento(acknowledgementDocument, async () => {
         const disponivel = await Sharing.isAvailableAsync();
         if (disponivel) {
           await Sharing.shareAsync(uri, {
@@ -560,7 +560,7 @@ export default function ResultadoScreen() {
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
       setLastPdfUri(uri);
       salvarLaudoNoStorage(uri).catch(() => null);
-      await liberarPdfGerado(acknowledgementDocument, () => Print.printAsync({ html }));
+      await liberarDocumento(acknowledgementDocument, () => Print.printAsync({ html }));
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir a impressão.');
     } finally {
@@ -617,7 +617,7 @@ export default function ResultadoScreen() {
       // Upload para Storage em background
       salvarLaudoNoStorage(uri).catch(() => null);
 
-      await liberarPdfGerado(acknowledgementDocument, async () => {
+      await liberarDocumento(acknowledgementDocument, async () => {
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(uri, {
@@ -655,7 +655,7 @@ export default function ResultadoScreen() {
       const html = buildTermoInterdicaoHtml(dados, termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('interdiction_term', { ...dados, notified: termoForm }, html, uri);
-      await liberarPdfGerado(acknowledgementDocument, async () => {
+      await liberarDocumento(acknowledgementDocument, async () => {
         const disponivel = await Sharing.isAvailableAsync();
         if (disponivel) {
           await Sharing.shareAsync(uri, {

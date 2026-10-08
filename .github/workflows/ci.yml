@@ -95,6 +95,9 @@ jobs:
       # The legacy schema baseline predates the migration history. Until #37
       # reconstructs it from the authoritative schema, run the isolated PGlite
       # contracts instead of pretending an empty-database replay is valid.
+      - name: Validate unique migration versions
+        run: npm run test:migration-versions
+
       - name: Validate subscription migrations
         run: npm run test:subscription-migration
 
