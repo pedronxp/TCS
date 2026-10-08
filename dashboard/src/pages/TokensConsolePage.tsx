@@ -160,7 +160,7 @@ export function TokensConsolePage() {
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.35fr)_minmax(10rem,.8fr)_minmax(14rem,1fr)_auto]">
             <BrazilStateSelect value={filterUf} onValueChange={(uf) => { setFilterUf(uf); setFilterMunicipio(''); }} includeAll />
-            <BrazilMunicipalityPicker uf={filterUf} value={filterMunicipio} onValueChange={setFilterMunicipio} includeAll allValue="" allLabel="Todos os municípios" placeholder={filterUf ? 'Filtrar município' : 'Selecione um estado primeiro'} />
+            <BrazilMunicipalityPicker uf={filterUf} value={filterMunicipio} onValueChange={setFilterMunicipio} includeAll allValue="" allLabel="Todos os municípios" placeholder="Filtrar município" />
             <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | TokenStatus)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">Todos</SelectItem>{Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>

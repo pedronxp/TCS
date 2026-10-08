@@ -3,6 +3,13 @@ name: Auto APK Release
 on:
   push:
     branches: [main]
+    paths:
+      - 'app/**'
+      - 'assets/**'
+      - 'app.json'
+      - 'eas.json'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
     inputs:
       profile:
