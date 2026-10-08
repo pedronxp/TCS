@@ -207,9 +207,9 @@ function LaudoVersions({ inspectionId }: { inspectionId: string }) {
 
       const { data: events } = await supabase
         .from('document_acknowledgement_events')
-        .select('document_id, outcome, created_at')
+        .select('document_id, outcome, recorded_at_server')
         .in('document_id', docs.map(doc => doc.id))
-        .order('created_at', { ascending: false });
+        .order('recorded_at_server', { ascending: false });
       const outcomes: Record<string, string> = {};
       for (const event of (events ?? []) as { document_id: string; outcome: string }[]) {
         if (!outcomes[event.document_id]) outcomes[event.document_id] = event.outcome;
