@@ -46,17 +46,19 @@ export function BrazilStateSelect({ value, onValueChange, id, includeAll = false
 export function BrazilMunicipalityPicker({ uf, value, onValueChange, id, includeAll = false, allValue = 'all', allLabel = 'Todos os municípios', placeholder = 'Pesquisar município', className }: BrazilMunicipalityPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const municipalities = useBrazilianMunicipalities(open && Boolean(uf));
-  const selected = municipalities.data?.find((municipality) => municipality.name === value && municipality.uf === uf);
+  const municipalities = useBrazilianMunicipalities(open);
+  const selected = municipalities.data?.find((municipality) => municipality.name === value && (!uf || municipality.uf === uf));
   const matches = useMemo(() => {
     const term = normalize(search.trim());
-    return (municipalities.data ?? []).filter((municipality) => municipality.uf === uf && (!term || normalize(municipality.name).includes(term))).slice(0, 80);
+    const ufTerm = search.trim().toUpperCase();
+    return (municipalities.data ?? []).filter((municipality) => (!uf || municipality.uf === uf)
+      && (!term || normalize(municipality.name).includes(term) || (Boolean(ufTerm) && municipality.uf === ufTerm))).slice(0, 80);
   }, [municipalities.data, search, uf]);
   const label = value === allValue && includeAll ? allLabel : selected?.label ?? value;
 
   return <Popover open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); if (!nextOpen) setSearch(''); }}>
     <PopoverTrigger asChild>
-      <Button id={id} type="button" variant="outline" role="combobox" aria-expanded={open} disabled={!uf} className={cn('w-full justify-between font-normal', !value && 'text-muted-foreground', className)}>
+      <Button id={id} type="button" variant="outline" role="combobox" aria-expanded={open} className={cn('w-full justify-between font-normal', !value && 'text-muted-foreground', className)}>
         <span className="truncate">{label || placeholder}</span><ChevronsUpDown className="opacity-60" />
       </Button>
     </PopoverTrigger>
@@ -65,7 +67,7 @@ export function BrazilMunicipalityPicker({ uf, value, onValueChange, id, include
         <CommandInput value={search} onValueChange={setSearch} placeholder="Nome ou UF, ex.: Aurora RO" />
         <CommandList>
           {municipalities.isLoading && <p className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Consultando municípios…</p>}
-          {municipalities.isError && <p className="px-3 py-4 text-sm text-destructive">Não foi possível carregar a base do IBGE. Tente novamente.</p>}
+          {municipalities.isError && <p className="px-3 py-4 text-sm text-destructive">Não foi possível carregar a base de municípios. Tente novamente.</p>}
           {!municipalities.isLoading && !municipalities.isError && includeAll && <CommandItem value="all-municipalities" onSelect={() => { onValueChange(allValue); setOpen(false); }}><Check className={cn('h-4 w-4', value === allValue ? 'opacity-100' : 'opacity-0')} />{allLabel}</CommandItem>}
           {!municipalities.isLoading && !municipalities.isError && <CommandEmpty>Nenhum município encontrado.</CommandEmpty>}
           {matches.map((municipality) => <CommandItem key={municipality.id} value={`${municipality.name} ${municipality.uf}`} onSelect={() => { onValueChange(municipality.name); setOpen(false); }}><Check className={cn('h-4 w-4', value === municipality.name ? 'opacity-100' : 'opacity-0')} /><MapPin className="h-4 w-4 text-muted-foreground" /><span>{municipality.name}</span><span className="ml-auto text-xs text-muted-foreground">{municipality.uf}</span></CommandItem>)}
