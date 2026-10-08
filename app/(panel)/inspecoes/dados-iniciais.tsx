@@ -224,12 +224,10 @@ export default function DadosIniciaisScreen() {
       Alert.alert('Município inválido', municipioCheck.erro || 'Município não identificado. Contate um administrador.');
       return;
     }
-    if (form.responsavelNome.trim()) {
-      const nomeCheck = validarNome(form.responsavelNome, 'Nome do solicitante ou responsável');
-      if (!nomeCheck.valido) {
-        Alert.alert('Nome inválido', nomeCheck.erro || 'Verifique o nome informado.');
-        return;
-      }
+    const nomeCheck = validarNome(form.responsavelNome, 'Nome do solicitante ou responsável');
+    if (!nomeCheck.valido) {
+      Alert.alert('Nome inválido', nomeCheck.erro || 'Verifique o nome informado.');
+      return;
     }
     // Sanitizar campos de texto livre antes de avançar
     const ruaLimpa = sanitizarTexto(form.rua).substring(0, 200);
@@ -403,7 +401,7 @@ export default function DadosIniciaisScreen() {
           value={form.responsavelNome}
           onChangeText={t => setForm(f => ({ ...f, responsavelNome: t }))}
           autoCapitalize="words"
-          helperText="Será exibido no documento gerado. Não informe CPF ou outros documentos pessoais"
+          helperText="Obrigatório: será exibido no documento gerado. Não informe CPF ou outros documentos pessoais"
         />
 
       </ScrollView>
