@@ -270,6 +270,10 @@ export default function WizardAvaliacaoScreen() {
     }
   };
 
+  // Configurações nativas (ex.: observação condicional da Edificação) residem
+  // nos assets por código de sistema; formulários do banco chegam com UUID.
+  const configFormularioId = params.formularioSystemCode || params.formularioId;
+
   const perguntasVisiveisPorResposta = useMemo(
     () => filtrarPerguntasVisiveis(perguntas, respostas),
     [perguntas, respostas],
@@ -278,7 +282,7 @@ export default function WizardAvaliacaoScreen() {
     const respostasAtivas = filtrarRespostasPorPerguntas(
       respostas,
       perguntasVisiveisPorResposta,
-      params.formularioId,
+      configFormularioId,
     );
     return calcularRiscoFormulario({
       perguntas: perguntasVisiveisPorResposta,
@@ -288,14 +292,14 @@ export default function WizardAvaliacaoScreen() {
       formularioVersao: parseInt(params.formularioVersao || '1') || 1,
       tipoCalculo,
     }).pontuacaoTotal;
-  }, [perguntasVisiveisPorResposta, respostas, limites, params.formularioId, params.formularioVersao, tipoCalculo]);
+  }, [perguntasVisiveisPorResposta, respostas, limites, configFormularioId, params.formularioId, params.formularioVersao, tipoCalculo]);
   const perguntasVisiveis = useMemo(
     () => filtrarPerguntasPorPontuacao(perguntasVisiveisPorResposta, pontuacaoParaVisibilidade),
     [perguntasVisiveisPorResposta, pontuacaoParaVisibilidade],
   );
   const respostasVisiveis = useMemo(
-    () => filtrarRespostasPorPerguntas(respostas, perguntasVisiveis, params.formularioId),
-    [respostas, perguntasVisiveis, params.formularioId],
+    () => filtrarRespostasPorPerguntas(respostas, perguntasVisiveis, configFormularioId),
+    [respostas, perguntasVisiveis, configFormularioId],
   );
 
   const safeStep = Math.min(step, Math.max(0, perguntasVisiveis.length - 1));
@@ -304,10 +308,10 @@ export default function WizardAvaliacaoScreen() {
   const progress = totalPerguntas > 0 ? ((safeStep + 1) / totalPerguntas) : 0;
 
   const resposta = perguntaAtual ? respostasVisiveis[perguntaAtual.id] : undefined;
-  const observacaoConfig = getObservacaoCondicionalRiscoConfig(params.formularioId);
+  const observacaoConfig = getObservacaoCondicionalRiscoConfig(configFormularioId);
   const opcaoSelecionada = perguntaAtual?.opcoes.find(op => op.id === resposta);
   const observacaoCondicionalAtiva = opcaoAcionaObservacaoCondicionalRisco(
-    params.formularioId,
+    configFormularioId,
     perguntaAtual,
     resposta,
   );
@@ -315,6 +319,7 @@ export default function WizardAvaliacaoScreen() {
     perguntaAtual,
     resposta,
   );
+  const observacaoCondicionalObrigatoriaAtiva = observacaoCondicionalAtiva && observacaoConfig?.obrigatoria === true;
   const observacaoCondicionalKey = perguntaAtual
     ? getObservacaoCondicionalRiscoKey(perguntaAtual.id)
     : '';
@@ -334,7 +339,7 @@ export default function WizardAvaliacaoScreen() {
   const podeAvancar = () => {
     if (!perguntaAtual) return false;
     if (erroValidacaoPergunta(perguntaAtual, resposta)) return false;
-    if (justificativaTecnicaObrigatoriaAtiva && !observacaoCondicionalValor.trim()) return false;
+    if ((justificativaTecnicaObrigatoriaAtiva || observacaoCondicionalObrigatoriaAtiva) && !observacaoCondicionalValor.trim()) return false;
     return true;
   };
 
@@ -702,7 +707,7 @@ export default function WizardAvaliacaoScreen() {
 
   const avancar = () => {
     if (!podeAvancar()) {
-      if (justificativaTecnicaObrigatoriaAtiva && !observacaoCondicionalValor.trim()) {
+      if ((justificativaTecnicaObrigatoriaAtiva || observacaoCondicionalObrigatoriaAtiva) && !observacaoCondicionalValor.trim()) {
         Alert.alert('Justificativa obrigatória', 'Justifique a condição observada em campo para continuar.');
         return;
       }
@@ -822,7 +827,9 @@ export default function WizardAvaliacaoScreen() {
                 <Text style={[styles.conditionalNoteDesc, { color: theme.textSecondary }]}>
                   {justificativaTecnicaObrigatoriaAtiva
                     ? (opcaoSelecionada?.justificativaDescricao || `Explique tecnicamente a condição observada em campo: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`)
-                    : `Campo opcional para complementar: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`}
+                    : observacaoCondicionalObrigatoriaAtiva
+                      ? (observacaoConfig?.descricao || `Descreva tecnicamente a condição observada em campo: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`)
+                      : `Campo opcional para complementar: ${perguntaAtual.texto} — ${opcaoSelecionada?.texto || resposta}.`}
                 </Text>
                 <TextInput
                   style={[styles.conditionalNoteInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
