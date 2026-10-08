@@ -24,6 +24,7 @@ Inclua capturas, vídeos ou logs sem dados sensíveis quando houver mudança vis
 - [ ] Possui issue relacionada (`Closes #...`) ou explica por que não se aplica
 - [ ] Inclui testes de regressão para correções
 - [ ] Documentação e changelog foram atualizados quando necessário
+- [ ] Checklists de autor e revisor aplicados ([.github/CODE_REVIEW.md](.github/CODE_REVIEW.md))
 
 ## Risco e rollback
 

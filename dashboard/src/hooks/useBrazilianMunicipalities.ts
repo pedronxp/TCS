@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { BRAZILIAN_MUNICIPALITIES } from '@/data/brazilianMunicipalities';
+
 export type BrazilianMunicipality = {
   id: number;
   name: string;
@@ -7,30 +9,17 @@ export type BrazilianMunicipality = {
   label: string;
 };
 
-type IbgeMunicipality = {
-  id: number;
-  nome: string;
-  microrregiao?: { mesorregiao?: { UF?: { sigla?: string } } };
-  'regiao-imediata'?: { 'regiao-intermediaria'?: { UF?: { sigla?: string } } };
-};
-
-const IBGE_MUNICIPALITIES_URL = 'https://servicodados.ibge.gov.br/api/v1/localidades/municipios';
-
+/** Catálogo local (gerado do IBGE): consulta instantânea, sem dependência de serviço externo. */
 export function useBrazilianMunicipalities(enabled = true) {
   return useQuery({
-    queryKey: ['ibge-brazilian-municipalities'],
+    queryKey: ['brazilian-municipalities'],
     enabled,
-    staleTime: 1000 * 60 * 60 * 24,
-    queryFn: async (): Promise<BrazilianMunicipality[]> => {
-      const response = await fetch(IBGE_MUNICIPALITIES_URL);
-      if (!response.ok) throw new Error('Não foi possível consultar a base de municípios do IBGE.');
-      const data = await response.json() as IbgeMunicipality[];
-      return data.map((municipality) => {
-        const uf = municipality.microrregiao?.mesorregiao?.UF?.sigla
-          ?? municipality['regiao-imediata']?.['regiao-intermediaria']?.UF?.sigla
-          ?? '';
-        return { id: municipality.id, name: municipality.nome, uf, label: uf ? `${municipality.nome} — ${uf}` : municipality.nome };
-      }).sort((first, second) => first.label.localeCompare(second.label, 'pt-BR'));
-    },
+    staleTime: Infinity,
+    queryFn: async (): Promise<BrazilianMunicipality[]> => BRAZILIAN_MUNICIPALITIES.map(([uf, name], index) => ({
+      id: index + 1,
+      name,
+      uf,
+      label: uf ? `${name} — ${uf}` : name,
+    })),
   });
 }

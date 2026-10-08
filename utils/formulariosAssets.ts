@@ -114,6 +114,7 @@ export function getPerguntaIdFromObservacaoCondicionalRiscoKey(key: string): str
 export function getObservacaoCondicionalRiscoConfig(formularioId?: string | null): {
   ativo: boolean;
   pesoMinimo: number;
+  obrigatoria?: boolean;
   titulo?: string;
   descricao?: string;
 } | null {
@@ -123,6 +124,7 @@ export function getObservacaoCondicionalRiscoConfig(formularioId?: string | null
   return {
     ativo: true,
     pesoMinimo: Number(config.pesoMinimo ?? 0.3),
+    obrigatoria: config.obrigatoria === true,
     titulo: config.titulo,
     descricao: config.descricao,
   };

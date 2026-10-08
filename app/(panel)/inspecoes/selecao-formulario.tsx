@@ -288,6 +288,7 @@ export default function SelecaoFormularioScreen() {
       params: {
         ...params,
         formularioId: form.id,
+        formularioSystemCode: isBuiltin ? '' : String((form as any).systemCode || ''),
         formularioVersao: isBuiltin ? String((form as any).asset?.versao || 1) : String((form as any).versao || 1),
         formularioTitulo: form.titulo,
         isBuiltin: isBuiltin ? 'true' : 'false',

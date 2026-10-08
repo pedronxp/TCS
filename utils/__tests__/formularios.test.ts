@@ -285,26 +285,28 @@ describe('vistoria_deslizamento_v3 - ajustes tecnicos', () => {
     expect(justificativa.auxiliarCalculo).toBe(true);
     expect(justificativa.descricao).toContain('altura aproximada');
     expect(justificativa.placeholder).toContain('talude');
-    expect(justificativa.mostrarQuando).toEqual(classificacao.mostrarQuando);
+    expect(justificativa.mostrarQuando).toBeUndefined();
   });
 
-  it('mostra perguntas auxiliares somente para inclinacao vertical ou negativa', () => {
+  it('mostra a classificacao apenas para inclinacao vertical ou negativa e a justificativa sempre', () => {
     const perguntas = flattenPerguntas(vistoriaDeslizamento);
 
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(false);
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_e' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(true);
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_f' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(true);
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(true);
   });
 });
 
 describe('risco_estrutural_novo_v2 - observacao condicional de risco', () => {
-  it('habilita observacao opcional para opcoes com peso a partir de 0.3', () => {
+  it('habilita observacao obrigatória para opcoes com peso a partir de 0.3', () => {
     const config = getObservacaoCondicionalRiscoConfig('risco_estrutural_novo_v2');
     const perguntas = flattenPerguntas(riscoEstrutural);
     const fundacao = perguntas.find(p => p.id === 'est_q1')!;
 
     expect(config?.ativo).toBe(true);
     expect(config?.pesoMinimo).toBe(0.3);
+    expect(config?.obrigatoria).toBe(true);
     expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_a')).toBe(false);
     expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_b')).toBe(true);
     expect(opcaoAcionaObservacaoCondicionalRisco('risco_estrutural_novo_v2', fundacao, 'q1_c')).toBe(true);
