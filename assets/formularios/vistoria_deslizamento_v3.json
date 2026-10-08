@@ -181,10 +181,6 @@
           "tipo": "texto",
           "obrigatoria": true,
           "auxiliarCalculo": true,
-          "mostrarQuando": {
-            "perguntaId": "desl2_q2",
-            "respostaIds": ["q2_e", "q2_f"]
-          },
           "opcoes": []
         },
         {
