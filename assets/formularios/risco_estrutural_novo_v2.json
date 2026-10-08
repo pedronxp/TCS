@@ -7,8 +7,9 @@
   "observacaoCondicionalRisco": {
     "ativo": true,
     "pesoMinimo": 0.3,
+    "obrigatoria": true,
     "titulo": "Observação técnica da resposta",
-    "descricao": "Campo opcional exibido quando o agente marcar uma opção de risco médio, alto ou muito alto."
+    "descricao": "Campo obrigatório exibido quando o agente marcar uma opção de risco médio, alto ou muito alto."
   },
   "descricao": "Formulário técnico em escala padronizada de 0,0 a 10,0 para avaliação de risco estrutural de edificações.",
   "classificacao": {
