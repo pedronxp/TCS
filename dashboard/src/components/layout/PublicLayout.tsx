@@ -4,10 +4,10 @@ import { TcsMark } from '@/components/brand/TcsMark';
 import { CookieConsent } from '@/components/public/CookieConsent';
 
 const publicLinks = [
-  ['Como funciona', '/#solucoes'],
-  ['Individual', '/planos#individual'],
-  ['Municipal', '/planos#municipal'],
+  ['Como funciona', '/#funcoes'],
+  ['Funções', '/#recursos'],
   ['Segurança', '/#seguranca'],
+  ['Acesso', '/#acesso'],
 ] as const;
 
 export function PublicLayout() {
@@ -42,10 +42,10 @@ export function PublicLayout() {
 
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Button asChild variant="outline" className="h-[46px] px-5">
-              <Link to="/entrar">Entrar</Link>
+              <Link to="/entrar">Portal do cliente</Link>
             </Button>
             <Button asChild className="hidden h-[46px] px-5 sm:inline-flex">
-              <Link to="/planos">Comparar planos</Link>
+              <Link to="/login">Console TCS</Link>
             </Button>
           </div>
         </div>
