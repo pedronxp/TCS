@@ -3,6 +3,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AppHeader } from './AppHeader';
 import { AppSidebar } from './AppSidebar';
+import { CommandPalette } from './CommandPalette';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/Sheet';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +26,7 @@ function consolePageTitle(pathname: string) {
 
 export function ConsoleShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tcs.sidebar.collapsed') === 'true');
   const [density, setDensity] = useState<Density>(() =>
     localStorage.getItem('tcs.console.density') === 'compact' ? 'compact' : 'comfortable',
@@ -59,6 +61,18 @@ export function ConsoleShell() {
     document.title = `${consolePageTitle(pathname)} — TCS Console`;
   }, [pathname]);
 
+  // ⌘K / Ctrl+K abre a paleta global de comandos em qualquer tela do console.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   return (
     <div className="flex min-h-screen bg-background" data-density={density}>
       <a
@@ -90,7 +104,9 @@ export function ConsoleShell() {
           onDensityChange={setDensity}
           theme={theme}
           onThemeChange={setTheme}
+          onOpenPalette={() => setPaletteOpen(true)}
         />
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} theme={theme} onThemeChange={setTheme} />
         <main id="console-content" tabIndex={-1} aria-label="Conteúdo do console" className={cn(
           'w-full',
           density === 'compact'

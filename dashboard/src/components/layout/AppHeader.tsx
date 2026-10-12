@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Rows3, Sun } from 'lucide-react';
+import { Download, KeyRound, LogOut, Menu, Moon, Palette, Pencil, Plus, Rows3, Search, Sun } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { GlobalCustomerSearch } from '@/components/GlobalCustomerSearch';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +29,8 @@ type AppHeaderProps = {
   onDensityChange: (density: 'comfortable' | 'compact') => void;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
+  /** Abre a paleta global de comandos (Ctrl/⌘ K). Opcional para shells legados. */
+  onOpenPalette?: () => void;
 };
 
 type PageContext = {
@@ -91,7 +93,7 @@ function resolvePageContext(pathname: string, role: 'owner' | 'developer' | unde
     ?? { eyebrow: 'TCS Console', title: 'Área interna' };
 }
 
-export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThemeChange }: AppHeaderProps) {
+export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThemeChange, onOpenPalette }: AppHeaderProps) {
   const { pathname } = useLocation();
   const { profile, can, signOut } = useAuth();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -134,6 +136,21 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
         </nav>
 
         <div className="ml-auto flex items-center gap-2.5">
+          {onOpenPalette ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenPalette}
+              className="hidden h-10 gap-2 px-3 sm:inline-flex"
+              aria-label="Buscar páginas e ações"
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden lg:inline">Buscar</span>
+              <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[10px] font-semibold text-muted-foreground lg:inline">
+                Ctrl K
+              </kbd>
+            </Button>
+          ) : null}
           {profile && <InboxBell workspace="internal" />}
           {isCustomerDetail && can('customer.write') ? (
             <Button

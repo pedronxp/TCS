@@ -30,6 +30,10 @@ vi.mock('./AppSidebar', () => ({
   AppSidebar: ({ mobile }: { mobile?: boolean }) => <nav aria-label={mobile ? 'Navegação móvel simulada' : 'Navegação desktop simulada'} />,
 }));
 
+vi.mock('./CommandPalette', () => ({
+  CommandPalette: () => <div data-testid="command-palette-simulado" />,
+}));
+
 function renderShell(path = '/app') {
   return render(
     <MemoryRouter initialEntries={[path]}>
