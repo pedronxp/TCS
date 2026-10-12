@@ -434,3 +434,55 @@
     background: hsl(var(--muted-foreground));
   }
 }
+
+/* ═══ Console 2.0 — polimento global de interface ═══ */
+::selection {
+  background: hsl(var(--success) / 0.25);
+}
+
+body {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.28);
+  border-radius: 99px;
+  border: 3px solid hsl(var(--background));
+}
+*::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.45); }
+
+/* Cards: elevação sutil no hover (assinatura 2.0) */
+[data-slot='card'] {
+  transition:
+    border-color 0.22s var(--motion-ease-out),
+    box-shadow 0.22s var(--motion-ease-out),
+    transform 0.22s var(--motion-ease-out);
+}
+[data-slot='card']:hover {
+  border-color: hsl(var(--foreground) / 0.16);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px hsl(var(--foreground) / 0.06);
+}
+
+/* Transição suave entre rotas do console */
+.view-fade {
+  animation: viewFade 0.28s var(--motion-ease-out);
+}
+@keyframes viewFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Indicador da rota ativa na sidebar (glow esmeralda) */
+.nav-active-indicator {
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: hsl(var(--success));
+  box-shadow: 0 0 12px hsl(var(--success) / 0.55);
+}

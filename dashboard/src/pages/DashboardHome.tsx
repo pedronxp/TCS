@@ -154,7 +154,8 @@ export function DashboardHome() {
     <div className="mx-auto max-w-[1240px] space-y-7 pb-8">
       <header className="flex flex-col gap-5 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
+          <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-success">
+            <span aria-hidden="true" className="h-px w-4 rounded-full bg-success" />
             {technical ? 'Saúde técnica' : 'Visão executiva'}
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.025em] sm:text-4xl">
@@ -221,7 +222,7 @@ function MetricGrid({ metrics, technical }: { metrics: DashboardMetric[]; techni
           const config = metricPresentation(metric);
           return (
             <article key={metric.key} className={cn(
-              'min-w-0 rounded-2xl border border-border/75 bg-card p-5 shadow-sm transition-colors hover:border-border',
+              'min-w-0 rounded-2xl border border-border/75 bg-card p-5 shadow-sm transition-all duration-200 motion-reduce:transition-none hover:-translate-y-0.5 hover:border-foreground/15 hover:shadow-md',
               technical ? 'xl:col-span-1' : metricSpan(metric.key),
               urgent && 'border-warning/35 bg-warning-soft/35',
             )}>

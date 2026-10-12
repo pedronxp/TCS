@@ -212,7 +212,7 @@ function SidebarMenuGroup({ group, compact, searching, onNavigate }: {
                 aria-label={compact ? item.label : undefined}
                 className={({ isActive }) =>
                   cn(
-                    'flex h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    'relative flex h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     isActive
                       ? 'bg-accent font-semibold text-foreground'
                       : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
@@ -222,11 +222,12 @@ function SidebarMenuGroup({ group, compact, searching, onNavigate }: {
               >
                 {({ isActive }) => (
                   <>
+                    {isActive && <span className="nav-active-indicator" aria-hidden="true" />}
                     <span
                       className={cn(
                         'grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors',
                         isActive
-                          ? 'bg-primary text-primary-foreground'
+                          ? 'bg-success text-primary-foreground'
                           : 'bg-muted text-muted-foreground',
                       )}
                     >

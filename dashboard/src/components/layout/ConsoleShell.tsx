@@ -107,8 +107,8 @@ export function ConsoleShell() {
           onOpenPalette={() => setPaletteOpen(true)}
         />
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} theme={theme} onThemeChange={setTheme} />
-        <main id="console-content" tabIndex={-1} aria-label="Conteúdo do console" className={cn(
-          'w-full',
+        <main id="console-content" tabIndex={-1} aria-label="Conteúdo do console" key={pathname} className={cn(
+          'view-fade w-full',
           density === 'compact'
             ? 'p-3 sm:p-5 lg:p-8'
             : compactBoardPadding
