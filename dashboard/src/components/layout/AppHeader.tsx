@@ -151,6 +151,16 @@ export function AppHeader({ onOpenMobile, density, onDensityChange, theme, onThe
               </kbd>
             </Button>
           ) : null}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10"
+            onClick={() => onThemeChange(theme === 'light' ? 'dark' : 'light')}
+            aria-label={theme === 'light' ? 'Ativar tema escuro' : 'Ativar tema claro'}
+            title={theme === 'light' ? 'Ativar tema escuro' : 'Ativar tema claro'}
+          >
+            {theme === 'light' ? <Moon className="h-4 w-4" aria-hidden="true" /> : <Sun className="h-4 w-4" aria-hidden="true" />}
+          </Button>
           {profile && <InboxBell workspace="internal" />}
           {isCustomerDetail && can('customer.write') ? (
             <Button

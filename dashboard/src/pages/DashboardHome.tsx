@@ -227,13 +227,13 @@ function MetricGrid({ metrics, technical }: { metrics: DashboardMetric[]; techni
               urgent && 'border-warning/35 bg-warning-soft/35',
             )}>
               <div className="flex items-start justify-between gap-3">
-                <span className={cn('grid h-9 w-9 place-items-center rounded-xl', config.iconClassName)}>
-                  <config.icon className="h-4.5 w-4.5" aria-hidden="true" />
+                <span className={cn('grid h-10 w-10 place-items-center rounded-xl', config.iconClassName)}>
+                  <config.icon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 {urgent && <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-warning"><AlertTriangle className="h-3 w-3" aria-hidden="true" />Revisar</span>}
               </div>
               <p className="mt-5 max-w-[24ch] text-xs font-semibold text-muted-foreground">{metric.label}</p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums tracking-[-0.04em]">{metric.value.toLocaleString('pt-BR')}</p>
+              <p className="mt-2 text-3xl font-bold tabular-nums tracking-[-0.04em]">{metric.value.toLocaleString('pt-BR')}</p>
               <p className="mt-1 text-xs text-muted-foreground">{metricHint(metric, technical)}</p>
             </article>
           );
@@ -296,11 +296,14 @@ function ExecutiveBrief({ metrics, attention, can }: { metrics: DashboardMetric[
 
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]" aria-label="Resumo para decisão">
-      <Card className={cn('overflow-hidden shadow-none', hasCritical ? 'border-warning/40' : 'border-primary/25')}>
+      <Card className={cn('overflow-hidden shadow-none', hasCritical ? 'border-warning/40' : 'border-success/25')}>
         <CardContent className="p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-xl">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">Leitura do momento</p>
+              <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-success">
+                <span aria-hidden="true" className="h-px w-4 rounded-full bg-success" />
+                Leitura do momento
+              </p>
               <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em]">
                 {hasCritical ? 'Há itens que exigem ação antes da próxima rotina.' : 'Atenção direcionada às próximas decisões operacionais.'}
               </h2>
@@ -310,7 +313,7 @@ function ExecutiveBrief({ metrics, attention, can }: { metrics: DashboardMetric[
                   : `${renewals} renovação(ões), ${support} chamado(s) abertos e ${onboarding} implantação(ões) estão no radar.`}
               </p>
             </div>
-            <span className={cn('grid h-11 w-11 place-items-center rounded-2xl', hasCritical ? 'bg-warning-soft text-warning' : 'bg-primary/10 text-primary')}>
+            <span className={cn('grid h-12 w-12 place-items-center rounded-2xl', hasCritical ? 'bg-warning-soft text-warning' : 'bg-success-soft text-success')}>
               {hasCritical ? <AlertTriangle className="h-5 w-5" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
             </span>
           </div>
@@ -321,21 +324,29 @@ function ExecutiveBrief({ metrics, attention, can }: { metrics: DashboardMetric[
         </CardContent>
       </Card>
       <Card className="bg-muted/40 shadow-none">
-        <CardContent className="grid grid-cols-3 gap-2 p-4">
-          <BriefStat label="Renovações" value={renewals} icon={CalendarClock} to="/app/assinaturas" />
-          <BriefStat label="Chamados" value={support} icon={Headphones} to="/app/suporte" />
-          <BriefStat label="Implantação" value={onboarding} icon={TrendingUp} to="/app/clientes" />
+        <CardContent className="grid grid-cols-3 gap-2.5 p-4">
+          <BriefStat label="Renovações" value={renewals} icon={CalendarClock} tone="info" to="/app/assinaturas" />
+          <BriefStat label="Chamados" value={support} icon={Headphones} tone="warning" to="/app/suporte" />
+          <BriefStat label="Implantação" value={onboarding} icon={TrendingUp} tone="success" to="/app/clientes" />
         </CardContent>
       </Card>
     </section>
   );
 }
 
-function BriefStat({ label, value, icon: Icon, to }: { label: string; value: number; icon: LucideIcon; to: string }) {
+const BRIEF_TONES = {
+  info: 'bg-info-soft text-info',
+  warning: 'bg-warning-soft text-warning',
+  success: 'bg-success-soft text-success',
+} as const;
+
+function BriefStat({ label, value, icon: Icon, tone, to }: { label: string; value: number; icon: LucideIcon; tone: keyof typeof BRIEF_TONES; to: string }) {
   return (
-    <Link to={to} className="group rounded-xl bg-card p-4 outline-none transition-colors hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring">
-      <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-      <p className="mt-4 text-2xl font-semibold tabular-nums">{value.toLocaleString('pt-BR')}</p>
+    <Link to={to} className="group rounded-xl bg-card p-4 outline-none transition-all duration-200 motion-reduce:transition-none hover:-translate-y-0.5 hover:border-success/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring">
+      <span className={cn('grid h-8 w-8 place-items-center rounded-lg', BRIEF_TONES[tone])}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <p className="mt-3.5 text-2xl font-bold tabular-nums tracking-[-0.03em]">{value.toLocaleString('pt-BR')}</p>
       <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
         {label}
         <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
@@ -396,24 +407,34 @@ function AttentionPanel({ items, technical, can }: { items: DashboardAttention[]
             {items.map((item, index) => {
               const action = attentionAction(item, technical, can);
               const tone = item.status ? attentionTone(item.status) : null;
+              const tile = tone === 'destructive'
+                ? 'bg-destructive-soft text-destructive'
+                : tone === 'warning'
+                  ? 'bg-warning-soft text-warning'
+                  : 'bg-muted text-muted-foreground';
               return (
                 <li key={`${item.type}-${item.customerId ?? item.label}-${index}`} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-foreground">{item.label}</p>
-                        {item.status && <Badge variant={tone ?? 'secondary'} className={tone === 'warning' ? 'text-foreground' : undefined}>{item.status}</Badge>}
+                    <div className="flex min-w-0 items-start gap-3.5">
+                      <span className={cn('mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl', tile)}>
+                        <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-foreground">{item.label}</p>
+                          {item.status && <Badge variant={tone ?? 'secondary'} className={tone === 'warning' ? 'text-foreground' : undefined}>{item.status}</Badge>}
+                        </div>
+                        {item.detail && <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.detail}</p>}
+                        {item.dueAt && (
+                          <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
+                            <time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>
+                          </p>
+                        )}
                       </div>
-                      {item.detail && <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>}
-                      {item.dueAt && (
-                        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
-                          <time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>
-                        </p>
-                      )}
                     </div>
                     {action.destination ? (
-                      <Button asChild variant="ghost" size="sm" className="self-start">
+                      <Button asChild variant="outline" size="sm" className="self-start">
                         <Link to={action.destination}>Abrir <ArrowRight aria-hidden="true" /></Link>
                       </Button>
                     ) : (
@@ -451,18 +472,21 @@ function ActionsPanel({ actions, technical }: { actions: ConsoleAction[]; techni
                 key={action.to}
                 to={action.to}
                 className={cn(
-                  'group flex min-h-16 items-center gap-3 rounded-xl border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  index === 0 ? 'border-primary/40 bg-card shadow-sm hover:border-primary' : 'border-border/70 bg-card/60 hover:bg-secondary/80 hover:border-border',
+                  'group flex min-h-16 items-center gap-3.5 rounded-xl border px-4 py-3 outline-none transition-all duration-200 motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-ring hover:-translate-y-0.5 hover:shadow-md',
+                  index === 0 ? 'border-success/40 bg-card shadow-sm hover:border-success' : 'border-border/70 bg-card/60 hover:border-border',
                 )}
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-card text-primary">
+                <span className={cn(
+                  'grid h-9 w-9 shrink-0 place-items-center rounded-lg',
+                  index === 0 ? 'bg-success-soft text-success' : 'bg-muted text-muted-foreground',
+                )}>
                   <action.icon className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-foreground">{action.label}</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">{action.description}</span>
                 </span>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />
               </Link>
             ))}
           </div>
