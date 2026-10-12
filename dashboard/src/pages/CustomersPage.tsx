@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Filter, Plus, Rocket, Search, UsersRound, X } from 'lucide-react';
+import { useState } from 'react';
+import { CheckSquare, ChevronLeft, ChevronRight, Copy, CreditCard, Download, FilterX, MoreHorizontal, Phone, Plus, Search, Smartphone, Square, Users, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
 import { IndividualClientDialog } from '@/components/customers/IndividualClientDialog';
@@ -13,13 +14,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { Input } from '@/components/ui/Input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomers } from '@/hooks/useCustomers';
+import type { CustomerRecord } from '@/types/domain';
 import { customerDetailPath } from '@/lib/customerRoutes';
 import { cn } from '@/lib/utils';
 
@@ -41,6 +43,61 @@ const statusFilters = [
   { value: 'suspended', label: 'Suspensos' },
 ] as const;
 
+const activityPresets = [
+  { value: 'all', label: 'Qualquer data' },
+  { value: '7', label: 'Ativos 7 dias' },
+  { value: '30', label: 'Ativos 30 dias' },
+] as const;
+
+const AVATAR_GRADIENTS = [
+  'from-amber-400 to-rose-500',
+  'from-sky-400 to-indigo-500',
+  'from-emerald-400 to-sky-500',
+  'from-indigo-400 to-violet-500',
+  'from-amber-300 to-rose-400',
+  'from-violet-400 to-rose-500',
+] as const;
+
+function avatarGradient(seed: string) {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
+}
+
+function activityFromFor(preset: string) {
+  if (preset === 'all') return '';
+  const days = Number(preset);
+  if (!Number.isInteger(days) || days <= 0) return '';
+  const date = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
+
+function exportCustomersCsv(items: CustomerRecord[]) {
+  const header = ['Cliente', 'Tipo', 'Municipio', 'UF', 'Plano', 'Status', 'Usuarios ativos', 'Ultima atividade'];
+  const rows = items.map((customer) => [
+    customer.display_name,
+    customer.kind === 'organization' ? 'Organizacao' : 'Individual',
+    customer.municipality_name ?? '',
+    customer.state_code ?? '',
+    customer.plan_name ?? '',
+    customer.status,
+    String(customer.active_users),
+    customer.last_activity_at ?? '',
+  ]);
+  const csv = [header, ...rows]
+    .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(';'))
+    .join('\n');
+  const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `clientes-tcs-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function CustomersPage() {
   const [params, setParams] = useSearchParams();
   const search = params.get('q') ?? '';
@@ -48,13 +105,14 @@ export function CustomersPage() {
   const status = ['all', 'active', 'onboarding', 'pilot', 'suspended', 'archived'].includes(rawStatus) ? rawStatus : 'all';
   const municipio = params.get('municipio') ?? '';
   const uf = params.get('uf') ?? '';
-  const activityFrom = params.get('atividade_de') ?? '';
-  const activityTo = params.get('atividade_ate') ?? '';
+  const activityPreset = params.get('atividade') ?? 'all';
   const rawPage = Number(params.get('page') ?? '0');
   const page = Number.isInteger(rawPage) && rawPage >= 0 ? rawPage : 0;
   const navigate = useNavigate();
   const { can } = useAuth();
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const activityFrom = activityFromFor(activityPreset);
+  const activityTo = '';
   const query = useCustomers({ search, status: status === 'all' ? '' : status, municipio, uf, activityFrom, activityTo, page });
   const totalQuery = useCustomers();
   const onboardingQuery = useCustomers({ status: 'onboarding' });
@@ -74,50 +132,73 @@ export function CustomersPage() {
     suspended: suspendedQuery.data?.total ?? 0,
   };
   const activePercent = totals.all > 0 ? Math.round((totals.active / totals.all) * 100) : 0;
-  const activeAdvancedFilters = Number(Boolean(uf)) + Number(Boolean(municipio)) + Number(Boolean(activityFrom)) + Number(Boolean(activityTo));
-  const setStatusFilter = (nextStatus: string) => {
+  const activeFilterCount =
+    Number(Boolean(uf)) + Number(Boolean(municipio)) + Number(activityPreset !== 'all') + Number(Boolean(search)) + Number(status !== 'all');
+
+  const updateParams = (mutate: (next: URLSearchParams) => void, replace = false) => {
     const next = new URLSearchParams(params);
+    mutate(next);
+    next.delete('page');
+    setParams(next, { replace });
+  };
+  const setStatusFilter = (nextStatus: string) => updateParams((next) => {
     if (nextStatus === 'all') next.delete('status');
     else next.set('status', nextStatus);
-    next.delete('page');
-    setParams(next);
-  };
-  const setSearchFilter = (value: string) => {
-    const next = new URLSearchParams(params);
+  });
+  const setSearchFilter = (value: string) => updateParams((next) => {
     if (value) next.set('q', value);
     else next.delete('q');
-    next.delete('page');
-    setParams(next, { replace: true });
-  };
+  }, true);
+  const setUfFilter = (value: string) => updateParams((next) => {
+    if (value) next.set('uf', value);
+    else next.delete('uf');
+    next.delete('municipio');
+  });
+  const setMunicipioFilter = (value: string) => updateParams((next) => {
+    if (value) next.set('municipio', value);
+    else next.delete('municipio');
+  });
+  const setActivityPresetFilter = (value: string) => updateParams((next) => {
+    if (value === 'all') next.delete('atividade');
+    else next.set('atividade', value);
+  });
+  const clearFilters = () => updateParams((next) => {
+    ['q', 'status', 'uf', 'municipio', 'atividade'].forEach((key) => next.delete(key));
+  });
   const setPageFilter = (nextPage: number) => {
     const next = new URLSearchParams(params);
     if (nextPage > 0) next.set('page', String(nextPage));
     else next.delete('page');
     setParams(next);
   };
-  const setAdvancedFilters = (nextFilters: { uf: string; municipio: string; activityFrom: string; activityTo: string }) => {
-    const next = new URLSearchParams(params);
-    const pairs: Array<[string, string]> = [['uf', nextFilters.uf], ['municipio', nextFilters.municipio], ['atividade_de', nextFilters.activityFrom], ['atividade_ate', nextFilters.activityTo]];
-    for (const [key, value] of pairs) { if (value) next.set(key, value); else next.delete(key); }
-    next.delete('page'); setParams(next); setFiltersOpen(false);
+  const openCreate = (kind: 'municipal' | 'individual') => updateParams((next) => next.set('novo', kind));
+
+  const visibleItems = query.data?.items ?? [];
+  const allVisibleSelected = visibleItems.length > 0 && visibleItems.every((customer) => selected.has(customer.customer_id));
+  const toggleSelectAllVisible = () => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visibleItems.forEach((customer) => next.delete(customer.customer_id));
+      else visibleItems.forEach((customer) => next.add(customer.customer_id));
+      return next;
+    });
   };
-  const openCreate = (kind: 'municipal' | 'individual') => {
-    const next = new URLSearchParams(params);
-    next.set('novo', kind);
-    setParams(next);
+  const toggleSelect = (customerId: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(customerId)) next.delete(customerId);
+      else next.add(customerId);
+      return next;
+    });
   };
-  const closeCreate = () => {
-    const next = new URLSearchParams(params);
-    next.delete('novo');
-    setParams(next, { replace: true });
-  };
+  const selectedItems = visibleItems.filter((customer) => selected.has(customer.customer_id));
 
   return (
     <div className="page-stack">
       <PageHeader
         eyebrow="Carteira de clientes"
         title="Clientes"
-        description="Encontre uma conta, entenda o momento operacional e intervenha antes que a implantação ou o acesso pare."
+        description="Filtre a carteira inteira, gerencie acessos da equipe, ajuste assinatura e exporte o que precisar — tudo daqui."
         actions={can('customer.write') ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -134,46 +215,89 @@ export function CustomersPage() {
         ) : undefined}
       />
 
-      <CustomerOverview totals={totals} activePercent={activePercent} />
+      <CustomerOverview
+        totals={totals}
+        activePercent={activePercent}
+        activeStatus={status}
+        onSelectStatus={setStatusFilter}
+      />
 
       <Card className="bg-card/80 shadow-none">
-        <CardContent className="flex flex-col gap-3 p-2 sm:flex-row sm:items-center">
-          <label className="relative min-w-0 flex-1 xl:max-w-[460px]">
-            <span className="sr-only">Buscar clientes</span>
-            <Search className="pointer-events-none absolute left-4 top-3.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearchFilter(event.target.value)}
-              placeholder="Nome, município, contato ou identificador"
-              className="h-11 border-0 bg-background pl-10"
-            />
-            {search && (
-              <Button type="button" variant="ghost" size="icon" onClick={() => setSearchFilter('')} className="absolute right-2 top-1.5 h-8 w-8 text-muted-foreground" aria-label="Limpar busca">
-                <X className="h-4 w-4" />
+        <CardContent className="flex flex-col gap-3 p-3 sm:p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <label className="relative min-w-0 flex-1 xl:max-w-[420px]">
+              <span className="sr-only">Buscar clientes</span>
+              <Search className="pointer-events-none absolute left-4 top-3.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearchFilter(event.target.value)}
+                placeholder="Nome, município, contato ou identificador"
+                className="h-11 border-0 bg-background pl-10"
+              />
+              {search && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => setSearchFilter('')} className="absolute right-2 top-1.5 h-8 w-8 text-muted-foreground" aria-label="Limpar busca">
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </label>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              {statusFilters.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  aria-pressed={status === filter.value}
+                  onClick={() => setStatusFilter(filter.value)}
+                  className={cn(
+                    'h-8 rounded-full border px-3 text-[11px] font-semibold transition-colors',
+                    status === filter.value
+                      ? 'border-success bg-success-soft text-success-foreground'
+                      : 'border-border bg-card text-muted-foreground hover:bg-secondary',
+                  )}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-[150px]">
+              <label htmlFor="clientes-filtro-uf" className="sr-only">Filtrar por UF</label>
+              <BrazilStateSelect id="clientes-filtro-uf" value={uf} onValueChange={setUfFilter} includeAll />
+            </div>
+            {uf ? (
+              <div className="min-w-[190px]">
+                <label htmlFor="clientes-filtro-municipio" className="sr-only">Filtrar por município</label>
+                <BrazilMunicipalityPicker id="clientes-filtro-municipio" uf={uf} value={municipio} onValueChange={setMunicipioFilter} includeAll allValue="" allLabel="Todos os municípios" placeholder="Todos os municípios" />
+              </div>
+            ) : (
+              <select disabled aria-label="Município (escolha a UF primeiro)" className="h-9 min-w-[190px] rounded-md border border-border bg-card px-3 text-xs text-muted-foreground">
+                <option>Escolha a UF para filtrar município</option>
+              </select>
+            )}
+            <div className="flex items-center gap-1.5">
+              {activityPresets.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  aria-pressed={activityPreset === preset.value}
+                  onClick={() => setActivityPresetFilter(preset.value)}
+                  className={cn(
+                    'h-8 rounded-md border px-2.5 text-[11px] font-semibold transition-colors',
+                    activityPreset === preset.value
+                      ? 'border-success bg-success-soft text-success-foreground'
+                      : 'border-border bg-card text-muted-foreground hover:bg-secondary',
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            {activeFilterCount > 0 && (
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[11px]" onClick={clearFilters}>
+                <FilterX className="h-3.5 w-3.5" aria-hidden="true" />
+                Limpar filtros ({activeFilterCount})
               </Button>
             )}
-          </label>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            {statusFilters.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                aria-pressed={status === filter.value}
-                onClick={() => setStatusFilter(filter.value)}
-                className={cn(
-                  'h-8 rounded-full border px-3 text-[11px] font-semibold transition-colors',
-                  status === filter.value
-                    ? 'border-success bg-success-soft text-success-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:bg-secondary',
-                )}
-              >
-                {filter.label}
-              </button>
-            ))}
-            <Button variant="outline" className={cn('ml-auto h-11', activeAdvancedFilters > 0 && 'border-primary')} onClick={() => setFiltersOpen(true)}>
-              <Filter />
-              {activeAdvancedFilters > 0 ? `Filtros (${activeAdvancedFilters})` : 'Filtros'}
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -195,20 +319,65 @@ export function CustomersPage() {
                   {query.data.total.toLocaleString('pt-BR')} clientes
                 </p>
               </div>
-              <Table className="min-w-[700px]">
+              {selected.size > 0 && (
+                <div className="flex flex-wrap items-center gap-2 border-b border-border bg-success-soft/60 px-6 py-2.5">
+                  <p className="text-xs font-semibold text-success-foreground">{selected.size} selecionado(s)</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-[11px]"
+                    onClick={() => {
+                      exportCustomersCsv(selectedItems);
+                      toast.success(`Exportados ${selectedItems.length} cliente(s) para CSV.`);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    Exportar CSV
+                  </Button>
+                  <Button variant="ghost" size="sm" className="ml-auto h-7 text-[11px]" onClick={() => setSelected(new Set())}>
+                    Limpar seleção
+                  </Button>
+                </div>
+              )}
+              <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-6">Cliente</TableHead>
+                    <TableHead className="w-10 pl-6">
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllVisible}
+                        aria-label={allVisibleSelected ? 'Desmarcar clientes da página' : 'Marcar clientes da página'}
+                        aria-pressed={allVisibleSelected}
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {allVisibleSelected ? <CheckSquare className="h-4 w-4 text-success" aria-hidden="true" /> : <Square className="h-4 w-4" aria-hidden="true" />}
+                      </button>
+                    </TableHead>
+                    <TableHead>Cliente</TableHead>
                     <TableHead>Plano</TableHead>
                     <TableHead className="text-center">Usuários</TableHead>
                     <TableHead>Atividade</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="pr-6 text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {query.data.items.map((customer) => (
+                  {visibleItems.map((customer) => (
                     <TableRow key={customer.customer_id}>
                       <TableCell className="pl-6">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(customer.customer_id)}
+                          aria-label={`Selecionar ${customer.display_name}`}
+                          aria-pressed={selected.has(customer.customer_id)}
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          {selected.has(customer.customer_id)
+                            ? <CheckSquare className="h-4 w-4 text-success" aria-hidden="true" />
+                            : <Square className="h-4 w-4" aria-hidden="true" />}
+                        </button>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-3">
                           <span
                             aria-hidden="true"
@@ -241,6 +410,44 @@ export function CustomersPage() {
                       <TableCell className="text-center text-[13px] font-semibold tabular-nums">{customer.active_users}</TableCell>
                       <TableCell className="text-[11px] text-muted-foreground">{formatActivity(customer.last_activity_at)}</TableCell>
                       <TableCell><StatusBadge value={customer.status} /></TableCell>
+                      <TableCell className="pr-6 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Ações de ${customer.display_name}`}>
+                              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onSelect={() => navigate(customerDetailPath(customer.customer_id))}>
+                              Abrir cadastro
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => navigate(`${customerDetailPath(customer.customer_id)}/assinatura`)}>
+                              <CreditCard className="h-4 w-4" aria-hidden="true" />
+                              Assinatura e plano
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => navigate(`${customerDetailPath(customer.customer_id)}/sessoes`)}>
+                              <Smartphone className="h-4 w-4" aria-hidden="true" />
+                              Sessões do cliente
+                            </DropdownMenuItem>
+                            {customer.kind === 'organization' && (
+                              <DropdownMenuItem onSelect={() => navigate(`${customerDetailPath(customer.customer_id)}/equipe`)}>
+                                <Users className="h-4 w-4" aria-hidden="true" />
+                                Equipe e acessos
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                void navigator.clipboard?.writeText(customer.customer_id);
+                                toast.success('Identificador copiado.');
+                              }}
+                            >
+                              <Copy className="h-4 w-4" aria-hidden="true" />
+                              Copiar identificador
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -283,58 +490,52 @@ export function CustomersPage() {
 
       <OrganizationFormDialog
         open={creatingOrganization}
-        onClose={closeCreate}
+        onClose={() => updateParams((next) => next.delete('novo'), true)}
         onSaved={(customerId) => navigate(customerDetailPath(customerId))}
       />
       <IndividualClientDialog
         open={creatingIndividual}
-        onClose={closeCreate}
+        onClose={() => updateParams((next) => next.delete('novo'), true)}
         onSaved={(customerId) => navigate(customerDetailPath(customerId))}
       />
-      <CustomerFiltersDialog open={filtersOpen} uf={uf} municipio={municipio} activityFrom={activityFrom} activityTo={activityTo} onClose={() => setFiltersOpen(false)} onApply={setAdvancedFilters} />
     </div>
   );
-}
-
-function CustomerFiltersDialog({ open, uf: initialUf, municipio: initialMunicipio, activityFrom: initialActivityFrom, activityTo: initialActivityTo, onClose, onApply }: {
-  open: boolean; uf: string; municipio: string; activityFrom: string; activityTo: string;
-  onClose: () => void; onApply: (filters: { uf: string; municipio: string; activityFrom: string; activityTo: string }) => void;
-}) {
-  const [uf, setUf] = useState(initialUf);
-  const [municipio, setMunicipio] = useState(initialMunicipio);
-  const [activityFrom, setActivityFrom] = useState(initialActivityFrom);
-  const [activityTo, setActivityTo] = useState(initialActivityTo);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => { if (open) { setUf(initialUf); setMunicipio(initialMunicipio); setActivityFrom(initialActivityFrom); setActivityTo(initialActivityTo); setError(null); } }, [open, initialUf, initialMunicipio, initialActivityFrom, initialActivityTo]);
-  const apply = () => {
-    if (activityFrom && activityTo && activityFrom > activityTo) { setError('A data inicial deve ser anterior ou igual à data final.'); return; }
-    onApply({ uf, municipio, activityFrom, activityTo });
-  };
-  return <Dialog open={open} onOpenChange={(next) => !next && onClose()}><DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Filtrar carteira</DialogTitle><DialogDescription>Restrinja por município e pelo intervalo da última atividade registrada.</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><label className="text-sm font-medium">UF</label><BrazilStateSelect value={uf} onValueChange={(value) => { setUf(value); setMunicipio(''); }} includeAll /></div><div className="space-y-2"><label className="text-sm font-medium">Município</label><BrazilMunicipalityPicker uf={uf} value={municipio} onValueChange={setMunicipio} includeAll allValue="" allLabel="Todos os municípios" placeholder="Todos os municípios" /></div><div className="space-y-2"><label className="text-sm font-medium" htmlFor="customer-activity-from">Atividade a partir de</label><Input id="customer-activity-from" type="date" value={activityFrom} onChange={(event) => setActivityFrom(event.target.value)} /></div><div className="space-y-2"><label className="text-sm font-medium" htmlFor="customer-activity-to">Atividade até</label><Input id="customer-activity-to" type="date" value={activityTo} onChange={(event) => setActivityTo(event.target.value)} /></div></div>{error && <p className="text-sm text-destructive">{error}</p>}<DialogFooter><Button variant="ghost" onClick={() => { setUf(''); setMunicipio(''); setActivityFrom(''); setActivityTo(''); }}>Limpar</Button><Button variant="outline" onClick={onClose}>Cancelar</Button><Button onClick={apply}>Aplicar filtros</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function CustomerOverview({
   totals,
   activePercent,
+  activeStatus,
+  onSelectStatus,
 }: {
   totals: Record<'all' | 'onboarding' | 'pilot' | 'active' | 'suspended', number>;
   activePercent: number;
+  activeStatus: string;
+  onSelectStatus: (status: string) => void;
 }) {
   const items = [
-    { label: 'Total da base', value: totals.all, detail: 'dados persistidos', icon: UsersRound, tone: 'bg-muted text-muted-foreground' },
-    { label: 'Em onboarding', value: totals.onboarding, detail: `${totals.pilot} em piloto`, icon: Rocket, tone: 'bg-warning-soft text-warning' },
-    { label: 'Operação ativa', value: totals.active, detail: `${activePercent}% da base`, icon: CheckCircle2, tone: 'bg-success-soft text-success' },
-    { label: 'Exigem atenção', value: totals.suspended, detail: 'requer revisão', icon: AlertTriangle, tone: 'bg-destructive-soft text-destructive' },
+    { label: 'Total da base', value: totals.all, detail: 'dados persistidos', icon: Users, tone: 'bg-muted text-muted-foreground', filter: 'all' },
+    { label: 'Em onboarding', value: totals.onboarding, detail: `${totals.pilot} em piloto`, icon: Plus, tone: 'bg-warning-soft text-warning', filter: 'onboarding' },
+    { label: 'Operação ativa', value: totals.active, detail: `${activePercent}% da base`, icon: CheckSquare, tone: 'bg-success-soft text-success', filter: 'active' },
+    { label: 'Exigem atenção', value: totals.suspended, detail: 'requer revisão', icon: Phone, tone: 'bg-destructive-soft text-destructive', filter: 'suspended' },
   ];
 
   return (
     <section aria-label="Visão geral da carteira" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {items.map((item) => {
         const Icon = item.icon;
+        const isFiltering = activeStatus === item.filter;
         return (
-          <article
+          <button
             key={item.label}
-            className="min-w-0 rounded-2xl border border-border/75 bg-card p-5 shadow-sm transition-all duration-200 motion-reduce:transition-none hover:-translate-y-0.5 hover:border-foreground/15 hover:shadow-md"
+            type="button"
+            onClick={() => onSelectStatus(item.filter)}
+            aria-pressed={isFiltering}
+            title={isFiltering ? 'Filtro aplicado — clique para manter ou trocar' : `Filtrar carteira por ${item.label.toLowerCase()}`}
+            className={cn(
+              'min-w-0 rounded-2xl border bg-card p-5 text-left shadow-sm outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none hover:-translate-y-0.5 hover:shadow-md',
+              isFiltering ? 'border-success/60' : 'border-border/75 hover:border-foreground/15',
+            )}
           >
             <span className={cn('grid h-10 w-10 place-items-center rounded-xl', item.tone)}>
               <Icon className="h-5 w-5" aria-hidden="true" />
@@ -342,28 +543,11 @@ function CustomerOverview({
             <p className="mt-4 text-3xl font-bold tabular-nums tracking-[-0.04em]">{item.value.toLocaleString('pt-BR')}</p>
             <p className="mt-1 text-xs font-semibold text-foreground">{item.label}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{item.detail}</p>
-          </article>
+          </button>
         );
       })}
     </section>
   );
-}
-
-const AVATAR_GRADIENTS = [
-  'from-amber-400 to-rose-500',
-  'from-sky-400 to-indigo-500',
-  'from-emerald-400 to-sky-500',
-  'from-indigo-400 to-violet-500',
-  'from-amber-300 to-rose-400',
-  'from-violet-400 to-rose-500',
-] as const;
-
-function avatarGradient(seed: string) {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
-  }
-  return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
 }
 
 function StatusDonut({
@@ -467,12 +651,6 @@ function OnboardingRadar({
             </li>
           ))}
         </ul>
-        <Link
-          to="/app/clientes?status=onboarding"
-          className="mt-9 inline-flex border-t border-border pt-6 text-xs font-semibold text-primary transition-opacity duration-150 hover:opacity-70 motion-reduce:transition-none"
-        >
-          Abrir visão de onboarding →
-        </Link>
       </CardContent>
     </Card>
   );
