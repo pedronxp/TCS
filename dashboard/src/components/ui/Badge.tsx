@@ -4,7 +4,9 @@ import type { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 // Badge minimalista: pílula monocromática com fundo soft e texto semântico.
-// Não usa sombra nem borda colorida pronunciada.
+// 2.0: variantes semânticas (success/warning/destructive/info) ganham ponto de
+// status à esquerda; variantes neutras (default/secondary/outline) ficam limpas
+// para não poluir contadores e rótulos informativos.
 const badgeVariants = cva(
   'inline-flex min-h-6 min-w-0 items-center rounded-lg border px-2.5 py-0.5 text-[11px] font-medium leading-none backdrop-blur-xs transition-all focus:outline-none focus:ring-2 focus:ring-ring/30',
   {
@@ -24,10 +26,20 @@ const badgeVariants = cva(
   }
 );
 
+const STATUS_DOT_VARIANTS = new Set(['destructive', 'success', 'warning', 'info']);
+
 export interface BadgeProps
   extends HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof badgeVariants> {}
-export function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+export function Badge({ className, variant, children, ...props }: BadgeProps) {
+  const withDot = variant != null && STATUS_DOT_VARIANTS.has(variant);
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props}>
+      {withDot && (
+        <span aria-hidden="true" className="mr-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+      )}
+      {children}
+    </div>
+  );
 }
 export { badgeVariants };
