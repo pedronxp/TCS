@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckSquare, ChevronLeft, ChevronRight, Copy, CreditCard, Download, FilterX, MoreHorizontal, Phone, Plus, Search, Smartphone, Square, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, CreditCard, Download, FilterX, MoreHorizontal, Phone, Plus, Search, Smartphone, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { OrganizationFormDialog } from '@/components/customers/OrganizationFormDialog';
@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
+import { Checkbox } from '@/components/ui/Checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,23 +49,6 @@ const activityPresets = [
   { value: '7', label: 'Ativos 7 dias' },
   { value: '30', label: 'Ativos 30 dias' },
 ] as const;
-
-const AVATAR_GRADIENTS = [
-  'from-amber-400 to-rose-500',
-  'from-sky-400 to-indigo-500',
-  'from-emerald-400 to-sky-500',
-  'from-indigo-400 to-violet-500',
-  'from-amber-300 to-rose-400',
-  'from-violet-400 to-rose-500',
-] as const;
-
-function avatarGradient(seed: string) {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
-  }
-  return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
-}
 
 function activityFromFor(preset: string) {
   if (preset === 'all') return '';
@@ -172,6 +156,13 @@ export function CustomersPage() {
     setParams(next);
   };
   const openCreate = (kind: 'municipal' | 'individual') => updateParams((next) => next.set('novo', kind));
+  const kpiHref = (filterStatus: string) => {
+    const next = new URLSearchParams(params);
+    if (filterStatus === 'all') next.delete('status');
+    else next.set('status', filterStatus);
+    next.delete('page');
+    return `/app/clientes?${next.toString()}`;
+  };
 
   const visibleItems = query.data?.items ?? [];
   const allVisibleSelected = visibleItems.length > 0 && visibleItems.every((customer) => selected.has(customer.customer_id));
@@ -219,7 +210,7 @@ export function CustomersPage() {
         totals={totals}
         activePercent={activePercent}
         activeStatus={status}
-        onSelectStatus={setStatusFilter}
+        kpiHref={kpiHref}
       />
 
       <Card className="bg-card/80 shadow-none">
@@ -242,20 +233,21 @@ export function CustomersPage() {
             </label>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {statusFilters.map((filter) => (
-                <button
+                <Button
                   key={filter.value}
-                  type="button"
+                  variant="outline"
+                  size="sm"
                   aria-pressed={status === filter.value}
                   onClick={() => setStatusFilter(filter.value)}
                   className={cn(
-                    'h-8 rounded-full border px-3 text-[11px] font-semibold transition-colors',
+                    'h-8 rounded-full px-3 text-[11px] font-semibold',
                     status === filter.value
-                      ? 'border-success bg-success-soft text-success-foreground'
-                      : 'border-border bg-card text-muted-foreground hover:bg-secondary',
+                      ? 'border-success bg-success-soft text-success-foreground hover:bg-success-soft'
+                      : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   {filter.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -264,32 +256,29 @@ export function CustomersPage() {
               <label htmlFor="clientes-filtro-uf" className="sr-only">Filtrar por UF</label>
               <BrazilStateSelect id="clientes-filtro-uf" value={uf} onValueChange={setUfFilter} includeAll />
             </div>
-            {uf ? (
+            {uf && (
               <div className="min-w-[190px]">
                 <label htmlFor="clientes-filtro-municipio" className="sr-only">Filtrar por município</label>
                 <BrazilMunicipalityPicker id="clientes-filtro-municipio" uf={uf} value={municipio} onValueChange={setMunicipioFilter} includeAll allValue="" allLabel="Todos os municípios" placeholder="Todos os municípios" />
               </div>
-            ) : (
-              <select disabled aria-label="Município (escolha a UF primeiro)" className="h-9 min-w-[190px] rounded-md border border-border bg-card px-3 text-xs text-muted-foreground">
-                <option>Escolha a UF para filtrar município</option>
-              </select>
             )}
             <div className="flex items-center gap-1.5">
               {activityPresets.map((preset) => (
-                <button
+                <Button
                   key={preset.value}
-                  type="button"
+                  variant="outline"
+                  size="sm"
                   aria-pressed={activityPreset === preset.value}
                   onClick={() => setActivityPresetFilter(preset.value)}
                   className={cn(
-                    'h-8 rounded-md border px-2.5 text-[11px] font-semibold transition-colors',
+                    'h-8 px-2.5 text-[11px] font-semibold',
                     activityPreset === preset.value
-                      ? 'border-success bg-success-soft text-success-foreground'
-                      : 'border-border bg-card text-muted-foreground hover:bg-secondary',
+                      ? 'border-success bg-success-soft text-success-foreground hover:bg-success-soft'
+                      : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   {preset.label}
-                </button>
+                </Button>
               ))}
             </div>
             {activeFilterCount > 0 && (
@@ -343,15 +332,11 @@ export function CustomersPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10 pl-6">
-                      <button
-                        type="button"
-                        onClick={toggleSelectAllVisible}
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        onCheckedChange={toggleSelectAllVisible}
                         aria-label={allVisibleSelected ? 'Desmarcar clientes da página' : 'Marcar clientes da página'}
-                        aria-pressed={allVisibleSelected}
-                        className="text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        {allVisibleSelected ? <CheckSquare className="h-4 w-4 text-success" aria-hidden="true" /> : <Square className="h-4 w-4" aria-hidden="true" />}
-                      </button>
+                      />
                     </TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Plano</TableHead>
@@ -365,25 +350,19 @@ export function CustomersPage() {
                   {visibleItems.map((customer) => (
                     <TableRow key={customer.customer_id}>
                       <TableCell className="pl-6">
-                        <button
-                          type="button"
-                          onClick={() => toggleSelect(customer.customer_id)}
+                        <Checkbox
+                          checked={selected.has(customer.customer_id)}
+                          onCheckedChange={() => toggleSelect(customer.customer_id)}
                           aria-label={`Selecionar ${customer.display_name}`}
-                          aria-pressed={selected.has(customer.customer_id)}
-                          className="text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          {selected.has(customer.customer_id)
-                            ? <CheckSquare className="h-4 w-4 text-success" aria-hidden="true" />
-                            : <Square className="h-4 w-4" aria-hidden="true" />}
-                        </button>
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <span
                             aria-hidden="true"
                             className={cn(
-                              'grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br text-[11px] font-bold text-white',
-                              avatarGradient(customer.display_name),
+                              'grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-bold',
+                              customer.kind === 'organization' ? 'bg-info-soft text-info' : 'bg-success-soft text-success',
                             )}
                           >
                             {customer.display_name.trim().charAt(0).toUpperCase()}
@@ -506,18 +485,18 @@ function CustomerOverview({
   totals,
   activePercent,
   activeStatus,
-  onSelectStatus,
+  kpiHref,
 }: {
   totals: Record<'all' | 'onboarding' | 'pilot' | 'active' | 'suspended', number>;
   activePercent: number;
   activeStatus: string;
-  onSelectStatus: (status: string) => void;
+  kpiHref: (status: string) => string;
 }) {
   const items = [
     { label: 'Total da base', value: totals.all, detail: 'dados persistidos', icon: Users, tone: 'bg-muted text-muted-foreground', filter: 'all' },
     { label: 'Em onboarding', value: totals.onboarding, detail: `${totals.pilot} em piloto`, icon: Plus, tone: 'bg-warning-soft text-warning', filter: 'onboarding' },
-    { label: 'Operação ativa', value: totals.active, detail: `${activePercent}% da base`, icon: CheckSquare, tone: 'bg-success-soft text-success', filter: 'active' },
-    { label: 'Exigem atenção', value: totals.suspended, detail: 'requer revisão', icon: Phone, tone: 'bg-destructive-soft text-destructive', filter: 'suspended' },
+    { label: 'Operação ativa', value: totals.active, detail: `${activePercent}% da base`, icon: Phone, tone: 'bg-success-soft text-success', filter: 'active' },
+    { label: 'Exigem atenção', value: totals.suspended, detail: 'requer revisão', icon: X, tone: 'bg-destructive-soft text-destructive', filter: 'suspended' },
   ];
 
   return (
@@ -526,14 +505,13 @@ function CustomerOverview({
         const Icon = item.icon;
         const isFiltering = activeStatus === item.filter;
         return (
-          <button
+          <Link
             key={item.label}
-            type="button"
-            onClick={() => onSelectStatus(item.filter)}
-            aria-pressed={isFiltering}
+            to={kpiHref(item.filter)}
+            aria-current={isFiltering ? 'true' : undefined}
             title={isFiltering ? 'Filtro aplicado — clique para manter ou trocar' : `Filtrar carteira por ${item.label.toLowerCase()}`}
             className={cn(
-              'min-w-0 rounded-2xl border bg-card p-5 text-left shadow-sm outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none hover:-translate-y-0.5 hover:shadow-md',
+              'min-w-0 rounded-2xl border bg-card p-5 shadow-sm outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none hover:-translate-y-0.5 hover:shadow-md',
               isFiltering ? 'border-success/60' : 'border-border/75 hover:border-foreground/15',
             )}
           >
@@ -543,7 +521,7 @@ function CustomerOverview({
             <p className="mt-4 text-3xl font-bold tabular-nums tracking-[-0.04em]">{item.value.toLocaleString('pt-BR')}</p>
             <p className="mt-1 text-xs font-semibold text-foreground">{item.label}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{item.detail}</p>
-          </button>
+          </Link>
         );
       })}
     </section>
