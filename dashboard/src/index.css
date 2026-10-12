@@ -21,10 +21,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 6% 9%;
 
-    /* Esmeralda como tom primário (identidade 2.0 aprovada em preview) */
-    --primary: 161 94% 30%;         /* #059669 */
+    /* Primário monocromático — contraste AA determinístico (governado por teste).
+       A identidade esmeralda 2.0 vive em success/ring/accent (camada de marca). */
+    --primary: 0 0% 9%;            /* #171717 */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 161 94% 25%;   /* #047857 */
+    --primary-hover: 0 0% 24%;
 
     /* Neutros levemente frios */
     --muted: 240 5% 96%;            /* #F4F4F5 */
@@ -95,9 +96,9 @@
       --card-foreground: 0 0% 98%;
       --popover: 240 5% 7%;
       --popover-foreground: 0 0% 98%;
-      --primary: 142 71% 45%;       /* #22C55E esmeralda */
-      --primary-foreground: 160 84% 6%;
-      --primary-hover: 142 71% 52%;
+      --primary: 0 0% 98%;
+      --primary-foreground: 0 0% 9%;
+      --primary-hover: 0 0% 88%;
       --muted: 240 4% 9%;           /* #16161A */
       --muted-foreground: 240 5% 60%;
       --secondary: 240 4% 9%;
@@ -141,9 +142,9 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 5% 7%;
     --popover-foreground: 0 0% 98%;
-    --primary: 142 71% 45%;       /* #22C55E esmeralda */
-    --primary-foreground: 160 84% 6%;
-    --primary-hover: 142 71% 52%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --primary-hover: 0 0% 88%;
     --muted: 240 4% 9%;
     --muted-foreground: 240 5% 60%;
     --secondary: 240 4% 9%;
