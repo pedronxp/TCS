@@ -30,7 +30,7 @@ O usuário rejeitou a direção anterior (dark graphite + esmeralda) com três c
 - **Fundo da tela:** `#FFFFFF` · **Fundo agrupado:** `#F2F2F7` · **Card:** `#FFFFFF` (r 16)
 - **Separador:** `rgba(60,60,67,0.29)` (hairline) · **Preenchimento de campo:** `#F2F2F7` com borda `#D6D9DE`
 - **Label:** `#000000` · **Label secundária:** `rgba(60,60,67,0.60)` · **Terciária:** `rgba(60,60,67,0.30)`
-- **Tint (ação):** `#5AC8FA` · Tint pressionado: `#3D9BE9`
+- **Tint (ação):** `#5AC8FA` · **CTA preenchido: fundo `#5AC8FA` com texto `#0A2C55` semibold** (decisão do usuário — contraste ~7:1) · Links/estados ativos sobre branco: `#3D9BE9` quando precisar de contraste · Tint pressionado: `#3D9BE9`
 - **Risco (semântico, iOS):** R1 `#34C759` · R2 `#F7CE46` · R3 `#FF9500` · R4 `#FF3B30` (fills suaves 12%)
 - **Destrutivo:** `#FF3B30` · **Info:** `#0A84FF`
 
@@ -97,9 +97,21 @@ Agrupamento no canvas: **Grupo A** (01–06 Entrada) · **Grupo B** (07–10 Pai
 4. `spawn_agents` permitido com **no máximo 1 agente por vez** (3 em paralelo derrubaram o Pen antes).
 5. Cada tela verificada contra os anti-goals antes de avançar.
 
-## 8. O que ficou para o builder (decisões menores — call do builder, marcadas)
+## 8. Resoluções do builder check (calls do builder — conferir ao ler)
 
-- Valor exato dos fills suaves de risco (12% sobre branco)
-- Altura exata do safe-area nas mocks (59px status + 34 home)
-- Ajuste fino do kerning do lettermark por tamanho (letter-spacing negativo por escala)
-- Sparkline: barras arredondadas 4px, cor do tint
+- **Escopo**: "todas as telas" = a tabela de 18 da §5 (o app tem ~40 rotas; o resto segue outro ciclo)
+- **Tab bar**: 4 abas Início/Vistorias/Avisos/Módulos (agente), com a aba correta em destaque por tela; Mapa e Perfil acessados via Módulos
+- **Sem mascote em nenhum lugar** (EmptyState v1 usava a coruja — sai tudo)
+- **Biometria (tela 02)**: feature futura — desenhada conforme spec, sem paridade com o código atual
+- **Gauge do resultado (13)**: barra horizontal segmentada estilo RiskBar (schema .pen não tem arcos)
+- **Assinatura (13)**: placeholder com fonte manuscrita Google (Caveat)
+- **Fotos/mapas (09, 12, 14)**: placeholders com gradiente + mapa esquemático com pinos
+- **Device**: 393×852 (iPhone 15 Pro) · status 59px · home 34px
+- **Fills de risco suaves**: 12% do valor cheio sobre branco
+- **Sparkline**: barras arredondadas 4px na cor do tint
+- **Kerning do lettermark**: letter-spacing negativo ajustado por escala
+- **Duas faixas de azul**: `#5AC8FA` (tint/CTA) e `#57B6F0` (aresta do logo) — cada uma no seu contexto
+
+---
+
+**Aprovação:** construir no canvas somente após ✅ do Pedro neste documento.
