@@ -43,6 +43,8 @@ for launch in 1 2; do
     echo 'APK did not render its onboarding or authentication entry screen.' >&2
     exit 1
   fi
+  # Keep observing after the first rendered frame to catch delayed startup crashes.
+  sleep 20
   adb shell pidof "$package"
   adb shell dumpsys activity activities | grep -E "mResumedActivity.*$package"
 done
