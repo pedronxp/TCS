@@ -524,7 +524,7 @@ export default function MapasScreen() {
       }
 
       // Offline: SQLite
-      const locais = profile.role === 'master_admin'
+      const locais = ['master_admin', 'owner'].includes(profile.role)
         ? getAllVistorias()
         : isAdmin
           ? getVistoriasByMunicipio(profile.municipio)
@@ -547,7 +547,7 @@ export default function MapasScreen() {
       setMarkers(offlineMarkers);
 
       // Agendamentos offline (SQLite) — master_admin vê tudo; status pendente apenas
-      const agendLocais = profile.role === 'master_admin'
+      const agendLocais = ['master_admin', 'owner'].includes(profile.role)
         ? getAllAgendamentos()
         : isAdmin
           ? getAgendamentosByMunicipio(profile.municipio ?? '')

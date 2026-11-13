@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalHome, portalRestrictionMessage } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 export function PortalAgendaPage() {
   const { access } = usePortalAuth();
@@ -33,6 +34,9 @@ export function PortalAgendaPage() {
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const agendaTimedOut = useAsyncTimeout(agenda.isLoading);
+  const inspectionsTimedOut = useAsyncTimeout(inspections.isLoading);
+  const inspectionsUnavailable = inspections.isError || inspectionsTimedOut;
 
   useEffect(() => {
     if (!access || !requestedOpen || access.creationAllowed) return;
@@ -121,13 +125,13 @@ export function PortalAgendaPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-medium" htmlFor="appointment-date">Data e hora<Input id="appointment-date" className="mt-2" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} required /></label>
                 <label className="text-sm font-medium" htmlFor="appointment-inspection">Vistoria
-                  <select id="appointment-inspection" className="mt-2 h-11 w-full rounded-md border border-border bg-card px-3 text-sm" value={inspectionId} onChange={(event) => setInspectionId(event.target.value)} disabled={inspections.isLoading || inspections.isError}>
-                    <option value="">{inspections.isLoading ? 'Carregando vistorias…' : inspections.isError ? 'Vistorias indisponíveis' : 'Sem vínculo'}</option>
+                  <select id="appointment-inspection" className="mt-2 h-11 w-full rounded-md border border-border bg-card px-3 text-sm" value={inspectionId} onChange={(event) => setInspectionId(event.target.value)} disabled={inspections.isLoading || inspectionsUnavailable}>
+                    <option value="">{inspections.isLoading && !inspectionsTimedOut ? 'Carregando vistorias…' : inspectionsUnavailable ? 'Vistorias indisponíveis' : 'Sem vínculo'}</option>
                     {inspections.data?.items.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.protocol ?? item.title ?? 'Vistoria')}</option>)}
                   </select>
                 </label>
               </div>
-              {inspections.isError && <p className="text-sm text-destructive" role="alert">Não foi possível carregar as vistorias. Você ainda pode salvar o compromisso sem vínculo. <button type="button" className="font-semibold underline underline-offset-4" onClick={() => void inspections.refetch()}>Tentar novamente</button></p>}
+              {inspectionsUnavailable && <p className="text-sm text-destructive" role="alert">Não foi possível carregar as vistorias. Você ainda pode salvar o compromisso sem vínculo. <button type="button" className="font-semibold underline underline-offset-4" onClick={() => void inspections.refetch()}>Tentar novamente</button></p>}
               <label className="text-sm font-medium" htmlFor="appointment-notes">Observações<textarea id="appointment-notes" className="mt-2 min-h-24 w-full rounded-md border border-border bg-card p-3 text-sm" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} /></label>
               <div className="flex flex-wrap gap-2"><Button disabled={submitting}>{submitting ? 'Salvando…' : 'Salvar agendamento'}</Button><Button type="button" variant="outline" onClick={() => setFormOpen(false, true)} disabled={submitting}>Cancelar</Button></div>
             </form>
@@ -138,8 +142,8 @@ export function PortalAgendaPage() {
       <Card aria-busy={agenda.isLoading}>
         <CardHeader className="border-b border-border"><CardTitle>Próximos compromissos</CardTitle></CardHeader>
         <CardContent>
-          {agenda.isLoading && <div className="space-y-3 py-2" role="status" aria-label="Carregando agenda"><span className="sr-only">Carregando agenda…</span>{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-20 motion-reduce:animate-none" />)}</div>}
-          {agenda.isError && <div className="grid min-h-56 place-items-center text-center" role="alert"><div><p className="font-semibold">Não foi possível carregar a agenda</p><p className="mt-2 text-sm text-muted-foreground">Tente novamente sem perder os dados do formulário.</p><Button className="mt-4" variant="outline" onClick={() => void agenda.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button></div></div>}
+          {agenda.isLoading && !agendaTimedOut && <div className="space-y-3 py-2" role="status" aria-label="Carregando agenda"><span className="sr-only">Carregando agenda…</span>{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-20 motion-reduce:animate-none" />)}</div>}
+          {(agenda.isError || (agenda.isLoading && agendaTimedOut)) && <div className="grid min-h-56 place-items-center text-center" role="alert"><div><p className="font-semibold">Não foi possível carregar a agenda</p><p className="mt-2 text-sm text-muted-foreground">Tente novamente sem perder os dados do formulário.</p><Button className="mt-4" variant="outline" onClick={() => void agenda.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button></div></div>}
           {agenda.data?.items.length === 0 && <div className="grid min-h-56 place-items-center text-center"><div><CalendarPlus className="mx-auto h-8 w-8 text-primary" aria-hidden="true" /><h2 className="mt-4 font-semibold">Nenhum compromisso agendado</h2><p className="mt-2 text-sm text-muted-foreground">{access.creationAllowed ? 'Crie o primeiro compromisso para organizar a próxima ação.' : 'Quando um compromisso for criado no seu escopo, ele aparecerá aqui.'}</p></div></div>}
           {agenda.data && agenda.data.items.length > 0 && (
             <ul className="divide-y divide-border">

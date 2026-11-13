@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 export function PortalSettingsPage() {
   const { access, can } = usePortalAuth();
@@ -17,6 +18,7 @@ export function PortalSettingsPage() {
     queryFn: () => fetchPortalWorkspace('configuracoes'),
     enabled: Boolean(access),
   });
+  const timedOut = useAsyncTimeout(query.isLoading);
   const [displayName, setDisplayName] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -114,8 +116,8 @@ export function PortalSettingsPage() {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Building2 />Organização</CardTitle></CardHeader>
         <CardContent>
-          {query.isLoading && <p className="text-sm text-muted-foreground">Carregando configurações…</p>}
-          {query.isError && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar as configurações.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
+          {query.isLoading && !timedOut && <p className="text-sm text-muted-foreground">Carregando configurações…</p>}
+          {(query.isError || (query.isLoading && timedOut)) && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar as configurações.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
           {item && (
             <form className="grid gap-3" onSubmit={submit}>
               <label className="text-sm font-medium">Nome de exibição

@@ -59,7 +59,7 @@ export default function EstatisticasScreen() {
         .select('id, nivelRisco, dataVistoria, agenteUid, agenteNome, municipio')
         .gte('dataVistoria', desde);
 
-      if (user.role !== 'master_admin') {
+      if (!['master_admin', 'owner'].includes(user.role)) {
         query = query.eq('municipio', user.municipio);
       }
 

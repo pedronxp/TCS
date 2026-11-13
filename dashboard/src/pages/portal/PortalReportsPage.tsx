@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { portalHome, portalRestrictionMessage } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 type PortalRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{
   data: unknown;
@@ -133,15 +134,12 @@ export function PortalReportsPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [exporting, setExporting] = useState<null | 'csv' | 'pdf'>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-  if (!access) return null;
-  const root = portalHome(access.accountKind);
-  const subscriptionBlocks = !access.creationAllowed;
-  const reportsIncluded = access.features.reports === true
-    || access.features.reports_basic === true
-    || access.features.reports_advanced === true;
+  const reportsIncluded = access?.features.reports === true
+    || access?.features.reports_basic === true
+    || access?.features.reports_advanced === true;
 
   const query = useQuery({
-    queryKey: ['portal', 'reporting', access.userId, access.accountKind, access.organizationId ?? null, access?.role ?? null, filters],
+    queryKey: ['portal', 'reporting', access?.userId, access?.accountKind, access?.organizationId ?? null, access?.role ?? null, filters],
     queryFn: async () => {
       const { data, error } = await (supabase.rpc as PortalRpc)('portal_get_reporting', {
         p_filters: toReportingRpcFilters(filters),
@@ -151,10 +149,15 @@ export function PortalReportsPage() {
     },
     enabled: reportsIncluded,
   });
+  const timedOut = useAsyncTimeout(query.isLoading);
 
   const neighborhoods = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.location ?? '')).filter(Boolean))), [query.data]);
   const teams = query.data?.teamMembers ?? [];
   const forms = useMemo(() => Array.from(new Set((query.data?.rows ?? []).map((row) => String(row.formId ?? '')).filter(Boolean))), [query.data]);
+
+  if (!access) return null;
+  const root = portalHome(access.accountKind);
+  const subscriptionBlocks = !access.creationAllowed;
 
   function updateFilter<Key extends keyof Filters>(key: Key, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -174,7 +177,7 @@ export function PortalReportsPage() {
         const quote = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
         const csv = [columns.map(quote).join(';'), ...rows.map((row) => columns.map((column) => quote(row[column])).join(';'))].join('\n');
         const suffix = suffixFromFilters(filters);
-        const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+        const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -264,7 +267,7 @@ export function PortalReportsPage() {
 
       {exportError && <p className="rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground" role="alert">{exportError}</p>}
 
-      {query.isLoading && (
+      {query.isLoading && !timedOut && (
         <Card aria-busy="true">
           <CardContent className="flex min-h-64 flex-col items-center justify-center gap-3 p-8 text-center" role="status" aria-label="Carregando relatório">
             <LoaderCircle className="h-6 w-6 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" />
@@ -273,7 +276,7 @@ export function PortalReportsPage() {
         </Card>
       )}
 
-      {query.isError && (
+      {(query.isError || (query.isLoading && timedOut)) && (
         <Card>
           <CardContent className="grid min-h-72 place-items-center p-8 text-center">
             <div>

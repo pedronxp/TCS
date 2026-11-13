@@ -21,6 +21,7 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalDashboard, portalHome } from '@/lib/portal';
 import type { PortalDashboardData } from '@/types/portal';
 import { BotServiceStatus } from '@/components/bot/BotServiceStatus';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 const metricIcons: Record<string, LucideIcon> = {
   inspections: ClipboardCheck,
@@ -63,6 +64,7 @@ export function PortalDashboardPage() {
     queryFn: fetchPortalDashboard,
     enabled: Boolean(access),
   });
+  const timedOut = useAsyncTimeout(query.isLoading && !query.data);
   if (!access) return null;
   const root = portalHome(access.accountKind);
   const permissions = new Set(access.permissions);
@@ -99,7 +101,9 @@ export function PortalDashboardPage() {
 
       <PortalOnboardingChecklist />
 
-      {query.isLoading && !query.data && <DashboardSkeleton metricCount={expectedMetrics} />}
+      {query.isLoading && !query.data && (timedOut
+        ? <DashboardError onRetry={() => void query.refetch()} retrying={query.isFetching} />
+        : <DashboardSkeleton metricCount={expectedMetrics} />)}
       {query.isError && !query.data && <DashboardError onRetry={() => void query.refetch()} retrying={query.isFetching} />}
       {query.isError && query.data && <DashboardRefreshWarning onRetry={() => void query.refetch()} retrying={query.isFetching} />}
       {query.data && (

@@ -95,7 +95,9 @@ export default function RelatoriosScreen() {
         .order('dataVistoria', { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1);
 
-      if (profile?.role !== 'master_admin' && profile?.municipio) {
+      if (profile?.role === 'agent') {
+        query = query.eq('agenteUid', profile.uid);
+      } else if (profile && !['master_admin', 'owner'].includes(profile.role) && profile.municipio) {
         query = query.eq('municipio', profile.municipio);
       }
 
@@ -162,7 +164,7 @@ export default function RelatoriosScreen() {
         <AppHeader title="Relatórios técnicos" subtitle={`${filtradas.length} ${filtradas.length === 1 ? 'vistoria' : 'vistorias'}`} onBack={() => router.back()} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll} contentContainerStyle={styles.statsBar}>
         {[
           { label: 'Total', value: stats.total, tone: 'primary' as const },
           { label: 'Crítico', value: stats.r4, tone: 'danger' as const },
@@ -186,7 +188,7 @@ export default function RelatoriosScreen() {
             placeholderTextColor={theme.textSecondary}
           />
         </View>
-        {profile?.role === 'master_admin' && (
+        {profile && ['master_admin', 'owner'].includes(profile.role) && (
           <View style={[styles.searchBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Feather name="map" size={15} color={theme.textSecondary} />
             <TextInput
@@ -238,9 +240,9 @@ export default function RelatoriosScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => carregar(true)} tintColor={theme.primary} />}
         renderItem={({ item }) => <VistoriaCard item={item} theme={theme} />}
-        ListEmptyComponent={
+        ListEmptyComponent={() => (
           <EmptyState icon="file-text" title="Nenhuma vistoria" description="Ajuste período, risco ou busca para consultar outros relatórios." />
-        }
+        )}
         ListFooterComponent={hasMore ? (
           <TouchableOpacity
             style={[styles.loadMore, { borderColor: theme.border }]}
@@ -251,7 +253,7 @@ export default function RelatoriosScreen() {
               ? <ActivityIndicator size="small" color={theme.primary} />
               : <Text style={[styles.loadMoreText, { color: theme.primary }]}>Carregar mais</Text>}
           </TouchableOpacity>
-        ) : null}
+        ) : undefined}
         removeClippedSubviews
         maxToRenderPerBatch={15}
         windowSize={10}
@@ -263,6 +265,7 @@ export default function RelatoriosScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  statsScroll: { flexGrow: 0, flexShrink: 0 },
   statsBar: { gap: 10, paddingVertical: 12, paddingHorizontal: 16 },
   metricCard: { width: 112 },
   searchRow: { padding: 12, borderBottomWidth: 1 },

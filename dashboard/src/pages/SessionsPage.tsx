@@ -184,6 +184,7 @@ export function SessionsPage() {
               className="rounded-xl border-border/80 shrink-0"
               onClick={() => void query.refetch()}
               title="Atualizar sessões"
+              aria-label="Atualizar sessões"
             >
               <RefreshCw className={cn("h-4 w-4 text-muted-foreground", query.isFetching && "animate-spin text-primary")} />
             </Button>

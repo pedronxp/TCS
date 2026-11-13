@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  Alert, KeyboardAvoidingView, Platform, Image
+  Alert, Keyboard, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,7 +21,11 @@ import { logger } from '../../../utils/logger';
 import { generateUUID } from '../../../utils/uuid';
 import { safeBack } from '../../../utils/navigationUtils';
 import { normalizeCoordinatePair } from '../../../utils/coordinateUtils';
-import { compressAndPersistImage } from '../../../utils/imageCompression';
+import { capturarFotoGeorreferenciada } from '../../../services/georeferencedPhotoService';
+import { InspectionPhotoGallery } from '../../../components/InspectionPhotoGallery';
+import { changePhotoAnswer, collectInspectionPhotos, createCaptureGate, decodePhotoAnswer, encodePhotoAnswer, MAX_INSPECTION_PHOTOS } from '../../../utils/inspectionPhotos';
+import { stripLocalMediaReferences } from '../../../utils/inspectionMedia';
+import { finishInspectionMedia, prepareInspectionMedia } from '../../../services/InspectionMediaService';
 import { subscriptionLimitSyncMessage } from '../../../utils/subscriptionSync';
 import { WizardParams } from '../../../types/vistoria';
 import {
@@ -138,17 +142,21 @@ export default function WizardAvaliacaoScreen() {
   const { session: trainingSession, trainingProfile, isTrainingActive, isExpired, exit, revalidate } = useTraining();
   const activeProfile = trainingProfile || profile;
   const formalTrainingMode = isTrainingActive && !!trainingProfile;
-  const isolatedMode = formalTrainingMode;
+  const testMode = params.teste === '1' && ['owner', 'support', 'developer'].includes(profile?.role ?? '');
+  const isolatedMode = formalTrainingMode || testMode;
 
   const [perguntas, setPerguntas] = useState<PerguntaModel[]>([]);
   const [step, setStep] = useState(0); // índice da pergunta atual
   const [respostas, setRespostas] = useState<Respostas>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const finalizacaoEmAndamento = useRef(false);
+  const [capturandoFoto, setCapturandoFoto] = useState(false);
+  const capturaEmAndamento = useRef(createCaptureGate()).current;
   const [limites, setLimites] = useState<LimiteRisco[]>([]);
   const [tipoCalculo, setTipoCalculo] = useState<string>('soma_total');
   const [faseConfigs, setFaseConfigs] = useState<{id: string; peso: number}[]>([]);
-  const draftKey = `@draft_wizard_${params.formularioId}_v${params.formularioVersao || '1'}`;
+  const draftKey = `@draft_wizard_${testMode ? 'test_' + profile?.uid + '_' : ''}${params.formularioId}_v${params.formularioVersao || '1'}`;
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const riscoAnim = useRef(new Animated.Value(0)).current;
 
@@ -289,6 +297,7 @@ export default function WizardAvaliacaoScreen() {
       respostas: respostasAtivas,
       limites,
       formularioId: params.formularioId,
+      formularioSystemCode: params.formularioSystemCode || undefined,
       formularioVersao: parseInt(params.formularioVersao || '1') || 1,
       tipoCalculo,
     }).pontuacaoTotal;
@@ -361,6 +370,7 @@ export default function WizardAvaliacaoScreen() {
     versaoRegra: 'ponderada_max_elemento_legacy',
     escala: { min: 0, max: 10 },
     formularioId: params.formularioId,
+    formularioSystemCode: params.formularioSystemCode || undefined,
     formularioVersao: parseInt(params.formularioVersao || '1') || 1,
     tipoCalculo,
     pontuacaoTotal: pontuacao,
@@ -420,6 +430,7 @@ export default function WizardAvaliacaoScreen() {
       respostas: respostasBase,
       limites,
       formularioId: params.formularioId,
+      formularioSystemCode: params.formularioSystemCode || undefined,
       formularioVersao: parseInt(params.formularioVersao || '1') || 1,
       tipoCalculo,
     });
@@ -459,23 +470,38 @@ export default function WizardAvaliacaoScreen() {
     }).start();
   }, [riscoAtual]);
 
-  const tirarFoto = async (perguntaId: string) => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão negada', 'É necessário permitir o acesso à câmera para tirar fotos.');
+  const tirarFoto = async (perguntaId: string, replaceIndex?: number) => {
+    const todasFotos = collectInspectionPhotos(perguntas.filter(p => p.tipo === 'foto').map(p => respostas[p.id]));
+    if (replaceIndex === undefined && todasFotos.length >= MAX_INSPECTION_PHOTOS) {
+      Alert.alert('Limite atingido', `Máximo de ${MAX_INSPECTION_PHOTOS} fotos por vistoria.`);
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const fotoPersistente = await compressAndPersistImage(result.assets[0].uri, {
+    if (!capturaEmAndamento.enter()) return;
+    setCapturandoFoto(true);
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissão negada', 'É necessário permitir o acesso à câmera para tirar fotos.');
+        return;
+      }
+      const resultado = await capturarFotoGeorreferenciada({
         directoryName: 'fotos',
         filePrefix: 'vistoria',
       });
-      setResposta(perguntaId, fotoPersistente);
+      if (resultado.cancelado || !resultado.foto) return;
+      const outrasFotos = collectInspectionPhotos(perguntas.filter(p => p.tipo === 'foto' && p.id !== perguntaId).map(p => respostas[p.id]));
+      const novasFotos = changePhotoAnswer(decodePhotoAnswer(respostas[perguntaId]), resultado.foto.uri, replaceIndex, outrasFotos);
+      setResposta(perguntaId, encodePhotoAnswer(novasFotos));
+      if (resultado.foto.avisoCarimbo) {
+        Alert.alert('Foto salva sem carimbo visual', resultado.foto.avisoCarimbo);
+      } else if (resultado.foto.semGeorreferencia) {
+        Alert.alert('Foto sem localização', 'A foto foi salva com o aviso de localização indisponível. Verifique o GPS e a permissão de localização para tentar novamente.');
+      }
+    } catch {
+      Alert.alert('Não foi possível registrar a foto', 'Tente novamente.');
+    } finally {
+      capturaEmAndamento.release();
+      setCapturandoFoto(false);
     }
   };
 
@@ -506,16 +532,17 @@ export default function WizardAvaliacaoScreen() {
       return;
     }
 
-    if (!isolatedMode && activeProfile?.uid) {
-      const { allowed, message } = await checkRateLimit('criar_vistoria');
-      if (!allowed) {
-        Alert.alert('Limite atingido', message || 'Muitas vistorias criadas hoje. Aguarde para continuar.');
-        return;
-      }
-    }
-
+    if (finalizacaoEmAndamento.current) return;
+    finalizacaoEmAndamento.current = true;
     setSalvando(true);
     try {
+      if (!isolatedMode && activeProfile?.uid) {
+        const { allowed, message, reason } = await checkRateLimit('criar_vistoria', { offline: !isConnected });
+        if (!allowed) {
+          Alert.alert(reason === 'unavailable' ? 'Verificação indisponível' : 'Limite atingido', message || 'Muitas vistorias criadas hoje. Aguarde para continuar.');
+          return;
+        }
+      }
       if (!activeProfile?.uid) throw new Error('Perfil não carregado — tente novamente.');
 
       const { nivel, pontuacao, calculo } = calcularNivelRisco(perguntasVisiveis, respostasVisiveis);
@@ -526,10 +553,10 @@ export default function WizardAvaliacaoScreen() {
 
       // A primeira foto é a miniatura principal; as demais seguem na fila genérica
       // de evidências para persistência e upload offline-first.
-      const fotosRespondidas = perguntas
+      const fotosRespondidas = collectInspectionPhotos(perguntas
         .filter(p => p.tipo === 'foto')
-        .map(p => respostasVisiveis[p.id])
-        .filter((uri): uri is string => Boolean(uri));
+        .map(p => respostasVisiveis[p.id]));
+      if (fotosRespondidas.length > MAX_INSPECTION_PHOTOS) throw new Error(`Máximo de ${MAX_INSPECTION_PHOTOS} fotos por vistoria. Remova as fotos excedentes antes de concluir.`);
       const fotoUri = fotosRespondidas[0] || null;
       const fotosAdicionais = fotosRespondidas.slice(1);
 
@@ -597,6 +624,7 @@ export default function WizardAvaliacaoScreen() {
         // Primeiro cria a vistoria e aloca o protocolo. A autorização de upload
         // só existe depois disso; tentar subir a foto antes fazia o Storage negar
         // a mídia e o protocolo acabava salvo sem as evidências.
+        const mediaManifest = await prepareInspectionMedia(vistoriaLocal);
         const { data, error } = await supabase.rpc('sync_finalized_inspection', { p_inspection: {
           id,
           agenteUid: vistoriaLocal.agente_uid,
@@ -613,13 +641,14 @@ export default function WizardAvaliacaoScreen() {
           dataVistoria: vistoriaLocal.data_vistoria,
           formularioId: vistoriaLocal.formulario_id,
           formularioVersao: vistoriaLocal.formulario_versao,
-          respostasJson: vistoriaLocal.respostas_json,
+          respostasJson: JSON.stringify(stripLocalMediaReferences(JSON.parse(vistoriaLocal.respostas_json))),
           calculoRisco: calculo,
           nivelRisco: nivel,
           pontuacaoTotal: pontuacao,
           endereco: `${params.rua}, ${params.numero} - ${params.bairro}`,
           fotoUrl: null,
           fotosUrls: [],
+          media_manifest: mediaManifest,
           status: 'concluida',
         }});
         if (!error) {
@@ -649,10 +678,12 @@ export default function WizardAvaliacaoScreen() {
               }
             }
             if (imagensRemotas.length === imagensLocais.length) {
+              const finishedManifest = await finishInspectionMedia({ ...vistoriaLocal, foto_url: imagensRemotas[0] ?? null, fotos_urls: JSON.stringify(imagensRemotas.slice(1)) }, mediaManifest);
               const { error: mediaError } = await supabase.rpc('update_inspection_media', {
                 p_inspection_id: id,
                 p_primary_photo: imagensRemotas[0] ?? null,
                 p_extra_photos: imagensRemotas.slice(1),
+                p_media_manifest: finishedManifest,
               });
               if (!mediaError) {
                 updateVistoriaMedia(id, imagensRemotas[0] ?? null, imagensRemotas.slice(1));
@@ -661,6 +692,16 @@ export default function WizardAvaliacaoScreen() {
                 markErroSync(id, subscriptionLimitSyncMessage(mediaError));
               }
             } else {
+              // Keep successful uploads locally so a retry sends only missing files.
+              // The original order is preserved, including any still-local slots.
+              const mixedMedia = imagensLocais.map((uri, index) => imagensRemotas[index] ?? uri);
+              updateVistoriaMedia(id, mixedMedia[0] ?? null, mixedMedia.slice(1));
+              const partialManifest = await finishInspectionMedia({ ...vistoriaLocal, foto_url: mixedMedia[0] ?? null, fotos_urls: JSON.stringify(mixedMedia.slice(1)) }, mediaManifest);
+              if (imagensRemotas.length > 0) {
+                await supabase.rpc('update_inspection_media', {
+                  p_inspection_id: id, p_primary_photo: imagensRemotas[0], p_extra_photos: imagensRemotas.slice(1), p_media_manifest: partialManifest,
+                });
+              }
               markErroSync(id, 'Dados enviados; mídia local pendente de upload.');
             }
           }
@@ -695,12 +736,13 @@ export default function WizardAvaliacaoScreen() {
 
       router.replace({
         pathname: '/(panel)/inspecoes/resultado',
-        params: { id, formularioId: params.formularioId, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isolatedMode || !isConnected ? '1' : '0', municipio: vistoriaLocal.municipio, treinamento: formalTrainingMode ? '1' : '0' }
+        params: { id, formularioId: params.formularioId, nivelRisco: nivel, pontuacao: pontuacao.toString(), offline: isolatedMode || !isConnected ? '1' : '0', municipio: vistoriaLocal.municipio, treinamento: formalTrainingMode ? '1' : '0', teste: testMode ? '1' : '0' }
       });
     } catch (e: any) {
       logger.error('vistoria', 'Erro crítico ao salvar vistoria', { erro: e.message });
       Alert.alert('Erro ao salvar', 'Não foi possível salvar a vistoria. Tente novamente.');
     } finally {
+      finalizacaoEmAndamento.current = false;
       setSalvando(false);
     }
   };
@@ -714,6 +756,7 @@ export default function WizardAvaliacaoScreen() {
       Alert.alert('Revise a resposta', erroValidacaoPergunta(perguntaAtual, resposta) || 'Responda esta pergunta para continuar.');
       return;
     }
+    Keyboard.dismiss();
     if (safeStep < totalPerguntas - 1) setStep(safeStep + 1);
     else finalizar();
   };
@@ -730,7 +773,7 @@ export default function WizardAvaliacaoScreen() {
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <AppHeader
         title={params.formularioTitulo || 'Avaliação técnica'}
-        subtitle="Coleta de campo"
+        subtitle={testMode ? "Vistoria de teste · somente neste aparelho" : "Coleta de campo"}
         onBack={() => safeStep > 0 ? setStep(safeStep - 1) : safeBack(formalTrainingMode ? '/(panel)/treinamento' : '/(panel)/inspecoes/selecao-formulario')}
         style={{ paddingTop: insets.top + Spacing[2], minHeight: insets.top + 72 }}
       />
@@ -886,23 +929,18 @@ export default function WizardAvaliacaoScreen() {
             {/* FOTO */}
             {perguntaAtual.tipo === 'foto' && (
               <View>
-                {resposta ? (
-                  <TouchableOpacity onPress={() => tirarFoto(perguntaAtual.id)} style={styles.fotoPreviewWrap}>
-                    <Image source={{ uri: resposta }} style={styles.fotoPreview} resizeMode="cover" />
-                    <View style={styles.fotoOverlay}>
-                      <Feather name="camera" size={18} color="#FFF" />
-                      <Text style={styles.fotoOverlayText}>Trocar foto</Text>
-                    </View>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.fotoButton, { backgroundColor: theme.surfaceHighlight, borderColor: theme.primary }]}
-                    onPress={() => tirarFoto(perguntaAtual.id)}
-                  >
-                    <Feather name="camera" size={32} color={theme.primary} />
-                    <Text style={[styles.fotoButtonText, { color: theme.primary }]}>Tirar Foto</Text>
-                  </TouchableOpacity>
-                )}
+                {capturandoFoto && <Text accessibilityLiveRegion="polite" style={{ color: theme.textSecondary, marginBottom: 8 }}>Preparando foto e localização…</Text>}
+                <InspectionPhotoGallery
+                  photos={decodePhotoAnswer(resposta).map((uri, index) => ({ id: String(index), uri }))}
+                  totalCount={collectInspectionPhotos(perguntas.filter(p => p.tipo === 'foto').map(p => respostas[p.id])).length}
+                  busy={capturandoFoto || salvando}
+                  onAdd={() => void tirarFoto(perguntaAtual.id)}
+                  onReplace={index => void tirarFoto(perguntaAtual.id, Number(index))}
+                  onRemove={index => Alert.alert('Remover foto?', 'A foto será removida desta vistoria.', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Remover', style: 'destructive', onPress: () => setResposta(perguntaAtual.id, encodePhotoAnswer(decodePhotoAnswer(resposta).filter((_, i) => i !== Number(index)))) },
+                  ])}
+                />
               </View>
             )}
           </>
@@ -945,7 +983,7 @@ export default function WizardAvaliacaoScreen() {
             <Button
               label="Voltar"
               variant="ghost"
-              onPress={() => setStep(Math.max(0, safeStep - 1))}
+              onPress={() => { Keyboard.dismiss(); setStep(Math.max(0, safeStep - 1)); }}
               style={styles.backAction}
             />
           )}
@@ -953,6 +991,7 @@ export default function WizardAvaliacaoScreen() {
             label={safeStep < totalPerguntas - 1 ? 'Próxima pergunta' : 'Finalizar vistoria'}
             onPress={avancar}
             loading={salvando}
+            disabled={capturandoFoto}
             iconRight={<Feather name={safeStep < totalPerguntas - 1 ? 'arrow-right' : 'check'} size={18} color={theme.onPrimary} />}
             style={{ ...styles.nextAction, flex: step > 0 ? 2 : 1 }}
           />
@@ -999,8 +1038,8 @@ const styles = StyleSheet.create({
   fotoButton: { height: 160, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 12 },
   fotoButtonText: { fontSize: 15, fontWeight: '600' },
   fotoPreviewWrap: { borderRadius: 14, overflow: 'hidden', position: 'relative' },
-  fotoPreview: { width: '100%', height: 220, borderRadius: 14 },
-  fotoOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingVertical: 12 },
+  fotoPreview: { width: '100%', height: 300, borderRadius: 14, backgroundColor: '#171717' },
+  fotoOverlay: { position: 'absolute', top: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, padding: 8 },
   fotoOverlayText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
   footer: { padding: Spacing[4], borderTopWidth: 1 },
   footerActions: { flexDirection: 'row', gap: Spacing[2] },

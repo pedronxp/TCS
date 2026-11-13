@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalHome } from '@/lib/portal';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 const moduleCopy: Record<string, { title: string; description: string; action?: string; eyebrow: string }> = {
   vistorias: { title: 'Vistorias', description: 'Consulte os registros técnicos autorizados para o seu escopo.', action: 'Novo agendamento', eyebrow: 'Operação' },
@@ -55,6 +56,15 @@ export function PortalModulePage({ section }: { section: string }) {
     return matchesSearch && matchesStatus;
   });
   const isSummaryOnly = section === 'relatorios';
+  const timedOut = useAsyncTimeout(query.isLoading);
+  const moduleError = (
+    <ModuleState
+      kind="error"
+      title="Não foi possível carregar este módulo"
+      description="Nenhum dado foi estimado ou substituído."
+      action={<Button variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>}
+    />
+  );
 
   function updateFilter(key: 'busca' | 'status', value: string) {
     setSearchParams((current) => {
@@ -150,8 +160,8 @@ export function PortalModulePage({ section }: { section: string }) {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {query.isLoading && <ModuleSkeleton />}
-              {query.isError && <ModuleState kind="error" title="Não foi possível carregar este módulo" description="Nenhum dado foi estimado ou substituído." action={<Button variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>} />}
+              {query.isLoading && (timedOut ? moduleError : <ModuleSkeleton />)}
+              {query.isError && moduleError}
               {query.data && isSummaryOnly && (
                 <ModuleState
                   title={Object.keys(query.data.summary).length > 0 ? 'Relatório pronto para exportação' : 'Nenhum indicador disponível'}

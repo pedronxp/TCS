@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCheck, CircleAlert, Filter, MessageSquareText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AsyncBoundary } from '@/components/states/AsyncBoundary';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -74,22 +75,22 @@ export function InboxPage({ workspace }: { workspace: InboxWorkspace }) {
       <Card>
         <CardHeader><CardTitle>Atividade recente</CardTitle></CardHeader>
         <CardContent className="divide-y p-0">
-          {query.isLoading && <p className="p-6 text-sm text-muted-foreground">Carregando mensagens…</p>}
-          {query.isError && <div className="flex items-center justify-between gap-4 p-6"><p className="text-sm text-destructive">Não foi possível carregar sua caixa.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
-          {!query.isLoading && !query.isError && items.length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhuma mensagem neste filtro.</p>}
-          {items.map((item) => (
-            <button key={item.id} type="button" onClick={() => void openItem(item)} className={cn('flex w-full gap-4 p-5 text-left outline-none hover:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', !item.readAt && 'bg-primary/[0.035]')}>
-              <span className={cn('mt-2 h-2.5 w-2.5 shrink-0 rounded-full', item.readAt ? 'bg-muted' : item.severity === 'critical' || item.severity === 'error' ? 'bg-destructive' : item.severity === 'warning' ? 'bg-warning' : 'bg-primary')} />
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold">{item.title}</span>
-                  <Badge variant="outline">{moduleLabel(item.moduleKey)}</Badge>
+          <AsyncBoundary loading={query.isLoading} error={query.error} onRetry={() => void query.refetch()} loadingLabel="Carregando mensagens…">
+            {items.length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhuma mensagem neste filtro.</p>}
+            {items.map((item) => (
+              <button key={item.id} type="button" onClick={() => void openItem(item)} className={cn('flex w-full gap-4 p-5 text-left outline-none hover:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', !item.readAt && 'bg-primary/[0.035]')}>
+                <span className={cn('mt-2 h-2.5 w-2.5 shrink-0 rounded-full', item.readAt ? 'bg-muted' : item.severity === 'critical' || item.severity === 'error' ? 'bg-destructive' : item.severity === 'warning' ? 'bg-warning' : 'bg-primary')} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{item.title}</span>
+                    <Badge variant="outline">{moduleLabel(item.moduleKey)}</Badge>
+                  </span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{item.body}</span>
+                  <span className="mt-2 block text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString('pt-BR')}</span>
                 </span>
-                <span className="mt-1 block text-sm text-muted-foreground">{item.body}</span>
-                <span className="mt-2 block text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString('pt-BR')}</span>
-              </span>
-            </button>
-          ))}
+              </button>
+            ))}
+          </AsyncBoundary>
         </CardContent>
       </Card>
     </div>

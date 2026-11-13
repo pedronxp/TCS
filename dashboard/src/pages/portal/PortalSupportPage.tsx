@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 type PortalRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{
   data: unknown;
@@ -38,6 +39,7 @@ export function PortalSupportPage() {
     queryFn: () => fetchPortalWorkspace('suporte'),
     enabled: Boolean(access),
   });
+  const timedOut = useAsyncTimeout(query.isLoading);
   const [open, setOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [subject, setSubject] = useState('');
@@ -107,8 +109,8 @@ export function PortalSupportPage() {
       <Card>
         <CardHeader><CardTitle>Chamados</CardTitle>{query.data && <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-sm"><SupportMetric label="Total" value={query.data.summary.total} /><SupportMetric label="Em aberto" value={query.data.summary.open} /></div>}</CardHeader>
         <CardContent>
-          {query.isLoading && <p className="text-sm text-muted-foreground">Carregando chamados…</p>}
-          {query.isError && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar os chamados.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
+          {query.isLoading && !timedOut && <p className="text-sm text-muted-foreground">Carregando chamados…</p>}
+          {(query.isError || (query.isLoading && timedOut)) && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar os chamados.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
           <ul className="divide-y">
             {query.data?.items.map((item) => {
               const ticket = item as SupportTicket;
@@ -185,6 +187,7 @@ function PublicResponseTimeline({ ticketId }: { ticketId: string }) {
     },
     retry: 0,
   });
+  const timelineTimedOut = useAsyncTimeout(query.isLoading);
 
   return (
     <div className="rounded-lg border p-4" aria-label="Respostas do suporte">
@@ -192,11 +195,11 @@ function PublicResponseTimeline({ ticketId }: { ticketId: string }) {
         <MessageCircle className="h-4 w-4" aria-hidden="true" />Respostas do suporte
       </p>
 
-      {query.isLoading && (
+      {query.isLoading && !timelineTimedOut && (
         <p className="mt-3 text-sm text-muted-foreground" role="status">Carregando respostas…</p>
       )}
 
-      {query.isError && (
+      {(query.isError || (query.isLoading && timelineTimedOut)) && (
         <div className="mt-3 space-y-3" role="alert">
           <div className="flex items-start gap-3 rounded-md border border-warning/30 bg-warning-soft p-3 text-sm text-foreground">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />

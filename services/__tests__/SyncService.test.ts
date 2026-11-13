@@ -103,7 +103,7 @@ let mockSyncPendingDocumentAcknowledgements: jest.Mock;
 
 // ─── Import do módulo em teste (uma única vez) ────────────────────────────────
 
-import { syncPendentes, cancelAutoRetry } from '../SyncService';
+import { syncPendentes, forceSyncAll, cancelAutoRetry } from '../SyncService';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -163,6 +163,7 @@ const makeAgendamento = (overrides: Partial<any> = {}) => ({
 beforeEach(() => {
   // Obter referências ao mock do supabase a cada teste
   mockSupabase = jest.requireMock('../../utils/supabase').supabase;
+  mockSupabase.auth = { getSession: jest.fn().mockResolvedValue({ data: { session: { user: { id: 'uid-1' } } }, error: null }) };
   mockUpsertFn = jest.fn().mockResolvedValue({ error: null });
   mockFromFn = jest.fn(() => ({ upsert: mockUpsertFn }));
   mockSupabase.from = mockFromFn;
@@ -223,6 +224,43 @@ afterEach(() => {
 // ─── Suite principal ──────────────────────────────────────────────────────────
 
 describe('syncPendentes', () => {
+  it('manual retry renews exhausted attempts without deleting the local inspection', async () => {
+    const exhausted = makeVistoria({ tentativas_sync: 5, erro_sync: 'network error' });
+    const runSync = jest.fn((sql: string) => {
+      if (sql.includes('UPDATE vistorias_offline')) exhausted.tentativas_sync = 0;
+    });
+    const getDb = jest.requireMock('../../utils/database').getDb as jest.Mock;
+    getDb.mockReturnValueOnce({ runSync }).mockReturnValueOnce({ runSync });
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([exhausted]);
+    expect(await forceSyncAll()).toEqual({ sucesso: 1, falha: 0 });
+    expect(runSync).toHaveBeenCalledWith(expect.stringContaining('SET tentativas_sync = 0'), ['uid-1']);
+    expect(runSync).toHaveBeenCalledWith(expect.stringContaining('AND agente_uid = ?'), ['uid-1']);
+    expect(runSync).toHaveBeenCalledWith(expect.stringContaining('AND created_by = ?'), ['uid-1']);
+    expect(runSync.mock.calls.every(([sql]) => !/DELETE|DROP/.test(sql))).toBe(true);
+    expect(mockMarkSincronizado).toHaveBeenCalledWith(exhausted.id);
+  });
+  it('sends only the current actor inspections and preserves the other actor attempts', async () => {
+    mockGetVistoriasNaoSincronizadas.mockReturnValue([
+      makeVistoria({ id: 'other', agente_uid: 'uid-2', tentativas_sync: 5, erro_sync: 'Could not find calculoRisco schema cache' }),
+      makeVistoria(),
+    ]);
+    expect(await syncPendentes()).toEqual({ sucesso: 1, falha: 0 });
+    expect(mockMarkSincronizado).toHaveBeenCalledWith('v-1');
+    expect(mockResetTentativas).not.toHaveBeenCalledWith('other');
+    expect(mockUpsertFn.mock.calls.every(([payload]) => payload.agenteUid === 'uid-1')).toBe(true);
+  });
+  it('does not read, reset or write queues without an authenticated actor', async () => {
+    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+    const getDb = jest.requireMock('../../utils/database').getDb as jest.Mock;
+    const runSync = jest.fn();
+    getDb.mockReturnValue({ runSync });
+    expect(await syncPendentes()).toEqual({ sucesso: 0, falha: 0 });
+    expect(await forceSyncAll()).toEqual({ sucesso: 0, falha: 0 });
+    expect(mockGetVistoriasNaoSincronizadas).not.toHaveBeenCalled();
+    expect(runSync.mock.calls.filter(([sql]) => /vistorias_offline|document_ack_events_local/.test(sql))).toEqual([]);
+    getDb.mockImplementation(() => ({ runSync: jest.fn() }));
+    expect(mockRpcFn).not.toHaveBeenCalled();
+  });
 
   // ── Critério 1: sem internet real, NÃO consome fila ────────────────────────
 
@@ -278,6 +316,8 @@ describe('syncPendentes', () => {
       const payload = Array.isArray(call[0]) ? call[0][0] : call[0];
       if (!payload) continue;
       expect(payload.fotoUrl).toBeNull();
+      expect(payload.media_manifest).toMatchObject({ version: 1, expected: 1, available: 0 });
+      expect(JSON.stringify(payload.media_manifest)).not.toContain('file:');
     }
   });
 
@@ -413,13 +453,13 @@ describe('syncPendentes', () => {
     expect(mockMarkSincronizado).toHaveBeenCalledWith('v-1');
   });
 
-  it('ignora vistorias com tentativas esgotadas (≥5)', async () => {
+  it('informa falha em vez de falso sucesso para vistorias com tentativas esgotadas (≥5)', async () => {
     mockGetVistoriasNaoSincronizadas.mockReturnValue([
       makeVistoria({ tentativas_sync: 5 }),
     ]);
     const resultado = await syncPendentes();
     expect(resultado.sucesso).toBe(0);
-    expect(resultado.falha).toBe(0);
+    expect(resultado.falha).toBe(1);
     expect(mockMarkSincronizado).not.toHaveBeenCalled();
   });
 
@@ -597,7 +637,7 @@ describe('syncPendentes', () => {
     ]);
     const resultado = await syncPendentes();
 
-    expect(resultado).toEqual({ sucesso: 0, falha: 0 });
+    expect(resultado).toEqual({ sucesso: 0, falha: 1 });
     expect(mockIncrementTentativas).not.toHaveBeenCalled();
     expect(mockMarkErroSync).not.toHaveBeenCalled();
   });

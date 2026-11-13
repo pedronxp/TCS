@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalRestrictionMessage } from '@/lib/portal';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 export function PortalTeamPage() {
   const { access, can } = usePortalAuth();
@@ -27,6 +28,7 @@ export function PortalTeamPage() {
       return !term || [item.title, item.subtitle, item.status].some((value) => String(value ?? '').toLocaleLowerCase('pt-BR').includes(term));
     });
   }, [query.data?.items, role, search, status]);
+  const timedOut = useAsyncTimeout(query.isLoading);
 
   return (
     <div className="page-stack mx-auto max-w-[1050px]">
@@ -38,8 +40,8 @@ export function PortalTeamPage() {
         <label><span className="sr-only">Filtrar por situação</span><select className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">Todas as situações</option><option value="active">Ativos</option><option value="invited">Convidados</option><option value="suspended">Suspensos</option><option value="removed">Removidos</option></select></label>
       </CardContent></Card>
       <Card><CardHeader className="flex-row items-center justify-between"><CardTitle>Pessoas da organização</CardTitle><Badge variant="outline">{items.length} resultado{items.length === 1 ? '' : 's'}</Badge></CardHeader><CardContent>
-        {query.isLoading && <p className="text-sm text-muted-foreground">Carregando equipe…</p>}
-        {query.isError && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar a equipe.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
+        {query.isLoading && !timedOut && <p className="text-sm text-muted-foreground">Carregando equipe…</p>}
+        {(query.isError || (query.isLoading && timedOut)) && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar a equipe.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}
         <ul className="divide-y">{items.map((item) => <li key={String(item.id)} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="truncate text-sm font-semibold">{String(item.title)}</p><div className="mt-1.5 flex flex-wrap gap-1.5"><Badge variant="outline">{roleLabel(String(item.subtitle))}</Badge><Badge>{statusLabel(String(item.status))}</Badge></div></div><Button asChild variant="outline" size="sm"><Link to={`/portal/municipal/equipe/${String(item.id)}`}><UserCog />{mayManage && String(item.user_id) !== access?.userId ? 'Gerenciar' : 'Visualizar'}</Link></Button></li>)}</ul>
         {!query.isLoading && items.length === 0 && <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhuma pessoa corresponde aos filtros.</p>}
       </CardContent></Card>

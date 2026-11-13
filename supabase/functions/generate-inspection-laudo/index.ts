@@ -17,6 +17,8 @@ import {
   PDF_RISK_COLORS,
 } from '../_shared/pdfDesignSystem.ts';
 import { DEFESA_CIVIL_LOGO_BASE64 } from '../_shared/defesaCivilLogo.ts';
+import { formatGeoForDocument, readExifGeo } from '../_shared/exifGps.ts';
+import { canonicalInspectionSnapshot, inspectionPhotoSources, resolveInspectionIssuance } from '../_shared/inspectionIssuance.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -36,6 +38,14 @@ interface GenerationRequest {
   inspection_id?: unknown;
   customer_id?: unknown;
   force?: unknown;
+  document_id?: unknown;
+  issuance_status?: unknown;
+  notes?: unknown;
+  requester_name?: unknown;
+  technical_signature_strokes?: unknown;
+  media_waiver_reason?: unknown;
+  base_legal?: unknown;
+  technical_role?: unknown;
 }
 
 interface GenerationAuthorization {
@@ -160,6 +170,34 @@ function formatPdfNumber(value: unknown): string {
     minimumFractionDigits: Number.isInteger(number) ? 0 : 1,
     maximumFractionDigits: 2,
   });
+}
+
+/**
+ * Linhas de proveniência de uma foto, lidas do próprio arquivo.
+ *
+ * Sem convênio com o órgão municipal, o registro precisa se sustentar sozinho:
+ * as coordenadas, o instante e o hash impressos aqui saem do JPEG, e podem ser
+ * conferidos por qualquer auditor com `exiftool` e `sha256sum`, sem depender
+ * do TCS ou do banco de dados.
+ */
+async function buildPhotoProvenance(bytes: Uint8Array): Promise<string[]> {
+  const lines: string[] = [];
+  try {
+    const geo = formatGeoForDocument(readExifGeo(bytes));
+    lines.push(geo ?? 'Foto sem georreferência — captura sem sinal de GPS.');
+  } catch {
+    lines.push('Foto sem georreferência — captura sem sinal de GPS.');
+  }
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
+    const hash = Array.from(new Uint8Array(digest))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+    lines.push(`SHA-256 ${hash.slice(0, 16)}…`);
+  } catch {
+    // Sem hash não há linha de integridade — a georreferência permanece.
+  }
+  return lines;
 }
 
 export async function buildPdf(inspection: Record<string, unknown>): Promise<Uint8Array> {
@@ -325,6 +363,13 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
   };
 
   addPage();
+  if (inspection.documentStatus === 'preliminary') {
+    line('VERSÃO PRELIMINAR - NÃO REPRESENTA EMISSÃO TÉCNICA FINAL', 9, { strong: true, color: PDF_COLORS.danger });
+    const media = inspection.mediaCompleteness as { expected_count?: number | null; available_count?: number; pending_count?: number | null } | undefined;
+    if (media) line(media.expected_count == null ? `${media.available_count ?? 0} foto(s) disponível(is); quantidade esperada não informada.` : `${media.available_count ?? 0} de ${media.expected_count} fotos disponíveis; ${media.pending_count ?? 0} pendente(s).`, 8);
+    cursorY -= 8;
+  }
+  if (typeof inspection.mediaWaiverReason === 'string' && inspection.mediaWaiverReason) line(`Dispensa de evidências pendentes: ${inspection.mediaWaiverReason}`, 8);
   const score = formatPdfNumber(readInspectionField(inspection, 'pontuacaoTotal', 'pontuacao_total') || '0');
   ensureSpace(70);
   page.drawRectangle({
@@ -433,17 +478,14 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
     });
   }
 
-  const photos = [
-    ...(Array.isArray(readInspectionField(inspection, 'fotosUrls', 'fotos_urls'))
-      ? readInspectionField(inspection, 'fotosUrls', 'fotos_urls') as unknown[]
-      : []),
-    ...(!Array.isArray(readInspectionField(inspection, 'fotosUrls', 'fotos_urls'))
-      && readInspectionField(inspection, 'fotoUrl', 'foto_url')
-      ? [readInspectionField(inspection, 'fotoUrl', 'foto_url')]
-      : []),
-  ].slice(0, 6);
+  const photos = inspectionPhotoSources(inspection).slice(0,3);
   if (photos.length) {
-    const embeddedPhotos: Array<{ image: PDFImage; index: number }> = [];
+    const embeddedPhotos: Array<{
+      image: PDFImage;
+      index: number;
+      /** Linhas de proveniência impressas sob a foto. */
+      provenance: string[];
+    }> = [];
     for (let index = 0; index < photos.length; index += 1) {
       const loaded = await loadImage(photos[index]);
       if (!loaded) continue;
@@ -451,7 +493,11 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
         const image = loaded.extension === 'png'
           ? await document.embedPng(loaded.bytes)
           : await document.embedJpg(loaded.bytes);
-        embeddedPhotos.push({ image, index });
+        embeddedPhotos.push({
+          image,
+          index,
+          provenance: await buildPhotoProvenance(loaded.bytes),
+        });
       } catch {
         // A foto permanece registrada na vistoria mesmo quando o formato não
         // pode ser incorporado ao PDF.
@@ -464,7 +510,11 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
       for (let index = 0; index < embeddedPhotos.length; index += 2) {
         const row = embeddedPhotos.slice(index, index + 2);
         const dimensions = row.map(entry => entry.image.scaleToFit(cardWidth - 12, 142));
-        const rowHeight = Math.max(...dimensions.map(entry => entry.height)) + 28;
+        const provenanceHeight = Math.max(
+          0,
+          ...row.map(entry => (entry.provenance.length ? entry.provenance.length * 9 + 4 : 0)),
+        );
+        const rowHeight = Math.max(...dimensions.map(entry => entry.height)) + 28 + provenanceHeight;
         ensureSpace(rowHeight + 8);
         row.forEach((entry, column) => {
           const x = margin + column * (cardWidth + gap);
@@ -491,6 +541,16 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
             font: regular,
             color: color(PDF_COLORS.muted),
           });
+          entry.provenance.forEach((line, lineIndex) => {
+            const isHash = line.startsWith('SHA-256');
+            page.drawText(line, {
+              x: x + (cardWidth - regular.widthOfTextAtSize(line, 6.8)) / 2,
+              y: cursorY - rowHeight + 8 - 10 - lineIndex * 9,
+              size: 6.8,
+              font: regular,
+              color: color(isHash ? PDF_COLORS.muted : PDF_COLORS.text),
+            });
+          });
         });
         cursorY -= rowHeight + 8;
       }
@@ -513,7 +573,7 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
   ensureSpace(205);
   section('Base legal');
   line(
-    'Este relatório técnico foi elaborado em conformidade com a Lei Federal nº 12.608/2012, que institui a Política Nacional de Proteção e Defesa Civil, e com a Lei Federal nº 10.257/2001, denominada Estatuto da Cidade. Esses dispositivos estabelecem diretrizes para a prevenção de desastres e a proteção da vida.',
+    typeof inspection.baseLegal === 'string' && inspection.baseLegal.trim() ? inspection.baseLegal : 'Este relatório técnico foi elaborado em conformidade com a Lei Federal nº 12.608/2012, que institui a Política Nacional de Proteção e Defesa Civil, e com a Lei Federal nº 10.257/2001, denominada Estatuto da Cidade. Esses dispositivos estabelecem diretrizes para a prevenção de desastres e a proteção da vida.',
     8.5,
     { color: PDF_COLORS.muted, lineHeight: 12.5 },
   );
@@ -521,6 +581,20 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
   section('Responsabilidade técnica');
   line('Documento emitido com base nas condições observadas na data da vistoria. Sua interpretação deve considerar os registros fotográficos e as normas técnicas aplicáveis.', 9);
   cursorY -= 28;
+  const signatureStrokes = inspection.agentSignatureStrokes;
+  if (Array.isArray(signatureStrokes)) {
+    ensureSpace(95);
+    const startX = (pageSize[0] - 180) / 2;
+    for (const stroke of signatureStrokes) {
+      const points = stroke && typeof stroke === 'object' && Array.isArray(stroke.points) ? stroke.points : [];
+      for (let index = 1; index < points.length; index++) {
+        const a = points[index - 1], b = points[index];
+        if (![a?.x,a?.y,b?.x,b?.y].every(n => typeof n === 'number' && n >= 0 && n <= 1)) continue;
+        page.drawLine({ start: { x: startX + a.x * 180, y: cursorY + (1-a.y)*45 }, end: { x: startX+b.x*180, y: cursorY+(1-b.y)*45 }, thickness: 0.8, color: color(PDF_COLORS.ink) });
+      }
+    }
+    cursorY -= 8;
+  }
   ensureSpace(68);
   page.drawLine({
     start: { x: margin + 90, y: cursorY },
@@ -581,6 +655,53 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
   return document.save();
 }
 
+async function issuePreservedDocument(caller: typeof admin, actorId: string, body: GenerationRequest): Promise<Response> {
+  if (!isUuid(body.document_id) || !isUuid(body.inspection_id)) return json({ ok: false, error: 'invalid_document_id' }, 400);
+  const { data: media, error: denied } = await caller.rpc('get_inspection_media_status', { p_inspection_id: body.inspection_id });
+  if (denied || !media) return json({ ok: false, error: 'generation_not_allowed' }, 403);
+  const { data: existing } = await admin.from('generated_documents').select('id,vistoria_id,created_by,storage_path,document_version,issuance_status').eq('id', body.document_id).maybeSingle();
+  if (existing) {
+    if (existing.vistoria_id !== body.inspection_id || existing.created_by !== actorId) return json({ ok: false, error: 'document_identity_conflict' }, 409);
+    const { data: signed } = await admin.storage.from('document-evidence').createSignedUrl(existing.storage_path, 60);
+    return signed?.signedUrl ? json({ ok: true, reused: true, document_id: existing.id, document_version: existing.document_version, issuance_status: existing.issuance_status, signed_url: signed.signedUrl }) : json({ ok: false, error: 'document_signing_failed' }, 502);
+  }
+  const { data: allowed, error: limitError } = await caller.rpc('enforce_my_operational_rate_limit', { p_action: 'gerar_pdf' });
+  if (limitError) return json({ ok:false,error:'rate_limit_unavailable' },503);
+  if (allowed !== true) return json({ ok:false,error:'generation_rate_limit' },429);
+  const { data: inspection, error: missing } = await admin.from('vistorias').select('*').eq('id', body.inspection_id).maybeSingle();
+  if (missing || !inspection || !['concluida','concluída'].includes(inspection.status)) return json({ ok: false, error: 'inspection_not_completed' }, 409);
+  let issuance: 'preliminary' | 'final';
+  try {
+    issuance = resolveInspectionIssuance({ requested: body.issuance_status, actorId, agentId: inspection.agenteUid, media,
+      signature: body.technical_signature_strokes, waiverReason: typeof body.media_waiver_reason === 'string' ? body.media_waiver_reason : null });
+  } catch (e) { return json({ ok: false, error: e instanceof Error ? e.message : 'invalid_issuance' }, 422); }
+  const notes = typeof body.notes === 'string' ? body.notes.trim().slice(0, 20000) : '';
+  const payload = { ...inspection, documentStatus: issuance, mediaRevision: media.revision, mediaCompleteness: { expected_count: media.expected_count, available_count: media.available_count, pending_count: media.pending_count },
+    baseLegal: typeof body.base_legal === 'string' ? body.base_legal.trim().slice(0,20000) : undefined, cargo: typeof body.technical_role === 'string' ? body.technical_role.trim().slice(0,200) : undefined,
+    observacoesTecnicas: notes, responsavelNome: typeof body.requester_name === 'string' ? body.requester_name.trim().slice(0, 200) : inspection.responsavelNome,
+    agentSignatureStrokes: issuance === 'final' ? body.technical_signature_strokes : null,
+    mediaWaiverReason: typeof body.media_waiver_reason === 'string' ? body.media_waiver_reason.trim().slice(0, 1000) : undefined };
+  const snapshot = { schemaVersion: 1, documentType: 'report', templateVersion: `web-${PDF_DESIGN_VERSION}`, vistoriaId: body.inspection_id, trainingMode: false, payload };
+  const snapshotJson = canonicalInspectionSnapshot(snapshot);
+  const sha256 = async (bytes: Uint8Array) => {
+    const digest = await crypto.subtle.digest('SHA-256', Uint8Array.from(bytes));
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  };
+  const bytes = await buildPdf(payload);
+  const [contentHash,pdfHash] = await Promise.all([sha256(new TextEncoder().encode(snapshotJson)),sha256(bytes)]);
+  const { data: latest } = await admin.from('generated_documents').select('document_version,id').eq('vistoria_id', body.inspection_id).eq('document_type','report').order('document_version',{ ascending: false }).limit(1).maybeSingle();
+  const version = (latest?.document_version ?? 0)+1;
+  const path = `${actorId}/${body.inspection_id}/${body.document_id}/${pdfHash}.pdf`;
+  const sent = await admin.storage.from('document-evidence').upload(path,bytes,{ contentType:'application/pdf',upsert:false });
+  if (sent.error && String(sent.error.statusCode) !== '409') return json({ ok:false,error:'document_upload_failed' },502);
+  const { error: registrationError } = await caller.rpc('register_generated_document',{ p_payload: { document_id:body.document_id,vistoria_id:body.inspection_id,document_type:'report',document_version:version,
+    template_version:`web-${PDF_DESIGN_VERSION}`,content_snapshot:JSON.parse(snapshotJson),content_hash:contentHash,pdf_hash:pdfHash,storage_path:path,byte_size:bytes.byteLength,
+    supersedes_id:latest?.id ?? null,training_mode:false,document_created_at_device:new Date().toISOString() } });
+  if (registrationError) return json({ ok:false,error:registrationError.message || 'document_registration_failed' },registrationError.code==='23505' ? 409 : 422);
+  const { data: signed } = await admin.storage.from('document-evidence').createSignedUrl(path,60);
+  return signed?.signedUrl ? json({ ok:true,document_id:body.document_id,document_version:version,issuance_status:issuance,signed_url:signed.signedUrl }) : json({ ok:false,error:'document_signing_failed' },502);
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);
@@ -604,6 +725,10 @@ Deno.serve(async (request) => {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
+  if (body.document_id !== undefined) {
+    try { return await issuePreservedDocument(caller,user.id,body); }
+    catch (e) { console.error('[generate-inspection-laudo:preserved]',e instanceof Error ? e.message : String(e)); return json({ ok:false,error:'document_generation_failed' },502); }
+  }
   const { data: authorizationData, error: authorizationError } = await caller.rpc(
     'authorize_inspection_laudo_generation',
     {

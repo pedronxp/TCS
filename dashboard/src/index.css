@@ -159,7 +159,7 @@
     --success-foreground: 142 71% 78%;
     --warning: 38 80% 55%;
     --warning-soft: 38 55% 14%;
-    --warning-foreground: 38 80% 55%;
+    --warning-foreground: 38 80% 65%;
     --destructive: 0 72% 56%;
     --destructive-soft: 0 55% 14%;
     --destructive-foreground: 0 0% 98%;
@@ -204,7 +204,7 @@
     --success-foreground: 142 71% 45%;
     --warning: 38 80% 50%;
     --warning-soft: 38 55% 22%;
-    --warning-foreground: 38 80% 50%;
+    --warning-foreground: 38 80% 65%;
     --destructive: 0 62% 50%;
     --destructive-soft: 0 55% 22%;
     --destructive-foreground: 0 0% 98%;
@@ -432,6 +432,11 @@
 
   .sidebar-scroll::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
+  }
+
+  /* Rótulo de seção/estatística (antes usado como classe fantasma em CustomersPage). */
+  .stat-label {
+    @apply text-[10px] font-bold uppercase tracking-wide text-muted-foreground;
   }
 }
 

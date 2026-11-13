@@ -441,6 +441,10 @@ export default function PerfilScreen() {
         ) : null}
 
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferências</Text>
+        {authProfile?.role === 'owner' ? <TouchableOpacity accessibilityRole="button" onPress={() => router.push('/(panel)/internal/modo')} style={{ padding: 18, borderWidth: 1, borderColor: theme.border, borderRadius: 14, marginBottom: 16 }}>
+          <Text style={{ color: theme.text, fontWeight: '700' }}>Modo do proprietário</Text>
+          <Text style={{ color: theme.textSecondary, marginTop: 6 }}>Escolher entre acompanhar e administrar pelo aplicativo</Text>
+        </TouchableOpacity> : null}
         <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <SettingsRow
             icon="sun"

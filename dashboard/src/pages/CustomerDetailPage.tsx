@@ -760,6 +760,16 @@ function Subscription({ detail, canEdit, onSaved }: { detail: CustomerDetail; ca
   );
 }
 
+/**
+ * Wrapper do diálogo de edição da assinatura.
+ *
+ * Existe separado do formulário por causa das regras dos hooks: o formulário
+ * abaixo usa `useState`/`useQuery`/`useEffect`, e um `return` antecipado
+ * antes deles faria a ordem dos hooks variar entre renders — o que o React
+ * rejeita em runtime ("Rendered more hooks than during the previous render").
+ * O wrapper decide se há assinatura a editar; o formulário, dentro dele, roda
+ * os hooks sempre e na mesma ordem.
+ */
 function EditSubscriptionDialog({
   open,
   customerId,
@@ -776,6 +786,33 @@ function EditSubscriptionDialog({
   onSaved: () => void;
 }) {
   if (!subscription) return null;
+  return (
+    <EditSubscriptionDialogForm
+      open={open}
+      customerId={customerId}
+      customerKind={customerKind}
+      subscription={subscription}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function EditSubscriptionDialogForm({
+  open,
+  customerId,
+  customerKind,
+  subscription,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  customerId: string;
+  customerKind: string;
+  subscription: NonNullable<CustomerDetail['subscription']>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const audience = customerKind === 'organization' ? 'organization' : 'individual';
 
   const toDateInput = (iso: string | null | undefined) => iso ? iso.slice(0, 10) : '';

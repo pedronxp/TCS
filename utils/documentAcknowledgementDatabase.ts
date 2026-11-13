@@ -151,6 +151,19 @@ export function getNextDocumentVersion(
   return { version: (row?.document_version ?? 0) + 1, supersedesId: row?.id ?? null };
 }
 
+/** Refresh access links only; the preserved snapshot/hashes and author never change. */
+export function refreshRemoteDocumentPreview(id: string, previewHtml: string): void {
+  ensureDocumentAcknowledgementSchema().runSync('UPDATE generated_documents_local SET preview_html = ? WHERE id = ? AND remote_path IS NOT NULL', [previewHtml, id]);
+}
+
+export function reconcileRemoteDocumentAvailability(vistoriaId: string, activeIds: string[]): void {
+  const placeholders = activeIds.map(() => '?').join(',');
+  ensureDocumentAcknowledgementSchema().runSync(
+    `UPDATE generated_documents_local SET status = 'superseded' WHERE vistoria_id = ? AND remote_path IS NOT NULL AND status = 'available'${activeIds.length ? ` AND id NOT IN (${placeholders})` : ''}`,
+    [vistoriaId, ...activeIds],
+  );
+}
+
 export function findReusableGeneratedDocument(
   vistoriaId: string,
   documentType: LocalGeneratedDocument['documentType'],

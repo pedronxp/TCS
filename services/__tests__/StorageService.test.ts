@@ -32,7 +32,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
-import { getSignedUrl, uploadImageFromLocalUri } from '../StorageService';
+import { decodePath, encodeDocumentEvidencePath, getSignedUrl, uploadImageFromLocalUri } from '../StorageService';
 
 const supabaseModule = require('../../utils/supabase');
 
@@ -51,6 +51,15 @@ describe('StorageService', () => {
 
   it('preserva URI local para visualização offline e inclusão no PDF', async () => {
     await expect(getSignedUrl('file:///documents/foto.jpg')).resolves.toBe('file:///documents/foto.jpg');
+  });
+
+  it('assina a versão preservada no bucket document-evidence real', async () => {
+    const path = 'actor/inspection/document/document.pdf';
+    const stored = encodeDocumentEvidencePath(path);
+    expect(decodePath(stored)).toEqual({ bucket: 'document-evidence', remotePath: path });
+    await expect(getSignedUrl(stored)).resolves.toBe('https://signed.test/file');
+    expect(supabaseModule.supabase.storage.from).toHaveBeenLastCalledWith('document-evidence');
+    expect(supabaseModule.__storageApi.createSignedUrl).toHaveBeenLastCalledWith(path, 3600);
   });
 
   it('envia os bytes reais da imagem ao Storage', async () => {

@@ -4,8 +4,9 @@
  * Substitui as 3 implementações inline em resultado.tsx, laudo.tsx e relatorio.tsx.
  */
 
-import { photoUrlToBase64 } from './photoToBase64';
+import { photoUrlToEvidence, PhotoEvidence } from './photoToBase64';
 import { escapeHtml, formatarDataHora } from './htmlUtils';
+import { formatGeoForDocument } from '../supabase/functions/_shared/exifGps';
 import {
   CalculoRiscoSnapshot,
   formatarPontuacaoRisco,
@@ -56,6 +57,10 @@ export interface LaudoData {
   // A conduta não é mais exibida no PDF de vistoria.
   condutaRecomendada?: string;
   observacoesTecnicas?: string;
+  documentStatus?: 'preliminary' | 'final';
+  mediaCompleteness?: { expected_count: number | null; available_count: number; pending_count: number | null };
+  mediaWaiverReason?: string;
+  mediaRevision?: number | null;
   /** Base Legal exibida no rodapé do relatório; usa o texto padrão quando vazia. */
   baseLegal?: string;
   cargo?: string;
@@ -110,6 +115,31 @@ function dataExtenso(iso: string | null | undefined): string {
   } catch {
     return '-';
   }
+}
+
+/**
+ * Linha de proveniência impressa sob cada foto do registro fotográfico.
+ *
+ * Sem convênio com o órgão municipal, a sustentação do registro depende da
+ * própria evidência: por isso o documento informa as coordenadas, o instante
+ * e o hash do arquivo — todos lidos do próprio JPEG, verificáveis por
+ * qualquer auditor com `exiftool` e `sha256sum`, sem depender do TCS.
+ */
+function formatarProveniencia(evidencia: PhotoEvidence): string {
+  const geo = formatGeoForDocument(evidencia.geo);
+  const hashCurto = evidencia.hash.slice(0, 16);
+  if (!geo) {
+    return `
+      <div class="photo-provenance">
+        <div>Foto sem georreferência — captura sem sinal de GPS.</div>
+        <div class="photo-hash">SHA-256 ${escapeHtml(hashCurto)}…</div>
+      </div>`;
+  }
+  return `
+    <div class="photo-provenance">
+      <div>${escapeHtml(geo)}</div>
+      <div class="photo-hash">SHA-256 ${escapeHtml(hashCurto)}…</div>
+    </div>`;
 }
 
 function signatureSvg(strokes: SignatureStroke[] | null | undefined): string {
@@ -379,13 +409,18 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   const calculo = parseCalculoRiscoSnapshot(dados.calculoRisco);
   const nivel = normalizarNivelRisco(dados.nivelRisco || calculo?.nivelRisco, 'r1');
   const pontuacaoTotal = calculo?.pontuacaoTotal ?? dados.pontuacaoTotal ?? 0;
+  // Formulários publicados no servidor têm UUID; o código de sistema (que vem
+  // no snapshot do cálculo) reencontra o modelo nativo e a metodologia dele.
+  const formRef = (dados.formularioId && ASSETS[dados.formularioId] ? dados.formularioId : undefined)
+    || (calculo?.formularioSystemCode && ASSETS[calculo.formularioSystemCode] ? calculo.formularioSystemCode : undefined)
+    || dados.formularioId;
   const apresentacao = resolverApresentacaoRisco({
-    formularioId: dados.formularioId,
+    formularioId: formRef,
     pontuacao: pontuacaoTotal,
     nivelRisco: nivel,
     calculoRisco: calculo,
   });
-  const isAvaliacaoArvore = dados.formularioId === 'avaliacao_arvore_cbmmg_v1';
+  const isAvaliacaoArvore = formRef === 'avaliacao_arvore_cbmmg_v1';
   const riskColorKey = apresentacao.codigo === 'risco_iminente'
     ? 'iminente'
     : apresentacao.codigo === 'nao_iminente'
@@ -429,8 +464,8 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   // O schema form mapeia os IDs para textos ricos
   let schemaForm = null;
   let perguntasFlat: PerguntaModel[] = [];
-  if (dados.formularioId && ASSETS[dados.formularioId]) {
-    schemaForm = ASSETS[dados.formularioId];
+  if (formRef && ASSETS[formRef]) {
+    schemaForm = ASSETS[formRef];
     perguntasFlat = flattenPerguntas(schemaForm);
   }
   let respostasObjeto: Record<string, unknown> = {};
@@ -572,20 +607,21 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     });
   }
 
-  const fotosBase64 = (await Promise.all(urlsParaProcessar.map(photoUrlToBase64)))
-    .filter((b): b is string => b !== null);
+  const evidencias = (await Promise.all(urlsParaProcessar.map(photoUrlToEvidence)))
+    .filter((e): e is PhotoEvidence => e !== null);
 
   let imageHtml = '';
-  if (fotosBase64.length > 0) {
-    const isSingle = fotosBase64.length === 1;
-    const fotosHtml = fotosBase64.map((b64, i) => `
+  if (evidencias.length > 0) {
+    const isSingle = evidencias.length === 1;
+    const fotosHtml = evidencias.map((evidencia, i) => `
       <div class="photo-card" style="${isSingle ? 'max-width:480px; margin:0 auto;' : ''}">
-        <img src="${b64}" alt="Evidência ${i + 1}"/>
+        <img src="${evidencia.dataUrl}" alt="Evidência ${i + 1}"/>
         <div style="font-size:9px; color:#64748B; text-align:center; padding:5px;">Evidência fotográfica ${i + 1}${isAvaliacaoArvore && i === 0 ? ' - visão geral da árvore' : isAvaliacaoArvore ? ' - defeito determinante' : ''}</div>
+        ${formatarProveniencia(evidencia)}
       </div>`).join('');
     imageHtml = `
       <div class="section">
-        <div class="section-title">Registro Fotográfico (${fotosBase64.length})</div>
+        <div class="section-title">Registro Fotográfico (${evidencias.length})</div>
         <div style="display:${isSingle ? 'block' : 'grid'}; ${isSingle ? '' : 'grid-template-columns: repeat(2, 1fr);'} gap:10px;">
           ${fotosHtml}
         </div>
@@ -1071,6 +1107,20 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
     max-height: 205px;
     object-fit: contain;
   }
+  .photo-provenance {
+    border-top: 1px solid ${PDF_COLORS.lineSoft};
+    padding: 5px 6px 6px;
+    font-size: 7.5px;
+    line-height: 1.45;
+    color: ${PDF_COLORS.text};
+    text-align: center;
+  }
+  .photo-hash {
+    font-family: monospace;
+    font-size: 7px;
+    color: ${PDF_COLORS.muted};
+    margin-top: 2px;
+  }
 
   /* ═══ BASE LEGAL ═══ */
   .legal-note {
@@ -1143,6 +1193,8 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   ${trainingNotice}
 
   ${headerHtml}
+  ${dados.documentStatus === 'preliminary' ? `<div class="obs-box pdf-preserve-lines"><strong>VERSÃO PRELIMINAR</strong><br/>Este documento não representa uma emissão técnica final.${dados.mediaCompleteness ? `<br/>${dados.mediaCompleteness.expected_count === null ? `${dados.mediaCompleteness.available_count} foto(s) disponível(is); quantidade esperada não informada.` : `${dados.mediaCompleteness.available_count} de ${dados.mediaCompleteness.expected_count} fotos disponíveis; ${dados.mediaCompleteness.pending_count ?? 0} pendente(s).`}` : ''}</div>` : ''}
+  ${dados.mediaWaiverReason ? `<div class="obs-box pdf-preserve-lines"><strong>Dispensa de evidências pendentes</strong><br/>${escapeHtml(dados.mediaWaiverReason)}</div>` : ''}
 
   ${dadosSectionHtml}
 

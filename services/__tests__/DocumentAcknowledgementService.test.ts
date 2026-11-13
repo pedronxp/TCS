@@ -54,6 +54,9 @@ jest.mock('../../utils/documentAcknowledgementDatabase', () => ({
   clearGeneratedDocumentLocalFile: jest.fn(),
   findReusableGeneratedDocument: jest.fn(),
   getGeneratedDocument: jest.fn(),
+  getAcknowledgementEvent: jest.fn(),
+  refreshRemoteDocumentPreview: jest.fn(),
+  reconcileRemoteDocumentAvailability: jest.fn(),
   getNextDocumentVersion: jest.fn().mockReturnValue({ version: 1, supersedesId: null }),
   listPendingAcknowledgementEvents: jest.fn(),
   listPendingGeneratedDocuments: jest.fn(),
@@ -77,6 +80,7 @@ jest.mock('../StorageService', () => ({
 const mockRpc = jest.fn();
 jest.mock('../../utils/supabase', () => ({
   supabase: {
+    auth: { getSession: jest.fn(async () => ({ data: { session: { user: { id: 'owner' } } }, error: null })) },
     rpc: (...args: unknown[]) => mockRpc(...args),
     from: jest.fn(),
   },
@@ -90,6 +94,7 @@ import {
   syncPendingDocumentAcknowledgements,
   syncPreparedGeneratedDocuments,
   verifyDocumentIntegrity,
+  loadRemoteInspectionDocuments,
 } from '../DocumentAcknowledgementService';
 import { INITIAL_ACKNOWLEDGEMENT_DECLARATION, LocalAcknowledgementEvent, LocalGeneratedDocument } from '../../types/documentAcknowledgement';
 
@@ -145,6 +150,27 @@ const pendingEvent: LocalAcknowledgementEvent = {
 };
 
 describe('DocumentAcknowledgementService', () => {
+  it('hydrates another author immutable document without reassigning identity or regenerating it', async () => {
+    const { supabase } = require('../../utils/supabase');
+    const remote = { id: 'remote-document', vistoria_id: 'inspection-remote', document_type: 'report', document_version: 2,
+      template_version: 'v1', content_snapshot: { payload: { agenteNome: 'Pedro' } }, content_hash: 'a'.repeat(64), pdf_hash: 'b'.repeat(64),
+      storage_path: 'pedro/inspection/remote/document.pdf', byte_size: 100, created_by: 'pedro', created_at_device: '2026-11-11', status: 'available', training_mode: false };
+    supabase.from.mockImplementation((table: string) => table === 'generated_documents'
+      ? { select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ order: async () => ({ data: [remote], error: null }) }) }) }) }) }
+      : { select: () => ({ in: () => ({ eq: async () => ({ data: [{ id: 'confirmed-event', client_event_id: 'event', document_id: 'remote-document', outcome: 'acknowledged', created_by: 'owner', recorded_at_server: '2026-11-11', protocol: 'science-1' }], error: null }) }) }) });
+    databaseMock.getGeneratedDocument.mockReturnValue(null);
+    const [loaded, parallel] = await Promise.all([
+      loadRemoteInspectionDocuments('inspection-remote'),
+      loadRemoteInspectionDocuments('inspection-remote'),
+    ]);
+    expect(parallel).toEqual(loaded);
+    expect(loaded[0]).toMatchObject({ id: 'remote-document', createdBy: 'pedro', documentVersion: 2, status: 'available', remotePath: remote.storage_path, pdfLocalUri: null });
+    expect(loaded[0].previewHtml).toContain('https://signed.example.test/document.pdf');
+    expect(databaseMock.saveGeneratedDocument).toHaveBeenCalledWith(loaded[0]);
+    expect(databaseMock.saveGeneratedDocument).toHaveBeenCalledTimes(1);
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(databaseMock.saveAcknowledgementEvent).toHaveBeenCalledWith(expect.objectContaining({ id: 'confirmed-event', syncStatus: 'confirmed', createdBy: 'owner' }));
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     databaseMock.getGeneratedDocument.mockReturnValue(document);
@@ -189,6 +215,28 @@ describe('DocumentAcknowledgementService', () => {
     expect(reused).toBe(document);
     expect(databaseMock.saveGeneratedDocument).not.toHaveBeenCalled();
     expect(databaseMock.getNextDocumentVersion).not.toHaveBeenCalled();
+  });
+
+  it('does not release a final local PDF before authoritative registration succeeds', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: new Error('media_revision_conflict') });
+    await expect(prepareGeneratedDocument({
+      vistoriaId: document.vistoriaId, documentType: 'report', templateVersion: 'report-v3',
+      payload: { documentStatus: 'final', mediaRevision: 10 }, pdfUri: 'file:///source/final.pdf',
+      previewHtml: '<html>Final</html>', createdBy: document.createdBy,
+    })).rejects.toThrow('media_revision_conflict');
+    expect(databaseMock.saveGeneratedDocument).toHaveBeenCalled();
+    expect(databaseMock.updateGeneratedDocumentRemote).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), 'available');
+  });
+
+  it('a repeated final preparation still registers a pending preserved package', async () => {
+    databaseMock.findReusableGeneratedDocument.mockReturnValue(document);
+    mockRpc.mockResolvedValue({ data: { ok: true }, error: null });
+    const prepared = await prepareGeneratedDocument({
+      vistoriaId: document.vistoriaId, documentType: 'report', templateVersion: 'report-v3',
+      payload: { documentStatus: 'final' }, pdfUri: 'file:///source/final.pdf', previewHtml: '<html>Final</html>', createdBy: document.createdBy,
+    });
+    expect(mockRpc).toHaveBeenCalledWith('register_generated_document', expect.anything());
+    expect(prepared.status).toBe('available');
   });
 
   it('não permite ciência sem confirmação explícita', async () => {

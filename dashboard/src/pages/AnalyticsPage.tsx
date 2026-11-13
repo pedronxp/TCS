@@ -8,8 +8,16 @@ import { supabase } from '@/lib/supabase';
 import {
   Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
+import type { Database } from '@/types/supabase';
 
 // ─── Analytics do owner (F6) ─────────────────────────────────────────────────
+
+/** Linha de fatura com o nome da organização resolvido pelo join. */
+type InvoiceRow = Database['public']['Tables']['billing_invoices']['Row'] & {
+  organizations?: { display_name: string } | null;
+};
+type OrganizationRow = Database['public']['Tables']['organizations']['Row'];
+type InspectionRow = Database['public']['Tables']['vistorias']['Row'];
 
 interface Analytics {
   mrr_centavos: number;
@@ -41,7 +49,7 @@ const mesLabel = (yyyyMm: string) => {
 
 function csvDownload(nome: string, linhas: string[][]) {
   const csv = linhas.map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -78,12 +86,12 @@ export function AnalyticsPage() {
       if (tipo === 'faturas') {
         const { data: rows, error } = await supabase
           .from('billing_invoices')
-          .select('competencia, valor_centavos, vencimento, status, pago_em, organizations(display_name)')
+          .select('competencia, valor_centavos, vencimento, status, pago_em, organization_id, organizations(display_name)')
           .order('vencimento', { ascending: false });
         if (error) throw error;
         csvDownload('faturas.csv', [
           ['organizacao', 'competencia', 'valor_brl', 'vencimento', 'status', 'pago_em'],
-          ...(rows ?? []).map((r: any) => [
+          ...((rows ?? []) as InvoiceRow[]).map((r) => [
             r.organizations?.display_name ?? r.organization_id,
             r.competencia,
             (r.valor_centavos / 100).toFixed(2).replace('.', ','),
@@ -98,7 +106,7 @@ export function AnalyticsPage() {
         if (error) throw error;
         csvDownload('organizacoes.csv', [
           ['nome', 'municipio', 'status', 'criada_em'],
-          ...(rows ?? []).map((r: any) => [r.display_name, r.municipality_name ?? '', r.status, r.created_at]),
+          ...((rows ?? []) as OrganizationRow[]).map((r) => [r.display_name, r.municipality_name ?? '', r.status, r.created_at]),
         ]);
       } else {
         const { data: rows, error } = await supabase
@@ -109,12 +117,12 @@ export function AnalyticsPage() {
         if (error) throw error;
         csvDownload('vistorias.csv', [
           ['protocolo', 'municipio', 'agente', 'risco', 'status', 'criada_em'],
-          ...(rows ?? []).map((r: any) => [r.protocolo ?? '', r.municipio, r.agenteNome, r.nivelRisco, r.status, r.criadoEm]),
+          ...((rows ?? []) as InspectionRow[]).map((r) => [r.protocolo ?? '', r.municipio ?? '', r.agenteNome ?? '', r.nivelRisco ?? '', r.status ?? '', r.criadoEm ?? '']),
         ]);
       }
       toast.success('CSV gerado.');
-    } catch (e: any) {
-      toast.error(`Falha no export: ${e.message}`);
+    } catch (e) {
+      toast.error(`Falha no export: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBaixando(null);
     }
@@ -182,7 +190,7 @@ export function AnalyticsPage() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="mes" fontSize={12} />
                 <YAxis fontSize={12} tickFormatter={(v: number) => `R$${(v / 1000).toFixed(1)}k`} />
-                <Tooltip formatter={(v: any) => fmt(Number(v) * 100)} />
+                <Tooltip formatter={(v) => fmt(Number(v) * 100)} />
                 <Bar dataKey="receita" name="Receita" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

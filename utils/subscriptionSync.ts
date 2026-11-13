@@ -15,5 +15,11 @@ export function subscriptionLimitSyncMessage(error: SupabaseLikeError): string {
     return 'Não foi possível atualizar o consumo da assinatura. A vistoria permanece salva e será sincronizada automaticamente.';
   }
   if (!isSubscriptionLimitError(error)) return error.message || 'Erro desconhecido';
+  if (`${error.message || ''} ${error.details || ''}`.includes('subscription_inactive')) {
+    return 'A assinatura não autorizou o envio de novas vistorias. A vistoria permanece salva neste aparelho. Atualize a assinatura e tente sincronizar novamente.';
+  }
+  if (!`${error.message || ''} ${error.details || ''}`.includes('limit_reached')) {
+    return 'A assinatura não autorizou a sincronização. A vistoria permanece salva neste aparelho. Confira a situação da assinatura e tente novamente.';
+  }
   return 'Limite da assinatura atingido. A vistoria permanece salva neste aparelho e será sincronizada após liberação de limite.';
 }

@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -21,6 +24,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { SignaturePad } from '../../../components/SignaturePad';
+import { isPreliminaryInspectionDocument } from '../../../services/InspectionDocumentPolicy';
 import {
   AppHeader,
   Badge,
@@ -47,6 +51,7 @@ import {
 } from '../../../utils/documentAcknowledgementDatabase';
 import {
   createAcknowledgementEvent,
+  hasImportedDocumentAccess,
   appendAcknowledgementCorrection,
   createRemoteAcknowledgementLink,
   fetchRemoteAcknowledgementHistory,
@@ -56,6 +61,7 @@ import {
 } from '../../../services/DocumentAcknowledgementService';
 import { syncPendentes } from '../../../services/SyncService';
 import { canReleaseAcknowledgementEvidence } from '../../../services/DocumentReleaseWorkflow';
+import { encodeDocumentEvidencePath, getSignedUrl } from '../../../services/StorageService';
 import {
   buildAcknowledgementReceiptHtml,
   buildCombinedDocumentHtml,
@@ -111,15 +117,27 @@ export default function ElectronicAcknowledgementScreen() {
   const [remoteHistory, setRemoteHistory] = useState<RemoteAcknowledgementHistoryEvent[]>([]);
   const [correctionReason, setCorrectionReason] = useState('');
   const [sharingRemoteLink, setSharingRemoteLink] = useState(false);
+  const readRequest = useRef(0);
 
-  const reload = useCallback(() => {
-    if (!documentId) return;
+  const reload = useCallback(async () => {
+    const request = ++readRequest.current;
+    setDocument(null);
+    setEvent(null);
+    if (!documentId || !profile?.uid) return;
     const nextDocument = getGeneratedDocument(documentId);
+    if (nextDocument && nextDocument.createdBy !== profile.uid && !(await hasImportedDocumentAccess(profile.uid, documentId))) return;
+    if (request !== readRequest.current) return;
     setDocument(nextDocument);
     setEvent(nextDocument ? listAcknowledgementEventsForDocument(nextDocument.id)[0] ?? null : null);
-  }, [documentId]);
+  }, [documentId, profile?.uid]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    setSignature([]);
+    setRecipientName('');
+    setDeclarationAccepted(false);
+    void reload();
+    return () => { readRequest.current++; };
+  }, [reload]);
 
   useEffect(() => {
     if (!documentId || !isOnlineReal) return;
@@ -178,6 +196,10 @@ export default function ElectronicAcknowledgementScreen() {
 
   const shareReceipt = async (combined: boolean) => {
     if (!document || !event) return;
+    if (combined && !document.pdfLocalUri) {
+      Alert.alert('Documento preservado em outro dispositivo', 'Abra o PDF original e exporte o comprovante separadamente. O aplicativo não recria essa versão a partir de uma prévia.');
+      return;
+    }
     if (!canReleaseAcknowledgementEvidence(event)) {
       Alert.alert(
         'Exportação aguardando confirmação',
@@ -216,6 +238,17 @@ export default function ElectronicAcknowledgementScreen() {
         ? 'O arquivo confere com o hash preservado para esta versão.'
         : 'O arquivo não está disponível ou diverge do hash registrado. Ele não deve ser apresentado como original.'
     );
+  };
+
+  const openPreservedPdf = async () => {
+    if (!document?.remotePath) return;
+    try {
+      const url = await getSignedUrl(encodeDocumentEvidencePath(document.remotePath), 120);
+      if (!url) throw new Error('Arquivo indisponível.');
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Não foi possível abrir o documento', 'Confira a conexão e tente novamente. A versão original permanece preservada.');
+    }
   };
 
   const shareRemoteLink = async () => {
@@ -275,7 +308,10 @@ export default function ElectronicAcknowledgementScreen() {
   const statusVariant = event?.syncStatus === 'confirmed' ? 'success' : event?.syncStatus === 'failed' ? 'error' : 'warning';
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <AppHeader
         title="Ciência eletrônica"
         subtitle={`Versão ${document.documentVersion} · ${DOCUMENT_LABELS[document.documentType]}`}
@@ -284,8 +320,10 @@ export default function ElectronicAcknowledgementScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing[8] }]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
         scrollEnabled={!signatureInteractionActive}
       >
         {document.trainingMode && (
@@ -297,9 +335,17 @@ export default function ElectronicAcknowledgementScreen() {
         )}
 
         <SectionHeader title="Documento apresentado" subtitle="Confira a versão antes de registrar a ciência" />
+        {isPreliminaryInspectionDocument(document.contentSnapshot) ? (
+          <StateBanner
+            variant="warning"
+            title="Ciência de versão preliminar"
+            description="Apresente esta versão ao morador. Esta coleta se refere somente ao conteúdo atual; uma nova versão final exige sua própria ciência."
+          />
+        ) : null}
         <View style={[styles.preview, { borderColor: theme.border }]}>
           <WebView originWhitelist={['*']} source={{ html: document.previewHtml }} scrollEnabled nestedScrollEnabled />
         </View>
+        {!document.pdfLocalUri && document.remotePath ? <Button label="Abrir PDF preservado" variant="secondary" onPress={openPreservedPdf} disabled={!isOnlineReal} fullWidth /> : null}
         <Button
           label="Verificar integridade desta versão"
           variant="secondary"
@@ -360,7 +406,7 @@ export default function ElectronicAcknowledgementScreen() {
             {canReleaseAcknowledgementEvidence(event) ? (
               <View style={styles.rowButtons}>
                 <Button label="Comprovante" variant="secondary" onPress={() => shareReceipt(false)} style={styles.rowButton} />
-                <Button label="Documento + comprovante" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} />
+                {document.pdfLocalUri ? <Button label="Documento + comprovante" variant="ghost" onPress={() => shareReceipt(true)} style={styles.rowButton} /> : null}
               </View>
             ) : (
               <StateBanner
@@ -415,7 +461,12 @@ export default function ElectronicAcknowledgementScreen() {
                   key={option.value}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: outcome === option.value }}
-                  onPress={() => { setOutcome(option.value); setDeclarationAccepted(false); }}
+                  onPress={() => {
+                    // The signature canvas may unmount before receiving a gesture-end event.
+                    setSignatureInteractionActive(false);
+                    setOutcome(option.value);
+                    setDeclarationAccepted(false);
+                  }}
                   style={[styles.outcomeButton, {
                     borderColor: outcome === option.value ? theme.primary : theme.border,
                     backgroundColor: outcome === option.value ? theme.secondary : theme.surface,
@@ -499,7 +550,7 @@ export default function ElectronicAcknowledgementScreen() {
           </>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

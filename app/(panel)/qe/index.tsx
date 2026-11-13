@@ -50,8 +50,11 @@ export default function QeFilaScreen() {
 
   useFocusEffect(useCallback(() => { void carregar(); }, [carregar]));
 
-  if (loading) return <LoadingState message="Carregando fila de qualidade..." />;
-  if (erro) return <ErrorState message={erro} onRetry={() => void carregar(true)} />;
+  const goBack = () => router.canGoBack() ? router.back() : router.replace('/(panel)/dashboard');
+  if (loading || erro) return <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={{ paddingTop: insets.top }}><AppHeader title="Revisão de qualidade" onBack={goBack} /></View>
+    {loading ? <LoadingState message="Carregando fila de qualidade..." /> : <ErrorState message={erro!} onRetry={() => void carregar(true)} />}
+  </View>;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -59,7 +62,7 @@ export default function QeFilaScreen() {
         <AppHeader
           title="Revisão de qualidade"
           subtitle={`${itens.length} vistoria${itens.length === 1 ? '' : 's'} aguardando análise`}
-          onBack={() => router.back()}
+          onBack={goBack}
         />
       </View>
 
@@ -71,7 +74,7 @@ export default function QeFilaScreen() {
           <EmptyState
             icon="check-circle"
             title="Fila vazia"
-            description="Todas as vistorias concluídas já foram revisadas. Vistorias novas entram aqui automaticamente."
+            description="Nenhuma vistoria pendente disponível para seu perfil. Confira a sincronização no aparelho de origem e o escopo da sua conta."
           />
         ) : (
           itens.map(item => (
@@ -99,7 +102,7 @@ export default function QeFilaScreen() {
                 {item.endereco ?? 'Endereço não informado'}
               </Text>
               <Text style={[styles.meta, { color: theme.textSecondary }]}>
-                {item.data_vistoria ? new Date(item.data_vistoria).toLocaleDateString('pt-BR') : '—'}
+                {item.data_vistoria ? new Date(item.data_vistoria).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
               </Text>
               <View style={[styles.revisarRow, { borderTopColor: theme.border }]}>
                 <Text style={[styles.revisarTexto, { color: theme.text }]}>Revisar</Text>

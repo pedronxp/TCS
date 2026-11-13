@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import type { AppStateStatus } from 'react-native';
 import { AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import type { AppUpdateConfig, AppUpdateDecision } from '../utils/appUpdate';
 import { checkAndroidAppUpdate, getInstalledAppVersion, hasAvailableUpdate, shouldForceUpdate } from '../utils/appUpdate';
@@ -26,7 +25,8 @@ export function ForceUpdateGate({ children }: { children: ReactNode }) {
     Platform.OS === 'android' ? { status: 'checking' } : { status: 'allowed' },
   );
   const [opening, setOpening] = useState(false);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  // RN 0.88 afrouxou `AppState.currentState` para `string | null | undefined`.
+  const appStateRef = useRef<string | null | undefined>(AppState.currentState);
   const checkingRef = useRef(false);
   const stateRef = useRef<GateState>(state);
 

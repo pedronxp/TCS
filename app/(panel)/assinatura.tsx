@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useSubscription } from '../../context/SubscriptionContext';
-import { usagePercent } from '../../utils/subscription';
+import { needsSubscriptionConfirmation, usagePercent } from '../../utils/subscription';
 import { supabase } from '../../utils/supabase';
 import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { PortalStateCard, PortalStatusBadge } from '../../components/portal';
@@ -61,6 +61,7 @@ export default function AssinaturaScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = useBottomTabPadding();
   const { context, loading, error, refresh } = useSubscription();
+  const needsConfirmation = needsSubscriptionConfirmation(context?.subscription);
   const [inviteToken, setInviteToken] = React.useState('');
   const canCoordinate = ['owner', 'coordinator', 'supervisor'].includes(context?.membership?.role || '');
   const usage = (context?.usage || []).filter(item => {
@@ -134,7 +135,9 @@ export default function AssinaturaScreen() {
               </View>
               <PortalStatusBadge
                 status={context?.subscription?.status}
-                label={!context?.subscription ? (context?.enforced ? 'Não configurada' : 'Migração sem bloqueios') : undefined}
+                label={error ? 'Dados não atualizados'
+                  : needsConfirmation ? 'Renovação a confirmar'
+                  : !context?.subscription ? (context?.enforced ? 'Não configurada' : 'Migração sem bloqueios') : undefined}
               />
             </View>
             <Text style={[styles.eyebrow, { color: theme.primary }]}>PLANO ATUAL</Text>
@@ -147,10 +150,11 @@ export default function AssinaturaScreen() {
                 <CommercialMetric label="Mensalidade" value={formatPrice(context.plan.commercial.monthly_price_cents)} theme={theme} />
                 <CommercialMetric label="Teste" value={`${context.plan.commercial.trial_days || 0} dias`} theme={theme} />
                 <CommercialMetric label="Carência" value={`${context.plan.commercial.grace_days || 0} dias`} theme={theme} />
-                <CommercialMetric label="Renovação" value={formatRenewal(context.subscription?.period_end)} theme={theme} />
+                <CommercialMetric label={needsConfirmation ? 'Fim do último ciclo' : 'Renovação'} value={formatRenewal(context.subscription?.period_end)} theme={theme} />
               </View>
             ) : null}
           </View>
+          {needsConfirmation && <StateBanner variant="warning" title="Renovação pendente de confirmação" description="O último ciclo terminou. Atualize a assinatura para consultar o status registrado no servidor." />}
 
           <SecaoFaturas />
 

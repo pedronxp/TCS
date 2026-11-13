@@ -12,6 +12,7 @@ import { NotificationProvider, useNotifications } from '../context/NotificationC
 import { ReportProvider } from '../context/ReportContext';
 import { ConnectivityBanner } from '../components/ConnectivityBanner';
 import { ForceUpdateGate } from '../components/ForceUpdateGate';
+import { PhotoStampHost } from '../components/PhotoStampHost';
 import { LogBox } from 'react-native';
 import { resolveRootRedirect } from '../utils/rootRouting';
 import { SubscriptionProvider } from '../context/SubscriptionContext';
@@ -192,6 +193,7 @@ export default function RootLayout() {
                 <NotificationProvider>
                   <ForceUpdateGate>
                     <RootNavigator />
+                    <PhotoStampHost />
                   </ForceUpdateGate>
                 </NotificationProvider>
               </ReportProvider>

@@ -2,8 +2,20 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SubscriptionsPage } from './SubscriptionsPage';
+
+// jsdom não implementa ResizeObserver/scrollIntoView — usados pelo Radix Select ao abrir.
+globalThis.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+Element.prototype.scrollIntoView = () => {};
+// jsdom não implementa pointer capture — o trigger do Radix Select consulta hasPointerCapture no pointerdown.
+Object.defineProperty(Element.prototype, 'hasPointerCapture', { value: () => false });
+Object.defineProperty(Element.prototype, 'setPointerCapture', { value: () => {} });
+Object.defineProperty(Element.prototype, 'releasePointerCapture', { value: () => {} });
 
 const fixes = vi.hoisted(() => ({
   plans: [
@@ -64,12 +76,20 @@ async function openDialog() {
   return { user };
 }
 
-function statusSelect() {
-  return document.getElementById('subscription-status') as HTMLSelectElement;
+function statusTrigger() {
+  return document.getElementById('subscription-status') as HTMLElement;
 }
 
-function planSelect() {
-  return document.getElementById('subscription-plano') as HTMLSelectElement;
+function planTrigger() {
+  return document.getElementById('subscription-plano') as HTMLElement;
+}
+
+type UserEventInstance = ReturnType<typeof userEvent.setup>;
+
+/** Abre o Select Radix do diálogo e escolhe a opção pelo texto visível. */
+async function pickOption(user: UserEventInstance, trigger: HTMLElement, optionName: string) {
+  await user.click(trigger);
+  await user.click(await screen.findByRole('option', { name: optionName }));
 }
 
 function transitionNote() {
@@ -79,14 +99,10 @@ function transitionNote() {
 }
 
 describe('Assinatura: transições e transparência', () => {
-  beforeEach(() => {
-    // restaura estado padrão: assinatura ativa, plano vigente (plan-1)
-  });
-
   it('explica cancelamento ao mudar o status para cancelado', async () => {
     const { user } = await openDialog();
 
-    await user.selectOptions(statusSelect(), 'canceled');
+    await pickOption(user, statusTrigger(), 'Cancelado');
 
     const note = transitionNote();
     expect(note).not.toBeNull();
@@ -97,7 +113,7 @@ describe('Assinatura: transições e transparência', () => {
   it('explica suspensão e bloqueia novas operações', async () => {
     const { user } = await openDialog();
 
-    await user.selectOptions(statusSelect(), 'suspended');
+    await pickOption(user, statusTrigger(), 'Suspenso');
 
     const note = transitionNote();
     expect(note).not.toBeNull();
@@ -109,7 +125,7 @@ describe('Assinatura: transições e transparência', () => {
     const { user } = await openDialog();
 
     // troca do plano atual (Municipal Pro) para o Municipal Básico — downgrade visível
-    await user.selectOptions(planSelect(), 'plan-2');
+    await pickOption(user, planTrigger(), 'Municipal Básico');
 
     const note = transitionNote();
     expect(note).not.toBeNull();

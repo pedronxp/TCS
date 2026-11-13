@@ -65,10 +65,13 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
   const calculo = parseCalculoRiscoSnapshot(calculoRisco);
   const itensPorPerguntaId = new Map((calculo?.itens || []).map(item => [item.perguntaId, item]));
 
-  const form = FORM_JSONS[formularioId];
+  // Formulários publicados no servidor usam UUID; o código de sistema vem no
+  // snapshot do cálculo e permite reencontrar o modelo nativo equivalente.
+  const form = FORM_JSONS[formularioId]
+    || (calculo?.formularioSystemCode ? FORM_JSONS[calculo.formularioSystemCode] : undefined);
   if (!form) {
+    const grupos = new Map<string, GrupoResolvido>();
     if (calculo?.itens?.length) {
-      const grupos = new Map<string, GrupoResolvido>();
       for (const item of calculo.itens) {
         const faseId = item.faseId || item.grupo || 'snapshot';
         const grupo = item.grupo || 'Itens avaliados';
@@ -82,15 +85,21 @@ function resolverRespostas(formularioId: string, respostas: Record<string, strin
           observacao: item.observacao,
         });
       }
-      return Array.from(grupos.values());
     }
 
-    // Fallback genérico: mostra chave → valor bruto
-    const itens = Object.entries(respostas)
+    // Respostas em texto (justificativas, observações) não entram no snapshot
+    // de pontuação — sem esta etapa elas sumiriam do relatório.
+    const jaResolvidas = new Set(Array.from(grupos.values()).flatMap(g => g.itens.map(i => i.perguntaId)));
+    const livres = Object.entries(respostas)
+      .filter(([k]) => !jaResolvidas.has(k))
       .filter(([k]) => !getPerguntaIdFromObservacaoCondicionalRiscoKey(k))
-      .filter(([, v]) => v)
-      .map(([k, v]) => ({ perguntaId: k, pergunta: k, resposta: v, tipo: 'texto', pesoRisco: 0 }));
-    return itens.length ? [{ grupo: 'Respostas', faseId: 'raw', itens }] : [];
+      .filter(([, v]) => String(v ?? '').trim())
+      .map(([k, v]) => ({ perguntaId: k, pergunta: k, resposta: String(v), tipo: 'texto', pesoRisco: 0 }));
+    if (livres.length) {
+      grupos.set('respostas_livres', { grupo: 'Respostas registradas', faseId: 'respostas_livres', itens: livres });
+    }
+
+    return Array.from(grupos.values());
   }
 
   const grupos: GrupoResolvido[] = [];
@@ -407,6 +416,7 @@ export default function RelatorioScreen() {
     setGerando(true);
     try {
       const dados: LaudoData = {
+        documentStatus: 'preliminary',
         id: draft.vistoriaId,
         protocolo: draft.protocolo,
         nivelRisco: draft.nivelRisco,
@@ -551,6 +561,7 @@ export default function RelatorioScreen() {
     setGerando(true);
     try {
       const dados: LaudoData = {
+        documentStatus: 'preliminary',
         id: draft.vistoriaId,
         protocolo: draft.protocolo,
         nivelRisco: draft.nivelRisco,
@@ -568,6 +579,7 @@ export default function RelatorioScreen() {
         foto_url: draft.foto_url ?? null,
         fotosUrls: draft.fotosUrls ?? (draft.foto_url ? [draft.foto_url] : null),
         responsavelNome: draft.responsavelNome || (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'],
+        bairro: (draft.respostas || {})['Bairro'],
         modoTreinamento: isTrainingReport,
       };
 
@@ -657,6 +669,7 @@ export default function RelatorioScreen() {
             <View style={s.infoGrid}>
               <InfoItem label="Endereço"   value={draft.endereco}    theme={theme} />
               <InfoItem label="Município"  value={draft.municipio}   theme={theme} />
+              <InfoItem label="Solicitante" value={draft.responsavelNome || (draft.respostas || {})['Responsável'] || (draft.respostas || {})['Nome do Responsável'] || ''} theme={theme} />
               <InfoItem label="Data / Hora" value={fmtData(draft.dataVistoria)} theme={theme} />
               <InfoItem label="Agente"     value={draft.agenteNome}  theme={theme} />
               <InfoItem label="Formulário" value={formularioLabel} theme={theme} />

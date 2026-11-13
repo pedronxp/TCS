@@ -11,6 +11,7 @@ import { getMobileFieldOperations, resolveMobileOrganizationAccess } from '../se
 import { navSystemBottom } from '../utils/useBottomTabPadding';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Spacing, SpacingAlias } from '../constants/Spacing';
+import { useOwnerExperience } from '../context/OwnerExperienceContext';
 
 interface NavTab {
   key: string;
@@ -75,9 +76,10 @@ interface BottomNavBarInnerProps {
   permissions?: readonly string[];
   hasOrganization?: boolean;
   noticesEnabled?: boolean;
+  ownerMode?: 'follow' | 'operate' | null;
 }
 
-export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname, permissions, hasOrganization = true, noticesEnabled = true }: BottomNavBarInnerProps) {
+export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, pathname, permissions, hasOrganization = true, noticesEnabled = true, ownerMode }: BottomNavBarInnerProps) {
   const { theme } = useTheme();
   const { badgeCount } = useNotifications();
   const insets = useSafeAreaInsets();
@@ -87,7 +89,9 @@ export const BottomNavBarInner = React.memo(function BottomNavBarInner({ role, p
   if (!shouldShow) return null;
 
   const fieldOperations = getMobileFieldOperations(permissions);
-  const baseTabs = fieldOperations.length
+  const baseTabs = role === 'owner'
+    ? ownerMode === 'operate' ? internalFieldTabs(['mobile.inspection.manage', 'mobile.map.read']) : TABS_INTERNAL
+    : fieldOperations.length
     ? internalFieldTabs(permissions)
     : ['developer', 'support', 'auditor'].includes(role)
     ? TABS_INTERNAL
@@ -160,11 +164,13 @@ export function BottomNavBar() {
   const { profile } = useAuth();
   const { context, hasFeature } = useSubscription();
   const pathname = usePathname();
+  const { mode: ownerMode } = useOwnerExperience();
   if (!profile) return null;
   const access = resolveMobileOrganizationAccess(profile, context);
   return (
     <BottomNavBarInner
       role={profile.role}
+      ownerMode={ownerMode}
       pathname={pathname}
       permissions={profile.permissions}
       hasOrganization={access.hasOrganization}

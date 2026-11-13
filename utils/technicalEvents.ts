@@ -16,7 +16,7 @@ export interface ClientTechnicalEvent {
 
 const ALLOWED_METADATA_KEYS = new Set([
   'operation', 'attempt', 'failed_count', 'success_count', 'pending_count',
-  'retry_exhausted', 'bucket', 'background', 'subscription_limited',
+  'retry_exhausted', 'bucket', 'background', 'subscription_limited', 'exhausted_count',
 ]);
 
 export function sanitizeClientTechnicalMetadata(

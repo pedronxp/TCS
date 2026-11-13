@@ -22,7 +22,7 @@ export default function VerifyOtpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [segundos, setSegundos] = useState(RESEND_TIMEOUT);
   const [reenviando, setReenviando] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   // Timer de reenvio
   useEffect(() => {

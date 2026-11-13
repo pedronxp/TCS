@@ -1,0 +1,32 @@
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { OwnerInspectionArchiveAction } from '../OwnerInspectionArchiveAction';
+import { ownerMutation } from '../../services/OwnerAdministrationService';
+jest.mock('../../services/OwnerAdministrationService', () => ({ ownerMutation: jest.fn(), ownerActionError: (e: Error) => e.message }));
+jest.mock('../../context/ThemeContext', () => ({ useTheme: () => ({ theme: {} }) }));
+jest.mock('../../utils/uuid', () => ({ generateUUID: () => 'operation-1' }));
+jest.mock('../../utils/supabase', () => ({ supabase: { auth: { mfa: { listFactors: jest.fn(), challengeAndVerify: jest.fn() } } } }));
+beforeEach(() => jest.clearAllMocks());
+it('requires a reason and persists reversible archive before refreshing', async () => {
+  const refresh = jest.fn();
+  jest.mocked(ownerMutation).mockResolvedValue({ ok: true });
+  render(<OwnerInspectionArchiveAction inspectionId="inspection-1" archived={false} onUpdated={refresh} />);
+  fireEvent.press(screen.getByText('Excluir vistoria'));
+  fireEvent.press(screen.getByText('Confirmar exclusão reversível'));
+  expect(ownerMutation).not.toHaveBeenCalled();
+  fireEvent.changeText(screen.getByLabelText('Motivo do arquivamento'), 'Registro duplicado');
+  fireEvent.press(screen.getByText('Confirmar exclusão reversível'));
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  expect(ownerMutation).toHaveBeenCalledWith('set_owner_inspection_archived', { p_inspection_id: 'inspection-1', p_archived: true }, 'Registro duplicado', 'operation-1');
+});
+it('keeps the dialog and error available after rejection instead of pretending deletion succeeded', async () => {
+  const refresh = jest.fn();
+  jest.mocked(ownerMutation).mockRejectedValue(new Error('aal2_required'));
+  render(<OwnerInspectionArchiveAction inspectionId="inspection-1" archived={true} onUpdated={refresh} />);
+  fireEvent.press(screen.getByText('Restaurar vistoria'));
+  fireEvent.changeText(screen.getByLabelText('Motivo do arquivamento'), 'Restaurar registro');
+  fireEvent.press(screen.getByText('Confirmar restauração'));
+  expect(await screen.findByLabelText('Código do autenticador')).toBeTruthy();
+  expect(refresh).not.toHaveBeenCalled();
+  expect(screen.getByText('Cancelar')).toBeTruthy();
+});

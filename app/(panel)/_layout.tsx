@@ -1,6 +1,7 @@
-import { Stack, useSegments, router } from 'expo-router';
+import { Stack, useGlobalSearchParams, useSegments, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { AppState, View } from 'react-native';
+import { watchInspectionReviewNotifications } from '../../services/NotificationService';
+import { AppState, Modal, ScrollView, View } from 'react-native';
 import { useConnectivity } from '../../context/ConnectivityContext';
 import {
   syncPendentes,
@@ -15,16 +16,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useTraining } from '../../context/TrainingContext';
 import { canAccessMobileFieldOperation } from '../../services/MobileAccessService';
-
-// Rotas que exigem papel mínimo para acesso.
-// Qualquer rota não listada aqui é acessível a qualquer usuário autenticado.
-const ROUTE_ROLES: Record<string, readonly string[]> = {
-  'admin':        ['admin', 'master_admin'],
-  'supervisor':   ['supervisor', 'admin', 'master_admin'],
-  'qe':           ['supervisor', 'admin', 'master_admin'],
-  'master':       ['master_admin'],
-  'internal':     ['owner', 'developer', 'support', 'auditor'],
-};
+import { canAccessPanelRoute } from '../../services/OwnerExperienceService';
+import { OwnerExperienceProvider, useOwnerExperience } from '../../context/OwnerExperienceContext';
+import { OwnerExperienceChoice } from '../../components/OwnerExperienceChoice';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../context/ThemeContext';
 
 const WEB_ONLY_ROUTES = new Set([
   'master/contratacoes',
@@ -39,8 +35,9 @@ const WEB_ONLY_ROUTES = new Set([
 
 function useRouteGuard() {
   const segments = useSegments() as string[];
+  const { teste } = useGlobalSearchParams<{ teste?: string }>();
   const { profile, loading } = useAuth();
-  const { context: subscriptionContext } = useSubscription();
+  const { context: subscriptionContext, loading: subscriptionLoading, error: subscriptionError, hasFeature } = useSubscription();
 
   useEffect(() => {
     if (loading || !profile) return;
@@ -48,6 +45,11 @@ function useRouteGuard() {
     // segments[0] = "(panel)", segments[1] = section (admin/supervisor/master/...)
     const section = segments[1] as string | undefined;
     if (!section) return;
+    const localInspectionTest = section === 'inspecoes'
+      && teste === '1'
+      && ['owner', 'support', 'developer'].includes(profile.role)
+      && ['selecao-formulario', 'wizard', 'resultado'].includes(segments[2]);
+    if (localInspectionTest) return;
 
     // ── Bloqueio por suspensão de cobrança (F3) ──
     // Org/assinatura suspensa → só acessa cobrança, suporte e dashboard.
@@ -78,25 +80,29 @@ function useRouteGuard() {
     }
 
     const nestedRoute = `${section}/${segments[2] || ''}`;
-    if (WEB_ONLY_ROUTES.has(nestedRoute)) {
+    if (WEB_ONLY_ROUTES.has(nestedRoute) && profile.role !== 'owner') {
       logger.info('auth', `Ação administrativa disponível apenas no painel web: ${nestedRoute}`);
       router.replace('/(panel)/modulos');
       return;
     }
 
-    const allowed = ROUTE_ROLES[section];
-    if (!allowed) return; // Rota sem restrição de papel
-
-    if (!allowed.includes(profile.role)) {
+    const operationalReports = nestedRoute === 'admin/relatorios' && ['agent', 'supervisor'].includes(profile.role);
+    if (operationalReports && (subscriptionLoading || (!subscriptionContext && !subscriptionError))) return;
+    const reportsAllowed = Boolean(subscriptionContext) && ['reports_basic', 'reports_advanced', 'reports_institutional'].some(hasFeature);
+    if (!canAccessPanelRoute(profile.role, nestedRoute, reportsAllowed)) {
       logger.warn('auth', `Acesso negado à seção "${section}" para papel "${profile.role}" — redirecionando`);
       // Redireciona para dashboard sem permissão de navegar de volta
       router.replace('/(panel)/dashboard');
     }
-  }, [segments, profile, loading, subscriptionContext]);
+  }, [segments, teste, profile, loading, subscriptionContext, subscriptionLoading, subscriptionError, hasFeature]);
 }
 
 function PanelContent() {
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, profile } = useAuth();
+  const userId = profile?.uid;
+  useEffect(() => userId ? watchInspectionReviewNotifications(userId) : undefined, [userId]);
+  const { mode, loading: modeLoading, error: modeError } = useOwnerExperience();
+  const { theme } = useTheme();
   const { refresh: refreshSubscription } = useSubscription();
   const { isOnlineReal } = useConnectivity();
   const { isTrainingActive } = useTraining();
@@ -189,10 +195,13 @@ function PanelContent() {
         <Stack.Screen name="suporte/[id]" />
       </Stack>
       <BottomNavBar />
+      <Modal visible={profile?.role === 'owner' && !modeLoading && !mode && !modeError} animationType="slide" onRequestClose={() => {}}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}><ScrollView><OwnerExperienceChoice /></ScrollView></SafeAreaView>
+      </Modal>
     </View>
   );
 }
 
 export default function PanelLayout() {
-  return <PanelContent />;
+  return <OwnerExperienceProvider><PanelContent /></OwnerExperienceProvider>;
 }

@@ -12,6 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/Textarea';
 
 const tokenSwatches = [
+  // Nomes das cores semânticas — os hexadecimais exibidos na página são a referência
+  // do tema light; cada um dos 6 temas (light, dark Graphite, orca, dracula, nord e
+  // gruvbox) remapeia estes mesmos tokens em index.css.
   { name: 'Background', value: 'var(--background)', className: 'bg-background' },
   { name: 'Surface', value: 'var(--card)', className: 'bg-card' },
   { name: 'Foreground', value: 'var(--foreground)', className: 'bg-foreground' },
@@ -36,7 +39,7 @@ export function StyleGuidePage() {
       <section aria-labelledby="guide-foundations" className="space-y-5">
         <div>
           <h2 id="guide-foundations" className="text-[22px] font-semibold">Foundations</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Cores semânticas, tipografia, espaçamento e forma. Os hexadecimais abaixo são a referência do tema claro; a interface usa tokens adaptativos.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Cores semânticas, tipografia, espaçamento e forma. Os hexadecimais abaixo são a referência do tema claro; a interface usa tokens adaptativos que cobrem os 6 temas: light, dark Graphite (#09090B), orca, dracula, nord e gruvbox.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {tokenSwatches.map((token) => (
@@ -77,10 +80,10 @@ export function StyleGuidePage() {
                 ))}
               </div>
               <div className="mt-8 grid grid-cols-4 gap-3">
-                <Shape radius="6" className="rounded-sm" />
-                <Shape radius="10" className="rounded-md" />
-                <Shape radius="14" className="rounded-lg" />
-                <Shape radius="24" className="rounded-xl" />
+                <Shape radius="8" className="rounded-sm" />
+                <Shape radius="12" className="rounded-md" />
+                <Shape radius="16" className="rounded-lg" />
+                <Shape radius="20" className="rounded-xl" />
               </div>
             </CardContent>
           </Card>
@@ -170,7 +173,7 @@ export function StyleGuidePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Card padrão</CardTitle>
-                <CardDescription>Superfície branca, borda quente e sombra curta.</CardDescription>
+                <CardDescription>Superfície via tokens semânticos (--card, --border): acompanha automaticamente os 6 temas — light, dark Graphite (#09090B), orca, dracula, nord e gruvbox.</CardDescription>
               </CardHeader>
             </Card>
             <Card className="bg-info-soft">

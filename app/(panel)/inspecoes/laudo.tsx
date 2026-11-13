@@ -140,11 +140,10 @@ export default function LaudoScreen() {
     try {
       // Filtrar por município para evitar acesso a vistorias de outros municípios
       let query = supabase.from('vistorias').select('*').eq('id', id);
-      if (profile && profile.role !== 'master_admin') {
-        query = query.eq('municipio', profile.municipio);
-      }
       if (profile && profile.role === 'agent') {
         query = query.eq('agenteUid', profile.uid);
+      } else if (profile?.municipio && !['master_admin', 'owner'].includes(profile.role)) {
+        query = query.eq('municipio', profile.municipio);
       }
       const { data, error } = await query.single();
       if (error) throw error;
@@ -236,6 +235,7 @@ export default function LaudoScreen() {
     setGerando(true);
     try {
       const dados: LaudoData = {
+        documentStatus: 'preliminary',
         id: vistoria.id,
         protocolo: vistoria.protocolo,
         nivelRisco: vistoria.nivelRisco,

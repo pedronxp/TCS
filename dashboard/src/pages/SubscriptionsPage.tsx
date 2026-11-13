@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Pencil, Plus, Search, X } from 'lucide-react';
+import { ArrowRight, Pencil, Plus, Search, X } from 'lucide-react';
 import { StatusBadge } from '@/components/domain/Badges';
 import { AsyncBoundary } from '@/components/states/AsyncBoundary';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/AsyncState';
@@ -226,7 +227,9 @@ export function SubscriptionsPage() {
                               disabled={activation.isPending}
                               onClick={() => setActivating(subscription)}
                             >
-                              Encerrar teste → Ativar
+                              Encerrar teste
+                              <ArrowRight aria-hidden="true" />
+                              Ativar
                             </Button>
                           )}
                           {can('commercial.write') && (
@@ -466,22 +469,25 @@ function SubscriptionDialog({
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectField label="Cliente" value={customerId} disabled={Boolean(subscription)} onChange={setCustomerId} required>
                   {customers.map((item) => (
-                    <option key={item.customer_id} value={item.customer_id}>
+                    <SelectItem key={item.customer_id} value={item.customer_id}>
                       {item.display_name} · {ptBrLabel(item.kind)}
-                    </option>
+                    </SelectItem>
                   ))}
                 </SelectField>
                 <SelectField label="Plano" value={planId} onChange={setPlanId} required>
                   {compatiblePlans.map((plan) => (
-                    <option key={plan.id} value={plan.id}>
+                    <SelectItem key={plan.id} value={plan.id}>
                       {plan.name}
                       {plan.status === 'draft' ? ' (rascunho)' : ''}
-                    </option>
+                    </SelectItem>
                   ))}
                 </SelectField>
               </div>
               {selectedPlan?.status === 'draft' && (
-                <p className="mt-2 text-xs text-foreground">⚠️ Este plano está em rascunho e pode não estar pronto para produção.</p>
+                <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-foreground">
+                  <Badge variant="warning">Atenção</Badge>
+                  Este plano está em rascunho e pode não estar pronto para produção.
+                </p>
               )}
             </section>
 
@@ -491,9 +497,9 @@ function SubscriptionDialog({
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <SelectField label="Status" value={status} onChange={setStatus} required>
                   {statuses.map((item) => (
-                    <option key={item} value={item}>
+                    <SelectItem key={item} value={item}>
                       {ptBrLabel(item)}
-                    </option>
+                    </SelectItem>
                   ))}
                 </SelectField>
                 <DateField label="Início da assinatura" value={startsAt} onChange={setStartsAt} required />
@@ -705,15 +711,12 @@ function SelectField({
         {label}
         {required && <span className="ml-0.5 text-destructive">*</span>}
       </Label>
-      <select
-        id={id}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-lg border bg-background px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-      >
-        {children}
-      </select>
+      <Select value={value} onValueChange={onChange} disabled={disabled} required={required}>
+        <SelectTrigger id={id} className="h-11 w-full text-sm">
+          <SelectValue placeholder="Selecione" />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
     </div>
   );
 }

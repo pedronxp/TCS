@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, FileText, Plus, RotateCw, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/domain/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
@@ -16,8 +17,10 @@ import {
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { Textarea } from '@/components/ui/Textarea';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -232,17 +235,18 @@ export function FaturasPage() {
   const emAnalise = (faturas.data ?? []).filter(f => f.status === 'em_analise');
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Faturas</h1>
-          <p className="text-sm text-muted-foreground">Cobrança manual: comprovantes, avisos e tolerância.</p>
-        </div>
-        <Button variant="outline" onClick={() => rodarMotor.mutate()} disabled={rodarMotor.isPending}>
-          <RotateCw className={`mr-2 h-4 w-4 ${rodarMotor.isPending ? 'animate-spin' : ''}`} />
-          Rodar motor agora
-        </Button>
-      </div>
+    <div className="page-stack space-y-6">
+      <PageHeader
+        eyebrow="Negócio"
+        title="Faturas"
+        description="Cobrança manual: comprovantes, avisos e tolerância."
+        actions={
+          <Button variant="outline" onClick={() => rodarMotor.mutate()} disabled={rodarMotor.isPending}>
+            <RotateCw className={cn(rodarMotor.isPending && 'animate-spin motion-reduce:animate-none')} />
+            Rodar motor agora
+          </Button>
+        }
+      />
 
       {/* Fila de comprovantes pendentes de análise */}
       {emAnalise.length > 0 && (
@@ -275,7 +279,7 @@ export function FaturasPage() {
       )}
 
       {/* Lista geral de faturas */}
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader className="flex-row items-center justify-between gap-4">
           <h2 className="text-base font-semibold">Todas as faturas</h2>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -288,39 +292,41 @@ export function FaturasPage() {
             </SelectContent>
           </Select>
         </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="px-4 py-2">Organização</th>
-                <th className="px-4 py-2">Competência</th>
-                <th className="px-4 py-2">Valor</th>
-                <th className="px-4 py-2">Vencimento</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Comprovante</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtradas.map(f => (
-                <tr key={f.id} className="border-b last:border-0">
-                  <td className="px-4 py-2 font-medium">{f.organizations?.display_name ?? '—'}</td>
-                  <td className="px-4 py-2">{f.competencia}</td>
-                  <td className="px-4 py-2">{fmt(f.valor_centavos)}</td>
-                  <td className="px-4 py-2">{fmtData(f.vencimento)}</td>
-                  <td className="px-4 py-2"><Badge variant={STATUS_VARIANT[f.status]}>{STATUS_LABEL[f.status]}</Badge></td>
-                  <td className="px-4 py-2">
-                    {f.comprovante_path ? (
-                      <Button size="sm" variant="ghost" onClick={() => void abrirComprovante(f.comprovante_path)}>Abrir</Button>
-                    ) : '—'}
-                    {f.motivo_rejeicao ? <p className="mt-1 text-xs text-destructive">Rejeitado: {f.motivo_rejeicao}</p> : null}
-                  </td>
-                </tr>
-              ))}
-              {filtradas.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Nenhuma fatura nesse filtro.</td></tr>
-              )}
-            </tbody>
-          </table>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[860px]">
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="pl-6">Organização</TableHead>
+                  <TableHead>Competência</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="pr-6">Comprovante</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtradas.map(f => (
+                  <TableRow key={f.id} className="hover:bg-muted/40">
+                    <TableCell className="pl-6 font-medium">{f.organizations?.display_name ?? '—'}</TableCell>
+                    <TableCell>{f.competencia}</TableCell>
+                    <TableCell className="tabular-nums">{fmt(f.valor_centavos)}</TableCell>
+                    <TableCell className="tabular-nums">{fmtData(f.vencimento)}</TableCell>
+                    <TableCell><Badge variant={STATUS_VARIANT[f.status]}>{STATUS_LABEL[f.status]}</Badge></TableCell>
+                    <TableCell className="pr-6">
+                      {f.comprovante_path ? (
+                        <Button size="sm" variant="ghost" onClick={() => void abrirComprovante(f.comprovante_path)}>Abrir</Button>
+                      ) : '—'}
+                      {f.motivo_rejeicao ? <p className="mt-1 text-xs text-destructive">Rejeitado: {f.motivo_rejeicao}</p> : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filtradas.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Nenhuma fatura nesse filtro.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
