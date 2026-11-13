@@ -43,7 +43,8 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "static"
     },
     "plugins": [
       "expo-asset",
@@ -102,7 +103,11 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-image",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-status-bar"
     ],
     "extra": {
       "router": {},

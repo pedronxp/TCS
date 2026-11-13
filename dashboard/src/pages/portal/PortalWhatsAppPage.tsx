@@ -26,6 +26,7 @@ import {
   type SessaoBotStatus,
   type SessaoBotAcao,
 } from '@/lib/comunicados';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 type CommunityConfirmation =
   | { action: 'create'; name: string; inviteUrl: string | null }
@@ -92,6 +93,9 @@ export function PortalWhatsAppPage() {
     enabled: Boolean(organizationId) && mayManage && groupsVisible,
     retry: false,
   });
+  const sessionsTimedOut = useAsyncTimeout(sessionsQuery.isLoading);
+  const channelsTimedOut = useAsyncTimeout(channelsQuery.isLoading);
+  const chatsTimedOut = useAsyncTimeout(chatsQuery.isLoading);
 
   const channels = channelsQuery.data ?? [];
   const sessions = sessionsQuery.data ?? [];
@@ -271,7 +275,8 @@ export function PortalWhatsAppPage() {
               </Button>
             )}
             {mayManage && <ul className="mt-4 divide-y">
-              {sessionsQuery.isLoading && <li className="py-4 text-sm text-muted-foreground">Carregando números…</li>}
+              {sessionsQuery.isLoading && !sessionsTimedOut && <li className="py-4 text-sm text-muted-foreground">Carregando números…</li>}
+              {sessionsQuery.isLoading && sessionsTimedOut && <li className="py-4 text-sm text-destructive" role="alert">Não foi possível carregar os números. <button type="button" className="font-semibold underline underline-offset-4" onClick={() => void sessionsQuery.refetch()}>Tentar novamente</button></li>}
               {!sessionsQuery.isLoading && sessions.length === 0 && <li className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhum número conectado.</li>}
               {sessions.map((session) => {
                 const liveSession = runtimeQuery.data?.sessions.find((item) => item.id === session.id);
@@ -323,7 +328,8 @@ export function PortalWhatsAppPage() {
             )}
             {!groupsVisible && <p className="mt-5 rounded-xl border border-dashed bg-secondary/20 p-5 text-sm leading-6 text-muted-foreground" role="status"><ShieldCheck className="mb-2 h-5 w-5 text-primary" />Dados protegidos até um número reconectar. Os nomes, grupos, links de convite e vínculos permanecem ocultos.</p>}
             {groupsVisible && <ul className="mt-5 space-y-4">
-              {channelsQuery.isLoading && <li className="text-sm text-muted-foreground">Carregando comunidades…</li>}
+              {channelsQuery.isLoading && !channelsTimedOut && <li className="text-sm text-muted-foreground">Carregando comunidades…</li>}
+              {channelsQuery.isLoading && channelsTimedOut && <li className="text-sm text-destructive" role="alert">Não foi possível carregar as comunidades. <button type="button" className="font-semibold underline underline-offset-4" onClick={() => void channelsQuery.refetch()}>Tentar novamente</button></li>}
               {!channelsQuery.isLoading && communityChannels.length === 0 && <li className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma comunidade cadastrada.</li>}
               {communityChannels.map((channel) => (
                 <li key={channel.id} className="rounded-xl border p-4 sm:p-5">
@@ -334,7 +340,7 @@ export function PortalWhatsAppPage() {
                   {mayManage && <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
                     <label className="text-xs font-medium text-muted-foreground">Grupo sincronizado
                       <select className="mt-1.5 h-10 w-full rounded-md border bg-card px-3 text-sm text-foreground" value={channel.chatId ?? ''} aria-label={`Grupo vinculado a ${channel.nome}`} onChange={(event) => event.target.value ? linkChat.mutate({ channelId: channel.id, chatId: event.target.value }) : setCommunityConfirmation({ action: 'unlink', id: channel.id, name: channel.nome })}>
-                        <option value="">{chatsQuery.isError ? 'Bot offline ou indisponível' : chats.length === 0 ? 'Nenhum grupo sincronizado' : 'Selecionar grupo…'}</option>
+                        <option value="">{(chatsQuery.isError || chatsTimedOut) ? 'Bot offline ou indisponível' : chats.length === 0 ? 'Nenhum grupo sincronizado' : 'Selecionar grupo…'}</option>
                         {chats.filter((chat) => !chat.chatId.endsWith('@newsletter')).map((chat) => <option key={chat.chatId} value={chat.chatId}>{chat.nome}{chat.sessaoTelefone ? ` · ${chat.sessaoTelefone}` : ''}</option>)}
                       </select>
                     </label>

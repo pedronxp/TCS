@@ -10,12 +10,14 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalRestrictionMessage } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
 import { roleLabel, statusLabel } from '@/pages/portal/PortalTeamPage';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 export function PortalTeamMemberPage() {
   const { memberId } = useParams();
   const navigate = useNavigate();
   const { access, can } = usePortalAuth();
   const query = useQuery({ queryKey: ['portal', 'workspace', 'equipe', access?.organizationId], queryFn: () => fetchPortalWorkspace('equipe') });
+  const timedOut = useAsyncTimeout(query.isLoading);
   const member = query.data?.items.find((item) => String(item.id) === memberId);
   const mayManage = can('team.manage') && Boolean(access?.creationAllowed) && Boolean(member) && String(member?.user_id) !== access?.userId;
   const [role, setRole] = useState('agent');
@@ -42,8 +44,8 @@ export function PortalTeamMemberPage() {
   return (
     <div className="page-stack mx-auto max-w-[850px]">
       <header><Link to="/portal/municipal/equipe" className="inline-flex items-center gap-1 text-xs font-semibold text-primary"><ArrowLeft className="h-4 w-4" />Voltar para equipe</Link><h1 className="mt-2 text-2xl font-semibold">{member ? String(member.title) : 'Pessoa da equipe'}</h1><p className="mt-1 text-sm text-muted-foreground">Perfil, situação e permissões dentro desta organização.</p></header>
-      {query.isLoading && <Card><CardContent className="p-6 text-sm text-muted-foreground">Carregando pessoa…</CardContent></Card>}
-      {query.isError && <Card><CardContent className="p-6 text-sm text-destructive">Não foi possível carregar a equipe.</CardContent></Card>}
+      {query.isLoading && !timedOut && <Card><CardContent className="p-6 text-sm text-muted-foreground">Carregando pessoa…</CardContent></Card>}
+      {(query.isError || (query.isLoading && timedOut)) && <Card><CardContent className="space-y-3 p-6 text-sm text-destructive"><p>Não foi possível carregar a equipe.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></CardContent></Card>}
       {!query.isLoading && !query.isError && !member && <Card><CardContent className="p-6 text-sm">Pessoa não encontrada nesta organização.</CardContent></Card>}
       {member && <>
         <Card><CardHeader><CardTitle>Resumo de acesso</CardTitle></CardHeader><CardContent className="flex flex-wrap gap-2"><Badge variant="outline">{roleLabel(String(member.subtitle))}</Badge><Badge>{statusLabel(String(member.status))}</Badge>{String(member.user_id) === access?.userId && <Badge variant="secondary">Seu acesso</Badge>}</CardContent></Card>

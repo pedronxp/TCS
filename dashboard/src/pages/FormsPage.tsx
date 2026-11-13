@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -501,11 +501,14 @@ function FormEditorContent({
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const initialSnapshot = useRef<string | undefined>(undefined);
   const preview = useMemo(() => phases.flatMap((phase) => phase.perguntas).map((question) => question.texto || 'Pergunta sem título'), [phases]);
   const editorSnapshot = useMemo(() => JSON.stringify({ title, description, municipality, calculation, phases, reason }), [title, description, municipality, calculation, phases, reason]);
-  if (initialSnapshot.current === undefined) initialSnapshot.current = editorSnapshot;
-  const hasUnsavedChanges = initialSnapshot.current !== editorSnapshot;
+  // O retrato inicial é capturado uma única vez, na montagem do editor — que
+  // acontece a cada abertura (o pai monta com `key`). Guardar esse valor em
+  // estado, e não em uma ref escrita durante o render, evita o antipadrão de
+  // "component did not update as expected".
+  const [initialSnapshot] = useState(() => editorSnapshot);
+  const hasUnsavedChanges = initialSnapshot !== editorSnapshot;
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;

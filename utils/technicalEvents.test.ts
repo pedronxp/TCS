@@ -9,8 +9,8 @@ describe('technicalEvents', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('keeps only the non-sensitive telemetry allowlist', () => {
-    expect(sanitizeClientTechnicalMetadata({ operation: 'upload', failed_count: 2, bucket: 'fotos', token: 'nope', email: 'nope' } as any))
-      .toEqual({ operation: 'upload', failed_count: 2, bucket: 'fotos' });
+    expect(sanitizeClientTechnicalMetadata({ operation: 'upload', failed_count: 2, exhausted_count: 1, bucket: 'fotos', token: 'nope', email: 'nope' } as any))
+      .toEqual({ operation: 'upload', failed_count: 2, exhausted_count: 1, bucket: 'fotos' });
   });
 
   it('sends a sanitized, bounded event envelope', async () => {

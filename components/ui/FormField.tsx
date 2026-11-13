@@ -22,7 +22,7 @@ export interface FormFieldProps extends Omit<TextInputProps, 'style'> {
   inputStyle?: StyleProp<TextStyle>;
 }
 
-export const FormField = forwardRef<TextInput, FormFieldProps>(function FormField({
+export const FormField = forwardRef<React.ComponentRef<typeof TextInput>, FormFieldProps>(function FormField({
   label,
   error,
   helperText,

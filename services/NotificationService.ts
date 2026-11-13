@@ -67,6 +67,33 @@ async function localNotification(title: string, body: string, data: Record<strin
   await Notifications.scheduleNotificationAsync({ content: { title, body, data, sound: 'default', priority, color, ...(Platform.OS === 'android' && { channelId }) }, trigger: null });
 }
 
+export function watchInspectionReviewNotifications(userId: string): () => void {
+  if (Platform.OS === 'web') return () => {};
+  const seen = new Set<string>();
+  let active = true;
+  const channel = supabase.channel(`inspection-review-inbox:${userId}`)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'inbox_recipients',
+      filter: `recipient_user_id=eq.${userId}`,
+    }, ({ new: row }) => {
+      if (row.recipient_user_id !== userId || seen.has(row.event_id)) return;
+      seen.add(row.event_id);
+      void (async () => {
+        const { data, error } = await supabase.rpc('get_my_inbox', {
+          p_workspace_kind: row.workspace_kind, p_limit: 50, p_unread_only: true,
+        });
+        if (!active || error) return;
+        const item = data?.items?.find((entry: { id: string; event_type: string }) =>
+          entry.id === row.event_id && ['qe.review_approved', 'qe.review_returned'].includes(entry.event_type));
+        if (item) await localNotification(item.title, item.body, { tipo: 'qe_resultado' });
+      })().catch(() => logger.warn('notifications', 'Não foi possível exibir o aviso de revisão.'));
+    }).subscribe();
+  return () => {
+    active = false;
+    void supabase.removeChannel(channel);
+  };
+}
+
 export async function notificarVistoriaSalva(endereco: string, nivel: string): Promise<void> {
   const highRisk = ['r3', 'r4', 'alto'].includes(nivel);
   await localNotification(highRisk ? '⚠️ Vistoria de Alto Risco Salva' : '✅ Vistoria Salva', `${endereco || 'Local não informado'} — Risco: ${nivel.toUpperCase()}`, { tipo: 'vistoria_salva', nivel }, highRisk ? 'alertas' : 'default', highRisk ? Notifications.AndroidNotificationPriority.MAX : Notifications.AndroidNotificationPriority.DEFAULT, highRisk ? '#EF4444' : '#10B981');

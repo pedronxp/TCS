@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    updateAutoRefresh(AppState.currentState);
+    updateAutoRefresh(AppState.currentState ?? 'unknown');
     const subscription = AppState.addEventListener('change', updateAutoRefresh);
     return () => {
       subscription.remove();

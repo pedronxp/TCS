@@ -363,6 +363,15 @@ describe('conta e administração do portal', () => {
     expect(state.signOut).toHaveBeenCalledOnce();
   });
 
+  it('informa indisponibilidade do provedor em resposta HTTP 503', async () => {
+    const user = userEvent.setup();
+    const json = vi.fn().mockResolvedValue({ error: 'payment_provider_not_configured' });
+    state.invoke.mockResolvedValueOnce({ data: null, error: { context: { status: 503, json } } });
+    render(<PortalBillingPage />);
+    await user.click(screen.getByRole('button', { name: /Fazer upgrade para Municipal Profissional/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('provedor de pagamento ainda não está configurado');
+  });
+
   it('expõe periodicidade nativa, unidade do preço e falha fechada para host externo', async () => {
     const user = userEvent.setup();
     state.invoke.mockResolvedValueOnce({

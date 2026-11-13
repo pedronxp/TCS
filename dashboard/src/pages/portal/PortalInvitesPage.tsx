@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalHome, portalRestrictionMessage } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 export function PortalInvitesPage() {
   const { access, can } = usePortalAuth();
@@ -16,6 +17,7 @@ export function PortalInvitesPage() {
     queryFn: () => fetchPortalWorkspace('convites'),
     enabled: Boolean(access),
   });
+  const timedOut = useAsyncTimeout(query.isLoading);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('agent');
   const [submitting, setSubmitting] = useState(false);
@@ -94,7 +96,7 @@ export function PortalInvitesPage() {
             {errorMessage && <p className="mt-4 rounded-md border border-destructive/30 bg-destructive-soft p-3 text-sm text-destructive" role="alert">{errorMessage}</p>}
           </CardContent>
         </Card>
-        <Card><CardHeader><CardTitle>Histórico</CardTitle></CardHeader><CardContent>{query.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}{query.isError && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar os convites.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}{query.data?.items.length === 0 && <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhum convite emitido.</p>}<ul className="divide-y">{query.data?.items.map((item) => <li key={String(item.id)} className="flex min-w-0 flex-wrap items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="break-all text-sm font-semibold">{String(item.title)}</p><p className="mt-1 text-xs text-muted-foreground">{String(item.subtitle)}</p></div><span className="text-xs font-semibold">{String(item.status)}</span></li>)}</ul></CardContent></Card>
+        <Card><CardHeader><CardTitle>Histórico</CardTitle></CardHeader><CardContent>{query.isLoading && !timedOut && <p className="text-sm text-muted-foreground">Carregando…</p>}{(query.isError || (query.isLoading && timedOut)) && <div className="space-y-3 text-sm text-destructive" role="alert"><p>Não foi possível carregar os convites.</p><Button variant="outline" size="sm" onClick={() => void query.refetch()}>Tentar novamente</Button></div>}{query.data?.items.length === 0 && <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhum convite emitido.</p>}<ul className="divide-y">{query.data?.items.map((item) => <li key={String(item.id)} className="flex min-w-0 flex-wrap items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="break-all text-sm font-semibold">{String(item.title)}</p><p className="mt-1 text-xs text-muted-foreground">{String(item.subtitle)}</p></div><span className="text-xs font-semibold">{String(item.status)}</span></li>)}</ul></CardContent></Card>
       </section>
     </div>
   );

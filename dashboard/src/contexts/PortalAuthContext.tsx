@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { buildAuthCallbackUrl, fetchAuthenticatedInternalProfile } from '@/lib/account-entry';
 import { supabase } from '@/lib/supabase';
@@ -61,6 +61,13 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Revision guard (mesmo padrão de context/AuthContext.tsx): cada hidratação
+  // registra uma revisão ao iniciar e só aplica estado se continuar sendo a
+  // mais recente. Sem isso, getSession() e onAuthStateChange() disparam
+  // hidratações concorrentes que podem intercalar setAccess(null)/setAccess(next)
+  // e causar flash de "sem acesso".
+  const hydrateRevisionRef = useRef(0);
+
   const recordOnboardingEvent = useCallback(async (event: CustomerOnboardingEvent) => {
     if (!session) return;
     // Audit is best effort: an observability failure must not stop a customer
@@ -77,6 +84,8 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   const hydrate = useCallback(async (nextSession: Session | null) => {
+    const revision = ++hydrateRevisionRef.current;
+    const isCurrent = () => revision === hydrateRevisionRef.current;
     setSession(nextSession);
     if (!nextSession) {
       setAccess(null);
@@ -87,6 +96,7 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const internalProfile = await fetchAuthenticatedInternalProfile();
+      if (!isCurrent()) return;
       const internalEntryContext = parseInternalCustomerEntryContext(internalProfile);
       if (internalEntryContext) {
         setAccess(null);
@@ -98,10 +108,12 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
         await supabase.rpc('reconcile_customer_identity');
         await supabase.rpc('record_google_identity_reconciled');
       }
+      if (!isCurrent()) return;
       const [nextAccess, nextEntryContext] = await Promise.all([
         fetchPortalAccessContext(nextSession.user),
         fetchCustomerEntryContext(),
       ]);
+      if (!isCurrent()) return;
       setAccess(nextAccess);
       setEntryContext(nextEntryContext);
       if (nextAccess) {
@@ -112,14 +124,16 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
           p_platform: 'web',
           p_replace: false,
         });
+        if (!isCurrent()) return;
       }
       setError(null);
     } catch (cause) {
+      if (!isCurrent()) return;
       setAccess(null);
       setEntryContext(null);
       setError(cause instanceof Error ? cause.message : 'Não foi possível carregar seu acesso.');
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 
@@ -141,6 +155,9 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     });
     return () => {
       mounted = false;
+      // Descarta hidratações em voo após o unmount (espelha o cleanup do
+      // AuthContext raiz, que também incrementa authRevision).
+      hydrateRevisionRef.current += 1;
       data.subscription.unsubscribe();
     };
   }, [hydrate]);
@@ -280,6 +297,9 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) throw signOutError;
+    // Invalida hidratações em voo para que nenhuma delas reaplique acesso
+    // depois do logout (mesma proteção do ramo SIGNED_OUT do AuthContext raiz).
+    hydrateRevisionRef.current += 1;
     setSession(null);
     setAccess(null);
     setEntryContext(null);

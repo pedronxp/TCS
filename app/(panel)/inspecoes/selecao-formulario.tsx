@@ -275,7 +275,7 @@ export default function SelecaoFormularioScreen() {
     const featureCode = form.featureCode || (normalizedTitle.includes('arv') || normalizedTitle.includes('arvore')
       ? 'inspection_arv'
       : 'inspection_standard');
-    if (!isTrainingActive && !hasFeature(featureCode)) {
+    if (!isTrainingActive && !(params.teste === '1' && ['owner', 'support', 'developer'].includes(profile?.role ?? '')) && !hasFeature(featureCode)) {
       Alert.alert('Recurso não incluído', 'Este modelo não está disponível no plano atual.', [
         { text: 'Agora não', style: 'cancel' },
         { text: 'Ver assinatura', onPress: () => router.push('/(panel)/assinatura') },

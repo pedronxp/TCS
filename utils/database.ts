@@ -384,6 +384,7 @@ export interface VistoriaLocal {
   tentativas_sync: number;      // contador de tentativas falhas
   criado_em: string;
   origem?: 'offline' | 'online'; // campo computado, não persiste no SQLite
+  owner_archived_at?: string | null; // estado remoto de arquivamento, apenas para apresentação
 }
 
 // ─── CRUD ──────────────────────────────────────────────────────────────────

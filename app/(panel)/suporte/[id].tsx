@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../utils/supabase';
+import { safeBack } from '../../../utils/navigationUtils';
+import { logger } from '../../../utils/logger';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
-import { AppHeader, Badge, Button, FormField, LoadingState, ErrorState } from '../../../components/ui';
+import { AppHeader, Badge, Button, FormField, LoadingState, ErrorState, StateBanner } from '../../../components/ui';
 
 const STATUS_LABEL: Record<string, string> = {
   open: 'Aberto',
@@ -54,13 +56,21 @@ export default function SuporteTicketScreen() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [historicoIndisponivel, setHistoricoIndisponivel] = useState(false);
   const [resposta, setResposta] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   const carregar = useCallback(async () => {
-    if (!id) return;
+    if (typeof id !== 'string' || !id.trim()) {
+      setErro('Chamado não encontrado.');
+      setCarregando(false);
+      return;
+    }
     setCarregando(true);
     setErro(null);
+    setHistoricoIndisponivel(false);
+    setTicket(null);
+    setEventos([]);
     try {
       const { data: tk, error: tkErr } = await supabase
         .from('support_tickets')
@@ -69,12 +79,17 @@ export default function SuporteTicketScreen() {
         .single();
       if (tkErr) throw tkErr;
 
-      const { data: ev, error: evErr } = await supabase.rpc('my_ticket_events', { p_ticket_id: id });
-      if (evErr) throw evErr;
-
       setTicket(tk as Ticket);
-      setEventos((ev ?? []) as Evento[]);
-    } catch {
+      try {
+        const { data: ev, error: evErr } = await supabase.rpc('my_ticket_events', { p_ticket_id: id });
+        if (evErr) throw evErr;
+        setEventos((ev ?? []) as Evento[]);
+      } catch (error) {
+        logger.warn('system', 'Falha na leitura do histórico de suporte', { code: (error as { code?: string } | null)?.code });
+        setHistoricoIndisponivel(true);
+      }
+    } catch (error) {
+      logger.warn('system', 'Falha na leitura do chamado', { code: (error as { code?: string } | null)?.code });
       setErro('Não foi possível abrir o chamado.');
     } finally {
       setCarregando(false);
@@ -101,10 +116,7 @@ export default function SuporteTicketScreen() {
     }
   };
 
-  if (carregando) return <LoadingState message="Abrindo chamado..." />;
-  if (erro || !ticket) return <ErrorState message={erro ?? 'Chamado não encontrado.'} onRetry={() => void carregar()} />;
-
-  const fechado = ticket.status === 'resolved' || ticket.status === 'closed';
+  const fechado = ticket?.status === 'resolved' || ticket?.status === 'closed';
 
   return (
     <KeyboardAvoidingView
@@ -113,13 +125,15 @@ export default function SuporteTicketScreen() {
     >
       <View style={{ paddingTop: insets.top }}>
         <AppHeader
-          title={ticket.public_code ?? 'Chamado'}
-          subtitle={ticket.subject}
-          onBack={() => router.back()}
+          title={ticket?.public_code ?? 'Chamado'}
+          subtitle={ticket?.subject}
+          onBack={() => safeBack('/(panel)/suporte')}
         />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}>
+      {carregando ? <LoadingState message="Abrindo chamado..." />
+        : erro || !ticket ? <ErrorState message={erro ?? 'Chamado não encontrado.'} onRetry={id ? () => void carregar() : undefined} />
+        : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}>
         <View style={styles.statusLinha}>
           <Badge label={STATUS_LABEL[ticket.status] ?? ticket.status} variant={fechado ? 'success' : 'warning'} size="sm" />
           <Text style={[styles.data, { color: theme.textSecondary }]}>
@@ -137,6 +151,13 @@ export default function SuporteTicketScreen() {
         </View>
 
         {/* Timeline */}
+        {historicoIndisponivel ? <StateBanner
+          title="Histórico indisponível"
+          description="O chamado está disponível. Tente carregar as atualizações novamente."
+          variant="warning"
+          actionLabel="Recarregar"
+          onAction={() => void carregar()}
+        /> : null}
         {eventos.filter(e => e.message).map(e => {
           const ehCliente = e.event_type === 'customer_reply' || e.actor_id === profile?.uid;
           return (
@@ -187,7 +208,7 @@ export default function SuporteTicketScreen() {
             iconLeft={<Feather name="send" size={16} color="#FFFFFF" />}
           />
         </View>
-      </ScrollView>
+      </ScrollView>}
     </KeyboardAvoidingView>
   );
 }

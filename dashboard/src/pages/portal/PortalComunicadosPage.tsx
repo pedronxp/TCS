@@ -48,6 +48,7 @@ import {
   type ComunicadoSeveridade,
   type SessaoBotStatus,
 } from '@/lib/comunicados';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 interface DraftState {
   id?: string;
@@ -145,6 +146,7 @@ export function PortalComunicadosPage() {
   const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
 
   const comunicados = comunicadosQuery.data ?? [];
+  const comunicadosTimedOut = useAsyncTimeout(comunicadosQuery.isLoading);
   const bairros = bairrosQuery.data ?? [];
   const canais = canaisQuery.data ?? [];
   const publicados = useMemo(() => comunicados.filter((item) => item.status === 'publicado'), [comunicados]);
@@ -780,8 +782,8 @@ export function PortalComunicadosPage() {
           <Card data-tutorial="communication-history">
             <CardHeader><CardTitle>Publicados ({publicados.length})</CardTitle></CardHeader>
             <CardContent>
-              {comunicadosQuery.isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
-              {comunicadosQuery.isError && (
+              {comunicadosQuery.isLoading && !comunicadosTimedOut && <p className="text-sm text-muted-foreground">Carregando…</p>}
+              {(comunicadosQuery.isError || (comunicadosQuery.isLoading && comunicadosTimedOut)) && (
                 <div className="space-y-3 text-sm text-destructive" role="alert">
                   <p>Não foi possível carregar os comunicados.</p>
                   <Button variant="outline" size="sm" onClick={() => void comunicadosQuery.refetch()}>Tentar novamente</Button>

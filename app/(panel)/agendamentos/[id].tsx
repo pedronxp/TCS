@@ -66,7 +66,7 @@ export default function AgendamentoDetalheScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const canAct = profile?.role === 'supervisor' || profile?.role === 'admin' || profile?.role === 'master_admin';
+  const canAct = profile?.role === 'supervisor' || profile?.role === 'admin' || ['master_admin', 'owner'].includes(profile?.role || '');
 
   const carregar = useCallback(() => {
     if (!id) return;

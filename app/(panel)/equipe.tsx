@@ -169,7 +169,7 @@ export default function EquipeScreen() {
   const loadEquipe = async () => {
     try {
       if (!profile) return;
-      const master = profile.role === 'master_admin';
+      const master = ['master_admin', 'owner'].includes(profile.role);
       if (master) setIsMaster(true);
 
       const { data: supervisorsList, error: supervisorsError } = await supabase.rpc('list_operational_users', {

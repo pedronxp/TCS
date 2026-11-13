@@ -249,6 +249,48 @@ describe('calcularRiscoFormulario', () => {
     expect(calculo.regrasCondicionais).toHaveLength(0);
   });
 
+  it('aplica regra condicional de formulario publicado pelo codigo de sistema', () => {
+    // Formulario publicado no servidor chega com UUID. Sem o codigo de sistema
+    // a regra "altura x distancia" era ignorada e o risco saia abaixo do que o
+    // agente habia observado em campo.
+    const calculo = calcularRiscoFormulario({
+      formularioId: '3f0d5b2a-1c9e-4a7d-9b21-0f6d2f8a1c44',
+      formularioSystemCode: 'vistoria_deslizamento_v3',
+      formularioVersao: 3,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        desl2_q2: 'q2_f',
+        desl2_q2_exposicao_altura_distancia: 'muito_alto',
+        desl2_q2_justificativa_tecnica: 'Talude de 10m com alvo a 5m e base solapada.',
+      },
+      perguntas: [perguntaInclinacao, perguntaExposicao, perguntaJustificativa],
+    });
+
+    expect(calculo.nivelRisco).toBe('r4');
+    expect(calculo.pontuacaoTotal).toBe(7);
+    expect(calculo.regrasCondicionais).toHaveLength(1);
+    expect(calculo.formularioSystemCode).toBe('vistoria_deslizamento_v3');
+    expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.formularioSystemCode)
+      .toBe('vistoria_deslizamento_v3');
+  });
+
+  it('mantem o risco sem regra condicional quando o codigo de sistema nao e conhecido', () => {
+    const calculo = calcularRiscoFormulario({
+      formularioId: '3f0d5b2a-1c9e-4a7d-9b21-0f6d2f8a1c44',
+      formularioSystemCode: 'modelo_interno_da_equipe',
+      formularioVersao: 1,
+      tipoCalculo: 'soma_total',
+      respostas: {
+        desl2_q2: 'q2_f',
+        desl2_q2_exposicao_altura_distancia: 'muito_alto',
+      },
+      perguntas: [perguntaInclinacao, perguntaExposicao],
+    });
+
+    expect(calculo.regrasCondicionais).toHaveLength(0);
+    expect(calculo.nivelRisco).toBe('r1');
+  });
+
   it('anexa observacao condicional estrutural sem alterar pontuacao', () => {
     const calculo = calcularRiscoFormulario({
       formularioId: 'risco_estrutural_novo_v2',

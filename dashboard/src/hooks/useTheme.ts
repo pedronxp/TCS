@@ -7,14 +7,13 @@ const STORAGE_KEY = 'tcs.console.theme';
 const VALID_THEMES: Theme[] = ['light', 'dark', 'orca', 'dracula', 'nord', 'gruvbox'];
 
 function resolveInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   const stored = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
   // Se houver 'orca' salvo anteriormente, migra para o padrao neutro 'dark'
   if (stored === 'orca') return 'dark';
   if (stored && VALID_THEMES.includes(stored)) return stored;
-  const hasMatchMedia = typeof window.matchMedia === 'function';
-  const prefersLight = hasMatchMedia ? window.matchMedia('(prefers-color-scheme: light)').matches : false;
-  return prefersLight ? 'light' : 'dark';
+  // 2.0: versão branca é o padrão do produto (preview aprovado)
+  return 'light';
 }
 
 function applyTheme(theme: Theme) {
@@ -30,7 +29,7 @@ function applyTheme(theme: Theme) {
 /** Aplica o tema imediatamente antes do paint para evitar flash. */
 export function applyInitialThemeScript(): string {
   return [
-    "(function(){try{var s=localStorage.getItem('" + STORAGE_KEY + "');var valid=['light','dark','orca','dracula','nord','gruvbox'];var t=(valid.indexOf(s)!==-1)?s:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t;if(t!=='light'){document.documentElement.classList.add('dark');}}catch(e){document.documentElement.dataset.theme='dark';document.documentElement.classList.add('dark');}})();"
+    "(function(){try{var s=localStorage.getItem('" + STORAGE_KEY + "');var valid=['light','dark','orca','dracula','nord','gruvbox'];var t=(valid.indexOf(s)!==-1)?s:'light';document.documentElement.dataset.theme=t;if(t!=='light'){document.documentElement.classList.add('dark');}}catch(e){document.documentElement.dataset.theme='light';}})();"
   ].join("");
 }
 

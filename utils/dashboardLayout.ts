@@ -78,7 +78,10 @@ export function normalizarLayout(layout: unknown, role: DashboardRole = 'agent')
 export async function buscarLayoutDashboard(role: DashboardRole = 'agent'): Promise<LayoutItem[]> {
   try {
     const { data, error } = await supabase.rpc('get_dashboard_layout', { p_role: role });
-    if (error) return DEFAULT_LAYOUTS[role];
+    const validos = idsPorPapel(role);
+    if (error || !Array.isArray(data) || !data.some(item => validos.has(item?.widget))) {
+      return DEFAULT_LAYOUTS[role];
+    }
     return normalizarLayout(data, role);
   } catch {
     return DEFAULT_LAYOUTS[role];

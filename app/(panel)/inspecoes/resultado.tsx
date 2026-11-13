@@ -16,7 +16,7 @@ import { useTraining } from '../../../context/TrainingContext';
 import { useReport } from '../../../context/ReportContext';
 import { supabase } from '../../../utils/supabase';
 import { getOfficialVistoriaById, getTrainingVistoriaById, queueLaudoUpload, updateLaudoUrl } from '../../../utils/database';
-import { syncPendentes } from '../../../services/SyncService';
+import { forceSyncAll, syncPendentes } from '../../../services/SyncService';
 import { getSignedUrl } from '../../../services/StorageService';
 import { buildLaudoHtml, buildTermoInterdicaoHtml, LaudoData, LaudoLayout, LAUDO_LAYOUTS, TermoInterdicaoData } from '../../../utils/laudoPdfBuilder';
 import { formatarPontuacaoRisco, normalizarNivelRisco, resolverApresentacaoRisco } from '../../../utils/riscoUtils';
@@ -30,7 +30,11 @@ import { checkRateLimit } from '../../../utils/rateLimitUtils';
 import { registrarAuditoria } from '../../../utils/auditLogger';
 import { safeBack } from '../../../utils/navigationUtils';
 import { logger } from '../../../utils/logger';
-import { prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { loadRemoteInspectionDocuments, prepareGeneratedDocument } from '../../../services/DocumentAcknowledgementService';
+import { canReviewInspectionQuality, fetchInspectionQuality } from '../../../services/InspectionQualityService';
+import { resolveInspectionDocumentPolicy } from '../../../services/InspectionDocumentPolicy';
+import { canReadCachedInspection, loadInspectionEvidence } from '../../../services/InspectionEvidenceService';
+import { InspectionPhotoViewer } from '../../../components/InspectionPhotoGallery';
 import { resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled, SignatureStroke } from '../../../types/documentAcknowledgement';
 import { listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
@@ -63,6 +67,9 @@ function normalizar(v: any): any {
     municipio_agente: v.municipio_agente ?? null,
     dataVistoria: v.dataVistoria ?? v.data_vistoria ?? v.created_at ?? null,
     agenteNome: v.agenteNome ?? v.agente_nome ?? '—',
+    agenteUid: v.agenteUid ?? v.agente_uid ?? null,
+    sincronizado: v.sincronizado ?? null,
+    erro_sync: v.erro_sync ?? null,
     respostasJson: v.respostasJson ?? v.respostas_json ?? '{}',
     calculoRisco: v.calculoRisco ?? v.calculo_risco ?? v.calculo_json ?? null,
     formularioId: v.formularioId ?? v.formulario_id ?? 'Padrão',
@@ -137,8 +144,8 @@ interface QeResumo {
 }
 
 export default function ResultadoScreen() {
-  const { id, formularioId: formularioIdParam, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam, treinamento } = useLocalSearchParams<{
-    id: string; formularioId?: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string;
+  const { id, formularioId: formularioIdParam, nivelRisco: nivelParam, pontuacao: pontuacaoParam, municipio: municipioParam, treinamento, teste } = useLocalSearchParams<{
+    id: string; formularioId?: string; nivelRisco?: string; pontuacao?: string; municipio?: string; treinamento?: string; teste?: string;
   }>();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -148,11 +155,16 @@ export default function ResultadoScreen() {
   const activeProfile = trainingProfile || profile;
   const requestedTrainingMode = treinamento === '1' || (isTrainingActive && !!trainingProfile);
   const formalTrainingMode = requestedTrainingMode && isTrainingActive && !!trainingProfile;
-  const isolatedMode = formalTrainingMode;
+  const testMode = teste === '1' && ['owner', 'support', 'developer'].includes(profile?.role ?? '');
+  const isolatedMode = formalTrainingMode || testMode;
   const { isOnlineReal: isConnected } = useConnectivity();
-  const { initReport } = useReport();
+  const { initReport, draft, updateField: updateReportField } = useReport();
+  const currentDraftIdRef = useRef(draft?.vistoriaId);
+  currentDraftIdRef.current = draft?.vistoriaId;
+  const evidenceRequestRef = useRef(0);
   const mountedRef = useRef(true);
   const generationLockRef = useRef(false);
+  const loadRequestRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [gerando, setGerando] = useState(false);
   const [vistoria, setVistoria] = useState<ReturnType<typeof normalizar> | null>(null);
@@ -164,6 +176,18 @@ export default function ResultadoScreen() {
 
   // Novo fluxo (set/2026): estado da QE, sheets de opções e modelo de relatório
   const [qe, setQe] = useState<QeResumo | null>(null);
+  const [qeLoading, setQeLoading] = useState(false);
+  const [qeError, setQeError] = useState<string | null>(null);
+  const [qeRefresh, setQeRefresh] = useState(0);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [mediaStatus, setMediaStatus] = useState<{ expected_count: number | null; available_count: number; pending_count: number | null; revision: number | null; waiver_reason?: string | null } | null>(null);
+  const [mediaError, setMediaError] = useState(false);
+  const [waiverVisible, setWaiverVisible] = useState(false);
+  const [waiverReason, setWaiverReason] = useState('');
+  const [waiverSaving, setWaiverSaving] = useState(false);
+  const waiverLock = useRef(false);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState(false);
   const [laudoSheetVisible, setLaudoSheetVisible] = useState(false);
   const [layoutSheetVisible, setLayoutSheetVisible] = useState(false);
   const [versionsSheetVisible, setVersionsSheetVisible] = useState(false);
@@ -187,18 +211,57 @@ export default function ResultadoScreen() {
   useEffect(() => {
     if (!id || isolatedMode) return;
     let ativo = true;
+    setQe(null);
+    setQeError(null);
+    setQeLoading(true);
     void (async () => {
       try {
-        const { data, error } = await supabase.rpc('qe_status_vistoria', { p_vistoria_id: id });
-        if (ativo && !error && Array.isArray(data) && data.length > 0) {
-          setQe(data[0] as QeResumo);
-        }
+        const summary = await fetchInspectionQuality(supabase, id);
+        if (ativo) setQe(summary);
       } catch {
-        /* selo de QE é opcional */
+        if (ativo) setQeError('Não foi possível consultar a revisão. Toque para tentar novamente.');
+      } finally {
+        if (ativo) setQeLoading(false);
       }
     })();
     return () => { ativo = false; };
-  }, [id, isolatedMode]);
+  }, [id, isolatedMode, qeRefresh]);
+
+  useFocusEffect(useCallback(() => {
+    if (!id || isolatedMode) return;
+    let active = true;
+    setMediaStatus(null);
+    setMediaError(false);
+    void (async () => {
+      const { data, error } = await supabase.rpc('get_inspection_media_status', { p_inspection_id: id });
+      if (!active) return;
+      if (error) { setMediaStatus(null); setMediaError(true); return; }
+      const value = Array.isArray(data) ? data[0] : data;
+      setMediaStatus(value && typeof value.available_count === 'number' ? value : null);
+    })().catch(() => { if (active) { setMediaStatus(null); setMediaError(true); } });
+    return () => { active = false; };
+  }, [id, isolatedMode, qeRefresh]));
+
+  useFocusEffect(useCallback(() => {
+    if (!id || isolatedMode || !isConnected) return;
+    let active = true;
+    setDocumentsLoading(true);
+    setDocumentsError(false);
+    void loadRemoteInspectionDocuments(id).then(() => {
+      if (active) setAcknowledgementHistory(listAcknowledgementHistory(id));
+    }).catch((error: unknown) => {
+      if (!active) return;
+      logger.warn('vistoria', 'Falha ao importar versões preservadas', {
+        vistoriaId: id,
+        code: (error as { code?: string } | null)?.code,
+        erro: error instanceof Error ? error.message : (error as { message?: string } | null)?.message,
+      });
+      setDocumentsError(true);
+      setAcknowledgementHistory(listAcknowledgementHistory(id));
+    })
+      .finally(() => { if (active) setDocumentsLoading(false); });
+    return () => { active = false; };
+  }, [id, isolatedMode, isConnected, profile?.uid, qeRefresh]));
 
   // Modal Termo de Interdição
   const [showTermoModal, setShowTermoModal] = useState(false);
@@ -217,6 +280,12 @@ export default function ResultadoScreen() {
   useEffect(() => {
     if (requestedTrainingMode && trainingLoading) return;
     mountedRef.current = true;
+    setLoading(true);
+    setVistoria(null);
+    setAgentSignature([]);
+    setAgentSignatureImage(null);
+    setLastPdfUri(null);
+    setAcknowledgementHistory([]);
     loadDados();
     return () => { mountedRef.current = false; };
   }, [id, requestedTrainingMode, trainingLoading, profile?.uid]);
@@ -257,27 +326,45 @@ export default function ResultadoScreen() {
 
   const refreshEvidenceMedia = useCallback(async () => {
     if (!id) return;
+    const request = ++evidenceRequestRef.current;
     const localOwnerUid = trainingProfile?.uid;
-    const local = isolatedMode && localOwnerUid
+    const cached = isolatedMode && localOwnerUid
       ? getTrainingVistoriaById(id as string, localOwnerUid)
       : getOfficialVistoriaById(id as string);
-    if (!local) return;
-    const refreshed = await resolverMidias(normalizar(local));
-    setVistoria((previous: any) => previous ? {
-      ...previous,
-      foto_url: refreshed.foto_url,
-      fotosUrls: refreshed.fotosUrls,
-    } : refreshed);
-    populateReport(refreshed, refreshed.agenteNome || activeProfile?.name || '—');
-  }, [id, isolatedMode, trainingProfile?.uid, activeProfile?.name]);
+    const local = cached && (isolatedMode || canReadCachedInspection(profile, cached)) ? cached : null;
+    try {
+      const evidence = await loadInspectionEvidence(supabase, id, local, isolatedMode);
+      if (!evidence) return;
+      const refreshed = await resolverMidias({ foto_url: evidence.primary, fotosUrls: evidence.extras });
+      if (!mountedRef.current || request !== evidenceRequestRef.current) return;
+      setVistoria((previous: any) => previous?.id === id ? {
+        ...previous, foto_url: refreshed.foto_url, fotosUrls: refreshed.fotosUrls,
+      } : previous);
+      if (currentDraftIdRef.current === id) {
+        updateReportField('foto_url', refreshed.foto_url);
+        updateReportField('fotosUrls', refreshed.fotosUrls);
+      }
+    } catch { /* Retain the displayed evidence and show sync status independently. */ }
+  }, [id, isolatedMode, trainingProfile?.uid, activeProfile?.uid]);
 
   useFocusEffect(useCallback(() => {
     refreshAcknowledgementHistory();
     void refreshEvidenceMedia();
+    setQeRefresh(value => value + 1);
   }, [refreshAcknowledgementHistory, refreshEvidenceMedia]));
 
   const loadDados = async () => {
+    const request = ++loadRequestRef.current;
     try {
+      if (testMode && profile?.uid) {
+        const local = getTrainingVistoriaById(id, profile.uid);
+        if (!local || local.training_class_id) return;
+        const norm = normalizar(local);
+        setVistoria(norm);
+        populateReport(norm, norm.agenteNome || profile.name || '—');
+        prefillTermoForm(norm);
+        return;
+      }
       if (requestedTrainingMode) {
         if (!trainingProfile || !isTrainingActive || isExpired() || !(await revalidate())) {
           await exit();
@@ -303,13 +390,17 @@ export default function ResultadoScreen() {
       // 1. Tentar Supabase
       const { data, error } = await supabase
         .from('vistorias')
-        .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, municipio_agente, dataVistoria, agenteNome, respostasJson, formularioId, responsavelNome, fotoUrl, fotosUrls, protocolo, laudo_url, laudo_gerado_em')
+        .select('id, nivelRisco, pontuacaoTotal, calculoRisco, endereco, enderecoRua, enderecoNumero, enderecoBairro, municipio, municipio_agente, dataVistoria, agenteNome, agenteUid, respostasJson, formularioId, responsavelNome, fotoUrl, fotosUrls, protocolo, laudo_url, laudo_gerado_em')
         .eq('id', id)
         .single();
 
       if (!error && data) {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || request !== loadRequestRef.current) return;
         const norm = await resolverMidias(normalizar(data));
+        if (!mountedRef.current || request !== loadRequestRef.current) return;
+        const localSync = getOfficialVistoriaById(id as string);
+        norm.sincronizado = localSync?.sincronizado ?? 1;
+        norm.erro_sync = localSync?.erro_sync ?? null;
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || activeProfile?.name || '—');
         prefillTermoForm(norm);
@@ -329,8 +420,9 @@ export default function ResultadoScreen() {
 
       // 2. Fallback: SQLite local
       const local = getOfficialVistoriaById(id as string);
-      if (local) {
+      if (local && canReadCachedInspection(profile, local)) {
         const norm = await resolverMidias(normalizar(local));
+        if (!mountedRef.current || request !== loadRequestRef.current) return;
         setVistoria(norm);
         populateReport(norm, norm.agenteNome || activeProfile?.name || '—');
         prefillTermoForm(norm);
@@ -344,7 +436,7 @@ export default function ResultadoScreen() {
         return;
       }
     } finally {
-      setLoading(false);
+      if (request === loadRequestRef.current && mountedRef.current) setLoading(false);
     }
   };
 
@@ -361,25 +453,47 @@ export default function ResultadoScreen() {
     }));
   };
 
-  const buildDados = (agentSignatureStrokes: SignatureStroke[] | null = agentSignature): LaudoData => ({
-    id: vistoria?.id || '',
-    protocolo: protocolDisplay(vistoria?.protocolo).value,
-    nivelRisco: vistoria?.nivelRisco || 'r1',
-    pontuacaoTotal: vistoria?.pontuacaoTotal ?? 0,
-    endereco: vistoria?.endereco || '—',
-    municipio: vistoria?.municipio || '—',
-    dataVistoria: vistoria?.dataVistoria || null,
-    agenteNome: vistoria?.agenteNome || activeProfile?.name || '—',
-    formularioId: vistoria?.formularioId || 'Padrão',
-    respostasJson: vistoria?.respostasJson || '{}',
-    calculoRisco: vistoria?.calculoRisco ?? null,
-    foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
-    fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
-    modoTreinamento: isolatedMode,
-    layout: laudoLayout,
-    agentSignatureStrokes,
-    agentSignatureImageBase64: agentSignatureImage,
-  });
+  const buildDados = (agentSignatureStrokes: SignatureStroke[] | null = agentSignature): LaudoData => {
+    // O rascunho do relatório guarda tanto o solicitante quanto os textos
+    // revisados pelo agente ("Revisar relatório técnico"). Sem ele, o PDF
+    // saía sem o nome do solicitante e sem as observações editadas.
+    const draftAtual = draft && draft.vistoriaId === vistoria?.id ? draft : null;
+    const policy = resolveInspectionDocumentPolicy({
+      authorId: isolatedMode ? activeProfile?.uid : vistoria?.agenteUid,
+      actorId: activeProfile?.uid,
+      mediaPending: mediaStatus?.pending_count ?? null,
+      mediaKnown: mediaStatus?.expected_count != null,
+      mediaWaived: Boolean(mediaStatus?.waiver_reason?.trim()),
+    });
+    return {
+      id: vistoria?.id || '',
+      protocolo: protocolDisplay(vistoria?.protocolo).value,
+      nivelRisco: vistoria?.nivelRisco || 'r1',
+      pontuacaoTotal: vistoria?.pontuacaoTotal ?? 0,
+      endereco: vistoria?.endereco || '—',
+      municipio: vistoria?.municipio || '—',
+      dataVistoria: vistoria?.dataVistoria || null,
+      agenteNome: vistoria?.agenteNome || activeProfile?.name || '—',
+      formularioId: vistoria?.formularioId || 'Padrão',
+      respostasJson: vistoria?.respostasJson || '{}',
+      calculoRisco: vistoria?.calculoRisco ?? null,
+      foto_url: vistoria?.foto_url ?? (vistoria?.fotosUrls?.[0] ?? null),
+      fotosUrls: vistoria?.fotosUrls ?? (vistoria?.foto_url ? [vistoria.foto_url] : null),
+      modoTreinamento: isolatedMode,
+      layout: laudoLayout,
+      documentStatus: !isolatedMode && !isConnected ? 'preliminary' : policy.documentStatus,
+      mediaCompleteness: mediaStatus ?? { expected_count: null, available_count: 0, pending_count: null },
+      mediaWaiverReason: mediaStatus?.waiver_reason || undefined,
+      mediaRevision: mediaStatus?.revision ?? null,
+      agentSignatureStrokes: policy.canSignAsAuthor ? agentSignatureStrokes : null,
+      agentSignatureImageBase64: policy.canSignAsAuthor ? agentSignatureImage : null,
+      responsavelNome: draftAtual?.responsavelNome || vistoria?.responsavelNome || undefined,
+      bairro: vistoria?.enderecoBairro || undefined,
+      cargo: draftAtual?.cargo || undefined,
+      condutaRecomendada: draftAtual?.condutaRecomendada || undefined,
+      observacoesTecnicas: draftAtual?.observacoesTecnicas || undefined,
+    };
+  };
 
   const ensureTrainingActionsAllowed = async () => {
     if (!formalTrainingMode) return true;
@@ -485,9 +599,9 @@ export default function ResultadoScreen() {
       if (!(await ensureTrainingActionsAllowed())) return;
 
       if (profile?.uid && !isolatedMode) {
-        const { allowed, message } = await checkRateLimit('gerar_pdf');
+        const { allowed, message, reason } = await checkRateLimit('gerar_pdf', { offline: !isConnected });
         if (!allowed) {
-          Alert.alert('Limite atingido', message || 'Muitas gerações de PDF. Aguarde alguns minutos.');
+          Alert.alert(reason === 'unavailable' ? 'Verificação indisponível' : 'Limite atingido', message || 'Muitas gerações de PDF. Aguarde alguns minutos.');
           return;
         }
       }
@@ -497,6 +611,10 @@ export default function ResultadoScreen() {
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
+      if (acknowledgementDocument.enabled && !acknowledgementDocument.documentId) {
+        await liberarDocumento(acknowledgementDocument, async () => {});
+        return;
+      }
       setLastPdfUri(uri);
 
       // O PDF completo do app é a cópia oficial enviada ao Storage.
@@ -558,6 +676,10 @@ export default function ResultadoScreen() {
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
+      if (acknowledgementDocument.enabled && !acknowledgementDocument.documentId) {
+        await liberarDocumento(acknowledgementDocument, async () => {});
+        return;
+      }
       setLastPdfUri(uri);
       salvarLaudoNoStorage(uri).catch(() => null);
       await liberarDocumento(acknowledgementDocument, () => Print.printAsync({ html }));
@@ -597,6 +719,10 @@ export default function ResultadoScreen() {
       const html = await buildLaudoHtml(dados);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('report', dados, html, uri);
+      if (acknowledgementDocument.enabled && !acknowledgementDocument.documentId) {
+        await liberarDocumento(acknowledgementDocument, async () => {});
+        return;
+      }
       setLastPdfUri(uri);
 
       const protocolo = protocolDisplay(vistoria?.protocolo).value;
@@ -655,6 +781,10 @@ export default function ResultadoScreen() {
       const html = buildTermoInterdicaoHtml(dados, termoForm);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const acknowledgementDocument = await prepararCiencia('interdiction_term', { ...dados, notified: termoForm }, html, uri);
+      if (acknowledgementDocument.enabled && !acknowledgementDocument.documentId) {
+        await liberarDocumento(acknowledgementDocument, async () => {});
+        return;
+      }
       await liberarDocumento(acknowledgementDocument, async () => {
         const disponivel = await Sharing.isAvailableAsync();
         if (disponivel) {
@@ -691,6 +821,17 @@ export default function ResultadoScreen() {
 
   const solicitarAssinaturaAgente = (action: 'generate' | 'print' | 'share' | 'term') => {
     if (gerando) return;
+    if (!isolatedMode && (!vistoria?.agenteUid || vistoria.agenteUid !== activeProfile?.uid)) {
+      if (action === 'term') {
+        Alert.alert('Responsabilidade técnica', 'A emissão de termo exige o responsável técnico. Sua conta não pode assinar em nome do autor desta vistoria.');
+        return;
+      }
+      Alert.alert('Preparar relatório preliminar', 'Você pode preparar o relatório e coletar a ciência desta versão. A assinatura técnica do autor não será substituída pela sua.', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Preparar', onPress: () => { void executarAcaoDocumento(action, []); } },
+      ]);
+      return;
+    }
     if (agentSignature.length > 0 || agentSignatureImage) {
       void executarAcaoDocumento(action, agentSignature);
       return;
@@ -747,6 +888,17 @@ export default function ResultadoScreen() {
   };
 
   const abrirCiencia = () => {
+    if (documentsLoading) {
+      Alert.alert('Consultando documentos', 'Aguarde a consulta das versões preservadas desta vistoria.');
+      return;
+    }
+    if (documentsError && !activeReportAcknowledgement) {
+      Alert.alert('Não foi possível consultar os documentos', 'Tente consultar novamente para abrir a versão preservada, sem gerar outro documento.', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Tentar novamente', onPress: () => setQeRefresh(value => value + 1) },
+      ]);
+      return;
+    }
     if (acknowledgementRequiresInspectionSync) {
       void sincronizarVistoriaAntesDaCiencia();
       return;
@@ -761,6 +913,22 @@ export default function ResultadoScreen() {
     );
   };
 
+  const confirmMediaWaiver = async () => {
+    if (waiverLock.current || !id || mediaStatus?.revision == null) return;
+    if (waiverReason.trim().length < 8) { Alert.alert('Motivo necessário', 'Explique a dispensa em pelo menos 8 caracteres.'); return; }
+    waiverLock.current = true;
+    setWaiverSaving(true);
+    try {
+      const { data, error } = await supabase.rpc('waive_inspection_missing_media', { p_inspection_id: id, p_reason: waiverReason.trim(), p_media_revision: mediaStatus.revision });
+      if (error || !data?.ok) throw error || new Error('Dispensa não confirmada.');
+      setWaiverVisible(false);
+      setWaiverReason('');
+      setQeRefresh(value => value + 1);
+    } catch {
+      Alert.alert('Dispensa não registrada', 'Confira a conexão e suas permissões. Se as fotos mudaram, atualize a vistoria antes de tentar novamente.');
+    } finally { waiverLock.current = false; setWaiverSaving(false); }
+  };
+
   const sincronizarVistoriaAntesDaCiencia = async () => {
     if (!isConnected) {
       Alert.alert('Conexão necessária', 'Conecte-se à internet para sincronizar a vistoria antes de coletar a ciência.');
@@ -768,9 +936,9 @@ export default function ResultadoScreen() {
     }
     setGerando(true);
     try {
-      const resultado = await syncPendentes();
+      await forceSyncAll();
       await loadDados();
-      if (resultado.falha > 0) {
+      if (getOfficialVistoriaById(id)?.sincronizado !== 1) {
         Alert.alert('Sincronização pendente', 'A vistoria ainda não foi enviada ao servidor. Revise a conexão e tente novamente.');
         return;
       }
@@ -852,7 +1020,13 @@ export default function ResultadoScreen() {
   const isAvaliacaoArvore = (vistoria?.formularioId || formularioIdParam) === 'avaliacao_arvore_cbmmg_v1';
   const isAltoRisco = nivel === 'r3' || nivel === 'r4';
   const currentAcknowledgements = acknowledgementHistory.filter(item => item.document.status !== 'superseded');
-  const activeReportAcknowledgement = currentAcknowledgements.find(item => item.document.documentType === 'report') ?? null;
+  // O laudo técnico pode ser preparado como 'report' (tela de resultado) ou
+  // como 'technical_report' (tela de laudo). A ciência do morador vale para
+  // qualquer uma das duas versões — considerá-las separadas deixava a
+  // ciência coletada invisível.
+  const activeReportAcknowledgement = currentAcknowledgements.find(
+    item => item.document.documentType === 'report' || item.document.documentType === 'technical_report',
+  ) ?? null;
   const acknowledgementRequiresInspectionSync = !isolatedMode && !vistoria?.protocolo;
   const displayedEvidence = Array.from(new Set([
     vistoria?.foto_url,
@@ -866,7 +1040,9 @@ export default function ResultadoScreen() {
 
   const qeLinha: { icon: keyof typeof Feather.glyphMap; detail: string; tone: 'done' | 'pending' | 'warning' | 'muted' } = (() => {
     if (isolatedMode) return { icon: 'clock', detail: 'Não se aplica ao modo treinamento', tone: 'muted' };
-    if (!qe) return { icon: 'clock', detail: 'Verificando status da revisão…', tone: 'muted' };
+    if (qeError) return { icon: 'alert-circle', detail: qeError, tone: 'warning' };
+    if (qeLoading) return { icon: 'clock', detail: 'Verificando status da revisão…', tone: 'muted' };
+    if (!qe) return { icon: 'help-circle', detail: 'Revisão ainda não localizada no servidor.', tone: 'muted' };
     if (qe.status === 'pendente') return { icon: 'clock', detail: 'Na fila do supervisor — não bloqueia seu trabalho', tone: 'pending' };
     if (qe.status === 'aprovada') return { icon: 'check-circle', detail: `Aprovada${qe.nota != null ? ` · nota ${qe.nota}/10` : ''}`, tone: 'done' };
     return { icon: 'rotate-ccw', detail: `Devolvida para correção${qe.ciclo > 1 ? ` · ciclo ${qe.ciclo}` : ''}`, tone: 'warning' };
@@ -955,7 +1131,7 @@ export default function ResultadoScreen() {
   // ── Opções do sheet de versões ──
   const versionsOptions = acknowledgementHistory.map(item => ({
     key: item.document.id,
-    title: `Versão ${item.document.documentVersion} · ${item.document.documentType === 'interdiction_term' ? 'Termo de interdição' : item.document.documentType === 'technical_report' ? 'Relatório técnico' : 'Laudo'}`,
+    title: `Versão ${item.document.documentVersion} · ${item.document.documentType === 'interdiction_term' ? 'Termo de interdição' : item.document.documentType === 'technical_report' ? 'Laudo técnico' : 'Relatório técnico'}`,
     subtitle: `${formatarDataCurta(item.document.createdAtDevice)} às ${formatarHora(item.document.createdAtDevice)} · ${statusCienciaLabel(item.historyStatus)}`,
     icon: (item.document.status === 'superseded' ? 'archive' : 'file-text') as 'archive' | 'file-text',
     selected: item.document.status !== 'superseded',
@@ -987,7 +1163,7 @@ export default function ResultadoScreen() {
               {formatarPontuacaoRisco(vistoria?.pontuacaoTotal ?? 0)} pontos
             </Text>
           </View>
-          <Text style={[styles.summaryTitle, { color: theme.text }]}>Vistoria concluída</Text>
+          <Text style={[styles.summaryTitle, { color: theme.text }]}>Coleta concluída</Text>
           <Text style={[styles.summaryAddress, { color: theme.text }]}>
             {vistoria?.endereco || 'Endereço não informado'}
           </Text>
@@ -999,19 +1175,39 @@ export default function ResultadoScreen() {
         </View>
 
         {/* ANDAMENTO — timeline do processo (QE é retroativa, nunca bloqueia) */}
-        <SectionHeader title="Andamento" />
+        <SectionHeader title="Situação da vistoria" subtitle="Sincronização, revisão e ciência têm estados independentes" />
         <View style={[styles.timelineCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           <View style={styles.timelineRow}>
             <View style={[styles.timelineIcon, { backgroundColor: theme.successLight }]}>
               <Feather name="check" size={15} color={theme.success} />
             </View>
             <View style={styles.timelineCopy}>
-              <Text style={[styles.timelineTitle, { color: theme.text }]}>Vistoria salva</Text>
-              <Text style={[styles.timelineDetail, { color: theme.textSecondary }]}>Registro concluído e preservado</Text>
+              <Text style={[styles.timelineTitle, { color: theme.text }]}>Coleta salva</Text>
+              <Text style={[styles.timelineDetail, { color: theme.textSecondary }]}>O protocolo identifica a vistoria; os anexos podem ter pendências.</Text>
             </View>
           </View>
 
-          <View style={[styles.timelineConnector, { backgroundColor: theme.border }]} />
+          <ListRow
+            title="Sincronização e fotos"
+            icon="upload-cloud"
+            subtitle={isolatedMode ? 'Registro de treinamento neste aparelho' : mediaError
+              ? 'Não foi possível conferir os anexos no servidor. Toque para tentar novamente.'
+              : mediaStatus?.expected_count != null
+                ? `${mediaStatus.available_count} de ${mediaStatus.expected_count} fotos disponíveis${mediaStatus.pending_count ? ' — há anexos pendentes' : ''}`
+                : vistoria?.sincronizado === 0
+                  ? 'Há dados ou anexos pendentes neste aparelho. Toque para sincronizar.'
+                  : `Dados recebidos. ${mediaStatus?.available_count ?? displayedEvidence.length} fotos disponíveis; total esperado não informado.`}
+            onPress={isolatedMode ? undefined : async () => {
+              if (!isConnected) { Alert.alert('Sem conexão', 'As imagens locais serão enviadas quando houver conexão.'); return; }
+              const syncResult = await forceSyncAll();
+              await loadDados();
+              setQeRefresh(value => value + 1);
+              if (syncResult.falha > 0) Alert.alert('Sincronização pendente', 'Ainda há dados ou anexos neste aparelho aguardando envio. Confira o erro exibido nesta tela; os registros foram preservados.');
+            }}
+          />
+          {vistoria?.erro_sync ? <Text style={[styles.timelineNote, { color: theme.warning }]}>{vistoria.erro_sync}</Text> : null}
+          {mediaStatus?.waiver_reason ? <Text style={[styles.timelineNote, { color: theme.warning }]}>Dispensa registrada nesta versão das evidências: {mediaStatus.waiver_reason}</Text> : null}
+          {!isolatedMode && canReviewInspectionQuality(profile?.role) && Boolean(mediaStatus?.pending_count) && !mediaStatus?.waiver_reason && mediaStatus?.revision != null ? <Button variant="ghost" label="Registrar dispensa motivada de evidências" disabled={!isConnected} onPress={() => setWaiverVisible(true)} /> : null}
           <View style={styles.timelineRow}>
             <View style={[styles.timelineIcon, { backgroundColor: qeLinha.tone === 'done' ? theme.successLight : theme.iconBackground }]}>
               <Feather
@@ -1028,10 +1224,13 @@ export default function ResultadoScreen() {
               {qe?.status === 'devolvida' && qe.parecer ? (
                 <Text style={[styles.timelineNote, { color: theme.warning }]}>Parecer: {qe.parecer}</Text>
               ) : null}
+              {qeError ? <Button label="Tentar consultar novamente" variant="ghost" onPress={() => setQeRefresh(value => value + 1)} /> : null}
+              {!isolatedMode && canReviewInspectionQuality(profile?.role) ? (
+                <Button label="Abrir revisão de qualidade" variant="ghost" onPress={() => router.push('/(panel)/qe')} />
+              ) : null}
             </View>
           </View>
 
-          <View style={[styles.timelineConnector, { backgroundColor: theme.border }]} />
           <View style={styles.timelineRow}>
             <View style={[styles.timelineIcon, { backgroundColor: cienciaLinha.tone === 'done' ? theme.successLight : theme.iconBackground }]}>
               <Feather
@@ -1079,6 +1278,15 @@ export default function ResultadoScreen() {
           <Feather name="chevron-down" size={20} color={theme.textSecondary} />
         </TouchableOpacity>
 
+        <ListRow
+          title={documentsLoading ? 'Consultando documentos preservados…' : activeReportAcknowledgement ? 'Coletar ou consultar ciência do morador' : 'Ciência do morador — gerar documento primeiro'}
+          subtitle={documentsError ? 'Falha ao consultar documentos no servidor. Toque para tentar novamente.' : cienciaLinha.detail}
+          badge={cienciaBadge}
+          badgeVariant={cienciaBadgeVariant}
+          icon="check-square"
+          onPress={abrirCiencia}
+        />
+
         {isAltoRisco && !isAvaliacaoArvore && (
           <TouchableOpacity
             style={[styles.docCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}
@@ -1107,14 +1315,6 @@ export default function ResultadoScreen() {
             icon="edit-3"
             onPress={() => router.push('/(panel)/inspecoes/relatorio')}
           />
-          <ListRow
-            title="Ciência do morador"
-            subtitle={cienciaLinha.detail}
-            badge={cienciaBadge}
-            badgeVariant={cienciaBadgeVariant}
-            icon="check-square"
-            onPress={abrirCiencia}
-          />
           {activeTermoAcknowledgement && (
             <ListRow
               title={`Ciência do termo · versão ${activeTermoAcknowledgement.document.documentVersion}`}
@@ -1139,7 +1339,9 @@ export default function ResultadoScreen() {
                   {displayedEvidence.map((uri, index) => (
                     <TouchableOpacity
                       key={`${uri}-${index}`}
-                      onPress={() => router.push({ pathname: '/(panel)/inspecoes/foto', params: { id } })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ampliar foto ${index + 1}`}
+                      onPress={() => setFotoAmpliada(uri)}
                     >
                       <Image source={{ uri }} style={styles.evidenceThumb} resizeMode="cover" />
                     </TouchableOpacity>
@@ -1150,6 +1352,20 @@ export default function ResultadoScreen() {
           )}
         </View>
       </ScrollView>
+
+      <InspectionPhotoViewer key={fotoAmpliada ?? 'closed'} uri={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />
+
+      <Modal visible={waiverVisible} transparent animationType="slide" onRequestClose={() => { if (!waiverSaving) setWaiverVisible(false); }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface, padding: Spacing[5], gap: Spacing[3] }]}>
+            <Text style={{ color: theme.text, fontSize: FontSize.lg, fontWeight: '700' }}>Dispensar evidências pendentes</Text>
+            <Text style={{ color: theme.textSecondary }}>O motivo e o responsável ficam registrados. As fotos não serão declaradas como recebidas. A dispensa vale somente para a versão atual das evidências.</Text>
+            <TextInput accessibilityLabel="Motivo da dispensa" placeholder="Explique por que é possível emitir sem estas evidências" placeholderTextColor={theme.textSecondary} multiline maxLength={1000} editable={!waiverSaving} value={waiverReason} onChangeText={setWaiverReason} style={{ color: theme.text, borderWidth: 1, borderColor: theme.border, borderRadius: 12, minHeight: 100, padding: Spacing[3], textAlignVertical: 'top' }} />
+            <Button label="Confirmar dispensa" loading={waiverSaving} disabled={waiverSaving || waiverReason.trim().length < 8} onPress={confirmMediaWaiver} />
+            <Button variant="ghost" label="Cancelar" disabled={waiverSaving} onPress={() => setWaiverVisible(false)} />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, Spacing[4]) }]}>
         <Button

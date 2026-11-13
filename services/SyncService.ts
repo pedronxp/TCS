@@ -19,6 +19,9 @@ import {
 } from '../utils/database';
 import { logger } from '../utils/logger';
 import { uploadImageFromLocalUri, uploadLaudoPdf } from './StorageService';
+import { finishInspectionMedia, prepareInspectionMedia } from './InspectionMediaService';
+import { syncPendingRemotePhotoDrafts } from './RemoteInspectionPhotoDraftService';
+import { isLocalInspectionMedia, stripLocalMediaReferences, type InspectionMediaManifest } from '../utils/inspectionMedia';
 import { checkRealInternet } from '../context/ConnectivityContext';
 import { isRecoverableSubscriptionPeriodError, isSubscriptionLimitError, subscriptionLimitSyncMessage } from '../utils/subscriptionSync';
 import { reportClientTechnicalEventSafely } from '../utils/technicalEvents';
@@ -123,6 +126,7 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
   let sucesso = 0;
   let falha = 0;
   let bloqueiosLimite = 0;
+  let falhasEsgotadas = 0;
 
   try {
     // A trava precisa abranger também esta espera. Caso contrário duas chamadas
@@ -133,7 +137,13 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
       return { sucesso: 0, falha: 0 };
     }
 
-    const pendentes = getVistoriasNaoSincronizadas().map(vistoria => {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const actorUid = sessionData.session?.user.id;
+    if (sessionError || !actorUid) {
+      logger.info('sync', 'Sem sessão autenticada — filas locais preservadas');
+      return { sucesso: 0, falha: 0 };
+    }
+    const pendentes = getVistoriasNaoSincronizadas().filter(vistoria => vistoria.agente_uid === actorUid).map(vistoria => {
       // The calculoRisco migration was previously missing in the remote schema.
       // Release records exhausted by that specific historical schema error.
       const recoversLegacyRiskSchema = isRecoverableCalculoRiscoSchemaError(vistoria);
@@ -164,6 +174,10 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
     // Separar elegíveis (dentro do limite de tentativas) de esgotados
     const elegiveis = pendentes.filter(v => (v.tentativas_sync ?? 0) < MAX_TENTATIVAS_SYNC);
     const esgotados = pendentes.filter(v => (v.tentativas_sync ?? 0) >= MAX_TENTATIVAS_SYNC);
+    // Exhausted records are still unsent. A manual sync must not report zero
+    // failures and let the UI claim that these inspections reached the server.
+    falhasEsgotadas = esgotados.length;
+    falha += falhasEsgotadas;
 
     esgotados.forEach(v => {
       logger.warn('sync', `Vistoria ignorada — limite de tentativas atingido`, {
@@ -179,7 +193,9 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
       const loteProntoParaSync: typeof lote = [];
       for (let v of lote) {
         try {
+            const media = await prepareInspectionMedia(v);
             v = await processarImagensVistoria(v);
+            (v as VistoriaLocal & { media_manifest: InspectionMediaManifest }).media_manifest = await finishInspectionMedia(v, media);
             loteProntoParaSync.push(v);
         } catch (err: any) {
             const tentativaAtual = (v.tentativas_sync ?? 0) + 1;
@@ -254,6 +270,16 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
       }
     }
 
+    // Evidence added by an authorized operator to another author's inspection
+    // has no local vistoria row. Retry that queue even when pendentes is empty.
+    try {
+      const remotePhotos = await syncPendingRemotePhotoDrafts(actorUid);
+      sucesso += remotePhotos.success;
+      falha += remotePhotos.failed;
+    } catch (error) {
+      logger.warn('sync', 'Não foi possível verificar fotos pendentes de vistorias remotas', { erro: error instanceof Error ? error.message : String(error) });
+    }
+
     // Publica toda versão imutável preparada após garantir que sua vistoria já
     // existe no servidor. Assim o Portal pode iniciar a ciência mesmo quando o
     // agente escolheu concluir depois.
@@ -287,21 +313,24 @@ export async function syncPendentes(isRetry = false): Promise<{ sucesso: number;
     }
 
     if (falha > 0) {
-      const falhasComRetry = falha - bloqueiosLimite;
+      const falhasComRetry = falha - bloqueiosLimite - falhasEsgotadas;
       reportClientTechnicalEventSafely({
         category: 'sync',
-        severity: falhasComRetry > 0 ? 'error' : 'warning',
-        summary: falhasComRetry > 0 ? 'Sincronização concluída com falhas' : 'Sincronização aguardando liberação de limite',
+        severity: falhasComRetry > 0 || falhasEsgotadas > 0 ? 'error' : 'warning',
+        summary: falhasEsgotadas > 0 ? 'Há vistorias com tentativas de sincronização esgotadas' : falhasComRetry > 0 ? 'Sincronização concluída com falhas' : 'Sincronização aguardando liberação de limite',
         metadata: {
           operation: 'inspection_sync',
           failed_count: falha,
           success_count: sucesso,
           attempt: _currentRetryAttempt,
-          subscription_limited: falhasComRetry === 0,
+          subscription_limited: bloqueiosLimite > 0 && falhasComRetry === 0 && falhasEsgotadas === 0,
+          exhausted_count: falhasEsgotadas,
         },
       });
       if (falhasComRetry === 0) {
-        logger.info('sync', 'Vistorias preservadas localmente aguardando liberação de limite; auto-retry suspenso.');
+        logger.info('sync', falhasEsgotadas > 0
+          ? 'Vistorias preservadas localmente; use a sincronização manual para renovar as tentativas esgotadas.'
+          : 'Vistorias preservadas localmente aguardando liberação de limite; auto-retry suspenso.');
         return { sucesso, falha };
       }
       logger.warn('sync', `Sync com falhas — sucesso: ${sucesso}, falha: ${falha}`);
@@ -372,19 +401,24 @@ export function cancelAutoRetry(): void {
  * Usado pelo botão de sync manual do usuário.
  */
 export async function forceSyncAll(): Promise<{ sucesso: number; falha: number }> {
+  const { data, error } = await supabase.auth.getSession();
+  const actorUid = data.session?.user.id;
+  if (error || !actorUid || _syncInProgress) return { sucesso: 0, falha: 0 };
   try {
-    const { getDb } = await import('../utils/database');
     getDb().runSync(
       `UPDATE vistorias_offline
        SET tentativas_sync = 0, erro_sync = NULL
        WHERE sincronizado = 0
          AND COALESCE(modo_treinamento, 0) = 0
-         AND agente_uid NOT LIKE 'training:%'`
+         AND agente_uid NOT LIKE 'training:%'
+         AND agente_uid = ?`,
+      [actorUid]
     );
     getDb().runSync(
       `UPDATE document_ack_events_local
           SET sync_status = 'pending', attempts = 0, error_code = NULL
-        WHERE sync_status = 'failed' AND training_mode = 0`
+        WHERE sync_status = 'failed' AND training_mode = 0 AND created_by = ?`,
+      [actorUid]
     );
   } catch { /* não crítico */ }
   return syncPendentes();
@@ -408,7 +442,7 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     try {
       const parsed = v.fotos_urls ? JSON.parse(v.fotos_urls) : [];
       return Array.isArray(parsed)
-        ? parsed.filter((url): url is string => typeof url === 'string' && !url.startsWith('file://'))
+        ? parsed.filter((url): url is string => typeof url === 'string' && !isLocalInspectionMedia(url))
         : [];
     }
     catch { return []; }
@@ -419,7 +453,9 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
   })();
 
   // Nunca enviar file:// ao Supabase — se foto ainda for local, omitir
-  const fotoUrlSafe = v.foto_url && !v.foto_url.startsWith('file://') ? v.foto_url : null;
+  const fotoUrlSafe = v.foto_url && !isLocalInspectionMedia(v.foto_url) ? v.foto_url : null;
+  let respostasSafe = v.respostas_json;
+  try { respostasSafe = JSON.stringify(stripLocalMediaReferences(JSON.parse(v.respostas_json))); } catch { /* preserve legacy text */ }
 
   return {
     id: v.id,
@@ -436,7 +472,8 @@ function buildSupabasePayload(v: VistoriaLocal): Record<string, any> {
     dataVistoria: v.data_vistoria,
     formularioId: v.formulario_id,
     formularioVersao: v.formulario_versao,
-    respostasJson: v.respostas_json,
+    respostasJson: respostasSafe,
+    media_manifest: (v as VistoriaLocal & { media_manifest?: InspectionMediaManifest }).media_manifest,
     calculoRisco,
     nivelRisco: v.nivel_risco,
     pontuacaoTotal: v.pontuacao_total,

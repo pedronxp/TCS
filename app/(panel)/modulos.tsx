@@ -12,6 +12,7 @@ import { useBottomTabPadding } from '../../utils/useBottomTabPadding';
 import { ModuleCard, SectionHeader, StateBanner } from '../../components/ui';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { ComponentSize, Spacing, SpacingAlias } from '../../constants/Spacing';
+import { useOwnerExperience } from '../../context/OwnerExperienceContext';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
@@ -65,9 +66,20 @@ const fieldOperationItems: Record<MobileFieldOperation, ModuleItem> = {
   'tactical-map': { title: 'Mapa tático', description: 'Ocorrências georreferenciadas', icon: 'map-pin', route: '/(panel)/mapas' },
 };
 
-function sectionsForRole(role: string | undefined, permissions: readonly string[] | undefined): ModuleSection[] {
+function sectionsForRole(role: string | undefined, permissions: readonly string[] | undefined, ownerMode?: string | null): ModuleSection[] {
+  if (role === 'owner' && ownerMode === 'operate') {
+    return [
+      { key: 'owner', title: 'Administração global', description: 'Todas as organizações e operações TCS', items: [
+        { title: 'Administrar TCS', description: 'Clientes, contas, equipe, assinaturas e auditoria', icon: 'shield', route: '/(panel)/internal/administracao' },
+        { title: 'Qualidade (QE)', description: 'Revisar e devolver vistorias', icon: 'check-square', route: '/(panel)/qe' },
+        { title: 'Relatórios', description: 'Consultar documentos técnicos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
+      ] },
+      { key: 'operation', title: 'Operação de campo', description: 'Coleta, evidências e documentos', items: Object.values(fieldOperationItems) },
+      { key: 'account', title: 'Minha conta', description: 'Preferências do proprietário', items: [profile, { title: 'Modo de uso', description: 'Acompanhar ou administrar e operar', icon: 'sliders', route: '/(panel)/internal/modo' }] },
+    ];
+  }
   if (isInternalMobileRole(role)) {
-    const fieldOperation = getMobileFieldOperations(permissions).map(operation => fieldOperationItems[operation]);
+    const fieldOperation = (role === 'owner' ? [] : getMobileFieldOperations(permissions)).map(operation => fieldOperationItems[operation]);
     return [
       ...(fieldOperation.length ? [{
         key: 'field-operation',
@@ -130,6 +142,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
         key: 'operation', title: 'Operação da equipe', description: 'Campo, agenda e cobertura', items: [
           ...baseOperation,
           { title: 'Qualidade (QE)', description: 'Revisão de vistorias', icon: 'check-square', route: '/(panel)/qe' },
+          { title: 'Relatórios técnicos', description: 'Consultar os relatórios da equipe', icon: 'file-text', route: '/(panel)/admin/relatorios' },
           { title: 'Grupos', description: 'Agentes por área ou turno', icon: 'grid', route: '/(panel)/grupos' },
           { title: 'Agenda', description: 'Distribuição de tarefas', icon: 'calendar', route: '/(panel)/agendamentos' },
         ],
@@ -143,6 +156,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
       key: 'field', title: 'Trabalho em campo', description: 'Acesso rápido à sua operação', items: [
         { title: 'Nova vistoria', description: 'Iniciar coleta técnica', icon: 'plus-circle', route: '/(panel)/inspecoes/dados-iniciais', badge: 'Principal' },
         ...baseOperation,
+        { title: 'Relatórios técnicos', description: 'Consultar os relatórios das suas vistorias', icon: 'file-text', route: '/(panel)/admin/relatorios' },
         { title: 'Agenda', description: 'Tarefas atribuídas', icon: 'calendar', route: '/(panel)/agendamentos' },
       ],
     },
@@ -153,23 +167,27 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
 export default function ModulosScreen() {
   const { theme } = useTheme();
   const { profile: userProfile } = useAuth();
+  const { mode: ownerMode } = useOwnerExperience();
   const { context: subscriptionContext, hasFeature } = useSubscription();
   const insets = useSafeAreaInsets();
   const bottomPadding = useBottomTabPadding();
   const [query, setQuery] = useState('');
   const access = resolveMobileOrganizationAccess(userProfile, subscriptionContext);
   const organizationId = access.organizationId;
-  const sections = useMemo(() => sectionsForRole(userProfile?.role, userProfile?.permissions)
+  const sections = useMemo(() => sectionsForRole(userProfile?.role, userProfile?.permissions, ownerMode)
     .map(section => ({
       ...section,
       items: section.items.filter(item => {
+        if (item.route === '/(panel)/admin/relatorios' && ['agent', 'supervisor'].includes(userProfile?.role ?? '')) {
+          return Boolean(subscriptionContext) && ['reports_basic', 'reports_advanced', 'reports_institutional'].some(hasFeature);
+        }
         if (item.requiresOrganization && !organizationId) return false;
         if (!item.feature || !subscriptionContext?.features) return true;
         if (!(item.feature in subscriptionContext.features)) return true;
         return hasFeature(item.feature);
       }),
     }))
-    .filter(section => section.items.length > 0), [hasFeature, organizationId, subscriptionContext?.features, userProfile?.permissions, userProfile?.role]);
+    .filter(section => section.items.length > 0), [hasFeature, organizationId, subscriptionContext?.features, userProfile?.permissions, userProfile?.role, ownerMode]);
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const visibleSections = useMemo(() => {
     if (!normalizedQuery) return sections;
@@ -220,7 +238,7 @@ export default function ModulosScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + Spacing[4] }]}
         keyboardShouldPersistTaps="handled"
       >
-        {(userProfile?.role === 'master_admin' || userProfile?.role === 'admin' || isInternalMobileRole(userProfile?.role)) ? (
+        {(userProfile?.role === 'master_admin' || userProfile?.role === 'admin' || (isInternalMobileRole(userProfile?.role) && !(userProfile?.role === 'owner' && ownerMode === 'operate'))) ? (
           <StateBanner
             variant="info"
             title="Administração disponível no painel web"

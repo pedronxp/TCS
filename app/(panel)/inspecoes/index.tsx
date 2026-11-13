@@ -1,5 +1,10 @@
+import { mergePendingInspectionArchiveState } from '../../../services/InspectionListMerge';
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Alert } from 'react-native';
+import { canDiscardUnsynchronizedInspection } from '../../../services/InspectionDocumentPolicy';
+import { OwnerInspectionArchiveAction } from '../../../components/OwnerInspectionArchiveAction';
+import { InspectionMetadata } from '../../../components/InspectionMetadata';
+import { assessInspectionMedia } from '../../../utils/inspectionMedia';
 import { useTheme } from '../../../context/ThemeContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -18,7 +23,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../utils/supabase';
-import { deleteVistoriaOffline, getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getTrainingVistoriasByAgente, VistoriaLocal } from '../../../utils/database';
+import { deleteVistoriaOffline, getOfficialVistoriaById, getVistoriasByAgente, getVistoriasByMunicipio, getAllVistorias, getTrainingVistoriasByAgente, VistoriaLocal } from '../../../utils/database';
 import { logger } from '../../../utils/logger';
 import { syncPendentes, forceSyncAll } from '../../../services/SyncService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,7 +33,7 @@ import { resolverApresentacaoRisco } from '../../../utils/riscoUtils';
 import { FontSize, FontWeight } from '../../../constants/Typography';
 import { ComponentSize, Spacing, SpacingAlias } from '../../../constants/Spacing';
 
-type ListFilter = 'todas' | 'pendentes' | 'alto_risco';
+type ListFilter = 'todas' | 'pendentes' | 'alto_risco' | 'arquivadas';
 
 // ─── Card memoizado ────────────────────────────────────────────────────────
 interface InspecaoCardProps {
@@ -52,9 +57,6 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
   const riskVariant = apresentacao.nivelCompatibilidade.toUpperCase() as 'R1' | 'R2' | 'R3' | 'R4';
   const syncLabel = maxTentativas ? 'Falhou' : hasErro ? 'Erro no envio' : isPendente ? 'Pendente' : feitoOffline ? 'Feita offline' : 'Sincronizada';
   const syncVariant = maxTentativas || hasErro ? 'error' : isPendente ? 'warning' : 'success';
-  const dateLabel = item.data_vistoria
-    ? new Date(item.data_vistoria).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
-    : 'Data não informada';
   const address = item.endereco_rua
     ? `${item.endereco_rua}, ${item.endereco_numero || 's/n'}${item.endereco_bairro ? ` · ${item.endereco_bairro}` : ''}`
     : 'Endereço não informado';
@@ -77,7 +79,7 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
     <Card style={styles.inspectionCard} onPress={openInspection}>
       <View style={styles.cardHeader}>
         <Badge label={apresentacao.label} variant={riskVariant} size="sm" showDot />
-        <Badge label={syncLabel} variant={syncVariant} size="sm" />
+        <Badge label={item.owner_archived_at ? 'Arquivada' : syncLabel} variant={item.owner_archived_at ? 'neutral' : syncVariant} size="sm" />
       </View>
 
       <View style={styles.addressRow}>
@@ -94,11 +96,9 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
       </View>
 
       <View style={[styles.cardFooter, { borderTopColor: theme.border }]}>
-        <Text style={[styles.metadata, { color: theme.textSecondary }]} numberOfLines={1}>
-          {item.agente_nome || 'Agente não informado'} · {dateLabel}
-        </Text>
+        <InspectionMetadata agent={item.agente_nome} date={item.data_vistoria} protocol={item.protocolo} id={item.id} color={theme.textSecondary} />
         <Text style={[styles.points, { color: theme.text }]}>{item.pontuacao_total ?? 0} pts</Text>
-        {isPendente ? (
+        {isPendente && canDiscardUnsynchronizedInspection(item) ? (
           <Pressable
             style={({ pressed }) => [styles.deleteLocalBtn, { backgroundColor: theme.errorLight }, pressed && styles.pressed]}
             onPress={(event) => {
@@ -114,7 +114,7 @@ const InspecaoCard = React.memo(({ item, theme, onDeleteLocal, trainingMode = fa
       </View>
 
       {hasErro && item.erro_sync ? (
-        <Text style={[styles.syncError, { color: theme.error }]} numberOfLines={2}>
+        <Text style={[styles.syncError, { color: theme.error }]}>
           {item.erro_sync}
         </Text>
       ) : null}
@@ -170,11 +170,14 @@ export default function InspecoesListScreen() {
 
       // 2. Se online, buscar do Supabase e mesclar
       if (isConnected && !isolatedMode) {
+        const pageSize = 50;
+        const loadPage = (start: number) => {
         let query = supabase
           .from('vistorias')
           .select('*')
           .order('dataVistoria', { ascending: false })
-          .limit(50);
+          .order('id', { ascending: false })
+          .range(start, start + pageSize - 1);
 
         if (!isAdmin) {
           query = query.eq('agenteUid', perfil.uid);
@@ -183,11 +186,25 @@ export default function InspecoesListScreen() {
         }
         // master_admin e owner: sem filtro — veem todas as vistorias do sistema.
 
-        const { data } = await query;
+        return query;
+        };
+        const { data: firstPage, error } = await loadPage(0);
+        if (error) throw error;
+        const data = [...(firstPage ?? [])];
+        if (perfil.role === 'owner') {
+          for (let page = firstPage ?? []; page.length === pageSize;) {
+            const result = await loadPage(data.length);
+            if (result.error) throw result.error;
+            page = result.data ?? [];
+            data.push(...page);
+          }
+        }
         if (data) {
           // Mapear Supabase → formato VistoriaLocal para exibição unificada
           const remotas: VistoriaLocal[] = data.map((r: any) => ({
             id: r.id,
+            protocolo: r.protocolo ?? null,
+            owner_archived_at: r.owner_archived_at ?? null,
             agente_uid: r.agenteUid,
             agente_nome: r.agenteNome,
             municipio: r.municipio,
@@ -211,8 +228,8 @@ export default function InspecoesListScreen() {
             municipio_agente: r.municipio_agente ?? null,
             laudo_url: r.laudo_url ?? null,
             laudo_gerado_em: r.laudo_gerado_em ?? null,
-            sincronizado: 1,
-            erro_sync: null,
+            sincronizado: assessInspectionMedia(r.media_manifest).pending_count ? 0 : 1,
+            erro_sync: assessInspectionMedia(r.media_manifest).pending_count ? 'Dados recebidos; fotos pendentes no aparelho de origem.' : null,
             tentativas_sync: 0,
             criado_em: r.dataVistoria,
           }));
@@ -222,7 +239,7 @@ export default function InspecoesListScreen() {
           // Mapa id → feita_online para consultar a origem real de cada registro local
           const localOrigemMap = new Map(locais.map(v => [v.id, v.feita_online]));
           const merged = [
-            ...locais.filter(v => v.sincronizado === 0).map(v => ({ ...v, origem: 'offline' as const })),
+            ...mergePendingInspectionArchiveState(locais.filter(v => v.sincronizado === 0), remotas).map(v => ({ ...v, origem: 'offline' as const })),
             ...remotas.filter(r => !idsPendentes.has(r.id)).map(r => {
               const feitaOnline = localOrigemMap.get(r.id);
               // feita_online=1 ou NULL (antigo/desconhecido) → sem badge; feita_online=0 → offline
@@ -258,6 +275,12 @@ export default function InspecoesListScreen() {
 
   const confirmDeleteLocal = async () => {
     if (!deleteCandidate) return;
+    const current = isolatedMode ? deleteCandidate : getOfficialVistoriaById(deleteCandidate.id);
+    if (!current || !canDiscardUnsynchronizedInspection(current)) {
+      setDeleteCandidate(null);
+      Alert.alert('Registro já enviado', 'Preserve os anexos pendentes. Use o arquivamento administrativo para retirar uma vistoria da operação.');
+      return;
+    }
     deleteVistoriaOffline(deleteCandidate.id);
     setDeleteCandidate(null);
     if (activeProfile) await fetchVistorias(activeProfile);
@@ -272,7 +295,8 @@ export default function InspecoesListScreen() {
         nivelRisco: item.nivel_risco,
         calculoRisco: item.calculo_json,
       });
-      const matchesFilter = filter === 'todas'
+      const matchesFilter = (filter === 'todas' && !item.owner_archived_at)
+        || (filter === 'arquivadas' && Boolean(item.owner_archived_at))
         || (filter === 'pendentes' && item.sincronizado === 0)
         || (filter === 'alto_risco' && ['r3', 'r4'].includes(apresentacao.nivelCompatibilidade));
       if (!matchesFilter) return false;
@@ -289,8 +313,13 @@ export default function InspecoesListScreen() {
   }, [filter, query, vistorias]);
 
   const renderItem = useCallback(({ item }: { item: VistoriaLocal }) => (
-    <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={isolatedMode} />
-  ), [theme, handleDeleteLocal, isolatedMode]);
+    <View>
+      <InspecaoCard item={item} theme={theme} onDeleteLocal={handleDeleteLocal} trainingMode={isolatedMode} />
+      {profile?.role === 'owner' && !isolatedMode && (item.sincronizado === 1 || Boolean(item.protocolo)) ? (
+        <OwnerInspectionArchiveAction inspectionId={item.id} archived={Boolean(item.owner_archived_at)} onUpdated={async () => { if (activeProfile) await fetchVistorias(activeProfile); }} />
+      ) : null}
+    </View>
+  ), [theme, handleDeleteLocal, isolatedMode, profile?.role, activeProfile, isConnected]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -384,6 +413,7 @@ export default function InspecoesListScreen() {
                   ['todas', 'Todas'],
                   ['pendentes', 'Pendentes'],
                   ['alto_risco', 'Risco alto'],
+                  ...(profile?.role === 'owner' ? [['arquivadas', 'Arquivadas'] as const] : []),
                 ] as const).map(([value, label]) => {
                   const selected = filter === value;
                   return (

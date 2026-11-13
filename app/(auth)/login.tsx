@@ -191,20 +191,6 @@ export default function LoginScreen() {
           </View>
 
           <Card style={styles.formCard}>
-            <View style={[styles.accessTabs, { backgroundColor: theme.secondary }]}>
-              <View style={[styles.accessTab, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Feather name="mail" size={16} color={theme.primary} />
-                <Text style={[styles.accessTabActive, { color: theme.text }]}>E-mail</Text>
-              </View>
-              <View style={[styles.accessTab, styles.accessTabDisabled]}>
-                <Feather name="message-circle" size={16} color={theme.textSecondary} />
-                <Text style={[styles.accessTabText, { color: theme.textSecondary }]}>WhatsApp</Text>
-                <View style={[styles.soonBadge, { backgroundColor: theme.warningLight }]}>
-                  <Text style={[styles.soonText, { color: theme.warning }]}>Em breve</Text>
-                </View>
-              </View>
-            </View>
-
             <View style={styles.form}>
               <FormField
                 label="E-mail"
@@ -318,13 +304,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, lineHeight: 36, fontWeight: FontWeight.extrabold, letterSpacing: -1 },
   subtitle: { fontSize: FontSize.base, lineHeight: 21, maxWidth: 360 },
   formCard: { padding: Spacing[4], gap: Spacing[5] },
-  accessTabs: { minHeight: 48, borderRadius: SpacingAlias.radiusMd, padding: 4, flexDirection: 'row', gap: 4 },
-  accessTab: { flex: 1, borderRadius: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing[2], borderWidth: 1 },
-  accessTabDisabled: { opacity: 0.72, borderColor: 'transparent' },
-  accessTabActive: { fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  accessTabText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
-  soonBadge: { borderRadius: SpacingAlias.radiusFull, paddingHorizontal: 6, paddingVertical: 2 },
-  soonText: { fontSize: 9, fontWeight: FontWeight.bold },
   form: { gap: Spacing[5] },
   passwordField: { gap: Spacing[2] },
   fieldLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold },

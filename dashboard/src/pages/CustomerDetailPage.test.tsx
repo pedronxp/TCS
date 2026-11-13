@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -249,6 +251,39 @@ describe('Detalhe do cliente', () => {
     expect(screen.getByRole('heading', { name: 'Marina Costa' })).toBeVisible();
     expect(screen.getByText(/Equipe da organização/)).toBeVisible();
     expect(screen.getByText('Identidade e acesso')).toBeVisible();
+  });
+
+  it('mantém a ordem dos hooks do diálogo de assinatura estável', () => {
+    // Regressão: o diálogo de edição usava `useState`/`useQuery`/`useEffect`
+    // depois de um `return` antecipado.
+    //
+    // O guard é sobre a FONTE, e não sobre o comportamento em runtime: o
+    // componente pai (`Subscription`) hoje desmonta o diálogo quando a
+    // assinatura é nula, então o React nunca chega aBroken o erro — o defeito
+    // está latente, a um refactor de distância de virar tela branca.
+    //
+    // A regra que detecta essa classe é `react-hooks/rules-of-hooks` do
+    // ESLint, verificada pelo portão de lint (`npm run lint`, que roda no CI
+    // do dashboard). Aqui a checagem é estrutural e barata: nenhum `return`
+    // pode vir antes do primeiro hook dentro do componente do formulário.
+    const fonte = readFileSync(
+      resolve(process.cwd(), 'src/pages/CustomerDetailPage.tsx'),
+      'utf8',
+    );
+
+    const corpoFormulario = fonte.slice(
+      fonte.indexOf('function EditSubscriptionDialogForm('),
+      fonte.indexOf('function EditSubscriptionDialogForm(') + 4000,
+    );
+    const primeiroHook = corpoFormulario.search(/\buse(State|Effect|Query|Mutation|Ref|Memo|Callback)\b/);
+    const retornoAntecipado = corpoFormulario.search(/\breturn\b/);
+
+    expect(primeiroHook).toBeGreaterThan(-1);
+    // O `return` do tipo de retorno da função (`): ... {`) não conta; o que
+    // interessa é um `return` de execução antes do primeiro hook.
+    const retornoDeExecucao = /\{\r?\n\s*if\s*\([^)]*\)\s*return\b/.exec(corpoFormulario);
+    expect(retornoDeExecucao === null || retornoDeExecucao.index > primeiroHook).toBe(true);
+    expect(retornoAntecipado === -1 || retornoAntecipado > primeiroHook).toBe(true);
   });
 
   it('orienta a gerar no aplicativo quando o documento oficial estiver pendente', async () => {

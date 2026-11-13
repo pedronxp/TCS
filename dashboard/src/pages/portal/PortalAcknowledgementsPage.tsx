@@ -23,6 +23,7 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalRestrictionMessage } from '@/lib/portal';
 import { buildAcknowledgementUrl, parseAcknowledgementLinkResult } from '@/lib/documentAcknowledgementLinks';
 import { supabase } from '@/lib/supabase';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 type AcknowledgementStatus = 'pending' | 'link_sent' | 'acknowledged' | 'refused' | 'unable_to_sign';
 
@@ -87,6 +88,17 @@ export function PortalAcknowledgementsPage() {
   const [issuedLinks, setIssuedLinks] = useState<Record<string, { url: string; expiresAt: string }>>({});
   const subscriptionBlocks = access ? !access.creationAllowed : false;
   const items = (query.data?.items ?? []) as AcknowledgementItem[];
+  const timedOut = useAsyncTimeout(query.isLoading);
+  const listError = (
+    <div className="grid min-h-64 place-items-center p-8 text-center" role="alert">
+      <div>
+        <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-secondary text-primary"><AlertCircle aria-hidden="true" /></span>
+        <h2 className="mt-4 font-semibold">Não foi possível carregar as ciências</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Nenhum dado foi estimado ou substituído. Tente novamente.</p>
+        <Button className="mt-4" variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>
+      </div>
+    </div>
+  );
 
   function setActionError(message: string) {
     setError(message);
@@ -217,23 +229,14 @@ export function PortalAcknowledgementsPage() {
           )}
         </CardHeader>
         <CardContent className="p-0">
-          {query.isLoading && (
+          {query.isLoading && !timedOut && (
             <div className="space-y-3 p-6" role="status" aria-label="Carregando ciências">
               <span className="sr-only">Carregando ciências…</span>
               <div className="h-20 animate-pulse rounded-md bg-secondary motion-reduce:animate-none" />
               <div className="h-20 animate-pulse rounded-md bg-secondary motion-reduce:animate-none" />
             </div>
           )}
-          {query.isError && (
-            <div className="grid min-h-64 place-items-center p-8 text-center" role="alert">
-              <div>
-                <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-secondary text-primary"><AlertCircle aria-hidden="true" /></span>
-                <h2 className="mt-4 font-semibold">Não foi possível carregar as ciências</h2>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Nenhum dado foi estimado ou substituído. Tente novamente.</p>
-                <Button className="mt-4" variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>
-              </div>
-            </div>
-          )}
+          {(query.isError || (query.isLoading && timedOut)) && listError}
           {query.data && items.length === 0 && (
             <div className="grid min-h-64 place-items-center p-8 text-center">
               <div>

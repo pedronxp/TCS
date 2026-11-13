@@ -17,6 +17,9 @@ import {
   clearGeneratedDocumentLocalFile,
   findReusableGeneratedDocument,
   getGeneratedDocument,
+  getAcknowledgementEvent,
+  refreshRemoteDocumentPreview,
+  reconcileRemoteDocumentAvailability,
   getNextDocumentVersion,
   listPendingAcknowledgementEvents,
   listPendingGeneratedDocuments,
@@ -102,11 +105,18 @@ export async function prepareGeneratedDocument<TPayload extends object>(
   );
   const contentSnapshot = canonicalize(snapshot);
   const contentHash = await hashCanonical(snapshot);
+  const confirmFinalIssuance = async (prepared: LocalGeneratedDocument): Promise<LocalGeneratedDocument> => {
+    if (!input.trainingMode && (input.payload as { documentStatus?: unknown }).documentStatus === 'final') {
+      const remotePath = await publishGeneratedDocument(prepared);
+      return { ...prepared, remotePath, status: 'available' };
+    }
+    return prepared;
+  };
 
   // Reuse the active version when the immutable source content did not change.
   // This prevents repeated taps from creating an unlimited version sequence.
   const reusable = findReusableGeneratedDocument(input.vistoriaId, input.documentType, contentHash);
-  if (reusable) return reusable;
+  if (reusable) return confirmFinalIssuance(reusable);
 
   const documentId = generateUUID();
   const documentDirectory = FileSystem.documentDirectory;
@@ -143,11 +153,13 @@ export async function prepareGeneratedDocument<TPayload extends object>(
   };
   try {
     saveGeneratedDocument(document);
-    return document;
   } catch (error) {
     await FileSystem.deleteAsync(privatePdfUri, { idempotent: true }).catch(() => null);
     throw error;
   }
+  // A publication failure retains the local package for recovery, but does not
+  // release a final document before the server validates signature and media.
+  return confirmFinalIssuance(document);
 }
 
 export async function createAcknowledgementEvent(
@@ -240,8 +252,9 @@ async function ensureDocumentUploaded(document: LocalGeneratedDocument): Promise
 }
 
 /** Publica somente a versão imutável do documento, sem criar um evento de ciência. */
-export async function publishGeneratedDocument(document: LocalGeneratedDocument): Promise<void> {
+export async function publishGeneratedDocument(document: LocalGeneratedDocument): Promise<string> {
   if (document.trainingMode) throw new Error('training_document_cannot_be_shared');
+  if (document.status === 'available' && document.remotePath) return document.remotePath;
   const storagePath = await ensureDocumentUploaded(document);
   const snapshot = JSON.parse(document.contentSnapshot) as DocumentContentSnapshot;
   const { error } = await supabase.rpc('register_generated_document', {
@@ -263,6 +276,7 @@ export async function publishGeneratedDocument(document: LocalGeneratedDocument)
   });
   if (error) throw error;
   updateGeneratedDocumentRemote(document.id, storagePath, 'available');
+  return storagePath;
 }
 
 export async function syncPreparedGeneratedDocuments(): Promise<{ success: number; failed: number }> {
@@ -422,6 +436,84 @@ export async function verifyDocumentIntegrity(document: LocalGeneratedDocument):
   } catch {
     return false;
   }
+}
+
+const remoteDocumentLoads = new Map<string, Promise<LocalGeneratedDocument[]>>();
+
+/** Import only authorized, already-preserved versions. Never re-create a PDF on behalf of its author. */
+export async function loadRemoteInspectionDocuments(inspectionId: string): Promise<LocalGeneratedDocument[]> {
+  const session = await supabase.auth.getSession();
+  const actorUid = session.data.session?.user.id;
+  if (session.error || !actorUid) throw new Error('Sessão autenticada necessária para abrir documentos de outra vistoria.');
+  const key = `${actorUid}:${inspectionId}`;
+  const existing = remoteDocumentLoads.get(key);
+  if (existing) return existing;
+  const request = importRemoteInspectionDocuments(inspectionId, actorUid);
+  remoteDocumentLoads.set(key, request);
+  try {
+    return await request;
+  } finally {
+    remoteDocumentLoads.delete(key);
+  }
+}
+
+async function importRemoteInspectionDocuments(inspectionId: string, actorUid: string): Promise<LocalGeneratedDocument[]> {
+  const ensureSameActor = async () => {
+    const current = await supabase.auth.getSession();
+    if (current.error || current.data.session?.user.id !== actorUid) throw new Error('A sessão mudou durante o carregamento do documento.');
+  };
+  const { data, error } = await supabase.from('generated_documents')
+    .select('id,vistoria_id,document_type,document_version,template_version,content_snapshot,content_hash,pdf_hash,storage_path,byte_size,created_by,created_at_device,training_mode,status,supersedes_id')
+    .eq('vistoria_id', inspectionId).eq('training_mode', false).eq('status', 'available')
+    .order('document_version', { ascending: true });
+  if (error) throw error;
+  await ensureSameActor();
+  const loaded: LocalGeneratedDocument[] = [];
+  reconcileRemoteDocumentAvailability(inspectionId, (data ?? []).map(row => row.id));
+  for (const row of data ?? []) {
+    const signed = await getSignedUrl(encodeDocumentEvidencePath(row.storage_path), 3600);
+    if (!signed) throw new Error('Não foi possível abrir a versão preservada do documento.');
+    const safeUrl = signed.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const document: LocalGeneratedDocument = {
+      id: row.id, vistoriaId: row.vistoria_id, documentType: row.document_type,
+      documentVersion: row.document_version, templateVersion: row.template_version,
+      contentSnapshot: typeof row.content_snapshot === 'string' ? row.content_snapshot : JSON.stringify(row.content_snapshot),
+      contentHash: row.content_hash, pdfHash: row.pdf_hash, pdfLocalUri: null,
+      previewHtml: `<!doctype html><html lang="pt-BR"><body style="margin:0"><iframe title="Documento preservado" src="${safeUrl}" style="border:0;width:100%;height:100vh"></iframe></body></html>`,
+      remotePath: row.storage_path, byteSize: row.byte_size, createdBy: row.created_by,
+      createdAtDevice: row.created_at_device, trainingMode: false, status: 'available', supersedesId: row.supersedes_id ?? null,
+    };
+    await ensureSameActor();
+    if (getGeneratedDocument(row.id)) refreshRemoteDocumentPreview(row.id, document.previewHtml);
+    else saveGeneratedDocument(document);
+    await SecureStore.setItemAsync(`document_access_${actorUid}_${row.id}`, 'granted');
+    loaded.push(document);
+  }
+  if (loaded.length) {
+    const events = await supabase.from('document_acknowledgement_events').select('*').in('document_id', loaded.map(d => d.id)).eq('event_kind', 'outcome');
+    if (events.error) throw events.error;
+    for (const row of events.data ?? []) {
+      await ensureSameActor();
+      if (getAcknowledgementEvent(row.id)) continue;
+      saveAcknowledgementEvent({
+        id: row.id, clientEventId: row.client_event_id, documentId: row.document_id, outcome: row.outcome,
+        declarationVersion: row.declaration_version, declarationText: row.declaration_text, declarationHash: row.declaration_hash,
+        recipientName: row.recipient_name, recipientRelationship: row.recipient_relationship,
+        signatureStrokes: row.signature_strokes ?? null, signatureHash: row.signature_hash ?? null,
+        reason: row.reason ?? null, witness: row.witness ?? null, occurredAtDevice: row.occurred_at_device,
+        recordedAtServer: row.recorded_at_server, deviceIdHash: row.device_id_hash ?? null, createdBy: row.created_by,
+        syncStatus: 'confirmed', protocol: row.protocol, remoteSignaturePath: row.signature_storage_path ?? null,
+        errorCode: null, attempts: 0, trainingMode: false, correctionOf: null, correctionReason: null,
+      });
+    }
+  }
+  return loaded;
+}
+
+/** A cached imported PDF is not globally visible to every account on the phone. */
+export async function hasImportedDocumentAccess(actorUid: string, documentId: string): Promise<boolean> {
+  if (!actorUid || !documentId) return false;
+  return (await SecureStore.getItemAsync(`document_access_${actorUid}_${documentId}`)) === 'granted';
 }
 
 export async function fetchRemoteAcknowledgementHistory(

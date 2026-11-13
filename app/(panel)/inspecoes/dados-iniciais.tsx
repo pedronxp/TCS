@@ -45,7 +45,7 @@ export default function DadosIniciaisScreen() {
   const { trainingProfile } = useTraining();
   const activeProfile = trainingProfile || profile;
   const backFallback = trainingProfile ? '/(panel)/treinamento' : '/(panel)/inspecoes';
-  const isMasterAdmin = activeProfile?.role === 'master_admin';
+  const isMasterAdmin = ['master_admin', 'owner'].includes(activeProfile?.role || '');
   const params = useLocalSearchParams<{
     agendamentoId?: string;
     ruaPreenchida?: string;
@@ -71,7 +71,7 @@ export default function DadosIniciaisScreen() {
   const [gpsMessage, setGpsMessage] = useState<string | null>(null);
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [erroCep, setErroCep] = useState<string | null>(null);
-  const cepRef = useRef<TextInput>(null);
+  const cepRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   useEffect(() => {
     if (coordsPreenchidas) return;

@@ -285,16 +285,22 @@ describe('vistoria_deslizamento_v3 - ajustes tecnicos', () => {
     expect(justificativa.auxiliarCalculo).toBe(true);
     expect(justificativa.descricao).toContain('altura aproximada');
     expect(justificativa.placeholder).toContain('talude');
-    expect(justificativa.mostrarQuando).toBeUndefined();
+    // A justificativa se aplica apenas quando a classificacao altura x distancia
+    // aparece (encosta vertical ou talude solapado). Exigir o texto em toda
+    // vistoria obrigava o agente a justificar uma pergunta que nao foi feita.
+    expect(justificativa.mostrarQuando).toEqual({
+      perguntaId: 'desl2_q2',
+      respostaIds: ['q2_e', 'q2_f'],
+    });
   });
 
-  it('mostra a classificacao apenas para inclinacao vertical ou negativa e a justificativa sempre', () => {
+  it('mostra a classificacao e a justificativa apenas para inclinacao vertical ou negativa', () => {
     const perguntas = flattenPerguntas(vistoriaDeslizamento);
 
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(false);
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_e' }).some(p => p.id === 'desl2_q2_exposicao_altura_distancia')).toBe(true);
     expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_f' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(true);
-    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(true);
+    expect(filtrarPerguntasVisiveis(perguntas, { desl2_q2: 'q2_d' }).some(p => p.id === 'desl2_q2_justificativa_tecnica')).toBe(false);
   });
 });
 

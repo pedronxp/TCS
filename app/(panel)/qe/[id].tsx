@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getSignedUrl } from '../../../services/StorageService';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +39,7 @@ interface VistoriaDetalhe {
   pontuacaoTotal: number | null;
   dataVistoria: string | null;
   fotosUrls: string[] | null;
+  fotosIndisponiveis?: boolean;
   respostasJson: any;
 }
 
@@ -62,11 +64,17 @@ export default function QeRevisarScreen() {
   const [nota, setNota] = useState<number>(7);
   const [parecer, setParecer] = useState('');
   const [salvando, setSalvando] = useState<'aprovar' | 'devolver' | null>(null);
+  const submitting = useRef(false);
   const [notaSheetVisible, setNotaSheetVisible] = useState(false);
 
   const carregar = useCallback(async () => {
     setLoading(true);
     setErro(null);
+    if (!id || Array.isArray(id)) {
+      setErro('Identificador da revisão não informado. Volte para a fila de qualidade.');
+      setLoading(false);
+      return;
+    }
     try {
       const { data: rev, error: revErr } = await supabase
         .from('revisoes_qe')
@@ -77,13 +85,16 @@ export default function QeRevisarScreen() {
 
       const { data: v, error: vErr } = await supabase
         .from('vistorias')
-        .select('id, "agenteNome", endereco, "nivelRisco", "pontuacaoTotal", "dataVistoria", "fotosUrls", "respostasJson"')
+        .select('id, "agenteNome", endereco, "nivelRisco", "pontuacaoTotal", "dataVistoria", "fotoUrl", "fotosUrls", "respostasJson"')
         .eq('id', rev.vistoria_id)
         .single();
       if (vErr) throw vErr;
 
       setRevisao(rev as Revisao);
-      setVistoria(v as VistoriaDetalhe);
+      const paths = [...new Set<string>([v.fotoUrl, ...(Array.isArray(v.fotosUrls) ? v.fotosUrls : [])]
+        .filter((value): value is string => typeof value === 'string' && Boolean(value.trim())))];
+      const resolved = await Promise.all(paths.map(path => getSignedUrl(path).catch(() => null)));
+      setVistoria({ ...v, fotosUrls: resolved.filter((url): url is string => Boolean(url)), fotosIndisponiveis: resolved.some(url => !url) } as VistoriaDetalhe);
     } catch {
       setErro('Não foi possível carregar a vistoria para revisão.');
     } finally {
@@ -94,11 +105,12 @@ export default function QeRevisarScreen() {
   useEffect(() => { void carregar(); }, [carregar]);
 
   const finalizar = async (aprovado: boolean) => {
-    if (!revisao) return;
+    if (!revisao || revisao.status !== 'pendente' || submitting.current) return;
     if (!aprovado && parecer.trim().length < 5) {
       Alert.alert('Parecer obrigatório', 'Ao devolver, descreva o que precisa ser corrigido.');
       return;
     }
+    submitting.current = true;
     setSalvando(aprovado ? 'aprovar' : 'devolver');
     try {
       const { error } = await supabase.rpc('qe_revisar', {
@@ -109,20 +121,28 @@ export default function QeRevisarScreen() {
         p_aprovado: aprovado,
       });
       if (error) throw error;
+      setRevisao({ ...revisao, status: aprovado ? 'aprovada' : 'devolvida' });
+      router.replace('/(panel)/qe');
       Alert.alert(
         aprovado ? 'Vistoria aprovada' : 'Vistoria devolvida',
         aprovado ? 'A vistoria foi aprovada na revisão de qualidade.' : 'O agente será notificado para corrigir e reenviar.',
-        [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e: any) {
       Alert.alert('Erro', e?.message || 'Não foi possível registrar a revisão.');
     } finally {
+      submitting.current = false;
       setSalvando(null);
     }
   };
 
-  if (loading) return <LoadingState message="Abrindo revisão..." />;
-  if (erro || !revisao || !vistoria) return <ErrorState message={erro ?? 'Revisão não encontrada.'} onRetry={() => void carregar()} />;
+  if (loading || erro || !revisao || !vistoria) return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={{ paddingTop: insets.top }}><AppHeader title="Revisar vistoria" onBack={() => router.replace('/(panel)/qe')} /></View>
+      {loading
+        ? <LoadingState message="Abrindo revisão..." />
+        : <ErrorState message={erro ?? 'Revisão não encontrada.'} onRetry={() => void carregar()} />}
+    </View>
+  );
 
   const marcados = checklist.filter(Boolean).length;
   const tudoOk = checklist.every(Boolean);
@@ -134,11 +154,12 @@ export default function QeRevisarScreen() {
         <AppHeader
           title="Revisar vistoria"
           subtitle={`Ciclo ${revisao.ciclo}${vistoria.dataVistoria ? ` · ${new Date(vistoria.dataVistoria).toLocaleDateString('pt-BR')}` : ''}`}
-          onBack={() => router.back()}
+          onBack={() => router.replace('/(panel)/qe')}
         />
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}>
+        {revisao.status !== 'pendente' && <StateBanner variant="info" title="Revisão encerrada" description={revisao.status === 'aprovada' ? 'Esta vistoria já foi aprovada. Volte à fila para revisar outra vistoria.' : 'Esta vistoria já foi devolvida para correção.'} />}
         {/* Resumo */}
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Resumo</Text>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -170,7 +191,8 @@ export default function QeRevisarScreen() {
           </ScrollView>
         ) : (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Nenhuma foto registrada nesta vistoria.</Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{vistoria.fotosIndisponiveis ? 'Há fotos registradas. Não foi possível carregá-las.' : 'Nenhuma foto registrada nesta vistoria.'}</Text>
+            {vistoria.fotosIndisponiveis ? <Text accessibilityRole="button" onPress={() => void carregar()}>Tentar novamente</Text> : null}
           </View>
         )}
 
@@ -235,7 +257,7 @@ export default function QeRevisarScreen() {
           <TouchableOpacity
             style={[styles.acaoBtn, styles.acaoDevolver, { borderColor: theme.error }]}
             onPress={() => void finalizar(false)}
-            disabled={salvando !== null}
+            disabled={salvando !== null || revisao.status !== 'pendente'}
             accessibilityRole="button"
           >
             {salvando === 'devolver'
@@ -246,7 +268,7 @@ export default function QeRevisarScreen() {
           <TouchableOpacity
             style={[styles.acaoBtn, { backgroundColor: theme.primary }]}
             onPress={() => void finalizar(true)}
-            disabled={salvando !== null}
+            disabled={salvando !== null || revisao.status !== 'pendente'}
             accessibilityRole="button"
           >
             {salvando === 'aprovar'

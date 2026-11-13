@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { axe } from 'vitest-axe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommercialPage } from './CommercialPage';
-import { PUBLIC_PLANS } from '@/config/publicPlans';
 
 const supabaseMock = vi.hoisted(() => ({ maybeSingle: vi.fn() }));
 
@@ -29,40 +28,37 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('experiência comercial pública', () => {
-  it('usa somente o catálogo público aprovado', () => {
-    expect(PUBLIC_PLANS).toHaveLength(5);
-    expect(PUBLIC_PLANS.map((plan) => plan.name)).toEqual([
-      'Individual Básico',
-      'Individual Profissional',
-      'Municipal Básico',
-      'Municipal Profissional',
-      'Municipal Completo',
-    ]);
-  });
-
-  it('segmenta a oferta sem criar planos ou provas fora do catálogo', async () => {
+describe('página pública de apresentação do sistema', () => {
+  it('apresenta o sistema sem superfície de venda', async () => {
     render(<MemoryRouter><CommercialPage /></MemoryRouter>);
+
     expect(screen.getByRole('heading', { level: 1, name: 'Registre a vistoria uma vez. Use a evidência até a decisão.' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Três etapas, o mesmo registro.' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Individual ou Municipal: comece pela comparação certa.' })).toBeVisible();
-    expect(screen.getByRole('heading', { level: 3, name: 'Individual' })).toBeVisible();
-    expect(screen.getByRole('heading', { level: 3, name: 'Municipal' })).toBeVisible();
-    expect(screen.queryByText('Essencial')).not.toBeInTheDocument();
-    expect(screen.queryByText('Enterprise')).not.toBeInTheDocument();
-    expect(screen.queryByText('Mais escolhido')).not.toBeInTheDocument();
-    expect(screen.queryByText('98/100')).not.toBeInTheDocument();
-    expect(screen.queryByText('Municipal Profissional')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Do primeiro acesso à operação em campo.' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Diga como sua equipe trabalha hoje.' })).toBeVisible();
-    expect(screen.getByText('privacidade@tcs.app')).toBeVisible();
-    expect(screen.getByText('Agentes')).toBeVisible();
-    expect(screen.queryByText('248')).not.toBeInTheDocument();
-    expect(await screen.findByText('Prévia sem dados de produção')).toBeVisible();
-    expect(screen.getByText('Exemplo')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Comparar preços e limites' })).toHaveAttribute('href', '/planos');
-    expect(screen.getByRole('link', { name: 'Comparar planos individuais' })).toHaveAttribute('href', '/planos#individual');
-    expect(screen.getByRole('link', { name: 'Comparar planos municipais' })).toHaveAttribute('href', '/planos#municipal');
+    expect(screen.getByRole('heading', { name: 'Tudo que a operação usa, todos os dias.' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Controles reais, auditáveis a qualquer momento.' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Duas portas, um mesmo sistema.' })).toBeVisible();
+
+    // Funções reais do sistema presentes
+    expect(screen.getByRole('heading', { level: 3, name: 'Vistoria com protocolo oficial' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Classificação de risco R1–R4' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Offline-first' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Bot WhatsApp com IA' })).toBeVisible();
+
+    // Sem elementos comerciais
+    expect(screen.queryByText(/a partir de/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/comparar planos/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/preç/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /planos/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/comercial@tcs\.app/)).not.toBeInTheDocument();
+  });
+
+  it('oferece apenas as duas portas de acesso (console e portal)', () => {
+    render(<MemoryRouter><CommercialPage /></MemoryRouter>);
+
+    expect(screen.getByRole('link', { name: 'Entrar no console' })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: 'Portal do cliente' })).toHaveAttribute('href', '/entrar');
+    expect(screen.getByRole('link', { name: 'Ir para o console' })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: 'Ir para o portal' })).toHaveAttribute('href', '/entrar');
   });
 
   it('sincroniza selo, conteúdo e timestamp quando existem dados públicos', async () => {
@@ -90,7 +86,15 @@ describe('experiência comercial pública', () => {
     expect(preview.queryByText('Prévia sem dados de produção')).not.toBeInTheDocument();
   });
 
-  it('omite teste e carência sem semântica comercial aprovada', () => {
+  it('lista controles de segurança reais do sistema', () => {
+    render(<MemoryRouter><CommercialPage /></MemoryRouter>);
+
+    expect(screen.getByText('Isolamento por organização com Row Level Security no banco')).toBeVisible();
+    expect(screen.getByText('LGPD: nenhum CPF em tela, modelo ou banco')).toBeVisible();
+    expect(screen.getByText('privacidade@tcs.app')).toBeVisible();
+  });
+
+  it('não apresenta semântica comercial', () => {
     render(<MemoryRouter><CommercialPage /></MemoryRouter>);
     expect(screen.queryByText(/\d+ dias de teste/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/carência/i)).not.toBeInTheDocument();

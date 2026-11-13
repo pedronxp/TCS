@@ -10,10 +10,11 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 type UploadKind = 'photo' | 'laudo' | 'evidence_pdf' | 'evidence_signature';
 
 function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' } });
 }
 
 Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return json({ ok: true });
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');

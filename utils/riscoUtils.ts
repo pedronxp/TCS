@@ -83,6 +83,14 @@ export interface CalculoRiscoSnapshot {
   versaoRegra: string;
   escala: { min: 0; max: 10 };
   formularioId?: string;
+  /**
+   * Código de sistema do modelo (ex.: 'vistoria_deslizamento_v3').
+   *
+   * Formulários publicados no servidor recebem UUID; o código de sistema é o
+   * que permite reencontrar as regras condicionais e a metodologia nativas
+   * que valem para aquele modelo.
+   */
+  formularioSystemCode?: string;
   formularioVersao?: number;
   tipoCalculo: string;
   pontuacaoBase?: number;
@@ -431,12 +439,20 @@ export function calcularRiscoFormulario(params: {
   respostas: Record<string, string>;
   limites?: LimiteRisco[] | null;
   formularioId?: string;
+  formularioSystemCode?: string;
   formularioVersao?: number;
   tipoCalculo?: string;
   versaoRegra?: string;
 }): CalculoRiscoSnapshot {
   const itens: CalculoRiscoItem[] = [];
   let total = 0;
+
+  // As regras condicionais e a metodologia são definidas por código de
+  // sistema. Para um modelo publicado (UUID), o código vem junto — sem ele a
+  // regra "altura x distância" do deslizamento e a regra "fundação
+  // inexistente" da edificação jamais seriam aplicadas, e o risco sairia
+  // abaixo do que o agente observou em campo.
+  const formularioRef = params.formularioSystemCode || params.formularioId;
 
   for (const pergunta of params.perguntas) {
     if (pergunta.auxiliarCalculo) continue;
@@ -449,7 +465,7 @@ export function calcularRiscoFormulario(params: {
 
     const peso = arredondarPontuacaoRisco(Number(opcao.pesoRisco ?? 0));
     const observacaoKey = getObservacaoCondicionalRiscoKey(pergunta.id);
-    const observacao = opcaoAcionaObservacaoCondicionalRisco(params.formularioId, pergunta as any, respostaId)
+    const observacao = opcaoAcionaObservacaoCondicionalRisco(formularioRef, pergunta as any, respostaId)
       ? params.respostas[observacaoKey]?.trim()
       : undefined;
     total += peso;
@@ -470,15 +486,15 @@ export function calcularRiscoFormulario(params: {
   const agravantes = identificarAgravantesCriticos();
   const regrasCondicionais = [
     ...identificarRegrasCondicionais({
-      formularioId: params.formularioId,
+      formularioId: formularioRef,
       respostas: params.respostas,
     }),
     ...identificarRegrasCondicionaisEstruturais({
-      formularioId: params.formularioId,
+      formularioId: formularioRef,
       respostas: params.respostas,
     }),
   ];
-  const configuracao = getConfiguracaoFormulario(params.formularioId);
+  const configuracao = getConfiguracaoFormulario(formularioRef);
   const metodologia = configuracao?.metodologia;
   const teto = metodologia?.escala?.teto ?? RISCO_ESCALA_MAXIMA;
   const somaBruta = arredondarPontuacaoRisco(total);
@@ -495,7 +511,7 @@ export function calcularRiscoFormulario(params: {
     nivelRisco = elevarNivelRisco(nivelRisco, regra.nivelMinimo);
   }
 
-  const evidencias = params.formularioId === FORMULARIO_AVALIACAO_ARVORE_CBMMG_V1
+  const evidencias = formularioRef === FORMULARIO_AVALIACAO_ARVORE_CBMMG_V1
     ? Object.fromEntries([
       'arv_altura_m',
       'arv_especie_aparente',
@@ -517,6 +533,7 @@ export function calcularRiscoFormulario(params: {
       || (metodologia ? `${metodologia.id}_v${metodologia.versao}` : REGRA_RISCO_0_10_V1),
     escala: { min: 0, max: RISCO_ESCALA_MAXIMA },
     formularioId: params.formularioId,
+    formularioSystemCode: params.formularioSystemCode,
     formularioVersao: params.formularioVersao,
     tipoCalculo: params.tipoCalculo || 'soma_total',
     pontuacaoBase,
@@ -550,6 +567,9 @@ export function parseCalculoRiscoSnapshot(raw: unknown): CalculoRiscoSnapshot | 
       versaoRegra: snapshot.versaoRegra || REGRA_RISCO_0_10_V1,
       escala: { min: 0, max: RISCO_ESCALA_MAXIMA },
       formularioId: snapshot.formularioId,
+      formularioSystemCode: snapshot.formularioSystemCode
+        ? String(snapshot.formularioSystemCode)
+        : undefined,
       formularioVersao: snapshot.formularioVersao,
       tipoCalculo: snapshot.tipoCalculo || 'soma_total',
       pontuacaoBase: snapshot.pontuacaoBase !== undefined
@@ -681,7 +701,9 @@ export function resolverApresentacaoRisco(params: {
   }
 
   const pontuacao = Number(snapshot?.pontuacaoTotal ?? params.pontuacao ?? 0);
-  const formularioId = snapshot?.formularioId || params.formularioId || undefined;
+  // O código de sistema tem precedência: é ele que identifica a metodologia
+  // (ex.: quadro CBMMG da árvore) mesmo quando o modelo publicado usa UUID.
+  const formularioId = snapshot?.formularioSystemCode || snapshot?.formularioId || params.formularioId || undefined;
   const metodologica = resolverFaixaMetodologica(formularioId, pontuacao);
   if (metodologica) return metodologica;
 

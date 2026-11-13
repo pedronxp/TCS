@@ -83,12 +83,12 @@ export default function AgendamentosScreen() {
   const [observacoes, setObservacoes] = useState('');
   const [showAgentePicker, setShowAgentePicker] = useState(false);
 
-  const canCreate = profile?.role === 'supervisor' || profile?.role === 'admin' || profile?.role === 'master_admin';
+  const canCreate = profile?.role === 'supervisor' || profile?.role === 'admin' || ['master_admin', 'owner'].includes(profile?.role || '');
   const isAgent = profile?.role === 'agent';
 
   const getAgendamentosLocaisVisiveis = (): AgendamentoLocal[] => {
     if (!profile) return [];
-    if (profile.role === 'master_admin') return getAllAgendamentos();
+    if (['master_admin', 'owner'].includes(profile.role)) return getAllAgendamentos();
     if (isAgent) return getAgendamentosByAgente(profile.uid, profile.municipio);
     return getAgendamentosByMunicipio(profile.municipio ?? '');
   };
@@ -103,7 +103,7 @@ export default function AgendamentosScreen() {
         // Busca do Supabase
         let query = supabase.from('agendamentos').select('*').order('data_agendada', { ascending: true });
 
-        if (profile.role === 'master_admin') {
+        if (['master_admin', 'owner'].includes(profile.role)) {
           // vê todos
         } else if (isAgent) {
           query = query.or(`agente_uid.eq.${profile.uid},agente_uid.is.null`).eq('municipio', profile.municipio);
@@ -259,7 +259,7 @@ export default function AgendamentosScreen() {
     if (!profile) return;
 
     // Para master_admin, usar o município do agente selecionado (se houver) ou deixar genérico
-    const municipioAgendamento = profile.role === 'master_admin'
+    const municipioAgendamento = ['master_admin', 'owner'].includes(profile.role)
       ? (agenteSelecionado?.municipio ?? profile.municipio ?? '')
       : (profile.municipio ?? '');
 

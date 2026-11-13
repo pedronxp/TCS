@@ -11,6 +11,10 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { InspectionMediaPanel } from '@/components/InspectionMediaPanel';
+import { inspectionMediaLabel, parseInspectionMediaStatus } from '@/lib/inspectionWorkflow';
+import { buildAcknowledgementUrl } from '@/lib/documentAcknowledgementLinks';
 import { BASE_LEGAL_PADRAO, buildLaudoHtml, buildTermoInterdicaoHtml, type LaudoData } from '../../../utils/laudoPdfBuilder';
 import type { SignaturePoint, SignatureStroke } from '../../../types/documentAcknowledgement';
 
@@ -20,6 +24,7 @@ type Inspection = {
   municipality: string | null; organization: string | null; responsible: string | null; address: string | null;
   canViewSensitive: boolean; documents: { laudo: boolean; report: boolean; term: boolean }; photoCount: number;
   formId: string | null; agentName: string | null; requesterName: string | null; answers: unknown; riskSnapshot: unknown; photoUrls: string[];
+  agentUid: string | null; mediaStatus: unknown; photoPaths: string[];
 };
 type AuthorizedResource = { url: string; filename: string };
 
@@ -52,6 +57,15 @@ export function ProtocolDocumentWorkspacePage({ kind }: { kind: WorkspaceKind })
 }
 
 function DocumentWorkspace({ kind, inspection, onUpdated }: { kind: WorkspaceKind; inspection: Inspection; onUpdated: () => void }) {
+  const { user } = useAuth();
+  const ownTechnicalInspection = Boolean(user?.id && user.id === inspection.agentUid);
+  const media = parseInspectionMediaStatus(inspection.mediaStatus, inspection.photoCount);
+  const mediaWaiverReason = inspection.mediaStatus && typeof inspection.mediaStatus === 'object' && typeof (inspection.mediaStatus as { waiver_reason?: unknown }).waiver_reason === 'string' ? (inspection.mediaStatus as { waiver_reason: string }).waiver_reason : null;
+  const operationId = useRef<string | null>(null);
+  const operationLock = useRef(false);
+  const [issuance, setIssuance] = useState<'preliminary' | 'final'>('preliminary');
+  const [latestDocument, setLatestDocument] = useState<{ id: string; version: number; url: string; issuance: string } | null>(null);
+  const [scienceUrl, setScienceUrl] = useState<string | null>(null);
   const [resources, setResources] = useState<AuthorizedResource[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -62,13 +76,43 @@ function DocumentWorkspace({ kind, inspection, onUpdated }: { kind: WorkspaceKin
     ?? answerField(inspection.answers, ['Responsável', 'Nome do Responsável', 'Solicitante'])
     ?? '',
   );
-  const [techName, setTechName] = useState(inspection.agentName ?? inspection.responsible ?? '');
+  const [techName] = useState(inspection.agentName ?? inspection.responsible ?? '');
   const [techRole, setTechRole] = useState('');
   const [baseLegal, setBaseLegal] = useState(BASE_LEGAL_PADRAO);
   const [signature, setSignature] = useState<SignatureStroke[]>([]);
   const [signatureModal, setSignatureModal] = useState<'relatorio' | 'termo' | null>(null);
   const [term, setTerm] = useState({ name: '', cpf: '', street: '', number: '', complement: '', district: '', city: inspection.municipality ?? '', phone: '' });
   const available = kind === 'laudo' ? inspection.documents.laudo : kind === 'relatorio' ? inspection.documents.report : kind === 'termo' ? inspection.documents.term : inspection.photoCount > 0;
+  const generatePreservedReport = async () => {
+    if (operationLock.current) return;
+    if (issuance === 'final' && !ownTechnicalInspection) { setMessage('A emissão final exige o responsável técnico autorizado. Você pode preparar uma versão preliminar.'); return; }
+    if (issuance === 'final' && !media.complete && !mediaWaiverReason) { setMessage('Complete as fotos antes da emissão final ou solicite uma dispensa justificada ao revisor.'); return; }
+    operationLock.current = true; setLoading(true); setMessage(null); setScienceUrl(null);
+    operationId.current ??= crypto.randomUUID();
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-inspection-laudo', { body: {
+        inspection_id: inspection.id, document_id: operationId.current, issuance_status: issuance,
+        notes: reportNotes, requester_name: requesterName, technical_signature_strokes: issuance === 'final' ? signature : null,
+        media_waiver_reason: mediaWaiverReason, base_legal: baseLegal, technical_role: techRole,
+      } });
+      if (error || data?.ok !== true || typeof data.signed_url !== 'string' || typeof data.document_id !== 'string') throw new Error('Não foi possível preservar a versão do documento. Confira a conexão, as evidências e a autorização técnica.');
+      setLatestDocument({ id: data.document_id, version: data.document_version, url: data.signed_url, issuance: data.issuance_status });
+      operationId.current = null; onUpdated();
+      setMessage('Versão preservada. A ciência pode ser coletada por você, sem aguardar o autor da vistoria. Alterações futuras geram outra versão.');
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Não foi possível gerar o documento.'); }
+    finally { operationLock.current = false; setLoading(false); }
+  };
+  const prepareScience = async () => {
+    if (!latestDocument || operationLock.current) return;
+    operationLock.current = true; setLoading(true);
+    try {
+      const { data, error } = await (supabase.rpc as (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: Error | null }>)('create_document_acknowledgement_link', { p_document_id: latestDocument.id, p_expires_in_hours: 24 });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row || typeof row.token !== 'string') throw new Error('Esta versão não está disponível para uma nova ciência. Atualize o estado da vistoria.');
+      setScienceUrl(buildAcknowledgementUrl(row.token, window.location.origin));
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Não foi possível abrir a coleta.'); }
+    finally { operationLock.current = false; setLoading(false); }
+  };
   const viewResource = async (mode: 'view' | 'download' = 'view') => {
     const resourceKind = kind === 'fotos' ? 'photo' : 'laudo';
     setLoading(true); setMessage(null);
@@ -106,6 +150,11 @@ function DocumentWorkspace({ kind, inspection, onUpdated }: { kind: WorkspaceKin
 
   // Sem assinatura, a geração é bloqueada: o documento precisa da assinatura do agente.
   const requestPrint = (type: 'relatorio' | 'termo') => {
+    if (type === 'relatorio') {
+      if (issuance === 'final' && signature.length === 0) { setSignatureModal(type); return; }
+      void generatePreservedReport(); return;
+    }
+    if (!ownTechnicalInspection || !media.complete) { setMessage('A emissão do termo exige o responsável técnico da vistoria e evidências completas. Não assine em nome do autor original.'); return; }
     if (type === 'termo' && !inspection.canViewSensitive) { setMessage('O Termo exige acesso a dados sensíveis da vistoria.'); return; }
     if (type === 'termo' && !term.name.trim()) { setMessage('Informe o nome do notificado para gerar o Termo.'); return; }
     if (signature.length === 0) { setSignatureModal(type); setMessage(null); return; }
@@ -162,15 +211,15 @@ function DocumentWorkspace({ kind, inspection, onUpdated }: { kind: WorkspaceKin
         </div>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button variant="outline" onClick={() => { setSignature([]); setSignatureModal(null); setMessage('Gere o documento no aplicativo TCS para coletar a assinatura do agente.'); }}>Gerar no app (com assinatura)</Button>
-          <Button disabled={signature.length === 0} onClick={() => { const type = signatureModal; setSignatureModal(null); void print(type); }}><PenLine />Assinar e gerar {titles[signatureModal].toLowerCase()}</Button>
+          <Button disabled={signature.length === 0} onClick={() => { const type = signatureModal; setSignatureModal(null); if (type === 'relatorio') void generatePreservedReport(); else void print(type); }}><PenLine />Assinar e gerar {titles[signatureModal].toLowerCase()}</Button>
         </div>
       </div>
     </div>
   );
 
   if (kind === 'laudo') return <DocumentCard title="Laudo técnico oficial" available={available} description="Documento oficial gerado pela vistoria. Os links são temporários e preservam o acesso sensível."><div className="flex flex-wrap gap-2"><Button disabled={!available || loading} onClick={() => void viewResource('view')}><Eye />{loading ? 'Autorizando…' : 'Ver laudo'}</Button><Button disabled={!available || loading} variant="outline" onClick={() => void viewResource('download')}><Download />Baixar PDF</Button></div>{resources[0] && <a className="mt-4 inline-flex text-sm font-medium text-primary underline" href={resources[0].url} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-1 h-4 w-4" />Abrir link autorizado</a>}{message && <Message text={message} />}</DocumentCard>;
-  if (kind === 'fotos') return <DocumentCard title="Evidências fotográficas" available={available} description="Fotos acessadas por links temporários; elas não ficam públicas no Console."><Button disabled={!available || loading} onClick={() => void viewResource()}><Image />{loading ? 'Abrindo…' : 'Visualizar fotos'}</Button>{resources.length > 0 && <div className="mt-5 grid gap-3 sm:grid-cols-2">{resources.map((item, index) => <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="overflow-hidden rounded-xl border bg-muted"><img src={item.url} alt={`Foto registrada ${index + 1}`} className="h-60 w-full object-cover" /><span className="flex items-center gap-2 p-3 text-sm font-medium">Foto {index + 1}<ExternalLink className="h-4 w-4" /></span></a>)}</div>}{message && <Message text={message} />}</DocumentCard>;
-  if (kind === 'relatorio') return <><DocumentCard title="Gerar e editar relatório" available={available} description="Revise e edite os campos antes de imprimir ou salvar o relatório em PDF. A edição é aplicada somente à emissão atual."><div className="grid gap-5 lg:grid-cols-[1fr_.9fr]"><div className="space-y-2"><Label htmlFor="report-notes">Observações técnicas do vistoriador</Label><Textarea id="report-notes" rows={8} value={reportNotes} onChange={(event) => setReportNotes(event.target.value)} placeholder="Registre observações que devem constar nesta emissão…" /><p className="text-xs leading-5 text-muted-foreground">Os dados-base da vistoria permanecem imutáveis. Para alterar respostas da vistoria, utilize o fluxo operacional de correção.</p></div><DocumentFacts inspection={inspection} /></div><div className="mt-5 space-y-2"><Label htmlFor="base-legal">Base Legal</Label><Textarea id="base-legal" rows={4} value={baseLegal} onChange={(event) => setBaseLegal(event.target.value)} /><p className="text-xs leading-5 text-muted-foreground">Texto pré-preenchido com a base legal padrão do relatório. Edite apenas se houver norma específica para esta emissão.</p></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Solicitante ou responsável" value={requesterName} onChange={setRequesterName} /><Field label="Nome do técnico (assinatura)" value={techName} onChange={setTechName} /><Field label="Cargo / função" value={techRole} onChange={setTechRole} /></div><div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border bg-muted/30 p-4"><PenLine className="h-4 w-4 text-primary" /><p className="flex-1 text-sm"><span className="font-semibold">{signature.length ? `Assinatura capturada (${signature.length} traço${signature.length > 1 ? 's' : ''})` : 'Documento sem assinatura'}</span><span className="text-muted-foreground"> — a assinatura do agente é solicitada antes da emissão.</span></p>{signature.length > 0 && <Button variant="outline" onClick={() => setSignature([])}>Limpar assinatura</Button>}</div><Button className="mt-5" disabled={loading} onClick={() => requestPrint('relatorio')}><Printer />Gerar relatório / salvar PDF</Button>{message && <Message text={message} />}</DocumentCard>{signatureGateModal}</>;
+  if (kind === 'fotos') return <DocumentCard title="Evidências fotográficas" available={available} description="Fotos acessadas por links temporários; elas não ficam públicas no Console."><InspectionMediaPanel inspectionId={inspection.id} mediaStatus={inspection.mediaStatus} photoPaths={inspection.photoPaths} onUpdated={onUpdated} /><Button className="mt-4" disabled={!available || loading} onClick={() => void viewResource()}><Image />{loading ? 'Abrindo…' : 'Visualizar fotos'}</Button>{resources.length > 0 && <div className="mt-5 grid gap-3 sm:grid-cols-2">{resources.map((item, index) => <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="overflow-hidden rounded-xl border bg-muted"><img src={item.url} alt={`Foto registrada ${index + 1}`} className="h-60 w-full object-cover" /><span className="flex items-center gap-2 p-3 text-sm font-medium">Foto {index + 1}<ExternalLink className="h-4 w-4" /></span></a>)}</div>}{message && <Message text={message} />}</DocumentCard>;
+  if (kind === 'relatorio') return <><DocumentCard title="Gerar e editar relatório" available={available} description="Revise e edite os campos antes de imprimir ou salvar o relatório em PDF. A edição é aplicada somente à emissão atual."><div className="grid gap-5 lg:grid-cols-[1fr_.9fr]"><div className="space-y-2"><Label htmlFor="report-notes">Observações técnicas do vistoriador</Label><Textarea id="report-notes" rows={8} value={reportNotes} onChange={(event) => setReportNotes(event.target.value)} placeholder="Registre observações que devem constar nesta emissão…" /><p className="text-xs leading-5 text-muted-foreground">Os dados-base da vistoria permanecem imutáveis. Para alterar respostas da vistoria, utilize o fluxo operacional de correção.</p></div><DocumentFacts inspection={inspection} /></div><div className="mt-5 space-y-2"><Label htmlFor="base-legal">Base Legal</Label><Textarea id="base-legal" rows={4} value={baseLegal} onChange={(event) => setBaseLegal(event.target.value)} /><p className="text-xs leading-5 text-muted-foreground">Texto pré-preenchido com a base legal padrão do relatório. Edite apenas se houver norma específica para esta emissão.</p></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Solicitante ou responsável" value={requesterName} onChange={setRequesterName} /><div className="text-sm"><p className="font-medium">Autor técnico da vistoria</p><p className="mt-2 text-muted-foreground">{inspection.agentName ?? "Não informado"}</p></div><Field label="Cargo / função" value={techRole} onChange={setTechRole} /></div><div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border bg-muted/30 p-4"><PenLine className="h-4 w-4 text-primary" /><p className="flex-1 text-sm"><span className="font-semibold">{signature.length ? `Assinatura capturada (${signature.length} traço${signature.length > 1 ? 's' : ''})` : 'Documento sem assinatura'}</span><span className="text-muted-foreground"> — a versão final exige assinatura técnica; a preliminar pode ser preparada sem ela.</span></p>{signature.length > 0 && <Button variant="outline" onClick={() => setSignature([])}>Limpar assinatura</Button>}</div><div className="mt-5 rounded-xl border p-4 text-sm"><p>{inspectionMediaLabel(media)}</p><p className="mt-2 text-muted-foreground">A versão preliminar permite continuar o atendimento com pendências explícitas. O proprietário não assina como o autor técnico da vistoria.</p><label className="mt-3 block font-medium" htmlFor="issuance-status">Tipo de emissão</label><select id="issuance-status" className="mt-2 rounded-lg border bg-background p-2" value={issuance} onChange={e => setIssuance(e.target.value as 'preliminary' | 'final')}><option value="preliminary">Versão preliminar</option><option value="final" disabled={!ownTechnicalInspection || (!media.complete && !mediaWaiverReason)}>Final — responsável técnico e evidências completas</option></select></div><Button className="mt-5" disabled={loading} onClick={() => requestPrint('relatorio')}><Printer />Gerar e preservar versão PDF</Button>{latestDocument && <div className="mt-4 space-y-3 rounded-xl border p-4 text-sm"><p>Versão {latestDocument.version} · {latestDocument.issuance === 'final' ? 'Final' : 'Preliminar'}</p><div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={latestDocument.url} target="_blank" rel="noopener noreferrer">Abrir PDF preservado</a></Button>{scienceUrl ? <Button asChild><a href={scienceUrl} target="_blank" rel="noopener noreferrer">Abrir coleta com morador</a></Button> : <Button disabled={loading} onClick={() => void prepareScience()}>Coletar ciência desta versão</Button>}</div></div>}{message && <Message text={message} />}</DocumentCard>{signatureGateModal}</>;
   const mayGenerateTerm = ['r3', 'r4'].includes((inspection.risk ?? '').toLowerCase());
   return <><DocumentCard title="Gerar Termo de Interdição" available={available || mayGenerateTerm} description={mayGenerateTerm ? 'Preencha os dados do notificado e gere o termo no padrão operacional.' : 'O Termo de Interdição só pode ser emitido para vistorias classificadas como R3 ou R4.'}>{mayGenerateTerm && <><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome do notificado" value={term.name} onChange={(name) => setTerm({ ...term, name })} /><Field label="CPF" value={term.cpf} onChange={(cpf) => setTerm({ ...term, cpf })} /><Field label="Rua" value={term.street} onChange={(street) => setTerm({ ...term, street })} /><Field label="Número" value={term.number} onChange={(number) => setTerm({ ...term, number })} /><Field label="Complemento" value={term.complement} onChange={(complement) => setTerm({ ...term, complement })} /><Field label="Bairro" value={term.district} onChange={(district) => setTerm({ ...term, district })} /><Field label="Cidade" value={term.city} onChange={(city) => setTerm({ ...term, city })} /><Field label="Telefone" value={term.phone} onChange={(phone) => setTerm({ ...term, phone })} /></div><div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border bg-muted/30 p-4"><PenLine className="h-4 w-4 text-primary" /><p className="flex-1 text-sm"><span className="font-semibold">{signature.length ? `Assinatura capturada (${signature.length} traço${signature.length > 1 ? 's' : ''})` : 'Documento sem assinatura'}</span><span className="text-muted-foreground"> — a assinatura do agente é solicitada antes da emissão.</span></p>{signature.length > 0 && <Button variant="outline" onClick={() => setSignature([])}>Limpar assinatura</Button>}</div><Button className="mt-5" disabled={!inspection.canViewSensitive} onClick={() => requestPrint('termo')}><Printer />Gerar Termo / salvar PDF</Button></>}{message && <Message text={message} />}</DocumentCard>{signatureGateModal}</>;
 }
@@ -223,7 +272,7 @@ function SignaturePad({ strokes, onChange }: { strokes: SignatureStroke[]; onCha
 }
 function Message({ text }: { text: string }) { return <Alert className="mt-5"><ShieldAlert className="h-4 w-4" /><AlertTitle>Emissão</AlertTitle><AlertDescription>{text}</AlertDescription></Alert>; }
 
-function parseInspection(value: unknown): Inspection | null { if (!value || typeof value !== 'object' || Array.isArray(value)) return null; const row = value as Record<string, unknown>; const documents = row.documents && typeof row.documents === 'object' && !Array.isArray(row.documents) ? row.documents as Record<string, unknown> : null; if (typeof row.id !== 'string' || typeof row.protocol !== 'string' || !documents) return null; const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u)) : []; return { id: row.id, protocol: row.protocol, risk: stringValue(row.risk_level), score: numberValue(row.score), occurredAt: stringValue(row.occurred_at), municipality: stringValue(row.municipality), organization: stringValue(row.organization), responsible: stringValue(row.responsible_name) ?? stringValue(row.agent_name), address: stringValue(row.address), canViewSensitive: row.can_view_sensitive === true, documents: { laudo: documents.laudo === true, report: documents.report === true, term: documents.term === true }, photoCount: Math.max(0, Math.trunc(numberValue(row.photo_count) ?? 0)), formId: stringValue(row.form_id), agentName: stringValue(row.agent_name), requesterName: stringValue(row.responsible_name), answers: row.answers ?? null, riskSnapshot: row.risk_snapshot ?? null, photoUrls }; }
+function parseInspection(value: unknown): Inspection | null { if (!value || typeof value !== 'object' || Array.isArray(value)) return null; const row = value as Record<string, unknown>; const documents = row.documents && typeof row.documents === 'object' && !Array.isArray(row.documents) ? row.documents as Record<string, unknown> : null; if (typeof row.id !== 'string' || typeof row.protocol !== 'string' || !documents) return null; const photoUrls = Array.isArray(row.photo_urls) ? row.photo_urls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u)) : []; return { id: row.id, protocol: row.protocol, risk: stringValue(row.risk_level), score: numberValue(row.score), occurredAt: stringValue(row.occurred_at), municipality: stringValue(row.municipality), organization: stringValue(row.organization), responsible: stringValue(row.responsible_name) ?? stringValue(row.agent_name), address: stringValue(row.address), canViewSensitive: row.can_view_sensitive === true, documents: { laudo: documents.laudo === true, report: documents.report === true, term: documents.term === true }, photoCount: Math.max(0, Math.trunc(numberValue(row.photo_count) ?? 0)), formId: stringValue(row.form_id), agentName: stringValue(row.agent_name), requesterName: stringValue(row.responsible_name), answers: row.answers ?? null, riskSnapshot: row.risk_snapshot ?? null, photoUrls, agentUid: stringValue(row.agent_uid), mediaStatus: row.media_status ?? null, photoPaths: Array.isArray(row.photo_urls) ? row.photo_urls.filter((p): p is string => typeof p === 'string' && p.startsWith('fotos:')) : [] }; }
 function parseResources(value: unknown, kind: 'laudo' | 'photo'): AuthorizedResource[] { if (!value || typeof value !== 'object' || Array.isArray(value)) return []; const row = value as Record<string, unknown>; if (row.ok !== true || row.kind !== kind || !Array.isArray(row.resources)) return []; return row.resources.flatMap((item): AuthorizedResource[] => { if (!item || typeof item !== 'object' || Array.isArray(item)) return []; const resource = item as Record<string, unknown>; return typeof resource.url === 'string' && resource.url.startsWith('https://') ? [{ url: resource.url, filename: typeof resource.filename === 'string' ? resource.filename : 'arquivo' }] : []; }); }
 function stringValue(value: unknown): string | null { return typeof value === 'string' ? value : null; }
 /** Busca um texto de resposta do formulário por chaves possíveis (ex.: nome do solicitante). */

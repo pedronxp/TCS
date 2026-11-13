@@ -1,4 +1,10 @@
 jest.mock('expo-file-system', () => {
+  // JPEG mínimo com APP0 JFIF — sem EXIF GPS, o que exercita o caminho de
+  // foto sem georreferência.
+  const jpeg = new Uint8Array([
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
+    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9,
+  ]);
   class MockFile {
     static downloadFileAsync = jest.fn(async (_url: string, destination: MockFile) => destination);
     uri: string;
@@ -7,6 +13,7 @@ jest.mock('expo-file-system', () => {
       this.uri = parts.map(part => typeof part === 'string' ? part : part.uri || '').join('/');
     }
     async base64() { return 'Zm90by10ZXN0ZQ=='; }
+    async bytes() { return jpeg; }
     delete() { this.exists = false; }
   }
   return {
@@ -18,6 +25,16 @@ jest.mock('expo-file-system', () => {
 import { buildLaudoHtml, buildTermoInterdicaoHtml } from '../laudoPdfBuilder';
 
 describe('laudoPdfBuilder', () => {
+  it('identifica versão preliminar e fotos pendentes no próprio documento', async () => {
+    const html = await buildLaudoHtml({
+      id: 'partial', nivelRisco: 'r2', pontuacaoTotal: 2, endereco: 'Rua', municipio: 'Cidade',
+      dataVistoria: null, agenteNome: 'Pedro', documentStatus: 'preliminary',
+      mediaCompleteness: { expected_count: 3, available_count: 1, pending_count: 2 },
+    });
+    expect(html).toContain('VERSÃO PRELIMINAR');
+    expect(html).toContain('1 de 3 fotos disponíveis');
+    expect(html).toContain('2 pendente(s)');
+  });
   it('reproduz a estrutura da web e não inclui conduta recomendada', async () => {
     const html = await buildLaudoHtml({
       id: 'vistoria-test-123456',
@@ -184,6 +201,66 @@ describe('laudoPdfBuilder', () => {
     expect(html).toContain('Registro Fotográfico (1)');
   });
 
+  it('imprime a proveniência da foto e sinaliza a ausência de georreferência', async () => {
+    const html = await buildLaudoHtml({
+      id: 'vistoria-com-foto',
+      nivelRisco: 'r2',
+      pontuacaoTotal: 2.5,
+      endereco: 'Rua da Foto, 10',
+      municipio: 'Cataguases',
+      dataVistoria: '2026-07-18T12:00:00.000Z',
+      agenteNome: 'Agente Teste',
+      formularioId: 'risco_estrutural_novo_v2',
+      fotosUrls: ['https://storage.example.test/evidencia.jpg'],
+    });
+
+    // A foto do mock não tem EXIF GPS: o laudo precisa dizer isso, em vez de
+    // omitir a informação e deixar o documento parecer mais forte do que é.
+    expect(html).toContain('Foto sem georreferência');
+    expect(html).toContain('SHA-256');
+  });
+
+  it('imprime as coordenadas quando a foto carrega EXIF GPS', async () => {
+    const { buildExifApp1Payload, injectExifSegment } = require('../../supabase/functions/_shared/exifGps');
+    const jpeg = new Uint8Array([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
+      0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9,
+    ]);
+    const comGeo = injectExifSegment(
+      jpeg,
+      buildExifApp1Payload({
+        latitude: -23.550123,
+        longitude: -46.633456,
+        accuracyMeters: 8,
+        capturedAt: '2026-11-10T14:32:11.000Z',
+      }),
+    );
+
+    const { File } = require('expo-file-system');
+    const original = File.prototype.bytes;
+    File.prototype.bytes = async () => comGeo;
+
+    try {
+      const html = await buildLaudoHtml({
+        id: 'vistoria-com-foto',
+        nivelRisco: 'r2',
+        pontuacaoTotal: 2.5,
+        endereco: 'Rua da Foto, 10',
+        municipio: 'Cataguases',
+        dataVistoria: '2026-07-18T12:00:00.000Z',
+        agenteNome: 'Agente Teste',
+        formularioId: 'risco_estrutural_novo_v2',
+        fotosUrls: ['https://storage.example.test/evidencia.jpg'],
+      });
+
+      expect(html).toContain('GPS -23,550123, -46,633456');
+      expect(html).toContain('precisão ±8 m');
+      expect(html).not.toContain('Foto sem georreferência');
+    } finally {
+      File.prototype.bytes = original;
+    }
+  });
+
   it('aplica o mesmo padrão A4 ao termo de interdição sem contador incompatível', () => {
     const html = buildTermoInterdicaoHtml({
       id: 'termo-test-123456', nivelRisco: 'r4', pontuacaoTotal: 9,
@@ -241,5 +318,36 @@ describe('laudoPdfBuilder', () => {
     const html = await buildLaudoHtml({ ...baseLaudo, layout: 'inexistente' as never });
     expect(html).toMatch(/class="risk-panel/);
     expect(html).toContain('Classificação Técnica');
+  });
+
+  it('todos os modelos imprimem o nome do solicitante ou responsavel', async () => {
+    // O solicitante sumia do PDF porque a tela de resultado nao repassava o
+    // campo para o gerador — em nenhum dos modelos.
+    for (const layout of ['classico', 'oficio', 'ficha', 'resumo'] as const) {
+      const html = await buildLaudoHtml({ ...baseLaudo, layout });
+      expect(html).toContain('Paulo Pedro');
+    }
+  });
+
+  it('encontra o modelo nativo pelo codigo de sistema de formulario publicado', async () => {
+    // Formulario publicado no servidor chega com UUID; o codigo de sistema vem
+    // no snapshot do calculo e permite recuperar o schema e a metodologia.
+    const html = await buildLaudoHtml({
+      ...baseLaudo,
+      formularioId: '3f0d5b2a-1c9e-4a7d-9b21-0f6d2f8a1c44',
+      calculoRisco: {
+        versaoRegra: 'risco_0_10_v1',
+        escala: { min: 0, max: 10 },
+        formularioId: '3f0d5b2a-1c9e-4a7d-9b21-0f6d2f8a1c44',
+        formularioSystemCode: 'vistoria_deslizamento_v3',
+        tipoCalculo: 'soma_total',
+        pontuacaoTotal: 9.6,
+        nivelRisco: 'r4',
+        limites: [],
+        itens: [],
+      },
+    });
+    expect(html).toContain('Classificação Técnica');
+    expect(html).toContain('Paulo Pedro');
   });
 });

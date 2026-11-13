@@ -51,7 +51,13 @@ export function PortalBillingPage() {
       const response = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
       const url = !error ? validatedCheckoutUrl(response, expectedAmountCents) : null;
       if (url) { window.location.assign(url); return; }
-      setMessage(response?.error === 'payment_provider_not_configured' ? 'O checkout foi preparado, mas o provedor de pagamento ainda não está configurado.' : 'Não foi possível iniciar o checkout. Tente novamente.');
+      const errorResponse = error?.context as Response | undefined;
+      const providerError = errorResponse?.status === 503
+        ? await errorResponse.json().catch(() => null)
+        : null;
+      setMessage(response?.error === 'payment_provider_not_configured' || providerError?.error === 'payment_provider_not_configured'
+        ? 'O provedor de pagamento ainda não está configurado. Nenhum pagamento foi confirmado.'
+        : 'Não foi possível iniciar o checkout. Tente novamente.');
     } catch { setMessage('Não foi possível iniciar o checkout. Tente novamente.'); }
     finally { setSubmitting(null); }
   }

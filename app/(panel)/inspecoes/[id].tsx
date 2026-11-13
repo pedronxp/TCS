@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { InspectionPhotoViewer } from '../../../components/InspectionPhotoGallery';
+import { canDiscardUnsynchronizedInspection } from '../../../services/InspectionDocumentPolicy';
 import { Alert, View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, Pressable, Dimensions } from 'react-native';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -99,6 +101,11 @@ export default function VistoriaDetalhesScreen() {
 
   const handleDeleteLocal = () => {
     if (!id) return;
+    const local = getOfficialVistoriaById(id as string);
+    if (!local || !canDiscardUnsynchronizedInspection(local)) {
+      Alert.alert('Registro já enviado', 'Esta vistoria pode ter anexos pendentes. Preserve o registro local para concluir a sincronização; o proprietário pode arquivar a vistoria pelo painel administrativo.');
+      return;
+    }
     Alert.alert(
       'Excluir vistoria local?',
       'Esta vistoria ainda está pendente de sincronização. A exclusão remove apenas o registro salvo neste aparelho.',
@@ -108,6 +115,11 @@ export default function VistoriaDetalhesScreen() {
           text: 'Excluir',
           style: 'destructive',
           onPress: () => {
+            const current = getOfficialVistoriaById(id as string);
+            if (!current || !canDiscardUnsynchronizedInspection(current)) {
+              Alert.alert('Sincronização atualizada', 'O registro mudou. Atualize a vistoria antes de continuar.');
+              return;
+            }
             deleteVistoriaOffline(id as string);
             router.replace('/(panel)/inspecoes');
           },
@@ -129,7 +141,7 @@ export default function VistoriaDetalhesScreen() {
         query = query.eq('agenteUid', profile.uid);
       }
       // Admin e supervisor só veem vistorias do seu município
-      if (profile?.role !== 'master_admin' && profile?.municipio) {
+      if (profile && !['master_admin', 'owner'].includes(profile.role) && profile.municipio) {
         query = query.eq('municipio', profile.municipio);
       }
 
@@ -147,7 +159,7 @@ export default function VistoriaDetalhesScreen() {
         if (profile?.role === 'agent') {
           fallbackQuery = fallbackQuery.eq('agenteUid', profile.uid);
         }
-        if (profile?.role !== 'master_admin' && profile?.municipio) {
+        if (profile && !['master_admin', 'owner'].includes(profile.role) && profile.municipio) {
           fallbackQuery = fallbackQuery.eq('municipio', profile.municipio);
         }
 
@@ -278,16 +290,7 @@ export default function VistoriaDetalhesScreen() {
       />
 
       {/* Modal foto ampliada */}
-      <Modal visible={!!fotoAmpliada} transparent animationType="fade" onRequestClose={() => setFotoAmpliada(null)}>
-        <Pressable style={styles.fotoModalBg} onPress={() => setFotoAmpliada(null)}>
-          {fotoAmpliada && (
-            <Image source={{ uri: fotoAmpliada }} style={styles.fotoModalImg} resizeMode="contain" />
-          )}
-          <TouchableOpacity style={styles.fotoModalClose} onPress={() => setFotoAmpliada(null)}>
-            <Feather name="x" size={22} color="#FFF" />
-          </TouchableOpacity>
-        </Pressable>
-      </Modal>
+      <InspectionPhotoViewer key={fotoAmpliada ?? 'closed'} uri={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Nível de risco destaque */}
@@ -398,6 +401,12 @@ export default function VistoriaDetalhesScreen() {
             icon="file-text"
             disabled={vistoria.status === 'Pendente Sync'}
             onPress={() => router.push(`/(panel)/inspecoes/laudo?id=${id}`)}
+          />
+          <ListRow
+            title="Resultado, revisão e ciência"
+            subtitle="Conferir pendências, gerar documento e registrar ciência do morador"
+            icon="check-square"
+            onPress={() => router.push({ pathname: '/(panel)/inspecoes/resultado', params: { id: String(id) } })}
           />
           <ListRow
             title="Relatório personalizado"

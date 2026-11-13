@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { portalHome } from '@/lib/portal';
 import { supabase } from '@/lib/supabase';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 interface InspectionDetail {
   id: string;
@@ -47,6 +48,7 @@ export function PortalInspectionPage() {
     },
     enabled: Boolean(inspectionId && access),
   });
+  const timedOut = useAsyncTimeout(query.isLoading);
   if (!access) return null;
   const root = portalHome(access.accountKind);
   const returnDestination = safeReturnDestination(searchParams.get('returnTo'), root);
@@ -70,8 +72,8 @@ export function PortalInspectionPage() {
     }
   }
 
-  if (query.isLoading) return <InspectionSkeleton />;
-  if (query.isError || !query.data) {
+  if (query.isLoading && !timedOut) return <InspectionSkeleton />;
+  if (query.isError || timedOut || !query.data) {
     return (
       <Card>
         <CardContent className="grid min-h-72 place-items-center p-8 text-center" role="alert">

@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { supabase } from '@/lib/supabase';
+import { InspectionMediaPanel } from '@/components/InspectionMediaPanel';
+import { inspectionMediaLabel, parseInspectionMediaStatus } from '@/lib/inspectionWorkflow';
+import { buildAcknowledgementUrl } from '@/lib/documentAcknowledgementLinks';
 
 type TimelineEvent = { kind: string; label: string; detail?: string; occurred_at: string | null };
 type InspectionDetail = {
@@ -25,6 +28,8 @@ type InspectionDetail = {
   formVersion: number | null;
   synchronized: boolean | null;
   photoCount: number;
+  photoPaths: string[];
+  mediaStatus: unknown;
   address: string | null;
   canViewSensitive: boolean;
   answers: unknown;
@@ -64,13 +69,13 @@ export function ProtocolInspectionPage() {
       </header>
 
       <AsyncBoundary loading={query.isLoading} error={query.error} onRetry={() => void query.refetch()} loadingLabel="Carregando a vistoria…">
-        {query.data ? <InspectionWorkspace inspection={query.data} /> : null}
+        {query.data ? <InspectionWorkspace inspection={query.data} onUpdated={() => void query.refetch()} /> : null}
       </AsyncBoundary>
     </div>
   );
 }
 
-function InspectionWorkspace({ inspection }: { inspection: InspectionDetail }) {
+function InspectionWorkspace({ inspection, onUpdated }: { inspection: InspectionDetail; onUpdated: () => void }) {
   const [resource, setResource] = useState<ResourceResult | null>(null);
   const [requesting, setRequesting] = useState<string | null>(null);
   const [resourceError, setResourceError] = useState<string | null>(null);
@@ -107,7 +112,7 @@ function InspectionWorkspace({ inspection }: { inspection: InspectionDetail }) {
             <Info label="Responsável" value={inspection.responsibleName ?? inspection.agentName ?? 'Não informado'} />
             <Info label="Origem" value={inspection.organization ?? inspection.municipality ?? 'Agente individual'} />
             <Info label="Formulário" value={inspection.formId ? `${inspection.formId}${inspection.formVersion ? ` · v${inspection.formVersion}` : ''}` : 'Não informado'} />
-            <Info label="Sincronização" value={inspection.synchronized ? 'Sincronizada' : 'Pendente ou não informada'} />
+            <Info label="Sincronização" value={`Dados recebidos · ${inspectionMediaLabel(parseInspectionMediaStatus(inspection.mediaStatus, inspection.photoCount))}`} />
           </CardContent>
         </Card>
         <Card>
@@ -131,6 +136,7 @@ function InspectionWorkspace({ inspection }: { inspection: InspectionDetail }) {
               <div className="flex flex-wrap gap-2">{inspection.photoCount > 0 && <Button size="sm" variant="outline" onClick={() => void authorizeResource('photo')} disabled={requesting !== null}><Eye aria-hidden="true" />{requesting === 'photo:view' ? 'Abrindo…' : 'Visualizar fotos'}</Button>}<Button asChild size="sm" variant="ghost"><Link to={`/app/protocolos/${inspection.id}/fotos`}>Área das fotos<ExternalLink aria-hidden="true" /></Link></Button></div>
             </div>
             <LaudoVersions inspectionId={inspection.id} />
+            {inspection.canViewSensitive && <InspectionMediaPanel inspectionId={inspection.id} mediaStatus={inspection.mediaStatus} photoPaths={inspection.photoPaths} onUpdated={onUpdated} />}
             {authorizedLaudo && <div className="rounded-lg border border-success/30 bg-success-soft/30 p-3 text-sm" role="status"><p>Link temporário autorizado. Ele expira em breve para proteger o documento.</p><Button asChild size="sm" className="mt-3"><a href={authorizedLaudo.url} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" />{resource?.mode === 'download' ? 'Baixar laudo autorizado' : 'Abrir laudo autorizado'}</a></Button></div>}
             {resourceError && <p className="text-sm text-destructive" role="alert">{resourceError}</p>}
           </CardContent>
@@ -191,6 +197,20 @@ function outcomeLabel(outcome: string | undefined): string {
  * conteúdo diferente vira uma versão; a ciência fica presa à versão coletada.
  */
 function LaudoVersions({ inspectionId }: { inspectionId: string }) {
+  const [science, setScience] = useState<{ id: string; url: string } | null>(null);
+  const [requestingScience, setRequestingScience] = useState<string | null>(null);
+  const [scienceError, setScienceError] = useState<string | null>(null);
+  async function prepareScience(id: string) {
+    if (requestingScience) return;
+    setRequestingScience(id); setScienceError(null);
+    try {
+      const { data, error } = await (supabase.rpc as (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: Error | null }>)('create_document_acknowledgement_link', { p_document_id: id, p_expires_in_hours: 24 });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row || typeof row.token !== 'string') throw error ?? new Error('science_not_available');
+      setScience({ id, url: buildAcknowledgementUrl(row.token, window.location.origin) });
+    } catch { setScienceError('Não foi possível preparar a coleta. Confira se esta versão ainda está disponível e não recebeu ciência.'); }
+    finally { setRequestingScience(null); }
+  }
   const query = useQuery({
     queryKey: ['protocol-laudo-versions', inspectionId],
     enabled: Boolean(inspectionId),
@@ -233,9 +253,14 @@ function LaudoVersions({ inspectionId }: { inspectionId: string }) {
               {doc.status === 'superseded' ? 'Substituída' : 'Atual'}
             </Badge>
             <span className="text-muted-foreground">{outcomeLabel(query.data?.outcomes[doc.id])}</span>
+            {doc.status === 'available' && !query.data?.outcomes[doc.id] && !doc.training_mode && (
+              science?.id === doc.id ? <Button asChild size="sm"><a href={science.url} target="_blank" rel="noopener noreferrer">Abrir coleta com morador</a></Button>
+              : <Button size="sm" variant="outline" disabled={requestingScience !== null} onClick={() => void prepareScience(doc.id)}>{requestingScience === doc.id ? 'Preparando…' : 'Coletar ciência'}</Button>
+            )}
           </li>
         ))}
       </ul>
+      {scienceError && <p className="mt-3 text-xs text-destructive" role="alert">{scienceError}</p>}
       <p className="mt-3 text-xs text-muted-foreground">
         Apenas a versão atual abre/compartilha; as demais ficam como registro de auditoria.
       </p>
@@ -268,6 +293,8 @@ function normalizeInspectionDetail(value: unknown): InspectionDetail | null {
     formVersion: nullableNumber(row.form_version ?? row.formVersion),
     synchronized: nullableBoolean(row.synchronized),
     photoCount: Math.max(0, Math.trunc(nullableNumber(row.photo_count ?? row.photoCount) ?? 0)),
+    photoPaths: Array.isArray(row.photo_urls) ? row.photo_urls.filter((p): p is string => typeof p === 'string' && p.startsWith('fotos:')) : [],
+    mediaStatus: row.media_status ?? null,
     address: nullableString(row.address),
     canViewSensitive: row.can_view_sensitive === true || row.canViewSensitive === true,
     answers: row.answers ?? null,

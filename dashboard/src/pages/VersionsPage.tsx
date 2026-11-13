@@ -161,10 +161,9 @@ export function VersionsPage() {
       />
 
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Release management</p>
-        <h1 id="versions-title" className="mt-2 text-[30px] font-bold leading-9 tracking-[-0.025em]">Versões</h1>
+        <h1 id="versions-title" className="text-[30px] font-bold leading-9 tracking-[-0.025em]">Versões do app</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Uma trilha clara entre desenvolvimento, homologação e produção.
+          Veja qual versão está disponível, o que mudou e quando é preciso atualizar.
         </p>
         {canPrepare && (
           <Button className="mt-4 sm:hidden" onClick={openEditor}>

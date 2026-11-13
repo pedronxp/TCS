@@ -129,7 +129,7 @@ export function encodeDocumentEvidencePath(remotePath: string): string {
 export function decodePath(stored: string): { bucket: string; remotePath: string } | null {
   for (const [bucket, prefix] of Object.entries(PATH_PREFIX)) {
     if (stored.startsWith(prefix)) {
-      return { bucket, remotePath: stored.slice(prefix.length) };
+      return { bucket: prefix.slice(0, -1), remotePath: stored.slice(prefix.length) };
     }
   }
   return null;

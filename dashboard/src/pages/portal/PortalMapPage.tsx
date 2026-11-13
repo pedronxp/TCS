@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { PortalMap, type PortalMapPoint } from '@/components/portal/PortalMap';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { fetchPortalWorkspace, portalHome } from '@/lib/portal';
+import { useAsyncTimeout } from '@/pages/portal/useAsyncTimeout';
 
 function coordinateOrNull(value: unknown, minimum: number, maximum: number) {
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum ? value : null;
@@ -63,6 +64,18 @@ export function PortalMapPage() {
       && (!to || (date && date <= to));
   });
   const locatedCount = visiblePoints.filter((point) => point.latitude !== null && point.longitude !== null).length;
+  const timedOut = useAsyncTimeout(query.isLoading);
+  const mapError = (
+    <Card>
+      <CardContent className="grid min-h-72 place-items-center p-8 text-center" role="alert">
+        <div>
+          <p className="font-semibold">Não foi possível carregar as vistorias do mapa</p>
+          <p className="mt-2 text-sm text-muted-foreground">Nenhum ponto foi estimado ou exibido fora do seu escopo.</p>
+          <Button className="mt-4" variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   function updateFilter(key: 'busca' | 'status' | 'formulario' | 'risco' | 'usuario' | 'de' | 'ate', value: string) {
     setSearchParams((current) => {
@@ -111,18 +124,10 @@ export function PortalMapPage() {
         </div>
       </header>
 
-      {query.isLoading ? (
+      {query.isLoading && !timedOut ? (
         <div role="status" aria-label="Carregando mapa" className="space-y-4"><span className="sr-only">Carregando mapa…</span><Skeleton className="h-[520px] rounded-lg motion-reduce:animate-none" /></div>
-      ) : query.isError ? (
-        <Card>
-          <CardContent className="grid min-h-72 place-items-center p-8 text-center" role="alert">
-            <div>
-              <p className="font-semibold">Não foi possível carregar as vistorias do mapa</p>
-              <p className="mt-2 text-sm text-muted-foreground">Nenhum ponto foi estimado ou exibido fora do seu escopo.</p>
-              <Button className="mt-4" variant="outline" onClick={() => void query.refetch()}><RefreshCw aria-hidden="true" />Tentar novamente</Button>
-            </div>
-          </CardContent>
-        </Card>
+      ) : query.isError || (query.isLoading && timedOut) ? (
+        mapError
       ) : visiblePoints.length === 0 ? (
         <Card><CardContent className="grid min-h-72 place-items-center p-8 text-center"><div><MapPin className="mx-auto h-8 w-8 text-primary" aria-hidden="true" /><h2 className="mt-4 font-semibold">{points.length === 0 ? 'Nenhuma vistoria no mapa' : 'Nenhum ponto corresponde aos filtros'}</h2><p className="mt-2 text-sm text-muted-foreground">{points.length === 0 ? 'Quando houver registros no seu escopo, eles aparecerão aqui.' : 'Ajuste a busca ou o status para ampliar o resultado.'}</p></div></CardContent></Card>
       ) : (

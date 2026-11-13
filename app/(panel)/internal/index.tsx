@@ -13,6 +13,7 @@ import { supabase } from '../../../utils/supabase';
 import { logger } from '../../../utils/logger';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { getMobileFieldOperations } from '../../../services/MobileAccessService';
+import { useOwnerExperience } from '../../../context/OwnerExperienceContext';
 
 interface InternalMetric {
   key: string;
@@ -62,6 +63,7 @@ function parseAttention(value: unknown): InternalAttention[] {
 export default function InternalDashboardScreen() {
   const { theme } = useTheme();
   const { profile } = useAuth();
+  const { mode: ownerMode, error: ownerModeError } = useOwnerExperience();
   const { isOnlineReal } = useConnectivity();
   const bottomPadding = useBottomTabPadding();
   const [metrics, setMetrics] = useState<InternalMetric[]>([]);
@@ -126,7 +128,7 @@ export default function InternalDashboardScreen() {
   const firstName = profile?.name?.split(' ')[0] || 'equipe';
   const fieldOperations = new Set(
     profile?.role === 'owner'
-      ? ['new-inspection', 'inspections', 'tactical-map']
+      ? ownerMode === 'operate' ? ['new-inspection', 'inspections', 'tactical-map'] : []
       : getMobileFieldOperations(profile?.permissions),
   );
 
@@ -206,6 +208,16 @@ export default function InternalDashboardScreen() {
         <View>
           <SectionHeader title="Acesso rápido" subtitle="Ferramentas disponíveis no aplicativo" />
           <View style={styles.metricGrid}>
+            {profile?.role === 'owner' && ownerMode === 'operate' ? <>
+              <View style={styles.metricCard}><ModuleCard title="Administrar TCS" description="Contas, equipe e decisões" icon="shield" onPress={() => router.push('/(panel)/internal/administracao')} /></View>
+              <View style={styles.metricCard}><ModuleCard title="Qualidade" description="Revisar vistorias" icon="check-square" onPress={() => router.push('/(panel)/qe')} /></View>
+              <View style={styles.metricCard}><ModuleCard title="Vistorias" description="Consultar protocolos, fotos e laudos" icon="clipboard" onPress={() => router.push('/(panel)/inspecoes')} /></View>
+              <View style={styles.metricCard}><ModuleCard title="Equipe interna" description="Gerenciar membros e permissões" icon="users" onPress={() => router.push('/(panel)/internal/equipe')} /></View>
+              <View style={styles.metricCard}><ModuleCard title="Tokens de acesso" description="Consultar e gerenciar convites" icon="key" onPress={() => router.push('/(panel)/internal/tokens')} /></View>
+              <View style={styles.metricCard}><ModuleCard title="Caixa de entrada" description="Acompanhar avisos e revisões" icon="bell" onPress={() => router.push('/(panel)/avisos')} /></View>
+            </> : null}
+            {['owner', 'support', 'developer'].includes(profile?.role ?? '') ? <View style={styles.metricCard}><ModuleCard title="Vistoria de teste" description="Pratique neste aparelho" icon="clipboard" onPress={() => router.push({ pathname: '/(panel)/inspecoes/selecao-formulario', params: { teste: '1' } })} /></View> : null}
+            {profile?.role === 'owner' ? <View style={styles.metricCard}><ModuleCard title="Modo do proprietário" description={ownerModeError || (ownerMode === 'operate' ? 'Administrar e operar' : 'Acompanhar')} icon="sliders" onPress={() => router.push('/(panel)/internal/modo')} /></View> : null}
             {fieldOperations.has('new-inspection') ? (
               <View style={styles.metricCard}>
                 <ModuleCard title="Nova vistoria" description="Iniciar coleta técnica" icon="plus-circle" onPress={() => router.push('/(panel)/inspecoes/dados-iniciais')} />
@@ -225,11 +237,11 @@ export default function InternalDashboardScreen() {
           </View>
         </View>
 
-        <StateBanner
+        {!(profile?.role === 'owner' && ownerMode === 'operate') && <StateBanner
           variant="info"
           title="Administração disponível na web"
           description="Ativação de módulos, permissões, planos e ações administrativas são gerenciados somente pelo painel web."
-        />
+        />}
       </ScrollView>
     </SafeAreaView>
   );
