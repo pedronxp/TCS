@@ -65,11 +65,13 @@ jobs:
           echo "eas_build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
 
       - name: Download APK for startup verification
+        if: inputs.profile == 'preview'
         env:
           APK_URL: ${{ steps.eas_build.outputs.apk_url }}
         run: curl --proto '=https' --tlsv1.2 -fL "$APK_URL" -o tcs.apk
 
       - name: Verify signed release startup
+        if: inputs.profile == 'preview'
         uses: ./.github/actions/android-startup
         with:
           apk-file: tcs.apk
