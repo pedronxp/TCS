@@ -7,8 +7,8 @@ export type DocumentPreparationResult = {
 export type DocumentReleaseDecision = 'collect_acknowledgement' | 'share' | 'blocked';
 
 export class DocumentPublicationError extends Error {
-  constructor(readonly cause: unknown) {
-    super('O PDF foi salvo no aparelho. A publicação está pendente. Verifique a conexão e sincronize a vistoria antes de tentar liberar o documento.');
+  constructor(cause: unknown) {
+    super('O PDF foi salvo no aparelho. A publicação está pendente. Verifique a conexão e sincronize a vistoria antes de tentar liberar o documento.', { cause });
     this.name = 'DocumentPublicationError';
   }
 }
