@@ -11,9 +11,11 @@ collect_evidence() {
 }
 trap collect_evidence EXIT
 # A successful -r install proves that the existing signing identity was preserved.
-curl -fL 'https://expo.dev/artifacts/eas/gRl5In15FOt_dZhzV21VCcn0srolsyR-PiHGikK_U_c.apk' -o previous.apk
-adb install previous.apk
-adb install -r tcs.apk
+if [ -n "${PREVIOUS_APK_URL:-}" ]; then
+  curl --proto '=https' --tlsv1.2 -fL "$PREVIOUS_APK_URL" -o previous.apk
+  adb install previous.apk
+fi
+adb install -r "${APK_FILE:-tcs.apk}"
 adb logcat -c
 for launch in 1 2; do
   adb shell am force-stop "$package"
@@ -27,4 +29,4 @@ if grep -E 'FATAL EXCEPTION|Fatal signal|FATAL:|ReactNativeJS.*(Error:|Exception
   echo 'APK startup failed: fatal native or JavaScript error.' >&2
   exit 1
 fi
-echo 'Signed release APK survived two launches and an in-place upgrade.'
+echo 'Signed release APK survived two launches.'

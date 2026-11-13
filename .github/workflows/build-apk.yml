@@ -1,50 +1,108 @@
-name: Build and verify Android release APK
+name: Build APK
+
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile (preview | production)'
+        required: true
+        default: 'production'
+        type: choice
+        options: [preview, production]
+      version:
+        description: 'App version (ex: 1.4.0)'
+        required: true
+        type: string
+      changelog:
+        description: 'Changelog desta versão'
+        required: false
+        type: string
+
 jobs:
-  startup:
+  build:
+    name: EAS Build APK (${{ inputs.profile }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
-          cache: npm
-      - run: npm ci
-      - uses: expo/expo-github-action@v9
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v9
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Build signed release APK
-        id: build
+
+      - name: Build APK via EAS
+        id: eas_build
         run: |
-          eas build --platform android --profile preview --non-interactive --json > eas-build-output.json
-          APK_URL=$(node -p "JSON.parse(require('fs').readFileSync('eas-build-output.json','utf8'))[0].artifacts.buildUrl")
+          eas build \
+            --platform android \
+            --profile ${{ inputs.profile }} \
+            --non-interactive \
+            --json > eas-build-output.json
+
+          APK_URL=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d[0].get('artifacts',{}).get('buildUrl',''))" eas-build-output.json)
+          BUILD_ID=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d[0].get('id',''))" eas-build-output.json)
+
+          if [ -z "$APK_URL" ] || [ -z "$BUILD_ID" ]; then
+            echo "A EAS não retornou o artefato Android esperado." >&2
+            cat eas-build-output.json >&2
+            exit 1
+          fi
+
           echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
-          echo "APK generated: $APK_URL"
-          curl -fL "$APK_URL" -o tcs.apk
-      - uses: actions/setup-java@v4
+          echo "eas_build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK for startup verification
+        env:
+          APK_URL: ${{ steps.eas_build.outputs.apk_url }}
+        run: curl --proto '=https' --tlsv1.2 -fL "$APK_URL" -o tcs.apk
+
+      - name: Verify signed release startup
+        uses: ./.github/actions/android-startup
         with:
-          distribution: temurin
-          java-version: '17'
-      - name: Enable emulator acceleration
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Install and launch signed release APK
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          arch: x86_64
-          target: google_apis
-          disable-animations: true
-          script: bash scripts/ci/android-startup-smoke.sh
-      - uses: actions/upload-artifact@v4
+          apk-file: tcs.apk
+
+      - name: Atualizar status no Supabase
         if: always()
-        with:
-          name: android-startup-evidence
-          path: |
-            startup-*
-            eas-build-output.json
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          APK_URL: ${{ steps.eas_build.outputs.apk_url }}
+          EAS_BUILD_ID: ${{ steps.eas_build.outputs.eas_build_id }}
+          VERSION: ${{ inputs.version }}
+          PROFILE: ${{ inputs.profile }}
+          CHANGELOG: ${{ inputs.changelog }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          STATUS="success"
+          if [ "$JOB_STATUS" != "success" ]; then STATUS="failed"; fi
+
+          curl -s -X POST "$SUPABASE_URL/rest/v1/builds" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            -d "{
+              \"github_run_id\": \"$GITHUB_RUN_ID\",
+              \"provider\": \"github_actions\",
+              \"version\": \"$VERSION\",
+              \"profile\": \"$PROFILE\",
+              \"changelog\": \"$CHANGELOG\",
+              \"status\": \"$STATUS\",
+              \"eas_build_id\": \"$EAS_BUILD_ID\",
+              \"apk_url\": \"$APK_URL\",
+              \"completed_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }" || true

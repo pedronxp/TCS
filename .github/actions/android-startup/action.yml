@@ -1,0 +1,39 @@
+name: Verify Android release startup
+description: Install the signed APK and verify two launches before publishing it.
+inputs:
+  apk-file:
+    description: Path to the downloaded release APK
+    required: true
+  previous-apk-url:
+    description: Optional previous APK to validate an in-place update
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Enable emulator acceleration
+      shell: bash
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+    - name: Install and launch signed APK
+      uses: reactivecircus/android-emulator-runner@v2
+      env:
+        APK_FILE: ${{ inputs.apk-file }}
+        PREVIOUS_APK_URL: ${{ inputs.previous-apk-url }}
+      with:
+        api-level: 36
+        arch: x86_64
+        target: google_apis
+        disable-animations: true
+        script: bash scripts/ci/android-startup-smoke.sh
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: android-startup-evidence
+        path: startup-*
