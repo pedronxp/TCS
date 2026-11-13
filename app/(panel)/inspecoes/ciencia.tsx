@@ -120,9 +120,9 @@ export default function ElectronicAcknowledgementScreen() {
   const [correctionReason, setCorrectionReason] = useState('');
   const [sharingRemoteLink, setSharingRemoteLink] = useState(false);
   const readRequest = useRef(0);
-  const scrollRef = useRef<ScrollView>(null);
-  const recipientNameRef = useRef<TextInput>(null);
-  const relationshipRef = useRef<TextInput>(null);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const recipientNameRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const relationshipRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const fieldPositions = useRef({ recipientName: 0, relationship: 0 });
 
   const reload = useCallback(async () => {

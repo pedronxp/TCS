@@ -18,7 +18,7 @@ export default function PublicTrainingScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitting = useRef(false);
-  const tokenInput = useRef<TextInput>(null);
+  const tokenInput = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const submit = async () => {
     if (submitting.current || initializing) return;
