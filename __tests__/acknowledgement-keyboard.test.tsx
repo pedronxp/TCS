@@ -7,6 +7,7 @@ import { listAcknowledgementEventsForDocument } from '../utils/documentAcknowled
 import { syncPendentes } from '../services/SyncService';
 
 let mockOnline = false;
+let mockTraining = false;
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn() }, useLocalSearchParams: () => ({ documentId: 'document-1' }) }));
 jest.mock('@expo/vector-icons', () => ({ Feather: () => null }));
@@ -14,11 +15,12 @@ jest.mock('react-native-webview', () => ({ WebView: () => null }));
 jest.mock('expo-print', () => ({}));
 jest.mock('expo-sharing', () => ({}));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 24 }) }));
-jest.mock('../context/AuthContext', () => ({ useAuth: () => ({ profile: { uid: 'author' } }) }));
+jest.mock('../context/AuthContext', () => ({ useAuth: () => ({ profile: mockTraining ? null : { uid: 'author' } }) }));
+jest.mock('../context/TrainingContext', () => ({ useTraining: () => ({ isTrainingActive: mockTraining, trainingProfile: mockTraining ? { uid: 'training:participant' } : null }) }));
 jest.mock('../context/ConnectivityContext', () => ({ useConnectivity: () => ({ isOnlineReal: mockOnline }) }));
 jest.mock('../context/ThemeContext', () => ({ useTheme: () => ({ theme: {} }) }));
 jest.mock('../utils/documentAcknowledgementDatabase', () => ({
-  getGeneratedDocument: () => ({ id: 'document-1', createdBy: 'author', documentType: 'report', documentVersion: 1, trainingMode: true, previewHtml: '<p>Documento</p>' }),
+  getGeneratedDocument: () => ({ id: 'document-1', createdBy: mockTraining ? 'training:participant' : 'author', documentType: 'report', documentVersion: 1, trainingMode: true, previewHtml: '<p>Documento</p>' }),
   listAcknowledgementEventsForDocument: jest.fn(() => []),
   retryAcknowledgementEvent: jest.fn(),
   getAcknowledgementEvent: jest.fn(),
@@ -52,6 +54,7 @@ jest.mock('../components/ui', () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockOnline = false;
+  mockTraining = false;
   jest.mocked(listAcknowledgementEventsForDocument).mockReturnValue([]);
   jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
@@ -59,6 +62,22 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 const strokes = [{ points: [{ x: 1, y: 1 }, { x: 3, y: 5 }] }];
+
+it('registra ciência local para o participante sem login', async () => {
+  mockTraining = true;
+  jest.mocked(createAcknowledgementEvent).mockResolvedValueOnce({ id: 'training-event' } as Awaited<ReturnType<typeof createAcknowledgementEvent>>);
+  render(<ElectronicAcknowledgementScreen />);
+  const pad = await screen.findByTestId('signature-pad');
+  fireEvent.changeText(screen.getByLabelText('Nome do destinatário'), 'Pessoa de teste');
+  fireEvent(pad, 'change', strokes);
+  fireEvent(screen.UNSAFE_getAllByType(Switch)[0], 'valueChange', true);
+  await act(async () => fireEvent.press(screen.getByText('Registrar resultado')));
+  expect(createAcknowledgementEvent).toHaveBeenCalledWith(expect.objectContaining({
+    createdBy: 'training:participant',
+    trainingMode: true,
+  }));
+  expect(syncPendentes).not.toHaveBeenCalled();
+});
 
 it.each(['', '   ', 'M'])('mostra o erro do nome inválido %j e revela o campo sem perder a assinatura nem chamar o serviço', async (name) => {
   const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo');

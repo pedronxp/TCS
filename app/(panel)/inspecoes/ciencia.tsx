@@ -21,6 +21,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { SignaturePad } from '../../../components/SignaturePad';
@@ -99,6 +100,8 @@ const SYNC_ERROR_MESSAGES: Record<string, string> = {
 export default function ElectronicAcknowledgementScreen() {
   const { documentId } = useLocalSearchParams<{ documentId: string }>();
   const { profile } = useAuth();
+  const { trainingProfile, isTrainingActive } = useTraining();
+  const trainingUid = isTrainingActive ? trainingProfile?.uid : undefined;
   const { isOnlineReal } = useConnectivity();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -129,13 +132,19 @@ export default function ElectronicAcknowledgementScreen() {
     const request = ++readRequest.current;
     setDocument(null);
     setEvent(null);
-    if (!documentId || !profile?.uid) return;
+    if (!documentId) return;
     const nextDocument = getGeneratedDocument(documentId);
-    if (nextDocument && nextDocument.createdBy !== profile.uid && !(await hasImportedDocumentAccess(profile.uid, documentId))) return;
+    if (!nextDocument) return;
+    if (nextDocument.trainingMode) {
+      if (nextDocument.createdBy !== (trainingUid ?? profile?.uid)) return;
+    } else {
+      if (trainingUid || !profile?.uid) return;
+      if (nextDocument.createdBy !== profile.uid && !(await hasImportedDocumentAccess(profile.uid, documentId))) return;
+    }
     if (request !== readRequest.current) return;
     setDocument(nextDocument);
     setEvent(nextDocument ? listAcknowledgementEventsForDocument(nextDocument.id)[0] ?? null : null);
-  }, [documentId, profile?.uid]);
+  }, [documentId, profile?.uid, trainingUid]);
 
   useEffect(() => {
     setSignature([]);
@@ -148,12 +157,13 @@ export default function ElectronicAcknowledgementScreen() {
   }, [reload]);
 
   useEffect(() => {
-    if (!documentId || !isOnlineReal) return;
+    if (!documentId || !isOnlineReal || !document || document.trainingMode || trainingUid) return;
     fetchRemoteAcknowledgementHistory(documentId).then(setRemoteHistory).catch(() => setRemoteHistory([]));
-  }, [documentId, isOnlineReal, event?.syncStatus]);
+  }, [documentId, document, isOnlineReal, event?.syncStatus, trainingUid]);
 
   const handleSubmit = async () => {
-    if (!document || !profile?.uid) {
+    const actorUid = document?.trainingMode ? trainingUid ?? profile?.uid : profile?.uid;
+    if (!document || !actorUid) {
       Alert.alert('Sessão necessária', 'Entre novamente para registrar a ciência.');
       return;
     }
@@ -183,7 +193,7 @@ export default function ElectronicAcknowledgementScreen() {
           ? { name: witnessName.trim(), confirmation: 'present' }
           : null,
         witnessRequired: includeWitness,
-        createdBy: profile.uid,
+        createdBy: actorUid,
         trainingMode: document.trainingMode,
       });
       if (isOnlineReal && !document.trainingMode) {
