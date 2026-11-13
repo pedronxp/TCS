@@ -47,7 +47,7 @@ jobs:
         run: |
           eas build:view 6e54c76c-5465-4cd2-8c9c-d2fc0d73bdb0 --json > /tmp/tcs-build.json
           node -e 'const b=require("/tmp/tcs-build.json"); console.log(JSON.stringify({status:b.status,error:b.error,logs:(b.logFiles||[]).length}));'
-          node -e 'const b=require("/tmp/tcs-build.json"); (async()=>{for(const url of (b.logFiles||[])){const r=await fetch(url);const lines=(await r.text()).split("\n");for(const line of lines.filter(l=>/What went wrong|Execution failed|Cannot find module|Unable to resolve|error:|CMake Error|Unsupported class file/i.test(l)).slice(-25)){try{const row=JSON.parse(line);console.log(String(row.msg||row.message||"").slice(0,500))}catch{console.log(line.slice(0,500))}}}})().catch(e=>{console.error(e.message);process.exitCode=1});'
+          node -e 'const b=require("/tmp/tcs-build.json"); (async()=>{for(const url of (b.logFiles||[])){const r=await fetch(url);const lines=(await r.text()).split("\n");for(const line of lines.filter(l=>/What went wrong|Execution failed|Cannot find module|Unable to resolve|error:|CMake Error|Unsupported class file|requires|compileSdk|Android Gradle plugin|AAR metadata|currently compiled/i.test(l)).slice(-65)){try{const row=JSON.parse(line);console.log(String(row.msg||row.message||"").slice(0,500))}catch{console.log(line.slice(0,500))}}}})().catch(e=>{console.error(e.message);process.exitCode=1});'
 
       - name: Build APK via EAS
         if: false
@@ -103,3 +103,4 @@ jobs:
               \"apk_url\": \"$APK_URL\",
               \"completed_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
             }" || true
+
