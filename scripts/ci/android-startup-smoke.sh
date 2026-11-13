@@ -6,6 +6,7 @@ app_uid=''
 collect_evidence() {
   adb logcat -d -b crash > startup-crash.txt
   adb logcat -d > startup-log.txt
+  adb shell dumpsys activity activities > startup-activities.txt || true
   if [ -n "$app_uid" ]; then
     adb logcat -d --uid="$app_uid" > startup-app-log.txt
   fi
@@ -46,7 +47,7 @@ for launch in 1 2; do
   # Keep observing after the first rendered frame to catch delayed startup crashes.
   sleep 20
   adb shell pidof "$package"
-  adb shell dumpsys activity activities | grep -E "mResumedActivity.*$package"
+  adb shell dumpsys activity activities | grep -E "(mResumedActivity|topResumedActivity).*${package}"
 done
 collect_evidence
 if grep -E 'FATAL EXCEPTION|Fatal signal|FATAL:|ReactNativeJS.*(Error:|Exception)' startup-app-log.txt; then
