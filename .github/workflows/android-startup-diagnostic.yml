@@ -1,0 +1,31 @@
+name: Android APK startup diagnostic
+on:
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: HTTPS URL of the signed APK to test
+        required: true
+        type: string
+      previous_apk_url:
+        description: Optional HTTPS URL of the previous APK to test an in-place update
+        required: false
+        type: string
+jobs:
+  startup:
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [33, 36]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download APK
+        env:
+          APK_URL: ${{ inputs.apk_url }}
+        run: curl --proto '=https' --tlsv1.2 -fL "$APK_URL" -o tcs.apk
+      - uses: ./.github/actions/android-startup
+        with:
+          api-level: ${{ matrix.api-level }}
+          apk-file: tcs.apk
+          previous-apk-url: ${{ inputs.previous_apk_url }}

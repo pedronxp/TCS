@@ -93,7 +93,8 @@
         {
           "android": {
             "targetSdkVersion": 36,
-            "minSdkVersion": 24
+            "minSdkVersion": 24,
+            "extraProguardRules": "# Room instantiates WorkManager's generated database through reflection.\n# AGP 9 / R8 full mode must retain its no-argument constructor.\n-keep class androidx.work.impl.WorkDatabase_Impl {\n    <init>();\n}\n# WorkManager also creates input mergers through reflection.\n-keep class * extends androidx.work.InputMerger {\n    public <init>();\n}\n"
           },
           "ios": {
             "deploymentTarget": "16.4"

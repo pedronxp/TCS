@@ -149,6 +149,11 @@ jobs:
           test -s "$APK_FILE"
           echo "file=$APK_FILE" >> "$GITHUB_OUTPUT"
 
+      - name: Verify signed APK before publishing
+        uses: ./.github/actions/android-startup
+        with:
+          apk-file: ${{ steps.apk.outputs.file }}
+
       - name: Publish APK release
         id: release
         env:
