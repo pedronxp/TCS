@@ -152,7 +152,7 @@ const RESPOSTAS_CLASSIFICACAO_RISCO_ESTRUTURAL: Record<string, {
     efeito: 'Classifica o risco em no mínimo R3.',
   },
   critico: {
-    resposta: 'Risco crítico',
+    resposta: 'Risco muito alto',
     nivelMinimo: 'r4',
     pontuacaoMinima: 7.0,
     efeito: 'Classifica o risco em no mínimo R4.',
@@ -176,7 +176,7 @@ export const RISCO_LABELS: Record<NivelRisco, string> = {
   r1: 'BAIXO',
   r2: 'MÉDIO',
   r3: 'ALTO',
-  r4: 'CRÍTICO',
+  r4: 'MUITO ALTO',
 };
 
 /** Cores de exibição para cada nível de risco */
@@ -210,6 +210,7 @@ const NIVEL_RISCO_MAP: Record<string, NivelRisco> = {
   critico: 'r4',
   muito_alto: 'r4',
   risco_critico: 'r4',
+  risco_muito_alto: 'r4',
   risco_iminente: 'r4',
 };
 
@@ -381,7 +382,7 @@ function identificarRegrasCondicionaisEstruturais(params: {
       perguntaId: 'est_q1',
       id: 'fundacao_inexistente',
       label: 'Fundação inexistente',
-      descricao: 'A ausência de fundação observável deve ser classificada pelo agente como risco baixo, médio, alto ou crítico.',
+      descricao: 'A ausência de fundação observável deve ser classificada pelo agente como risco baixo, médio, alto ou muito alto.',
       classificacaoPerguntaId: 'est_q1_inexistente_classificacao_risco',
       explicacaoPerguntaId: 'est_q1_inexistente_explicacao',
     },
@@ -389,7 +390,7 @@ function identificarRegrasCondicionaisEstruturais(params: {
       perguntaId: 'est_q2',
       id: 'estrutura_pilares_vigas_inexistente',
       label: 'Estrutura principal inexistente',
-      descricao: 'A ausência de pilares e vigas observáveis deve ser classificada pelo agente como risco baixo, médio, alto ou crítico.',
+      descricao: 'A ausência de pilares e vigas observáveis deve ser classificada pelo agente como risco baixo, médio, alto ou muito alto.',
       classificacaoPerguntaId: 'est_q2_inexistente_classificacao_risco',
       explicacaoPerguntaId: 'est_q2_inexistente_explicacao',
     },
@@ -606,10 +607,12 @@ export function parseCalculoRiscoSnapshot(raw: unknown): CalculoRiscoSnapshot | 
         ? snapshot.regrasCondicionais.map(regra => ({
           id: String(regra.id || ''),
           label: String(regra.label || ''),
-          descricao: String(regra.descricao || ''),
+          descricao: String(regra.descricao || '').replace(/baixo, médio, alto ou crítico/gi, 'baixo, médio, alto ou muito alto'),
           perguntaId: String(regra.perguntaId || ''),
           respostaId: String(regra.respostaId || ''),
-          resposta: String(regra.resposta || regra.respostaId || ''),
+          resposta: ['critico', 'risco_critico'].includes(normalizarChaveNivel(String(regra.resposta || regra.respostaId || '')))
+            ? 'Risco muito alto'
+            : String(regra.resposta || regra.respostaId || ''),
           efeito: String(regra.efeito || ''),
           nivelMinimo: regra.nivelMinimo ? normalizarNivelRisco(regra.nivelMinimo, 'r1') : undefined,
           pontuacaoMinima: regra.pontuacaoMinima !== undefined
@@ -678,7 +681,7 @@ export function riscoConduta(nivel: string): string {
     r1: 'A estrutura apresenta condições adequadas. Recomenda-se monitoramento preventivo periódico e manutenção de rotina.',
     r2: 'Foram identificadas irregularidades. Recomenda-se laudo técnico complementar e medidas de reforço estrutural em curto prazo.',
     r3: 'ATENÇÃO: Risco elevado detectado. Recomenda-se interdição preventiva imediata e evacuação até laudo estrutural por engenheiro habilitado.',
-    r4: 'EMERGÊNCIA: Risco crítico à vida. Evacuar imediatamente. Acionar defesa civil municipal e corpo de bombeiros. Interdição obrigatória.',
+    r4: 'EMERGÊNCIA: Risco muito alto à vida. Evacuar imediatamente. Acionar defesa civil municipal e corpo de bombeiros. Interdição obrigatória.',
   };
   return map[normalizarNivelRisco(nivel)];
 }
@@ -693,7 +696,9 @@ export function resolverApresentacaoRisco(params: {
   if (snapshot?.resultadoCodigo && snapshot.resultadoLabel) {
     return {
       codigo: snapshot.resultadoCodigo,
-      label: snapshot.resultadoLabel,
+      label: ['critico', 'risco_critico'].includes(normalizarChaveNivel(snapshot.resultadoLabel))
+        ? riscoLabel('r4')
+        : snapshot.resultadoLabel,
       cor: snapshot.resultadoCor || riscoColor(snapshot.nivelRisco),
       conduta: snapshot.resultadoConduta || riscoConduta(snapshot.nivelRisco),
       nivelCompatibilidade: snapshot.nivelRisco,

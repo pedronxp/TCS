@@ -434,7 +434,7 @@ export async function buildLaudoHtml(dados: LaudoData): Promise<string> {
   const regrasCondicionais = calculo?.regrasCondicionais || [];
   const agravantesHtml = agravantes.length
     ? `<div class="risk-aggravants">
-        <div class="risk-aggravants-title">Agravante crítico aplicado</div>
+        <div class="risk-aggravants-title">Agravante de risco muito alto aplicado</div>
         ${agravantes.map(agravante => `
           <div class="risk-aggravant-item">
             <strong>${escapeHtml(agravante.label)}</strong><br/>

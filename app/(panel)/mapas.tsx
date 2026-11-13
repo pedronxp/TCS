@@ -107,7 +107,7 @@ function getRiscoColor(nivel: string, theme: TCSTheme): string {
 
 function getRiscoLabel(nivel: string): string {
   const n = normalizeNivel(nivel);
-  if (n === 'r4') return 'CRÍTICO';
+  if (n === 'r4') return 'MUITO ALTO';
   if (n === 'r3') return 'ALTO';
   if (n === 'r2') return 'MÉDIO';
   return 'BAIXO';

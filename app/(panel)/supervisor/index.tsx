@@ -192,7 +192,7 @@ export default function SupervisorDashboardScreen() {
         {/* Alerta alto risco */}
         {altoRisco > 0 ? (
           <StateBanner
-            title={`${altoRisco} ${altoRisco > 1 ? 'alertas críticos' : 'alerta crítico'}`}
+            title={`${altoRisco} ${altoRisco > 1 ? 'alertas de risco alto ou muito alto' : 'alerta de risco alto ou muito alto'}`}
             description="Vistorias de alto risco requerem atenção imediata."
             variant="danger"
             actionLabel="Ver mapa"
@@ -208,7 +208,7 @@ export default function SupervisorDashboardScreen() {
                   <SectionHeader title="Visão geral" subtitle="Operação municipal acompanhada pela supervisão" />
                   <View style={styles.metricGrid}>
                     <MetricCard value={totalVistorias} label="Vistorias da organização" detail="Total confirmado no backend" tone="primary" style={styles.metricWide} />
-                    <MetricCard value={altoRisco} label="Alertas críticos" tone="danger" style={styles.metricHalf} />
+                    <MetricCard value={altoRisco} label="Risco alto ou muito alto" tone="danger" style={styles.metricHalf} />
                     <MetricCard value={agentesAtivos} label="Agentes ativos" tone="success" style={styles.metricHalf} />
                   </View>
                 </View>

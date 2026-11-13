@@ -28,7 +28,7 @@ const defaultConfig: Json = [
   { nivel: 'r1', label: 'Risco baixo', descricao: 'Monitoramento preventivo', minPontos: 0, maxPontos: 24 },
   { nivel: 'r2', label: 'Risco moderado', descricao: 'Vistoria técnica necessária', minPontos: 25, maxPontos: 49 },
   { nivel: 'r3', label: 'Risco alto', descricao: 'Laudo técnico obrigatório', minPontos: 50, maxPontos: 74 },
-  { nivel: 'r4', label: 'Risco crítico', descricao: 'Avaliar interdição imediata', minPontos: 75, maxPontos: 9999 },
+  { nivel: 'r4', label: 'Risco muito alto', descricao: 'Avaliar interdição imediata', minPontos: 75, maxPontos: 9999 },
 ];
 
 interface RiskVersion {
@@ -382,7 +382,7 @@ function SimulationHero({
           <div className="mt-3 flex items-center gap-3">
             <RiskLevelBadge level={level} />
             <div>
-              <p className="text-sm font-semibold text-foreground">{jsonString(row?.label) || 'Classificação encontrada'}</p>
+              <p className="text-sm font-semibold text-foreground">{level === 'R4' ? 'Risco muito alto' : jsonString(row?.label) || 'Classificação encontrada'}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{jsonString(row?.descricao) || 'Intervalo validado com sucesso.'}</p>
             </div>
           </div>
@@ -665,7 +665,7 @@ function parseTiers(value: Json): RiskTier[] {
     if (!level || min === null || max === null) return null;
     return {
       level,
-      label: jsonString(row?.label) || level,
+      label: level === 'R4' ? 'Risco muito alto' : jsonString(row?.label) || level,
       description: jsonString(row?.descricao) || '',
       min,
       max,

@@ -41,7 +41,7 @@ const riskOptions: Array<{ value: string; label: string }> = [
   { value: 'baixo', label: 'Baixo' },
   { value: 'médio', label: 'Médio' },
   { value: 'alto', label: 'Alto' },
-  { value: 'crítico', label: 'Crítico' },
+  { value: 'crítico', label: 'Muito alto' },
 ];
 
 type ReportingResult = {
@@ -75,7 +75,10 @@ function chart(key: string, label: string, entries: Array<Record<string, unknown
     series: entries.flatMap((entry) => {
       const value = Number(entry[valueKey]);
       const itemLabel = typeof entry[labelKey] === 'string' ? entry[labelKey] : null;
-      return itemLabel && Number.isFinite(value) ? [{ label: itemLabel, value }] : [];
+      const displayLabel = key === 'risk' && itemLabel && ['r4', 'critico', 'risco critico', 'muito alto', 'muito_alto'].includes(itemLabel.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())
+        ? 'Muito alto'
+        : itemLabel;
+      return displayLabel && Number.isFinite(value) ? [{ label: displayLabel, value }] : [];
     }),
   };
 }

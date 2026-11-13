@@ -57,6 +57,12 @@ describe('public TCS entry', () => {
     expect(view.queryByText('SISTEMA ONLINE')).toBeNull();
   });
 
+  it('opens the training room before account login', () => {
+    const view = render(<WelcomeScreen />);
+    fireEvent.press(view.getByText('Sala de treinamento'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/treinamento');
+  });
+
   it('updates connectivity wording after reconnection', () => {
     mockConnected = false;
     mockOnline = false;

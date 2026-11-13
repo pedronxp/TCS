@@ -64,7 +64,7 @@ const SLIDES: SlideData[] = [
       { icon: 'check-circle', title: 'R1 · Baixo', caption: 'Acompanhamento', tone: 'success' },
       { icon: 'alert-circle', title: 'R2 · Médio', caption: 'Atenção técnica', tone: 'warning' },
       { icon: 'alert-triangle', title: 'R3 · Alto', caption: 'Ação prioritária', tone: 'warning' },
-      { icon: 'x-octagon', title: 'R4 · Crítico', caption: 'Resposta imediata', tone: 'danger' },
+      { icon: 'x-octagon', title: 'R4 · Muito alto', caption: 'Resposta imediata', tone: 'danger' },
     ],
   },
   {

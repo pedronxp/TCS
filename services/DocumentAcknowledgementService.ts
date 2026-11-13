@@ -32,7 +32,7 @@ import {
   saveGeneratedDocument,
   updateGeneratedDocumentRemote,
 } from '../utils/documentAcknowledgementDatabase';
-import { isFinalOutcomeConflict, syncPreparedDocumentBatch } from './DocumentReleaseWorkflow';
+import { DocumentPublicationError, isFinalOutcomeConflict, syncPreparedDocumentBatch } from './DocumentReleaseWorkflow';
 import {
   CreateAcknowledgementInput,
   DocumentContentSnapshot,
@@ -107,8 +107,12 @@ export async function prepareGeneratedDocument<TPayload extends object>(
   const contentHash = await hashCanonical(snapshot);
   const confirmFinalIssuance = async (prepared: LocalGeneratedDocument): Promise<LocalGeneratedDocument> => {
     if (!input.trainingMode && (input.payload as { documentStatus?: unknown }).documentStatus === 'final') {
-      const remotePath = await publishGeneratedDocument(prepared);
-      return { ...prepared, remotePath, status: 'available' };
+      try {
+        const remotePath = await publishGeneratedDocument(prepared);
+        return { ...prepared, remotePath, status: 'available' };
+      } catch (error) {
+        throw new DocumentPublicationError(error);
+      }
     }
     return prepared;
   };
@@ -389,7 +393,8 @@ export async function syncPendingDocumentAcknowledgements(): Promise<{ success: 
         result.recorded_at_server,
         result.signature_storage_path
       );
-      await cleanupConfirmedDocument(document, storagePath);
+      // Local cleanup must not turn a confirmed server receipt into a failure.
+      await cleanupConfirmedDocument(document, storagePath).catch(() => null);
       success += 1;
     } catch (error) {
       if (isFinalOutcomeConflict(error)) {
