@@ -12,6 +12,10 @@ inputs:
     description: Optional previous APK to validate an in-place update
     required: false
     default: ''
+  check-training:
+    description: Verify that the training form opens before login
+    required: false
+    default: 'false'
 runs:
   using: composite
   steps:
@@ -30,6 +34,7 @@ runs:
       env:
         APK_FILE: ${{ inputs.apk-file }}
         PREVIOUS_APK_URL: ${{ inputs.previous-apk-url }}
+        CHECK_TRAINING: ${{ inputs.check-training }}
       with:
         api-level: ${{ inputs.api-level }}
         arch: x86_64

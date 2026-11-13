@@ -29,3 +29,4 @@ jobs:
           api-level: ${{ matrix.api-level }}
           apk-file: tcs.apk
           previous-apk-url: ${{ inputs.previous_apk_url }}
+          check-training: 'true'
