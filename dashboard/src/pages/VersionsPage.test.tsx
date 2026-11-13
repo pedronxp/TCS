@@ -65,7 +65,7 @@ describe('Gestão de versões', () => {
   it('reproduz release train, catálogo, adoção e changelog', () => {
     render(<VersionsPage />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Versões' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1, name: 'Versões do app' })).toBeVisible();
     expect(screen.getByText('Postura de publicação')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Versões que orientam a operação' })).toBeVisible();
     expect(screen.getByText('Adoção observada')).toBeVisible();
