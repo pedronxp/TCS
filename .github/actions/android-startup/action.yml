@@ -1,6 +1,10 @@
 name: Verify Android release startup
 description: Install the signed APK and verify two launches before publishing it.
 inputs:
+  api-level:
+    description: Android API level used for startup verification
+    required: false
+    default: '33'
   apk-file:
     description: Path to the downloaded release APK
     required: true
@@ -27,7 +31,7 @@ runs:
         APK_FILE: ${{ inputs.apk-file }}
         PREVIOUS_APK_URL: ${{ inputs.previous-apk-url }}
       with:
-        api-level: 36
+        api-level: ${{ inputs.api-level }}
         arch: x86_64
         target: google_apis
         disable-animations: true
@@ -35,5 +39,5 @@ runs:
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: android-startup-evidence
+        name: android-startup-evidence-api-${{ inputs.api-level }}
         path: startup-*

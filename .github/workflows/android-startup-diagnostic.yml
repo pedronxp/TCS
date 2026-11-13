@@ -12,6 +12,10 @@ on:
         type: string
 jobs:
   startup:
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [33, 36]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -22,5 +26,6 @@ jobs:
         run: curl --proto '=https' --tlsv1.2 -fL "$APK_URL" -o tcs.apk
       - uses: ./.github/actions/android-startup
         with:
+          api-level: ${{ matrix.api-level }}
           apk-file: tcs.apk
           previous-apk-url: ${{ inputs.previous_apk_url }}
