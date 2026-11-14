@@ -27,7 +27,7 @@ try {
     CREATE FUNCTION private.current_internal_role(p_user_id uuid DEFAULT auth.uid()) RETURNS text LANGUAGE sql STABLE AS $$SELECT CASE WHEN p_user_id='${owner}' THEN 'owner' END$$;
     CREATE FUNCTION private.current_organization_id(p_user_id uuid DEFAULT auth.uid()) RETURNS uuid LANGUAGE sql STABLE AS $$SELECT NULL::uuid$$;
     CREATE FUNCTION private.is_owner_admin(p_user_id uuid) RETURNS boolean LANGUAGE sql STABLE AS $$SELECT false$$;
-    CREATE TABLE public.users(uid uuid PRIMARY KEY,role text,municipio text,"isApproved" boolean);
+    CREATE TABLE public.users(uid uuid PRIMARY KEY,role text,municipio text,"isApproved" boolean,name text);
     CREATE TABLE public.vistorias(id uuid PRIMARY KEY,"agenteUid" text,organization_id uuid,municipio text,"fotoUrl" text,"fotosUrls" text[],protocolo text,status text);
     CREATE TABLE public.organizations(id uuid PRIMARY KEY);
     ${tableDDL('generated_documents')}
@@ -51,17 +51,28 @@ try {
   await db.exec(sql);
   await db.exec(await readFile(new URL('../supabase/migrations/20260529000003_training_mode_access.sql', import.meta.url), 'utf8'));
   const classCode = 'QA23-TEST-2026';
-  const trainingForms = ['risco_estrutural_novo_v2', 'inspecao_ponte_passarela_v1'];
-  await db.query(`insert into public.training_classes
-    (nome, token, limite_participantes, inicio_em, fim_em, formularios_permitidos)
-    values ('Turma QA local', $1, 2, now() - interval '1 minute', now() + interval '1 hour', $2)`,
-  [classCode, trainingForms]);
+  for (const migration of ['20260813222420_backend_authoritative_training_p1.sql', '20261114122017_allow_authorized_training_management.sql']) {
+    await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
+  }
+  await db.query("insert into public.users(uid,role,\"isApproved\",name) values ($1,'agent',true,'Dono QA'),($2,'agent',true,'Agente QA')", [owner, agent]);
+  const createClass = () => db.query("select public.create_training_class('Turma QA local',$1,1,now()-interval '1 minute',now()+interval '1 hour') as id", [classCode]);
+  await auth(agent);
+  await assert.rejects(createClass(), /forbidden/);
+  await auth(owner);
+  const classroom = (await createClass()).rows[0].id;
+  await auth('');
   await db.exec('SET ROLE anon');
   const entry = await db.query('select public.training_class_entry($1,$2,$3) as result',
     [classCode, 'Participante QA', 'qa-device']);
+  const full = await db.query('select public.training_class_entry($1,$2,$3) as result',
+    [classCode, 'Segundo participante', 'qa-device-2']);
   await db.exec('RESET ROLE');
   assert.equal(entry.rows[0].result.ok, true);
-  assert.deepEqual(entry.rows[0].result.allowedForms, trainingForms);
+  assert.equal(entry.rows[0].result.participantLimit, 1);
+  assert.ok(entry.rows[0].result.allowedForms.includes('inspecao_ponte_passarela_v1'));
+  assert.equal(full.rows[0].result.status, 'full');
+  await auth(owner);
+  await db.query('select public.close_training_class($1)', [classroom]);
   console.log('Código válido aceito para entrada anônima em turma de teste.');
   await auth(stranger);
   await assert.rejects(update(manifest(1)), /forbidden/);
