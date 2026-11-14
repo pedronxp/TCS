@@ -184,7 +184,9 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
         {(detail.audit || []).map((event: OwnerRecord, index: number) => <View style={[styles.card, card]} key={event.id || index}><Text style={textStyle}>{event.summary || event.event_type}</Text><Text style={muted}>{event.created_at}</Text></View>)}
       </> : null}
       {!loading && !error && section === 'tokens' ? <View style={[styles.card, card]}>
-        <Text style={[styles.title, textStyle]}>Criar convite</Text>
+        <Text style={[styles.title, textStyle]}>Códigos de treinamento e convites</Text>
+        <Button label="Criar código de treinamento" onPress={() => router.push('/(panel)/master/treinamentos')} />
+        <Text style={[styles.title, textStyle]}>Convite para criar conta</Text>
         <View style={styles.wrap}>{[['agent', 'Agente'], ['supervisor', 'Supervisor'], ['admin', 'Administrador']].map(([role, label]) => link(`${tokenRole === role ? '✓ ' : ''}${label}`, () => setTokenRole(role)))}</View>
         <Text style={muted}>Acesso por convite (chave)</Text>
         {link(tokenCity ? `${tokenCity.nome} – ${tokenCity.uf}` : 'Selecionar município', () => showCities ? setShowCities(false) : void openCities())}
@@ -193,7 +195,7 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
           {cities.map(city => link(`${city.nome} – ${city.uf}`, () => { setTokenCity(city); setShowCities(false); }))}
         </ScrollView> : null}
         <TextInput style={inputStyle} accessibilityLabel="Validade em horas" placeholder="Validade em horas" keyboardType="decimal-pad" value={tokenHours} onChangeText={setTokenHours} />
-        <Button label="Criar token" disabled={!tokenCity || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => tokenCity && begin('Criar token de acesso', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_expires_in_minutes: Math.round(tokenMinutes) })} />
+        <Button label="Criar convite de conta" disabled={!tokenCity || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => tokenCity && begin('Criar convite de conta', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_expires_in_minutes: Math.round(tokenMinutes) })} />
       </View> : null}
       {section === 'tokens' && createdToken ? <View style={[styles.card, card]}>
         <Text style={[styles.title, textStyle]}>Código do convite</Text>
