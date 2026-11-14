@@ -49,17 +49,17 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
   const [permissionCode, setPermissionCode] = useState('mobile.inspection.manage');
   const [permissionEffect, setPermissionEffect] = useState('grant');
   const [tokenRole, setTokenRole] = useState('agent');
-  const [tokenCity, setTokenCity] = useState('');
-  const [cities, setCities] = useState<string[]>([]);
+  const [tokenCity, setTokenCity] = useState<{ nome: string; uf: string } | null>(null);
+  const [cities, setCities] = useState<{ nome: string; uf: string }[]>([]);
   const [showCities, setShowCities] = useState(false);
   const [citiesError, setCitiesError] = useState('');
   const openCities = async () => {
     setShowCities(true);
     setCitiesError('');
     try {
-      const { data, error } = await supabase.from('municipios').select('nome').order('nome');
+      const { data, error } = await supabase.from('municipios').select('nome,uf').order('nome').order('uf');
       if (error) throw error;
-      const names = [...new Set<string>((data ?? []).map((row: { nome: string }) => row.nome).filter(Boolean))];
+      const names = (data ?? []).filter(row => row.nome?.trim() && /^[A-Z]{2}$/.test(row.uf));
       setCities(names);
       if (!names.length) setCitiesError('Nenhum município cadastrado.');
     } catch {
@@ -187,13 +187,13 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
         <Text style={[styles.title, textStyle]}>Criar convite</Text>
         <View style={styles.wrap}>{[['agent', 'Agente'], ['supervisor', 'Supervisor'], ['admin', 'Administrador']].map(([role, label]) => link(`${tokenRole === role ? '✓ ' : ''}${label}`, () => setTokenRole(role)))}</View>
         <Text style={muted}>Acesso por convite (chave)</Text>
-        {link(tokenCity || 'Selecionar município', () => showCities ? setShowCities(false) : void openCities())}
+        {link(tokenCity ? `${tokenCity.nome} – ${tokenCity.uf}` : 'Selecionar município', () => showCities ? setShowCities(false) : void openCities())}
         {showCities ? <ScrollView nestedScrollEnabled style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
           {citiesError ? <Text style={muted}>{citiesError}</Text> : null}
-          {cities.map(city => link(city, () => { setTokenCity(city); setShowCities(false); }))}
+          {cities.map(city => link(`${city.nome} – ${city.uf}`, () => { setTokenCity(city); setShowCities(false); }))}
         </ScrollView> : null}
         <TextInput style={inputStyle} accessibilityLabel="Validade em horas" placeholder="Validade em horas" keyboardType="decimal-pad" value={tokenHours} onChangeText={setTokenHours} />
-        <Button label="Criar token" disabled={!tokenCity.trim() || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => begin('Criar token de acesso', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.trim(), p_expires_in_minutes: Math.round(tokenMinutes) })} />
+        <Button label="Criar token" disabled={!tokenCity || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => tokenCity && begin('Criar token de acesso', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_expires_in_minutes: Math.round(tokenMinutes) })} />
       </View> : null}
       {section === 'tokens' && createdToken ? <View style={[styles.card, card]}>
         <Text style={[styles.title, textStyle]}>Código do convite</Text>

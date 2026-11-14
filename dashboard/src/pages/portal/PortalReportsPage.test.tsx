@@ -87,6 +87,11 @@ function renderPage() {
 }
 
 describe('relatórios e estatísticas municipais', () => {
+  it('apresenta o risco legado como muito alto na distribuição', () => {
+    const result = reportsModule.parseReportingResult({ volume: 1, risk: { breakdown: [{ risk: 'crítico', count: 1 }] } });
+    expect(result.charts[0].series).toEqual([{ label: 'Muito alto', value: 1 }]);
+  });
+
   it('adapta o contrato autoritativo do relatório sem inventar indicadores ou linhas', () => {
     const parser = (reportsModule as Record<string, unknown>).parseReportingResult;
     expect(parser).toEqual(expect.any(Function));

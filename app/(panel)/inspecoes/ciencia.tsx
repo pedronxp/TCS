@@ -21,6 +21,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
+import { useTraining } from '../../../context/TrainingContext';
 import { useConnectivity } from '../../../context/ConnectivityContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { SignaturePad } from '../../../components/SignaturePad';
@@ -99,6 +100,8 @@ const SYNC_ERROR_MESSAGES: Record<string, string> = {
 export default function ElectronicAcknowledgementScreen() {
   const { documentId } = useLocalSearchParams<{ documentId: string }>();
   const { profile } = useAuth();
+  const { trainingProfile, isTrainingActive } = useTraining();
+  const trainingUid = isTrainingActive ? trainingProfile?.uid : undefined;
   const { isOnlineReal } = useConnectivity();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -108,6 +111,8 @@ export default function ElectronicAcknowledgementScreen() {
   const [declarationAccepted, setDeclarationAccepted] = useState(false);
   const [recipientName, setRecipientName] = useState('');
   const [relationship, setRelationship] = useState('Morador ou responsável');
+  const [recipientNameError, setRecipientNameError] = useState<string>();
+  const [relationshipError, setRelationshipError] = useState<string>();
   const [reason, setReason] = useState('');
   const [signature, setSignature] = useState<SignatureStroke[]>([]);
   const [signatureInteractionActive, setSignatureInteractionActive] = useState(false);
@@ -118,35 +123,59 @@ export default function ElectronicAcknowledgementScreen() {
   const [correctionReason, setCorrectionReason] = useState('');
   const [sharingRemoteLink, setSharingRemoteLink] = useState(false);
   const readRequest = useRef(0);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const recipientNameRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const relationshipRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const fieldPositions = useRef({ recipientName: 0, relationship: 0 });
 
   const reload = useCallback(async () => {
     const request = ++readRequest.current;
     setDocument(null);
     setEvent(null);
-    if (!documentId || !profile?.uid) return;
+    if (!documentId) return;
     const nextDocument = getGeneratedDocument(documentId);
-    if (nextDocument && nextDocument.createdBy !== profile.uid && !(await hasImportedDocumentAccess(profile.uid, documentId))) return;
+    if (!nextDocument) return;
+    if (nextDocument.trainingMode) {
+      if (nextDocument.createdBy !== (trainingUid ?? profile?.uid)) return;
+    } else {
+      if (trainingUid || !profile?.uid) return;
+      if (nextDocument.createdBy !== profile.uid && !(await hasImportedDocumentAccess(profile.uid, documentId))) return;
+    }
     if (request !== readRequest.current) return;
     setDocument(nextDocument);
     setEvent(nextDocument ? listAcknowledgementEventsForDocument(nextDocument.id)[0] ?? null : null);
-  }, [documentId, profile?.uid]);
+  }, [documentId, profile?.uid, trainingUid]);
 
   useEffect(() => {
     setSignature([]);
     setRecipientName('');
+    setRecipientNameError(undefined);
+    setRelationshipError(undefined);
     setDeclarationAccepted(false);
     void reload();
     return () => { readRequest.current++; };
   }, [reload]);
 
   useEffect(() => {
-    if (!documentId || !isOnlineReal) return;
+    if (!documentId || !isOnlineReal || !document || document.trainingMode || trainingUid) return;
     fetchRemoteAcknowledgementHistory(documentId).then(setRemoteHistory).catch(() => setRemoteHistory([]));
-  }, [documentId, isOnlineReal, event?.syncStatus]);
+  }, [documentId, document, isOnlineReal, event?.syncStatus, trainingUid]);
 
   const handleSubmit = async () => {
-    if (!document || !profile?.uid) {
+    const actorUid = document?.trainingMode ? trainingUid ?? profile?.uid : profile?.uid;
+    if (!document || !actorUid) {
       Alert.alert('Sessão necessária', 'Entre novamente para registrar a ciência.');
+      return;
+    }
+    const nameError = recipientName.trim().length < 2 ? 'Informe o nome do destinatário.' : undefined;
+    const relationError = relationship.trim().length < 2 ? 'Informe a relação do destinatário com o atendimento.' : undefined;
+    setRecipientNameError(nameError);
+    setRelationshipError(relationError);
+    if (nameError || relationError) {
+      setSignatureInteractionActive(false);
+      const field = nameError ? 'recipientName' : 'relationship';
+      (nameError ? recipientNameRef : relationshipRef).current?.focus();
+      scrollRef.current?.scrollTo({ y: Math.max(0, fieldPositions.current[field] - Spacing[4]), animated: true });
       return;
     }
     setSubmitting(true);
@@ -164,7 +193,7 @@ export default function ElectronicAcknowledgementScreen() {
           ? { name: witnessName.trim(), confirmation: 'present' }
           : null,
         witnessRequired: includeWitness,
-        createdBy: profile.uid,
+        createdBy: actorUid,
         trainingMode: document.trainingMode,
       });
       if (isOnlineReal && !document.trainingMode) {
@@ -187,11 +216,16 @@ export default function ElectronicAcknowledgementScreen() {
 
   const retrySync = async () => {
     if (!event || !isOnlineReal) return;
-    retryAcknowledgementEvent(event.id);
     setSubmitting(true);
-    await syncPendentes();
-    setSubmitting(false);
-    reload();
+    try {
+      retryAcknowledgementEvent(event.id);
+      await syncPendentes();
+    } catch {
+      Alert.alert('Sincronização pendente', 'A ciência continua salva neste aparelho. Confira o estado do registro e tente sincronizar novamente quando houver conexão.');
+    } finally {
+      setSubmitting(false);
+      void reload();
+    }
   };
 
   const shareReceipt = async (combined: boolean) => {
@@ -320,6 +354,7 @@ export default function ElectronicAcknowledgementScreen() {
       />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing[8] }]}
         keyboardShouldPersistTaps="handled"
@@ -478,20 +513,34 @@ export default function ElectronicAcknowledgementScreen() {
               ))}
             </View>
 
-            <FormField
-              label="Nome do destinatário"
-              required
-              value={recipientName}
-              onChangeText={setRecipientName}
-              placeholder="Nome completo do destinatário"
-            />
-            <FormField
-              label="Relação com o atendimento"
-              required
-              value={relationship}
-              onChangeText={setRelationship}
-              placeholder="Ex.: morador, proprietário ou responsável"
-            />
+            <View testID="recipient-name-field" onLayout={({ nativeEvent }) => { fieldPositions.current.recipientName = nativeEvent.layout.y; }}>
+              <FormField
+                ref={recipientNameRef}
+                label="Nome do destinatário"
+                required
+                value={recipientName}
+                error={recipientNameError}
+                onChangeText={(value) => {
+                  setRecipientName(value);
+                  if (value.trim().length >= 2) setRecipientNameError(undefined);
+                }}
+                placeholder="Nome completo do destinatário"
+              />
+            </View>
+            <View testID="recipient-relationship-field" onLayout={({ nativeEvent }) => { fieldPositions.current.relationship = nativeEvent.layout.y; }}>
+              <FormField
+                ref={relationshipRef}
+                label="Relação com o atendimento"
+                required
+                value={relationship}
+                error={relationshipError}
+                onChangeText={(value) => {
+                  setRelationship(value);
+                  if (value.trim().length >= 2) setRelationshipError(undefined);
+                }}
+                placeholder="Ex.: morador, proprietário ou responsável"
+              />
+            </View>
 
             {outcome === 'acknowledged' ? (
               <>

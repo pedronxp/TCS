@@ -83,6 +83,25 @@ describe('laudoPdfBuilder', () => {
     expect(riskPanels).toHaveLength(1);
   });
 
+  it('atualiza a classificacao gerada de snapshots antigos no novo PDF', async () => {
+    const html = await buildLaudoHtml({
+      id: 'legacy-risk', nivelRisco: 'critico', pontuacaoTotal: 7, endereco: 'Rua', municipio: 'Cidade',
+      dataVistoria: null, agenteNome: 'Agente',
+      calculoRisco: {
+        versaoRegra: 'risco_0_10_v1', escala: { min: 0, max: 10 }, tipoCalculo: 'soma_total',
+        pontuacaoTotal: 7, nivelRisco: 'r4', limites: [], itens: [],
+        regrasCondicionais: [{ id: 'fundacao_inexistente', label: 'Fundação inexistente',
+          descricao: 'Classificar como risco baixo, médio, alto ou crítico.', perguntaId: 'est_q1_inexistente_classificacao_risco',
+          respostaId: 'critico', resposta: 'Risco crítico', efeito: 'Classifica o risco em no mínimo R4.',
+          nivelMinimo: 'r4', pontuacaoMinima: 7,
+        }],
+      },
+    });
+    expect(html).toContain('Resposta do agente:</strong> Risco muito alto');
+    expect(html).toContain('baixo, médio, alto ou muito alto.');
+    expect(html).not.toContain('Risco crítico');
+  });
+
   it('exibe a justificativa técnica do fluxo altura x distância no relatório', async () => {
     const html = await buildLaudoHtml({
       id: 'vistoria-test-justificativa',
@@ -289,7 +308,7 @@ describe('laudoPdfBuilder', () => {
     const html = await buildLaudoHtml({ ...baseLaudo, layout: 'oficio' });
     expect(html).toContain('lx-head');
     expect(html).toContain('Identificação');
-    expect(html).toContain('R4 — Crítico');
+    expect(html).toContain('R4 — Muito alto');
     expect(html).toContain('9,6 pontos');
     expect(html).toContain('data:image/jpeg;base64,');
     expect(html).not.toMatch(/class="risk-panel/);
@@ -309,7 +328,7 @@ describe('laudoPdfBuilder', () => {
     const html = await buildLaudoHtml({ ...baseLaudo, layout: 'resumo' });
     expect(html).toContain('lr-quad');
     expect(html).toContain('lr-addr');
-    expect(html).toContain('R4 — Crítico');
+    expect(html).toContain('R4 — Muito alto');
     expect(html).toContain('Paulo Pedro');
     expect(html).toContain('data:image/jpeg;base64,');
   });

@@ -231,7 +231,7 @@ export default function MasterDashboardScreen() {
         {stats.altoRisco > 0 && (
           <StateBanner
             variant="danger"
-            title={`${stats.altoRisco} ${stats.altoRisco > 1 ? 'alertas críticos globais' : 'alerta crítico global'}`}
+            title={`${stats.altoRisco} ${stats.altoRisco > 1 ? 'alertas globais de risco alto ou muito alto' : 'alerta global de risco alto ou muito alto'}`}
             description="Existem vistorias de alto risco que exigem acompanhamento."
             actionLabel="Ver vistorias"
             onAction={() => router.push('/(panel)/inspecoes')}

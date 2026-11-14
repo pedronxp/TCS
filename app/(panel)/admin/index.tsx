@@ -199,7 +199,7 @@ export default function AdminDashboardScreen() {
         {/* Alerta alto risco */}
         {(kpis[2]?.value || 0) > 0 ? (
           <StateBanner
-            title={`${kpis[2].value} ${kpis[2].value > 1 ? 'alertas críticos' : 'alerta crítico'}`}
+            title={`${kpis[2].value} ${kpis[2].value > 1 ? 'alertas de risco alto ou muito alto' : 'alerta de risco alto ou muito alto'}`}
             description="Vistorias de alto risco requerem atenção imediata."
             variant="danger"
             actionLabel="Ver vistorias"

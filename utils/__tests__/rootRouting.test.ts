@@ -111,6 +111,16 @@ describe('resolveRootRedirect', () => {
     })).toBeNull();
   });
 
+  it('allows a training participant to open acknowledgement before login', () => {
+    expect(resolveRootRedirect({
+      segments: ['(panel)', 'inspecoes', 'ciencia'],
+      onboardingDone: true,
+      isAuthenticated: false,
+      hasTrainingSession: true,
+      hasExpiredTrainingSession: false,
+    })).toBeNull();
+  });
+
   it('keeps the existing operational redirect when training is not active', () => {
     expect(resolveRootRedirect({
       segments: ['(auth)', 'login'],

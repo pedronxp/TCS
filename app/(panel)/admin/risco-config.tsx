@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
+import { normalizarNivelRisco } from '../../../utils/riscoUtils';
 import { supabase } from '../../../utils/supabase';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { AppHeader, Badge, Button, ConfirmSheet, FormField, StateBanner } from '../../../components/ui';
@@ -17,7 +18,7 @@ const DEFAULT_CONFIG = [
   { nivel: 'r1', label: 'Baixo Risco', cor: '#2E7D5A', descricao: 'Monitoramento preventivo', minPontos: 0, maxPontos: 24 },
   { nivel: 'r2', label: 'Risco Médio', cor: '#A66B22', descricao: 'Vistoria técnica necessária', minPontos: 25, maxPontos: 49 },
   { nivel: 'r3', label: 'Risco Alto', cor: '#C45F2A', descricao: 'Laudo de engenheiro obrigatório', minPontos: 50, maxPontos: 74 },
-  { nivel: 'r4', label: 'Risco Crítico', cor: '#B24A4A', descricao: 'Recomendar interdição imediata', minPontos: 75, maxPontos: 9999 },
+  { nivel: 'r4', label: 'Risco muito alto', cor: '#B24A4A', descricao: 'Recomendar interdição imediata', minPontos: 75, maxPontos: 9999 },
 ];
 
 export default function RiscoConfigScreen() {
@@ -40,7 +41,7 @@ export default function RiscoConfigScreen() {
       if (stored) {
         const { config: cachedConfig, timestamp } = JSON.parse(stored) as { config: typeof DEFAULT_CONFIG; timestamp: number };
         if (Date.now() - (timestamp || 0) < CACHE_TTL_MS && Array.isArray(cachedConfig)) {
-          setConfig(cachedConfig);
+          setConfig(cachedConfig.map(item => normalizarNivelRisco(item.nivel) === 'r4' ? { ...item, label: 'Risco muito alto' } : item));
           setSyncStatus('local');
           return;
         }
@@ -53,7 +54,7 @@ export default function RiscoConfigScreen() {
           .eq('municipio', profile.municipio)
           .single();
         if (data?.configuracao) {
-          setConfig(data.configuracao as typeof DEFAULT_CONFIG);
+          setConfig((data.configuracao as typeof DEFAULT_CONFIG).map(item => normalizarNivelRisco(item.nivel) === 'r4' ? { ...item, label: 'Risco muito alto' } : item));
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ config: data.configuracao, timestamp: Date.now() }));
           setSyncStatus('cloud');
         }

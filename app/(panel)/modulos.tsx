@@ -71,6 +71,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
     return [
       { key: 'owner', title: 'Administração global', description: 'Todas as organizações e operações TCS', items: [
         { title: 'Administrar TCS', description: 'Clientes, contas, equipe, assinaturas e auditoria', icon: 'shield', route: '/(panel)/internal/administracao' },
+        { title: 'Gerenciar turmas', description: 'Criar códigos e definir vagas do treinamento', icon: 'book-open', route: '/(panel)/master/treinamentos' },
         { title: 'Qualidade (QE)', description: 'Revisar e devolver vistorias', icon: 'check-square', route: '/(panel)/qe' },
         { title: 'Relatórios', description: 'Consultar documentos técnicos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
       ] },
