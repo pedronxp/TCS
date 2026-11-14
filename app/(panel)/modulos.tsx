@@ -54,6 +54,13 @@ const trainingAccess: ModuleItem = {
   route: '/(panel)/treinamento/acesso',
 };
 
+const trainingManagement: ModuleItem = {
+  title: 'Gerenciar turmas',
+  description: 'Criar salas, códigos e definir vagas do treinamento',
+  icon: 'book-open',
+  route: '/(panel)/master/treinamentos',
+};
+
 const baseOperation: ModuleItem[] = [
   { title: 'Vistorias', description: 'Histórico, evidências e laudos', icon: 'clipboard', route: '/(panel)/inspecoes' },
   { title: 'Mapa tático', description: 'Ocorrências georreferenciadas', icon: 'map-pin', route: '/(panel)/mapas' },
@@ -71,7 +78,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
     return [
       { key: 'owner', title: 'Administração global', description: 'Todas as organizações e operações TCS', items: [
         { title: 'Administrar TCS', description: 'Clientes, contas, equipe, assinaturas e auditoria', icon: 'shield', route: '/(panel)/internal/administracao' },
-        { title: 'Gerenciar turmas', description: 'Criar códigos e definir vagas do treinamento', icon: 'book-open', route: '/(panel)/master/treinamentos' },
+        trainingManagement,
         { title: 'Qualidade (QE)', description: 'Revisar e devolver vistorias', icon: 'check-square', route: '/(panel)/qe' },
         { title: 'Relatórios', description: 'Consultar documentos técnicos', icon: 'file-text', route: '/(panel)/admin/relatorios' },
       ] },
@@ -94,6 +101,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
         description: 'Acesso mobile conforme suas permissões',
         items: [
           { title: 'Painel interno', description: 'Indicadores do seu perfil', icon: 'activity', route: '/(panel)/internal' },
+          ...(role === 'owner' ? [trainingManagement] : []),
           profile,
         ],
       },
@@ -111,7 +119,7 @@ function sectionsForRole(role: string | undefined, permissions: readonly string[
           { title: 'Relatórios', description: 'Consultar laudos disponíveis', icon: 'file-text', route: '/(panel)/admin/relatorios' },
         ],
       },
-      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingAccess, subscription, profile] },
+      { key: 'account', title: 'Conta', description: 'Plano e preferências', items: [trainingManagement, trainingAccess, subscription, profile] },
     ];
   }
 
