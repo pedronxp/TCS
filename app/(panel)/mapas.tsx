@@ -19,7 +19,7 @@ import { hasValidCoordinates, normalizeCoordinatePair } from '../../utils/coordi
 import type { ValidCoordinates } from '../../utils/coordinateUtils';
 import { navSystemBottom } from '../../utils/useBottomTabPadding';
 import { safeBack } from '../../utils/navigationUtils';
-import { resolverApresentacaoRisco } from '../../utils/riscoUtils';
+import { normalizarNivelRisco as normalizeNivel, resolverApresentacaoRisco } from '../../utils/riscoUtils';
 import { matchesInspectionForm } from '../../utils/inspectionFormFilter';
 import { EmptyState, LoadingState } from '../../components/ui';
 import { TCSTheme } from '../../constants/Colors';
@@ -48,7 +48,7 @@ interface AgendamentoMarker {
   status: string;
 }
 
-type FilterKey    = 'todos' | 'alto' | 'medio' | 'baixo';
+type FilterKey    = 'todos' | 'muito_alto' | 'alto' | 'medio' | 'baixo';
 type FilterPeriodo = '7d' | '30d' | 'todos';
 type MapStyle     = 'padrao' | 'satelite' | 'relevo' | 'escuro';
 
@@ -78,7 +78,8 @@ const DARK_MAP_STYLE = [
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'todos', label: 'Todos' },
-  { key: 'alto',  label: 'Alto' },
+  { key: 'muito_alto', label: 'Muito alto' },
+  { key: 'alto', label: 'Alto' },
   { key: 'medio', label: 'Médio' },
   { key: 'baixo', label: 'Baixo' },
 ];
@@ -90,27 +91,11 @@ const FORMULARIO_LABELS: Record<string, string> = {
   avaliacao_arvore_cbmmg_v1: 'Árvores',
 };
 
-// Normaliza níveis legados (alto/medio/baixo → r3/r2/r1)
-function normalizeNivel(nivel: string): string {
-  if (nivel === 'alto')  return 'r3';
-  if (nivel === 'medio') return 'r2';
-  if (nivel === 'baixo') return 'r1';
-  return nivel;
-}
-
 function getRiscoColor(nivel: string, theme: TCSTheme): string {
   const n = normalizeNivel(nivel);
   if (n === 'r4' || n === 'r3') return theme.error;
   if (n === 'r2') return theme.warning;
   return theme.success;
-}
-
-function getRiscoLabel(nivel: string): string {
-  const n = normalizeNivel(nivel);
-  if (n === 'r4') return 'MUITO ALTO';
-  if (n === 'r3') return 'ALTO';
-  if (n === 'r2') return 'MÉDIO';
-  return 'BAIXO';
 }
 
 function getRiscoShortLabel(nivel: string): string {
@@ -599,7 +584,8 @@ export default function MapasScreen() {
   const filteredMarkers = markers.filter(m => {
     if (!matchesInspectionForm(m.formularioId, formularioFilter)) return false;
     const n = normalizeNivel(m.nivelRisco);
-    if (filter === 'alto'  && !(n === 'r3' || n === 'r4')) return false;
+    if (filter === 'muito_alto' && n !== 'r4') return false;
+    if (filter === 'alto' && n !== 'r3') return false;
     if (filter === 'medio' && n !== 'r2') return false;
     if (filter === 'baixo' && n !== 'r1') return false;
     if (filtroPeriodo !== 'todos' && m.dataVistoria) {
@@ -786,7 +772,7 @@ export default function MapasScreen() {
         <View style={[styles.filterRail, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
             {FILTERS.map(f => {
-              const filterColor = f.key === 'alto' ? theme.error : f.key === 'medio' ? theme.warning : f.key === 'baixo' ? theme.success : theme.primary;
+              const filterColor = (f.key === 'alto' || f.key === 'muito_alto') ? theme.error : f.key === 'medio' ? theme.warning : f.key === 'baixo' ? theme.success : theme.primary;
               return (
               <TouchableOpacity
                 key={f.key}
