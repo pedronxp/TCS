@@ -72,7 +72,9 @@ export function PortalBillingPage() {
         : null;
       const errorCode = response?.error ?? providerError?.error;
       if (typeof errorCode === 'string' && errorCode.startsWith('human_verification_')) {
-        setMessage('Não foi possível concluir a verificação de segurança. Confirme a verificação e tente novamente.');
+        setMessage(turnstileEnabled
+          ? 'Não foi possível concluir a verificação de segurança. Confirme a verificação e tente novamente.'
+          : 'A verificação para pagamento está indisponível neste ambiente. Acesse Suporte para renovar seu plano.');
         return;
       }
       setMessage(errorCode === 'payment_provider_not_configured'

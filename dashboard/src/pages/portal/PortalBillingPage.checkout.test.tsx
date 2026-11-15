@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PortalBillingPage, validatedCheckoutUrl } from './PortalBillingPage';
 
-const state = vi.hoisted(() => ({ invoke: vi.fn() }));
+const state = vi.hoisted(() => ({ invoke: vi.fn(), turnstileEnabled: true }));
 vi.mock('@/lib/supabase', () => ({ supabase: { rpc: vi.fn(), functions: { invoke: state.invoke } } }));
 vi.mock('@/contexts/PortalAuthContext', () => ({
   usePortalAuth: () => ({
@@ -16,11 +16,11 @@ vi.mock('@/contexts/PortalAuthContext', () => ({
   }),
 }));
 vi.mock('@/components/auth/TurnstileChallenge', () => ({
-  turnstileEnabled: true,
+  get turnstileEnabled() { return state.turnstileEnabled; },
   TurnstileChallenge: ({ onToken, action }: { onToken: (token: string) => void; action: string }) =>
     <button data-action={action} onClick={() => onToken('qa-proof')}>Verificar pagamento</button>,
 }));
-beforeEach(() => state.invoke.mockReset().mockResolvedValue({ data: { error: 'payment_provider_not_configured' }, error: null }));
+beforeEach(() => { state.turnstileEnabled = true; state.invoke.mockReset().mockResolvedValue({ data: { error: 'payment_provider_not_configured' }, error: null }); });
 afterEach(cleanup);
 
 it('permite renovar o plano vencido após verificação e preserva a operação nas tentativas', async () => {
@@ -52,4 +52,13 @@ it('aceita o checkout pendente do Mercado Pago com valor e identidade validados'
   expect(validatedCheckoutUrl(payload, 14990)).toBe(payload.checkout.checkout_url);
   expect(validatedCheckoutUrl(payload, 15000)).toBeNull();
   expect(validatedCheckoutUrl({ ...payload, checkout: { ...payload.checkout, checkout_url: 'https://www.mercadopago.com.br.evil.example/checkout/v1/redirect' } }, 14990)).toBeNull();
+});
+
+it('orienta a procurar suporte quando o servidor exige verificação ausente na hospedagem', async () => {
+  state.turnstileEnabled = false;
+  state.invoke.mockResolvedValue({ data: { error: 'human_verification_required' }, error: null });
+  render(<PortalBillingPage />);
+  await userEvent.click(screen.getByRole('button', { name: 'Renovar plano' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Acesse Suporte para renovar seu plano');
+  expect(screen.getByRole('alert')).not.toHaveTextContent('tente novamente');
 });
