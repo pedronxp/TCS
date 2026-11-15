@@ -122,8 +122,10 @@ export function parseReportingResult(value: unknown): ReportingResult {
 
 export function toReportingRpcFilters(filters: Filters, now = new Date()): Record<string, string> {
   const daysByPeriod: Record<string, number> = { last_7_days: 6, last_30_days: 29, last_90_days: 89 };
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (daysByPeriod[filters.period] ?? 0)));
-  if (filters.period === 'this_year') from.setUTCMonth(0, 1);
+  const from = new Date(now.getTime());
+  from.setHours(0, 0, 0, 0);
+  from.setDate(from.getDate() - (daysByPeriod[filters.period] ?? 0));
+  if (filters.period === 'this_year') from.setMonth(0, 1);
   const payload: Record<string, string> = { from: from.toISOString(), to: now.toISOString() };
   if (filters.form !== 'all') payload.formId = filters.form;
   if (filters.risk !== 'all') payload.risk = filters.risk;
@@ -174,9 +176,9 @@ export function PortalReportsPage() {
     setExportError(null);
     setExporting(format);
     try {
+      const rows = query.data.rows;
+      const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
       if (format === 'csv') {
-        const rows = query.data.rows;
-        const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
         const quote = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
         const csv = [columns.map(quote).join(';'), ...rows.map((row) => columns.map((column) => quote(row[column])).join(';'))].join('\n');
         const suffix = suffixFromFilters(filters);
@@ -188,8 +190,35 @@ export function PortalReportsPage() {
         anchor.click();
         URL.revokeObjectURL(url);
       } else {
-        // PDF depende de contrato de exportação ainda indisponível.
-        setExportError('A exportação em PDF ainda não está disponível no backend. Use a exportação em CSV ou solicite o endpoint no relatório de pendências.');
+        const popup = window.open('', '_blank');
+        if (!popup) {
+          setExportError('Permita novas janelas neste site para abrir o relatório e salvar em PDF.');
+          return;
+        }
+        popup.opener = null;
+        const escape = (value: unknown) => {
+          const element = document.createElement('span');
+          element.textContent = String(value ?? '');
+          return element.innerHTML;
+        };
+        const range = toReportingRpcFilters(filters);
+        const indicators = query.data.indicators.map((item) =>
+          `<li><strong>${escape(item.label)}</strong> ${escape(formatIndicator(item.value))}</li>`,
+        ).join('');
+        const headers = columns.map((column) => `<th>${escape(humanize(column))}</th>`).join('');
+        const body = rows.map((row) =>
+          `<tr>${columns.map((column) => `<td>${escape(formatCell(row[column]))}</td>`).join('')}</tr>`,
+        ).join('');
+        popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+          <title>TCS - Relatório de indicadores</title>
+          <style>@page{size:A4 landscape;margin:14mm}body{font:12px/1.5 Inter,Arial,sans-serif;color:#172033}h1{font-size:22px}table{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}th,td{border:1px solid #CBD5E1;padding:6px;text-align:left;overflow-wrap:anywhere}th{background:#F8FAFC}tr{break-inside:avoid}thead{display:table-header-group}ul{display:flex;flex-wrap:wrap;gap:24px;list-style:none;padding:0}</style>
+          </head><body><h1>Relatório de indicadores</h1>
+          <p>${escape(access?.organizationName ?? access?.displayName ?? 'TCS')} · ${escape(new Date(range.from).toLocaleDateString('pt-BR'))} a ${escape(new Date(range.to).toLocaleDateString('pt-BR'))}</p>
+          <ul>${indicators}</ul><table><thead><tr>${headers}</tr></thead><tbody>${body}</tbody></table>
+          </body></html>`);
+        popup.document.close();
+        popup.focus();
+        popup.print();
       }
     } catch {
       setExportError('Não foi possível gerar o arquivo. Tente novamente.');
@@ -421,6 +450,8 @@ function suffixFromFilters(filters: Filters) {
 }
 
 function humanize(value: string) {
+  const riskKey = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (['r4', 'critico', 'risco critico', 'muito alto', 'muito_alto', 'risco muito alto'].includes(riskKey)) return 'Muito alto';
   const normalized = value.replace(/_/g, ' ');
   return normalized.charAt(0).toLocaleUpperCase('pt-BR') + normalized.slice(1);
 }

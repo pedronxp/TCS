@@ -1,4 +1,4 @@
-import { WHATSAPP_ENABLED } from '@/config/modules';
+import { AI_ENABLED, WHATSAPP_ENABLED } from '@/config/modules';
 import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -36,7 +36,7 @@ export function ProtectedRoute({ children, requirePermission }: Props) {
     );
   }
   if (!isAuthorized) return <Navigate to="/login" replace state={{ from: location }} />;
-  if (!WHATSAPP_ENABLED && requirePermission?.startsWith('whatsapp.')) {
+  if ((!WHATSAPP_ENABLED && requirePermission?.startsWith('whatsapp.')) || (!AI_ENABLED && requirePermission?.startsWith('ia.'))) {
     return <Navigate to="/app" replace />;
   }
   if (permissionDenied) {

@@ -136,4 +136,17 @@ describe('Suporte do portal municipal', () => {
     // nota interna jamais aparece no portal do cliente
     expect(screen.queryByText('Nota interna confidencial da equipe.')).not.toBeInTheDocument();
   });
+  it('traduz a situação, identifica eventos sem mensagem e permite fechar o detalhe', async () => {
+    const user = userEvent.setup();
+    state.tickets.items[0].status = 'in_progress';
+    state.eventsError = false;
+    state.events = [{ id: 'qa-event', visibility: 'shared', message: null, created_at: '2026-08-01T10:00:00Z' }];
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /Ver detalhes de/ }));
+    expect(screen.getAllByText('Em atendimento').length).toBeGreaterThan(0);
+    expect(screen.getByText('Atualização do atendimento')).toBeVisible();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
 });

@@ -18,6 +18,14 @@ type PortalRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{
 
 type SupportTicket = Record<string, unknown>;
 
+const statusLabels: Record<string, string> = {
+  open: 'Aberto',
+  in_progress: 'Em atendimento',
+  waiting_customer: 'Aguardando sua resposta',
+  resolved: 'Resolvido',
+  closed: 'Encerrado',
+};
+
 const priorityLabels: Record<string, string> = {
   low: 'Baixa',
   normal: 'Normal',
@@ -115,7 +123,7 @@ export function PortalSupportPage() {
             {query.data?.items.map((item) => {
               const ticket = item as SupportTicket;
               const title = ticketText(ticket.title, 'Chamado sem assunto');
-              return <li key={String(ticket.id)} className="py-4"><button type="button" className="flex w-full items-start justify-between gap-4 rounded-lg text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedTicket(ticket)} aria-label={`Ver detalhes de ${title}`}><div className="min-w-0"><p className="truncate text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-muted-foreground">{ticketText(ticket.subtitle, 'Sem protocolo')} · {categoryLabel(ticket.category)}</p><p className="mt-2 text-xs text-muted-foreground">Prioridade {priorityLabel(ticket.priority)} · {formatTicketDate(ticket.created_at)}</p></div><Badge>{ticketText(ticket.status, 'open')}</Badge></button></li>;
+              return <li key={String(ticket.id)} className="py-4"><button type="button" className="flex w-full items-start justify-between gap-4 rounded-lg text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedTicket(ticket)} aria-label={`Ver detalhes de ${title}`}><div className="min-w-0"><p className="truncate text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-muted-foreground">{ticketText(ticket.subtitle, 'Sem protocolo')} · {categoryLabel(ticket.category)}</p><p className="mt-2 text-xs text-muted-foreground">Prioridade {priorityLabel(ticket.priority)} · {formatTicketDate(ticket.created_at)}</p></div><Badge>{statusLabel(ticket.status)}</Badge></button></li>;
             })}
           </ul>
           {query.data?.items.length === 0 && <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhum chamado aberto.</p>}
@@ -127,7 +135,7 @@ export function PortalSupportPage() {
             <DialogTitle>{ticketText(selectedTicket?.title, 'Chamado')}</DialogTitle>
             <DialogDescription>{ticketText(selectedTicket?.subtitle, 'Sem protocolo')}</DialogDescription>
           </DialogHeader>
-          {selectedTicket && <div className="space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-2"><TicketInfo label="Status" value={ticketText(selectedTicket.status, 'Em aberto')} /><TicketInfo label="Prioridade" value={priorityLabel(selectedTicket.priority)} /><TicketInfo label="Categoria" value={categoryLabel(selectedTicket.category)} /><TicketInfo label="Criado em" value={formatTicketDate(selectedTicket.created_at)} /></div><div className="rounded-lg border bg-muted/30 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Descrição</p><p className="mt-2 whitespace-pre-wrap leading-6 text-foreground">{ticketText(selectedTicket.description, 'Nenhuma descrição disponível.')}</p></div><PublicResponseTimeline ticketId={String(selectedTicket.id ?? '')} /></div>}
+          {selectedTicket && <div className="space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-2"><TicketInfo label="Status" value={statusLabel(selectedTicket.status)} /><TicketInfo label="Prioridade" value={priorityLabel(selectedTicket.priority)} /><TicketInfo label="Categoria" value={categoryLabel(selectedTicket.category)} /><TicketInfo label="Criado em" value={formatTicketDate(selectedTicket.created_at)} /></div><div className="rounded-lg border bg-muted/30 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Descrição</p><p className="mt-2 whitespace-pre-wrap leading-6 text-foreground">{ticketText(selectedTicket.description, 'Nenhuma descrição disponível.')}</p></div><PublicResponseTimeline ticketId={String(selectedTicket.id ?? '')} /></div>}
         </DialogContent>
       </Dialog>
     </div>
@@ -136,6 +144,11 @@ export function PortalSupportPage() {
 
 function ticketText(value: unknown, fallback: string) {
   return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function statusLabel(value: unknown) {
+  const key = ticketText(value, 'open');
+  return statusLabels[key] ?? key;
 }
 
 function priorityLabel(value: unknown) {
@@ -233,7 +246,7 @@ function PublicResponseTimeline({ ticketId }: { ticketId: string }) {
               return (
                 <li key={String(event.id)} className="rounded-md border bg-muted/30 p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-medium text-foreground">Resposta do suporte</p>
+                    <p className="text-xs font-medium text-foreground">{message ? 'Resposta do suporte' : 'Atualização do atendimento'}</p>
                     <time className="text-xs text-muted-foreground">{createdAt}</time>
                   </div>
                   {message && <p className="mt-1 whitespace-pre-wrap leading-6 text-foreground">{message}</p>}

@@ -21,6 +21,6 @@ it.each(['internal', 'organization'] as const)('keeps disabled WhatsApp hidden w
 });
 
 it.each(['owner', 'developer'] as const)('omits WhatsApp even with permission for %s', role => {
-  const links = resolveNavigation(role, ['console.read', 'whatsapp.read']).flatMap(group => group.items);
-  expect(links.some(link => link.to.startsWith('/app/whatsapp'))).toBe(false);
+  const links = resolveNavigation(role, ['console.read', 'whatsapp.read', 'ia.read']).flatMap(group => group.items);
+  expect(links.some(link => link.to.startsWith('/app/whatsapp') || link.to.startsWith('/app/ia'))).toBe(false);
 });

@@ -1,3 +1,4 @@
+import { WHATSAPP_ENABLED } from '@/config/modules';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, ChevronRight } from 'lucide-react';
@@ -21,7 +22,7 @@ export function ConsoleComunicadosPage() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Operação TCS</p>
         <h1 className="mt-2 text-3xl font-semibold">Comunicados e comunidades</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Escolha a prefeitura para operar números do bot, comunidades, disparos e acompanhar entregas.
+          Escolha a prefeitura para criar comunicados e acompanhar as publicações no app e no portal.
         </p>
       </header>
 
@@ -54,8 +55,8 @@ export function ConsoleComunicadosPage() {
                   <span className="min-w-0">
                     <span className="block break-words text-sm font-semibold">{item.organizationName}</span>
                     <span className="mt-1 block text-xs text-muted-foreground">
-                      {item.municipality ?? '—'} · {item.numerosVinculados} nº vinculado{item.numerosVinculados === 1 ? '' : 's'}
-                      {' · '}{item.comunidadesAtivas} comunidade{item.comunidadesAtivas === 1 ? '' : 's'}
+                      {item.municipality ?? '—'}
+                      {WHATSAPP_ENABLED && <> · {item.numerosVinculados} nº vinculado{item.numerosVinculados === 1 ? '' : 's'}{' · '}{item.comunidadesAtivas} comunidade{item.comunidadesAtivas === 1 ? '' : 's'}</>}
                       {' · '}{item.comunicadosPublicados} publicado{item.comunicadosPublicados === 1 ? '' : 's'}
                       {item.enviosPendentes > 0 ? ` · ${item.enviosPendentes} na fila` : ''}
                       {item.enviosFalhas > 0 ? ` · ${item.enviosFalhas} falha${item.enviosFalhas === 1 ? '' : 's'}` : ''}

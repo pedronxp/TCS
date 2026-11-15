@@ -76,6 +76,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 function renderPage() {
@@ -90,6 +92,16 @@ describe('relatórios e estatísticas municipais', () => {
   it('apresenta o risco legado como muito alto na distribuição', () => {
     const result = reportsModule.parseReportingResult({ volume: 1, risk: { breakdown: [{ risk: 'crítico', count: 1 }] } });
     expect(result.charts[0].series).toEqual([{ label: 'Muito alto', value: 1 }]);
+  });
+
+  it('resolve o início do ano pelo calendário local de São Paulo', () => {
+    vi.stubEnv('TZ', 'America/Sao_Paulo');
+    const result = reportsModule.toReportingRpcFilters(
+      { period: 'this_year', form: 'all', risk: 'all', neighborhood: 'all', team: 'all' },
+      new Date('2027-01-01T01:00:00Z'),
+    );
+    expect(result.from).toBe('2026-01-01T03:00:00.000Z');
+    expect(result.to).toBe('2027-01-01T01:00:00.000Z');
   });
 
   it('adapta o contrato autoritativo do relatório sem inventar indicadores ou linhas', () => {
@@ -142,7 +154,7 @@ describe('relatórios e estatísticas municipais', () => {
       teamMemberId: 'agent-1',
       to: '2026-08-20T12:00:00.000Z',
     });
-    expect(payload.from).toBe('2026-08-14T00:00:00.000Z');
+    expect(payload.from).toBe(new Date(2026, 7, 14).toISOString());
     expect(payload).not.toHaveProperty('status');
   });
 
@@ -208,15 +220,31 @@ describe('relatórios e estatísticas municipais', () => {
     clickSpy.mockRestore();
   });
 
-  it('avisa que a exportação em PDF ainda não está disponível', () => {
+  it('abre o PDF do recorte com dados seguros para impressão', () => {
+    const printable = document.implementation.createHTMLDocument();
+    const print = vi.fn();
+    vi.spyOn(window, 'open').mockReturnValue({ document: printable, print, focus: vi.fn(), opener: window } as unknown as Window);
     state.queryData = {
-      indicators: [],
-      rows: [{ id: '1', protocol: 'TCS-001', status: 'completed' }],
+      indicators: [{ key: 'total', label: 'Vistorias', value: 1 }],
+      rows: [{ protocol: '<img src=x onerror=alert(1)>', riskLevel: 'crítico', status: 'completed' }],
       charts: [],
     };
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/i }));
-    expect(screen.getByRole('alert')).toHaveTextContent('A exportação em PDF ainda não está disponível');
+    expect(print).toHaveBeenCalledOnce();
+    expect(printable.querySelector('h1')?.textContent).toBe('Relatório de indicadores');
+    expect(printable.body.textContent).toContain('Vistorias 1');
+    expect(printable.querySelector('img')).toBeNull();
+    expect(printable.body.textContent).toContain('Muito alto');
+    expect(printable.querySelector('td')?.textContent).toContain('<img');
+  });
+
+  it('oferece recuperação quando o navegador bloqueia a janela do PDF', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    state.queryData = { indicators: [], rows: [{ protocol: 'TCS-001' }], charts: [] };
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/i }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Permita novas janelas');
   });
 
   it('desabilita exportação quando a assinatura bloqueia a criação', () => {
