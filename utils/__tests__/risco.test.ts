@@ -10,6 +10,7 @@ import {
   parseCalculoRiscoSnapshot,
   riscoColor,
   riscoLabel,
+  resolverApresentacaoRisco,
 } from '../riscoUtils';
 
 const calcularNivelRisco = calcularNivelRiscoPorPontuacao;
@@ -385,6 +386,10 @@ describe('calcularRiscoFormulario', () => {
     expect(calculo.nivelRisco).toBe(nivel);
     expect(calculo.regrasCondicionais?.[0].perguntaId).toBe(classificacaoId);
     expect(calculo.regrasCondicionais?.[0].respostaId).toBe(classificacao);
+    if (classificacao === 'critico') {
+      expect(calculo.regrasCondicionais?.[0].resposta).toBe('Risco muito alto');
+      expect(calculo.regrasCondicionais?.[0].descricao).toContain('alto ou muito alto');
+    }
     expect(calculo.regrasCondicionais?.[0].justificativa).toContain('Evidencia opcional');
     expect(parseCalculoRiscoSnapshot(JSON.stringify(calculo))?.regrasCondicionais?.[0].nivelMinimo).toBe(nivel);
   });
@@ -412,8 +417,25 @@ describe('normalizacao e formatacao', () => {
   it('normaliza aliases e acentos antes de exibir label/cor', () => {
     expect(normalizarNivelRisco('Medio')).toBe('r2');
     expect(normalizarNivelRisco('alto')).toBe('r3');
-    expect(riscoLabel('critico')).toBe('CRÍTICO');
+    expect(riscoLabel('critico')).toBe('MUITO ALTO');
     expect(riscoColor('baixo')).toBe('#10B981');
+  });
+
+  it.each(['r4', 'critico', 'Crítico', 'muito_alto', 'Muito alto', 'risco muito alto'])('exibe %s como muito alto mantendo R4 e sua cor', (alias) => {
+    expect(normalizarNivelRisco(alias)).toBe('r4');
+    expect(riscoLabel(alias)).toBe('MUITO ALTO');
+    expect(riscoColor(alias)).toBe('#DC2626');
+  });
+
+  it('atualiza o rotulo legado do snapshot sem perder a metodologia ou a cor', () => {
+    const apresentacao = resolverApresentacaoRisco({ calculoRisco: {
+      versaoRegra: 'risco_0_10_v1', escala: { min: 0, max: 10 }, tipoCalculo: 'soma_total',
+      pontuacaoTotal: 8, nivelRisco: 'r4', limites: [], itens: [],
+      resultadoCodigo: 'r4', resultadoLabel: 'Crítico', resultadoCor: '#DC2626',
+    } });
+    expect(apresentacao.label).toBe('MUITO ALTO');
+    expect(apresentacao.codigo).toBe('r4');
+    expect(apresentacao.cor).toBe('#DC2626');
   });
 
   it('formata pontuacao decimal em padrao pt-BR simples', () => {

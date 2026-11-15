@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 
 export default defineConfig({
   plugins: [react()],
@@ -14,7 +15,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    fs: { allow: [path.resolve(__dirname, '..')] },
+    fs: { allow: [path.resolve(__dirname, '..'), realpathSync(path.resolve(__dirname, 'node_modules'))] },
   },
   // O web worker do maplibre-gl v6 não sobrevive ao dep optimizer do dev
   // server (maplibre-gl-worker.mjs ausente no cache), quebrando os testes

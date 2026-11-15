@@ -68,6 +68,16 @@ export default function WelcomeScreen() {
             </Button>
           </View>
 
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            onPress={() => router.push('/(auth)/treinamento')}
+            iconLeft={<Feather name="book-open" size={19} color={theme.primary} />}
+          >
+            Sala de treinamento
+          </Button>
+
           <Card
             variant="variant"
             style={styles.previewCard}

@@ -128,7 +128,7 @@ export function ComunicadoMessageField({ label, value, onChange }: ComunicadoMes
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Use emojis, quebras de linha e *negrito* para deixar o aviso mais claro no WhatsApp.
+        Use emojis, quebras de linha e *negrito* para destacar informações na mensagem.
       </p>
     </div>
   );

@@ -305,6 +305,7 @@ async function fulfillApi(route: Route, role: InternalRole) {
 }
 
 export async function installAuthenticatedFixture(page: Page, role: InternalRole) {
+  await page.clock.setFixedTime(new Date('2026-10-12T18:00:00Z'));
   await page.addInitScript((storedSession) => {
     window.localStorage.setItem('tcs-dashboard-auth', JSON.stringify(storedSession));
   }, session());

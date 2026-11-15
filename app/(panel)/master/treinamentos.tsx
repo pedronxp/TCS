@@ -363,7 +363,7 @@ export default function MasterTreinamentosScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: theme.primary, opacity: creating ? 0.7 : 1 }]} onPress={criarTurma} disabled={creating}>
                 {creating ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="check" size={18} color="#FFF" />}
-                <Text style={styles.saveBtnText}>Criar token</Text>
+                <Text style={styles.saveBtnText}>Criar turma</Text>
               </TouchableOpacity>
             </View>
           </View>

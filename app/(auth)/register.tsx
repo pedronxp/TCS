@@ -16,11 +16,25 @@ import { Card, Button } from '../../components/ui';
 import { ProductIdentity } from '../../components/brand';
 import { TurnstileChallenge } from '../../components/TurnstileChallenge';
 import { getTurnstileConfiguration } from '../../services/TurnstileService';
+import { SignupOrganizationPicker, type SignupOrganization } from '../../components/auth/SignupOrganizationPicker';
+import { ownerActionError } from '../../services/OwnerAdministrationService';
 import { TCSPalette } from '../../constants/Colors';
+
+function signupError(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : (cause as { message?: string })?.message || 'Não foi possível concluir. Tente novamente.';
+  const messages: Record<string, string> = {
+    invitation_organization_mismatch: 'Este token não pertence à organização selecionada. Volte e confira a organização ou o código.',
+    organization_unavailable: 'Esta organização não está habilitada. Fale com o responsável pelo convite.',
+    invalid_invitation: 'Convite inválido, vencido, revogado ou já utilizado. Solicite outro ao responsável.',
+    invalid_or_expired_signup_claim: 'A confirmação do token venceu. Tente novamente para verificar o código.',
+    'Database error saving new user': 'Não foi possível concluir o cadastro. O convite pode ter mudado ou sido usado. Tente novamente para verificar sua situação.',
+  };
+  return messages[message] || ownerActionError(new Error(traduzirErroAuth(message) || message));
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatarToken = (t: string) => {
-  const l = t.replace(/[^A-Z0-9]/g, '').toUpperCase();
+  const l = t.toUpperCase().replace(/[^A-Z0-9]/g, '');
   return (l.match(/.{1,4}/g) || []).join('-').substring(0, 14);
 };
 
@@ -82,17 +96,10 @@ const LGPD_SECTIONS = [
 
 // ─── Tipo de etapa ────────────────────────────────────────────────────────────
 type Etapa = 'form' | 'termos' | 'permissoes' | 'sucesso';
-type AccountKind = 'individual' | 'municipal';
+type AccountKind = 'individual' | 'individual_token' | 'municipal';
 
 // ─── Permissão helper ─────────────────────────────────────────────────────────
 type PermStatus = 'pendente' | 'concedida' | 'negada';
-
-interface TokenValidationResult {
-  valido: boolean;
-  motivo?: string;
-  municipio?: string;
-  expiraEm?: string | null;
-}
 
 interface SignupInviteClaimResult {
   signup_claim_nonce: string;
@@ -105,6 +112,10 @@ export default function RegisterScreen() {
 
   // Etapa atual
   const [etapa, setEtapa] = useState<Etapa>('form');
+  const [organization, setOrganization] = useState<SignupOrganization | null>(null);
+  const [individualToken, setIndividualToken] = useState('');
+  const [accessSummary, setAccessSummary] = useState('');
+  const signupLock = useRef(false);
   const [accountKind, setAccountKind] = useState<AccountKind>('individual');
 
   // Dados do formulário
@@ -118,23 +129,12 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword]     = useState(false);
   const [showConfirm, setShowConfirm]       = useState(false);
 
-  // Dados validados do token (guardados para o submit final)
-  const tokenDataRef = useRef<any>(null);
-  const codigoNormRef = useRef('');
-
   // Estado de loading/erro
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstile = useMemo(() => getTurnstileConfiguration(), []);
-
-  // Verificação inline de token
-  type TokenStatus =
-    | null
-    | 'checking'
-    | { valido: true; municipio: string; expiraEm: string | null }
-    | { valido: false; motivo: string };
-  const [tokenStatus, setTokenStatus] = useState<TokenStatus>(null);
 
   // Verificação inline de e-mail já cadastrado
   const [checkingEmail, setCheckingEmail]       = useState(false);
@@ -147,35 +147,6 @@ export default function RegisterScreen() {
   // Permissões
   const [permCamera, setPermCamera]           = useState<PermStatus>('pendente');
   const [permLocalizacao, setPermLocalizacao] = useState<PermStatus>('pendente');
-
-  // ── Verificar token inline ───────────────────────────────────────────────
-  const verificarToken = async (valor: string) => {
-    const codigoNorm = valor.trim().toUpperCase().replace(/\s/g, ''); // mantém traços — banco armazena com traços
-    if (codigoNorm.length < 14) return; // XXXX-XXXX-XXXX = 14 chars
-    setTokenStatus('checking');
-    tokenDataRef.current = null;
-    codigoNormRef.current = '';
-    try {
-      const { data: rawData, error: valError } = await supabase
-        .rpc('validate_invite_token', { p_codigo: codigoNorm })
-        .single();
-      const data = rawData as TokenValidationResult | null;
-      if (valError || !data) {
-        setTokenStatus({ valido: false, motivo: 'Token inválido ou já utilizado.' });
-        return;
-      }
-      if (!data.valido) {
-        setTokenStatus({ valido: false, motivo: data.motivo || 'Token inválido.' });
-        return;
-      }
-      // Cachear para o submit final
-      tokenDataRef.current = data;
-      codigoNormRef.current = codigoNorm;
-      setTokenStatus({ valido: true, municipio: data.municipio || '', expiraEm: data.expiraEm || null });
-    } catch {
-      setTokenStatus({ valido: false, motivo: 'Não foi possível verificar o token.' });
-    }
-  };
 
   // ── Verificar e-mail já cadastrado (onBlur) ─────────────────────────────
   // IMPORTANTE: verifica em AMBOS os lugares — public.users (app) e auth.users
@@ -218,6 +189,8 @@ export default function RegisterScreen() {
       setError('As senhas não coincidem. Verifique e tente novamente.');
       return;
     }
+    if (accountKind === 'municipal' && !organization) { setError('Selecione a organização que enviou o convite.'); return; }
+    if (accountKind === 'individual_token' && !/^IND-[A-F0-9]{32}$/i.test(individualToken.trim())) { setError('Cole a chave individual completa, começando com IND-.'); return; }
     if (accountKind === 'municipal' && token.trim().length !== 14) {
       setError('O convite municipal é obrigatório para este tipo de acesso.');
       return;
@@ -226,29 +199,18 @@ export default function RegisterScreen() {
     setLoading(true);
     setError(null);
     try {
-      let tokenData = tokenDataRef.current;
-      const codigoNorm = accountKind === 'municipal'
-        ? token.trim().toUpperCase().replace(/\s/g, '')
-        : '';
-
-      // Convites antigos permanecem opcionais durante a janela de
-      // compatibilidade. Sem convite, a identidade nasce neutra e segue para
-      // a escolha individual/organização no onboarding server-side.
-      if (accountKind === 'municipal' && codigoNorm && !tokenData) {
-        const { data: rawData2, error: valError } = await supabase
-          .rpc('validate_invite_token', { p_codigo: codigoNorm })
-          .single();
-        const data = rawData2 as TokenValidationResult | null;
-        if (valError || !data) throw new Error('Token inválido ou já utilizado.');
-        if (!data.valido) throw new Error(data.motivo);
-        tokenData = data;
-        tokenDataRef.current = data;
-        codigoNormRef.current = codigoNorm;
-      }
-
+      if (accountKind === 'individual_token') {
+        const { data, error: claimError } = await supabase.rpc('prepare_individual_key_signup', { p_code: individualToken.trim().toUpperCase(), p_email: email.trim().toLowerCase() });
+        if (claimError || !data?.individual_signup_nonce) throw new Error(claimError?.message || 'key_unavailable');
+        setAccessSummary(`Conta individual: ${data.access_days} dias de acesso a partir da criação, sem cobrança automática por esta chave.`);
+      } else if (accountKind === 'municipal') {
+        const { error: claimError } = await supabase.rpc('prepare_organization_token_signup', { p_codigo: token.trim().toUpperCase(), p_email: email.trim().toLowerCase(), p_organization_id: organization?.id });
+        if (claimError) throw claimError;
+        setAccessSummary(`Acesso vinculado a ${organization?.name}. As permissões são definidas pelo convite.`);
+      } else setAccessSummary('Conta individual sem token. A contratação do plano é feita após o cadastro.');
       setEtapa('termos');
     } catch (e: any) {
-      setError(traduzirErroAuth(e.message) || 'Erro ao validar token.');
+      setError(signupError(e));
     } finally {
       setLoading(false);
     }
@@ -282,27 +244,21 @@ export default function RegisterScreen() {
       setError('Conclua a verificação de segurança antes de criar sua conta.');
       return;
     }
+    if (signupLock.current) return;
+    signupLock.current = true;
     setLoading(true);
     setError(null);
     try {
-      const tokenData = tokenDataRef.current;
-      const codigoNorm = codigoNormRef.current;
-
       let claim: SignupInviteClaimResult | null = null;
-      if (codigoNorm) {
-        // Troca o código legado por um claim opaco e curto. Papel, município,
-        // organização e aprovação permanecem exclusivamente no servidor.
-        const { data: rawClaim, error: claimError } = await supabase.rpc(
-          'prepare_legacy_invite_signup',
-          {
-            p_codigo: codigoNorm,
-            p_email: email.trim().toLowerCase(),
-          },
-        );
-        claim = rawClaim as SignupInviteClaimResult | null;
-        if (claimError || !claim?.signup_claim_nonce) {
-          throw new Error('Token de convite inválido, expirado ou incompatível com este e-mail. Solicite um novo convite.');
-        }
+      let individualNonce: string | null = null;
+      if (accountKind === 'individual_token') {
+        const { data, error: claimError } = await supabase.rpc('prepare_individual_key_signup', { p_code: individualToken.trim().toUpperCase(), p_email: email.trim().toLowerCase() });
+        if (claimError || !data?.individual_signup_nonce) throw new Error(claimError?.message || 'key_unavailable');
+        individualNonce = data.individual_signup_nonce;
+      } else if (accountKind === 'municipal') {
+        const { data, error: claimError } = await supabase.rpc('prepare_organization_token_signup', { p_codigo: token.trim().toUpperCase(), p_email: email.trim().toLowerCase(), p_organization_id: organization?.id });
+        if (claimError || !data?.signup_claim_nonce) throw new Error(claimError?.message || 'invalid_invitation');
+        claim = data;
       }
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -311,6 +267,7 @@ export default function RegisterScreen() {
         options: {
           ...(captchaToken ? { captchaToken } : {}),
           data: {
+            ...(individualNonce ? { individual_signup_nonce: individualNonce } : {}),
             name: nome,
             username: email.split('@')[0],
             phone: telefone ? `+55${telefone.replace(/\D/g, '')}` : null,
@@ -346,8 +303,10 @@ export default function RegisterScreen() {
       await supabase.auth.signOut();
       setEtapa('sucesso');
     } catch (e: any) {
-      setError(traduzirErroAuth(e.message) || 'Erro ao registrar.');
+      setCaptchaToken(null); setCaptchaAttempt(value => value + 1);
+      setError(signupError(e));
     } finally {
+      signupLock.current = false;
       setLoading(false);
     }
   };
@@ -366,7 +325,7 @@ export default function RegisterScreen() {
                 Conta criada com sucesso!
               </Text>
               <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 22 }}>
-                Sua identidade foi verificada. Você já pode fazer login com suas credenciais.
+                {accountKind === 'individual' ? 'Conta criada. Confirme seu e-mail, se solicitado, e entre para continuar a contratação do plano.' : 'Conta criada com o token vinculado. Confirme seu e-mail, se solicitado, e entre. Convites administrativos podem depender de aprovação da organização.'}
               </Text>
               <Button variant="primary" onPress={() => router.replace('/(auth)/login')} style={{ marginTop: 24 }}>
                 Ir para o Login
@@ -490,7 +449,8 @@ export default function RegisterScreen() {
         <View style={[styles.termosHeader, { backgroundColor: theme.surfaceHighlight, borderBottomColor: theme.border }]}>
           <TouchableOpacity
             style={[styles.backButton, { backgroundColor: theme.iconBackground, borderColor: theme.border }]}
-            onPress={() => setEtapa('form')}
+            disabled={loading}
+            onPress={() => { setError(null); setEtapa('form'); }}
           >
             <Feather name="arrow-left" color={theme.textSecondary} size={24} />
           </TouchableOpacity>
@@ -511,6 +471,7 @@ export default function RegisterScreen() {
           }}
           scrollEventThrottle={16}
         >
+          <View style={[styles.termosSection, { padding: 16, borderWidth: 1, borderRadius: 12, borderColor: theme.border }]}><Text style={{ color: theme.text, fontWeight: '700' }}>Seu acesso</Text><Text style={{ color: theme.textSecondary, marginTop: 8 }}>{accessSummary}</Text></View>
           {LGPD_SECTIONS.map((s, i) => (
             <View key={i} style={styles.termosSection}>
               <Text style={[styles.termosTitulo, { color: theme.text }]}>{s.titulo}</Text>
@@ -552,21 +513,21 @@ export default function RegisterScreen() {
 
           {turnstile.enabled ? (
             <View style={{ marginBottom: 12 }}>
-              <TurnstileChallenge configuration={turnstile} onToken={setCaptchaToken} />
-              {error ? <ErrorBox msg={error} /> : null}
+              <TurnstileChallenge key={captchaAttempt} configuration={turnstile} onToken={setCaptchaToken} />
             </View>
           ) : null}
 
+          {error ? <ErrorBox msg={error} /> : null}
           <TouchableOpacity
             style={[
               styles.btnAceitar,
               { backgroundColor: termosAceitos ? theme.primary : theme.border },
             ]}
             onPress={handleAceitarTermos}
-            disabled={!termosAceitos}
+            disabled={!termosAceitos || loading}
           >
             <Text style={[styles.btnAceitarText, { color: termosAceitos ? theme.onPrimary : theme.textSecondary }]}>
-              Aceitar e Continuar
+              {loading ? 'Criando conta…' : 'Aceitar e criar conta'}
             </Text>
             <Feather name="arrow-right" size={17} color={termosAceitos ? theme.onPrimary : theme.textSecondary} />
           </TouchableOpacity>
@@ -596,7 +557,7 @@ export default function RegisterScreen() {
             <ProductIdentity variant="compact" />
             <Text style={[styles.title, { color: theme.text }]}>Criar conta</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Escolha uma conta profissional ou use o convite recebido da sua prefeitura.
+              Escolha como vai usar o aplicativo: por conta própria ou pela sua organização.
             </Text>
           </View>
 
@@ -607,26 +568,26 @@ export default function RegisterScreen() {
                 onPress={() => {
                   setAccountKind('individual');
                   setToken('');
-                  setTokenStatus(null);
-                  tokenDataRef.current = null;
-                  codigoNormRef.current = '';
                   setError(null);
                 }}
               >
                 <Feather name="user" size={21} color={theme.primary} />
                 <Text style={[styles.accountChoiceTitle, { color: theme.text }]}>Conta profissional</Text>
-                <Text style={[styles.accountChoiceText, { color: theme.textSecondary }]}>Não exige token.</Text>
+                <Text style={[styles.accountChoiceText, { color: theme.textSecondary }]}>Sem token: contratar plano após o cadastro.</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[styles.accountChoice, { borderColor: accountKind === 'individual_token' ? theme.primary : theme.border, backgroundColor: theme.surfaceHighlight }]} onPress={() => { setAccountKind('individual_token'); setError(null); }}><Feather name="key" size={21} color={theme.primary} /><Text style={[styles.accountChoiceTitle, { color: theme.text }]}>Individual com token</Text><Text style={[styles.accountChoiceText, { color: theme.textSecondary }]}>Criar conta com o acesso já liberado.</Text></TouchableOpacity>
               <TouchableOpacity
                 style={[styles.accountChoice, { borderColor: accountKind === 'municipal' ? theme.primary : theme.border, backgroundColor: theme.surfaceHighlight }]}
                 onPress={() => { setAccountKind('municipal'); setError(null); }}
               >
                 <Feather name="briefcase" size={21} color={theme.primary} />
-                <Text style={[styles.accountChoiceTitle, { color: theme.text }]}>Acesso municipal</Text>
+                <Text style={[styles.accountChoiceTitle, { color: theme.text }]}>Pela minha organização</Text>
                 <Text style={[styles.accountChoiceText, { color: theme.textSecondary }]}>Requer convite da organização.</Text>
               </TouchableOpacity>
             </View>
 
+            {accountKind === 'individual_token' ? <View style={styles.fieldGroup}><Text style={[styles.label, { color: theme.textSecondary }]}>Token individual recebido</Text><TextInput accessibilityLabel="Token individual" value={individualToken} onChangeText={value => { setIndividualToken(value.toUpperCase().replace(/\s/g, '')); setError(null); }} placeholder="IND-…" placeholderTextColor={theme.textSecondary} autoCapitalize="characters" autoCorrect={false} maxLength={36} style={[styles.inputContainer, { color: theme.text, padding: 16, borderColor: theme.border, backgroundColor: theme.surfaceHighlight }]} /><Text style={{ color: theme.textSecondary }}>O token é validado antes de continuar e usado somente quando a conta for criada.</Text></View> : null}
+            {accountKind === 'municipal' ? <SignupOrganizationPicker value={organization} onChange={value => { setOrganization(value); setToken(''); setError(null); }} /> : null}
             {/* Token */}
             {accountKind === 'municipal' && <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Convite municipal</Text>
@@ -634,11 +595,7 @@ export default function RegisterScreen() {
                 styles.inputContainer,
                 {
                   backgroundColor: theme.surfaceHighlight,
-                  borderColor:
-                    tokenStatus === 'checking' ? theme.border
-                    : tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido ? theme.success
-                    : tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido ? theme.error
-                    : theme.border,
+                  borderColor: theme.border,
                 },
               ]}>
                 <Feather name="key" color={theme.textSecondary} size={20} style={styles.inputIcon} />
@@ -650,53 +607,13 @@ export default function RegisterScreen() {
                   onChangeText={t => {
                     const formatted = formatarToken(t);
                     setToken(formatted);
-                    setTokenStatus(null);
-                    tokenDataRef.current = null;
-                    // Dispara assim que o token estiver completo (14 chars com traços)
-                    if (formatted.length === 14) verificarToken(formatted);
                   }}
-                  onBlur={() => { if (token.length > 0 && tokenStatus === null) verificarToken(token); }}
                   autoCapitalize="characters"
                 />
-                {tokenStatus === 'checking' && (
-                  <Feather name="loader" size={16} color={theme.textSecondary} style={{ marginRight: 12 }} />
-                )}
-                {tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido && (
-                  <Feather name="check-circle" size={16} color={theme.success} style={{ marginRight: 12 }} />
-                )}
-                {tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido && (
-                  <Feather name="x-circle" size={16} color={theme.error} style={{ marginRight: 12 }} />
-                )}
               </View>
-
-              {/* Card de confirmação do token */}
-              {tokenStatus && typeof tokenStatus === 'object' && tokenStatus.valido && (
-                <View style={[styles.tokenCard, { backgroundColor: theme.successLight, borderColor: theme.success }]}>
-                  <View style={styles.tokenCardRow}>
-                    <Feather name="map-pin" size={13} color={theme.success} />
-                    <Text style={[styles.tokenCardLabel, { color: theme.success }]}>Município</Text>
-                    <Text style={[styles.tokenCardValue, { color: theme.text }]}>{tokenStatus.municipio || '—'}</Text>
-                  </View>
-                  <View style={styles.tokenCardRow}>
-                    <Feather name="clock" size={13} color={theme.success} />
-                    <Text style={[styles.tokenCardLabel, { color: theme.success }]}>Válido até</Text>
-                    <Text style={[styles.tokenCardValue, { color: theme.text }]}>
-                      {tokenStatus.expiraEm
-                        ? new Date(tokenStatus.expiraEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                        : 'Sem expiração'}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Erro de token inválido */}
-              {tokenStatus && typeof tokenStatus === 'object' && !tokenStatus.valido && (
-                <Text style={{ fontSize: 12, color: theme.error, marginTop: 6, marginLeft: 2 }}>
-                  {tokenStatus.motivo}
-                </Text>
-              )}
+              <Text style={{ color: theme.textSecondary }}>Ao continuar, verificaremos se o token pertence à organização selecionada e pode ser usado neste cadastro.</Text>
             </View>}
-
+            <Button label="Entrar em uma turma de treinamento" variant="secondary" onPress={() => router.push('/(auth)/treinamento')} />
             {/* Nome */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Nome Completo</Text>

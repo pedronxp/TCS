@@ -1,3 +1,4 @@
+import { WHATSAPP_ENABLED } from '@/config/modules';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, Bot, CalendarClock, Check, Copy, ExternalLink, Megaphone, Pencil, Send, Smartphone, Trash2, Users } from 'lucide-react';
@@ -124,13 +125,13 @@ export function PortalComunicadosPage() {
   const botChatsQuery = useQuery({
     queryKey: ['portal', 'bot-chats', organizationId],
     queryFn: fetchBotChats,
-    enabled: Boolean(access) && mayManage,
+    enabled: WHATSAPP_ENABLED && Boolean(access) && mayManage,
     retry: false,
   });
   const sessoesQuery = useQuery({
     queryKey: ['portal', 'bot-sessoes', organizationId],
     queryFn: fetchSessoesBot,
-    enabled: Boolean(access) && mayManage,
+    enabled: WHATSAPP_ENABLED && Boolean(access) && mayManage,
     refetchInterval: 10_000,
   });
 
@@ -143,7 +144,7 @@ export function PortalComunicadosPage() {
   const [novaComunidade, setNovaComunidade] = useState({ nome: '', linkConvite: '' });
   const [destinosWhatsApp, setDestinosWhatsApp] = useState<string[]>([]);
   const [destinosPorComunicado, setDestinosPorComunicado] = useState<Record<string, string[]>>({});
-  const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
+  const [enviarAposPublicar, setEnviarAposPublicar] = useState<boolean>(WHATSAPP_ENABLED);
 
   const comunicados = comunicadosQuery.data ?? [];
   const comunicadosTimedOut = useAsyncTimeout(comunicadosQuery.isLoading);
@@ -357,7 +358,7 @@ export function PortalComunicadosPage() {
       if (mode === 'publicar') {
         await setComunicadoStatus(comunicadoId, 'publicado');
         let message = 'Comunicado publicado para a equipe municipal.';
-        if (enviarAposPublicar) {
+        if (WHATSAPP_ENABLED && enviarAposPublicar) {
           try {
             let total = 0;
             if (destinosWhatsApp.length === 0) {
@@ -512,6 +513,7 @@ export function PortalComunicadosPage() {
                       </div>
                     )}
                   </fieldset>
+                  {WHATSAPP_ENABLED && <>
                   <WhatsAppDestinationPicker
                     destinations={destinosDisponiveis}
                     selectedIds={destinosWhatsApp}
@@ -526,6 +528,7 @@ export function PortalComunicadosPage() {
                     />
                     Disparar pelo WhatsApp ao publicar
                   </label>
+                  </>}
                   <div className="flex flex-wrap gap-2">
                     <Button type="submit" disabled={saveMutation.isPending}>
                       {saveMutation.isPending ? 'Salvando…' : 'Salvar rascunho'}
@@ -564,7 +567,7 @@ export function PortalComunicadosPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            {WHATSAPP_ENABLED && <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users />
@@ -666,9 +669,9 @@ export function PortalComunicadosPage() {
                   ))}
                 </ul>
               </CardContent>
-            </Card>
+            </Card>}
 
-            <Card>
+            {WHATSAPP_ENABLED && <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Smartphone />
@@ -718,7 +721,7 @@ export function PortalComunicadosPage() {
                   ))}
                 </ul>
               </CardContent>
-            </Card>
+            </Card>}
 
             <Card data-tutorial="communication-targets">
               <CardHeader><CardTitle>Bairros do município</CardTitle></CardHeader>
@@ -832,7 +835,7 @@ export function PortalComunicadosPage() {
                           </Button>
                         </div>
                       )}
-                      {mayManage && expandedId === comunicado.id && (
+                      {WHATSAPP_ENABLED && mayManage && expandedId === comunicado.id && (
                         <div className="mt-4 rounded-md border bg-card p-3">
                           <p className="text-sm font-semibold">Replicar nas Comunidades WhatsApp</p>
                           {canaisAtivos.length === 0 ? (

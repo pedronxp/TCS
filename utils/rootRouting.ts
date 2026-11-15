@@ -14,6 +14,7 @@ const TRAINING_ALLOWED_INSPECTION_ROUTES = new Set([
   'wizard',
   'resultado',
   'relatorio',
+  'ciencia',
 ]);
 
 export function resolveRootRedirect(input: {

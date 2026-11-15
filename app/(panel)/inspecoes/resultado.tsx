@@ -35,7 +35,7 @@ import { canReviewInspectionQuality, fetchInspectionQuality } from '../../../ser
 import { resolveInspectionDocumentPolicy } from '../../../services/InspectionDocumentPolicy';
 import { canReadCachedInspection, loadInspectionEvidence } from '../../../services/InspectionEvidenceService';
 import { InspectionPhotoViewer } from '../../../components/InspectionPhotoGallery';
-import { resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
+import { DocumentPublicationError, resolveDocumentRelease } from '../../../services/DocumentReleaseWorkflow';
 import { DOCUMENT_TEMPLATE_VERSIONS, GeneratedDocumentType, isAcknowledgementEnabled, SignatureStroke } from '../../../types/documentAcknowledgement';
 import { listAcknowledgementHistory } from '../../../utils/documentAcknowledgementDatabase';
 import { SignaturePad } from '../../../components/SignaturePad';
@@ -565,7 +565,7 @@ export default function ResultadoScreen() {
       });
       return {
         documentId: null,
-        errorCode: 'local_preparation_failed',
+        errorCode: error instanceof DocumentPublicationError ? 'publication_pending' : 'local_preparation_failed',
         errorMessage: error instanceof Error ? error.message : String(error),
         enabled: true,
       };
@@ -585,7 +585,9 @@ export default function ResultadoScreen() {
     if (decision === 'blocked') {
       Alert.alert(
         'Documento não liberado',
-        'A versão usada na geração não foi preservada. Tente gerar novamente.',
+        result.errorCode === 'publication_pending' && result.errorMessage
+          ? result.errorMessage
+          : 'A versão usada na geração não foi preservada. Tente gerar novamente.',
       );
       return;
     }

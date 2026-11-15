@@ -446,6 +446,21 @@ export async function buildPdf(inspection: Record<string, unknown>): Promise<Uin
       ].filter(Boolean).join(', '),
   );
   const calculation = parseObject(readInspectionField(inspection, 'calculoRisco', 'calculo_risco', 'calculo_json'));
+  const conditionalRules = Array.isArray(calculation.regrasCondicionais)
+    ? calculation.regrasCondicionais.filter((rule): rule is Record<string, unknown> => (
+      rule !== null && typeof rule === 'object' && !Array.isArray(rule)
+    ))
+    : [];
+  if (conditionalRules.length) {
+    section('Regras técnicas aplicadas');
+    for (const rule of conditionalRules) {
+      field('Regra', rule.label);
+      field('Descrição', rule.descricao);
+      field('Resposta do agente', rule.resposta);
+      field('Efeito no cálculo', rule.efeito);
+      if (rule.justificativa) field('Justificativa técnica', rule.justificativa);
+    }
+  }
   const calculationItems = Array.isArray(calculation.itens)
     ? calculation.itens.filter((item): item is Record<string, unknown> => (
       Boolean(item && typeof item === 'object')

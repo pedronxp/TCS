@@ -59,6 +59,7 @@ describe('Regras de risco', () => {
     expect(screen.getByRole('heading', { name: 'Faixas de classificação' })).toBeVisible();
     expect(screen.getByText('Histórico')).toBeVisible();
     expect(screen.getAllByText('R4').length).toBeGreaterThan(0);
+    expect(screen.getByText('Risco muito alto')).toBeVisible();
   });
 
   it('não apresenta violações automatizadas de acessibilidade', async () => {

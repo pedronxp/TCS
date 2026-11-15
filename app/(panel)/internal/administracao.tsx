@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { AppHeader, Button, ModuleCard, SectionHeader, StateBanner } from '../../../components/ui';
 import { useBottomTabPadding } from '../../../utils/useBottomTabPadding';
 import { supabase } from '../../../utils/supabase';
+import { searchTokenMunicipalities } from '../../../utils/municipalitySearch';
 import { generateUUID } from '../../../utils/uuid';
-import { listOwnerAdminSection, listOwnerCustomers, OWNER_ADMIN_CAPABILITIES, ownerActionError, ownerItems, ownerMutation, ownerRpc, type OwnerRecord } from '../../../services/OwnerAdministrationService';
+import { checkInviteMunicipality, listOwnerAdminSection, listOwnerCustomers, OWNER_ADMIN_CAPABILITIES, ownerActionError, ownerItems, ownerMutation, ownerRpc, type OwnerRecord } from '../../../services/OwnerAdministrationService';
 import { OWNER_CONSOLE_SECTIONS } from '../../../services/OwnerConsoleService';
 
 type PendingAction = { title: string; rpc: string; args: OwnerRecord; operationId: string };
@@ -48,23 +50,20 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
   const [staffRole, setStaffRole] = useState('support');
   const [permissionCode, setPermissionCode] = useState('mobile.inspection.manage');
   const [permissionEffect, setPermissionEffect] = useState('grant');
+  const [checkingInvite, setCheckingInvite] = useState(false);
+  const inviteCheckLock = useRef(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteKind, setInviteKind] = useState<'municipal' | 'individual'>('municipal');
+  const [accessDays, setAccessDays] = useState('30');
+  const [individualKeys, setIndividualKeys] = useState<OwnerRecord[]>([]);
   const [tokenRole, setTokenRole] = useState('agent');
-  const [tokenCity, setTokenCity] = useState('');
-  const [cities, setCities] = useState<string[]>([]);
+  const [tokenCity, setTokenCity] = useState<{ nome: string; uf: string } | null>(null);
   const [showCities, setShowCities] = useState(false);
-  const [citiesError, setCitiesError] = useState('');
-  const openCities = async () => {
+  const [citySearch, setCitySearch] = useState('');
+  const openCities = () => {
+    Keyboard.dismiss();
+    setCitySearch('');
     setShowCities(true);
-    setCitiesError('');
-    try {
-      const { data, error } = await supabase.from('municipios').select('nome').order('nome');
-      if (error) throw error;
-      const names = [...new Set<string>((data ?? []).map((row: { nome: string }) => row.nome).filter(Boolean))];
-      setCities(names);
-      if (!names.length) setCitiesError('Nenhum município cadastrado.');
-    } catch {
-      setCitiesError('Não foi possível carregar os municípios.');
-    }
   };
   const [tokenHours, setTokenHours] = useState('24');
   const [createdToken, setCreatedToken] = useState<string | null>(null);
@@ -83,6 +82,7 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
         if (token === request.current) setDetail(data);
       } else {
         const data = await listOwnerAdminSection(section);
+        if (section === 'tokens') { const keys = await ownerRpc('list_individual_access_keys'); if (token === request.current) setIndividualKeys(ownerItems(keys)); }
         if (token === request.current) setRows(data);
       }
     } catch (cause) { if (token === request.current) setError(ownerActionError(cause)); }
@@ -91,11 +91,47 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
   useEffect(() => { void load(); return () => { request.current++; }; }, [load]);
 
   const begin = (title: string, rpc: string, args: OwnerRecord) => {
+    Keyboard.dismiss();
     setReason(''); setActionError(null); setMfaCode(''); setMfaMessage(null);
     setAction({ title, rpc, args, operationId: generateUUID() });
   };
+  const tokenOperation = useRef<{ signature: string; id: string } | null>(null);
+  const mutateTokenDirectly = async (title: string, rpc: string, args: OwnerRecord) => {
+    if (mutationLock.current) return;
+    mutationLock.current = true; setSaving(true); setInviteError(null); Keyboard.dismiss();
+    const signature = JSON.stringify({ rpc, args });
+    if (tokenOperation.current?.signature !== signature) tokenOperation.current = { signature, id: generateUUID() };
+    try {
+      const result = await ownerMutation(rpc, args, `Solicitado pelo proprietário no aplicativo: ${title}.`, tokenOperation.current.id);
+      if (rpc === 'create_console_invite_token' || rpc === 'create_individual_access_key') {
+        if (!result?.token) throw new Error('A operação já pode ter sido concluída. Confira a lista; se perdeu o código, revogue e crie outro.');
+        setCreatedToken(result.token);
+      } else setCreatedToken(null);
+      tokenOperation.current = null;
+      await load();
+    } catch (cause) {
+      const message = ownerActionError(cause);
+      setInviteError(message);
+      Alert.alert('Não foi possível concluir', message);
+    } finally { mutationLock.current = false; setSaving(false); }
+  };
+  const prepareInvite = async () => {
+    if (!tokenCity || inviteCheckLock.current) return;
+    inviteCheckLock.current = true;
+    Keyboard.dismiss(); setCheckingInvite(true); setInviteError(null);
+    try {
+      if (inviteKind === 'individual') {
+        await mutateTokenDirectly('Criar chave individual', 'create_individual_access_key', { p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_access_days: Number(accessDays), p_expires_in_minutes: Math.round(tokenMinutes) });
+        return;
+      }
+      await checkInviteMunicipality(tokenCity.nome, tokenCity.uf);
+      await mutateTokenDirectly('Criar convite de conta', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_expires_in_minutes: Math.round(tokenMinutes) });
+    } catch (cause) { setInviteError(ownerActionError(cause)); }
+    finally { inviteCheckLock.current = false; setCheckingInvite(false); }
+  };
   const execute = async () => {
     if (!action || mutationLock.current || reason.trim().length < 8) return;
+    Keyboard.dismiss();
     mutationLock.current = true; setSaving(true); setActionError(null);
     try {
       const result = await ownerMutation(action.rpc, action.args, reason, action.operationId);
@@ -104,8 +140,8 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
         setNoticeBody('');
         setNoticeCity('');
       }
-      if (action.rpc === 'create_console_invite_token') {
-        if (typeof result?.token !== 'string' || !result.token) throw new Error('O servidor não retornou o código do convite.');
+      if (['create_console_invite_token', 'create_individual_access_key'].includes(action.rpc)) {
+        if (typeof result?.token !== 'string' || !result.token) throw new Error(result?.already_created ? 'Esta chave já foi criada. Confira a lista; se perdeu o código, revogue a chave e crie outra.' : 'O servidor não retornou o código do convite.');
         setCreatedToken(result.token);
       }
       setAction(null); setStaffDraft(null); await load();
@@ -183,26 +219,39 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
         <SectionHeader title="Histórico do cliente" />
         {(detail.audit || []).map((event: OwnerRecord, index: number) => <View style={[styles.card, card]} key={event.id || index}><Text style={textStyle}>{event.summary || event.event_type}</Text><Text style={muted}>{event.created_at}</Text></View>)}
       </> : null}
-      {!loading && !error && section === 'tokens' ? <View style={[styles.card, card]}>
-        <Text style={[styles.title, textStyle]}>Criar convite</Text>
-        <View style={styles.wrap}>{[['agent', 'Agente'], ['supervisor', 'Supervisor'], ['admin', 'Administrador']].map(([role, label]) => link(`${tokenRole === role ? '✓ ' : ''}${label}`, () => setTokenRole(role)))}</View>
-        <Text style={muted}>Acesso por convite (chave)</Text>
-        {link(tokenCity || 'Selecionar município', () => showCities ? setShowCities(false) : void openCities())}
-        {showCities ? <ScrollView nestedScrollEnabled style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
-          {citiesError ? <Text style={muted}>{citiesError}</Text> : null}
-          {cities.map(city => link(city, () => { setTokenCity(city); setShowCities(false); }))}
-        </ScrollView> : null}
-        <TextInput style={inputStyle} accessibilityLabel="Validade em horas" placeholder="Validade em horas" keyboardType="decimal-pad" value={tokenHours} onChangeText={setTokenHours} />
-        <Button label="Criar token" disabled={!tokenCity.trim() || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => begin('Criar token de acesso', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.trim(), p_expires_in_minutes: Math.round(tokenMinutes) })} />
-      </View> : null}
       {section === 'tokens' && createdToken ? <View style={[styles.card, card]}>
         <Text style={[styles.title, textStyle]}>Código do convite</Text>
         <Text selectable style={textStyle}>{createdToken}</Text>
+        <Text style={muted}>{createdToken.startsWith('IND-') ? 'Envie à pessoa: abra Criar conta → Individual com token e cole esta chave. Quem já tem conta pode usar Minha assinatura → Ativar acesso por chave.' : 'Envie à pessoa para usar no cadastro de equipe municipal.'}</Text>
+        <Button label="Copiar código" onPress={() => { void Clipboard.setStringAsync(createdToken).then(() => Alert.alert('Copiado', 'Código copiado para compartilhar.'), () => Alert.alert('Não foi possível copiar', 'Toque e segure o código para copiar.')); }} />
         <Button label="Fechar código" variant="secondary" onPress={() => setCreatedToken(null)} />
       </View> : null}
+      {!loading && !error && section === 'tokens' ? <View style={[styles.card, card]}>
+        <Text style={[styles.title, textStyle]}>Códigos de treinamento e convites</Text>
+        <Button label="Criar código de treinamento" onPress={() => router.push('/(panel)/master/treinamentos')} />
+        <Text style={[styles.title, textStyle]}>Tipo de acesso</Text>
+        <View style={styles.wrap}>{link(`${inviteKind === 'individual' ? '✓ ' : ''}Individual por chave`, () => { setInviteKind('individual'); setInviteError(null); })}{link(`${inviteKind === 'municipal' ? '✓ ' : ''}Equipe municipal`, () => { setInviteKind('municipal'); setInviteError(null); })}</View>
+        {inviteKind === 'individual' ? <><Text style={muted}>Libera o plano Individual Profissional para uma conta individual, sem prefeitura. A pessoa seleciona Individual com token no cadastro e informa esta chave. Sem cobrança automática por esta chave.</Text><Text style={textStyle}>Dias de acesso após resgatar (1 a 365)</Text><TextInput style={inputStyle} accessibilityLabel="Dias de acesso individual" keyboardType="number-pad" maxLength={3} value={accessDays} onChangeText={setAccessDays} /><Text style={muted}>O município abaixo é somente a localização deste convite; não vincula a conta à prefeitura.</Text></> : null}
+        {inviteKind === 'municipal' ? <View style={styles.wrap}>{[['agent', 'Agente'], ['supervisor', 'Supervisor'], ['admin', 'Administrador']].map(([role, label]) => link(`${tokenRole === role ? '✓ ' : ''}${label}`, () => setTokenRole(role)))}</View> : null}
+        <Text style={muted}>Acesso por convite (chave)</Text>
+        <Text style={[textStyle, { fontWeight: '700' }]}>Município vinculado</Text>
+        {link(tokenCity ? `${tokenCity.nome} – ${tokenCity.uf} · Alterar` : 'Pesquisar e selecionar município ▾', () => void openCities())}
+        <Text style={[textStyle, { fontWeight: '700' }]}>Validade do convite</Text>
+        <Text style={muted}>Prazo para usar o código após a criação. De 15 minutos a 7 dias. Isso não altera a duração da assinatura.</Text>
+        <View style={styles.wrap}>{[['1', '1 hora'], ['24', '1 dia'], ['72', '3 dias'], ['168', '7 dias']].map(([hours, label]) => link(`${tokenHours === hours ? '✓ ' : ''}${label}`, () => { Keyboard.dismiss(); setTokenHours(hours); }))}</View>
+        <Text style={textStyle}>Personalizar prazo (em horas)</Text>
+        <TextInput style={inputStyle} accessibilityLabel="Validade em horas" placeholder="Ex.: 24" placeholderTextColor={theme.textSecondary} keyboardType="decimal-pad" value={tokenHours} onChangeText={setTokenHours} maxLength={8} />
+        {!Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080 ? <Text accessibilityRole="alert" style={{ color: theme.error }}>Informe entre 0,25 e 168 horas.</Text> : <Text style={muted}>Válido por {Math.round(tokenMinutes)} minutos a partir da criação.</Text>}
+        <Text style={[textStyle, { fontWeight: '700' }]}>Ciclo de uso: uma conta por convite</Text>
+        <Text style={muted}>Disponível → usado no cadastro. Se o prazo terminar, fica vencido. Você também pode revogar um convite disponível. Para várias pessoas em treinamento, use “Criar código de treinamento” e defina as vagas da turma.</Text>
+        {inviteError ? <StateBanner variant="warning" title="Convite ainda não disponível" description={inviteError} actionLabel="Ver clientes e contas" onAction={() => { setSearch(tokenCity?.nome || ''); setRows([]); setOffset(0); setSection('customers'); }} /> : null}
+        <Text style={muted}>Equipe municipal exige organização e assinatura habilitadas. Individual por chave não exige organização. Treinamento tem vagas e prazo próprios.</Text>
+        <Button label={saving ? 'Criando código…' : checkingInvite ? 'Verificando município…' : inviteKind === 'individual' ? 'Gerar chave individual' : 'Gerar convite municipal'} disabled={saving || checkingInvite || (inviteKind === 'individual' && (!Number.isInteger(Number(accessDays)) || Number(accessDays) < 1 || Number(accessDays) > 365)) || !tokenCity || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => void prepareInvite()} />
+      </View> : null}
+      {section === 'tokens' ? individualKeys.map(key => <View key={key.id} style={[styles.card, card]}><Text style={[styles.title, textStyle]}>Chave individual</Text>{line('Localização', `${key.municipality} – ${key.uf}`)}{line('Dias de acesso', key.access_days)}{line('Usar até', new Date(key.expires_at).toLocaleString('pt-BR'))}{line('Situação', key.revoked_at ? 'Revogada' : key.used_at ? 'Usada' : new Date(key.expires_at).getTime() <= Date.now() ? 'Vencida' : 'Disponível')}{!key.revoked_at && !key.used_at ? link('Revogar chave', () => void mutateTokenDirectly('Revogar chave individual', 'revoke_individual_access_key', { p_id: key.id })) : null}</View>) : null}
       {!loading && !error && section === 'tokens' ? rows.map(token => <View key={token.management_id} style={[styles.card, card]}>
-        {line('Perfil', token.role)}{line('Município', token.municipio)}{line('Situação', ({ active: 'Disponível', used: 'Usado', expired: 'Vencido', revoked: 'Revogado' } as Record<string, string>)[token.status])}{line('Validade', token.expires_at ? new Date(token.expires_at).toLocaleString('pt-BR') : 'Sem data informada')}
-        {token.status === 'active' ? link('Revogar token', () => begin('Revogar token de acesso', 'revoke_console_invite_token', { p_management_id: token.management_id })) : null}
+        {line('Perfil', ({ agent: 'Agente', supervisor: 'Supervisor', admin: 'Administrador' } as Record<string, string>)[token.role] || token.role)}{line('Município', token.municipio)}{line('Situação', ({ active: 'Disponível', used: 'Usado', expired: 'Vencido', revoked: 'Revogado' } as Record<string, string>)[token.status])}{line('Validade', token.expires_at ? new Date(token.expires_at).toLocaleString('pt-BR') : 'Sem data informada')}
+        {token.status === 'active' ? link('Revogar token', () => void mutateTokenDirectly('Revogar token de acesso', 'revoke_console_invite_token', { p_management_id: token.management_id })) : null}
       </View>) : null}
       {section === 'campaigns' ? <View style={[styles.card, card]}>
         <Text style={[styles.title, textStyle]}>Criar aviso</Text>
@@ -261,13 +310,38 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
       {!loading && !error && section === 'archived' ? rows.map(inspection => <View key={inspection.id} style={[styles.card, card]}><Text style={[styles.title, textStyle]}>{inspection.protocolo}</Text><Text style={muted}>{inspection.agenteNome} · {inspection.endereco}</Text>{line('Arquivada em', inspection.owner_archived_at)}{link('Consultar vistoria', () => router.push({ pathname: '/(panel)/inspecoes/[id]', params: { id: inspection.id } }))}{link('Restaurar vistoria', () => begin('Restaurar vistoria arquivada', 'set_owner_inspection_archived', { p_inspection_id: inspection.id, p_archived: false }))}</View>) : null}
       {section === 'security' ? <View style={[styles.card, card]}><Text style={muted}>Informe o código atual do autenticador vinculado à sua conta. Esta confirmação mantém as mesmas proteções usadas pelo painel web.</Text><TextInput style={inputStyle} value={mfaCode} onChangeText={setMfaCode} keyboardType="number-pad" maxLength={6} accessibilityLabel="Código do autenticador" />{mfaMessage ? <Text style={textStyle}>{mfaMessage}</Text> : null}<Button label={mfaBusy ? 'Confirmando…' : 'Confirmar segundo fator'} disabled={mfaBusy || mfaCode.length !== 6} onPress={() => void verifyMfa()} /></View> : null}
     </ScrollView>
+    <Modal visible={showCities} animationType="slide" onRequestClose={() => setShowCities(false)}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+        <AppHeader title="Selecionar município" onBack={() => setShowCities(false)} />
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.content}>
+            <TextInput style={inputStyle} value={citySearch} onChangeText={setCitySearch} placeholder="Pesquisar: BH, São Paulo ou UF" placeholderTextColor={theme.textSecondary} accessibilityLabel="Buscar município ou UF" autoCorrect={false} />
+            <Text style={muted}>Todos os municípios do Brasil. Busque pelo nome ou UF.</Text>
+          </View>
+          <FlatList
+            style={{ flex: 1 }}
+            data={searchTokenMunicipalities(citySearch)}
+            keyExtractor={city => `${city.nome}-${city.uf}`}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={styles.content}
+            ListEmptyComponent={<Text style={muted}>Nenhum município encontrado. Tente outro nome ou UF.</Text>}
+            renderItem={({ item: city }) => <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: tokenCity?.nome === city.nome && tokenCity?.uf === city.uf }} style={[styles.card, card, { minHeight: 56 }]} onPress={() => { setTokenCity(city); setInviteError(null); Keyboard.dismiss(); setShowCities(false); }}><Text style={textStyle}>{city.nome} – {city.uf}{tokenCity?.nome === city.nome && tokenCity?.uf === city.uf ? ' ✓' : ''}</Text></TouchableOpacity>}
+          />
+          <View style={styles.content}><Button label="Cancelar" variant="secondary" onPress={() => setShowCities(false)} /></View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
     <Modal visible={!!action} animationType="slide" onRequestClose={() => { if (!saving) setAction(null); }}>
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+        <AppHeader title="Confirmar convite ou ação" onBack={() => { if (!saving) { Keyboard.dismiss(); setAction(null); } }} />
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={[styles.heading, textStyle]}>{action?.title}</Text>
+        <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled"><Text style={[styles.heading, textStyle]}>{action?.title}</Text>
         {action?.rpc === 'create_notification_campaign' ? <Text style={textStyle}>{action.args.p_title}{'\n'}{action.args.p_body}</Text> : null}
+        {action && ['create_console_invite_token', 'create_individual_access_key'].includes(action.rpc) ? <View style={[styles.card, card]}>{line('Município', `${action.args.p_municipio} – ${action.args.p_uf}`)}{line('Validade após criar', `${action.args.p_expires_in_minutes} minutos`)}{line('Limite de uso', 'Uma conta')}{action.args.p_access_days ? line('Dias de acesso', action.args.p_access_days) : null}</View> : null}
         <Text style={muted}>Informe o motivo para confirmar.</Text><TextInput accessibilityLabel="Motivo da ação" multiline value={reason} onChangeText={setReason} maxLength={500} placeholder="Motivo (mínimo de 8 caracteres)" placeholderTextColor={theme.textSecondary} style={[inputStyle, { minHeight: 110, textAlignVertical: 'top' }]} />
         {actionError ? <Text accessibilityRole="alert" style={{ color: theme.error }}>{actionError}</Text> : null}
+        {actionError && action?.rpc === 'create_console_invite_token' ? <Button label="Voltar e ajustar convite" variant="secondary" onPress={() => { Keyboard.dismiss(); setAction(null); setInviteError(actionError); }} /> : null}
         {actionError?.includes('segundo fator') ? <>
           <TextInput style={inputStyle} value={mfaCode} onChangeText={setMfaCode} keyboardType="number-pad" maxLength={6} accessibilityLabel="Código do autenticador" />
           <Button label={mfaBusy ? 'Confirmando…' : 'Confirmar segundo fator'} disabled={mfaBusy || mfaCode.length !== 6} onPress={() => void verifyMfa()} />

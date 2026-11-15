@@ -1,3 +1,4 @@
+import { WHATSAPP_ENABLED } from '@/config/modules';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -117,7 +118,7 @@ export function ConsoleComunicadoOrgPage({
   });
   const [comunidadeDestino, setComunidadeDestino] = useState('');
   const [destinosWhatsApp, setDestinosWhatsApp] = useState<string[]>([]);
-  const [enviarAposPublicar, setEnviarAposPublicar] = useState(true);
+  const [enviarAposPublicar, setEnviarAposPublicar] = useState<boolean>(WHATSAPP_ENABLED);
   const [entregasVisiveis, setEntregasVisiveis] = useState(true);
 
   const orgQuery = useQuery({
@@ -169,6 +170,7 @@ export function ConsoleComunicadoOrgPage({
   const botOnlineQuery = useQuery({
     queryKey: ['console', 'bot', 'online'],
     queryFn: fetchBotOnline,
+    enabled: WHATSAPP_ENABLED,
     refetchInterval: 15_000,
   });
   const botOnline = org?.runtime?.serviceOnline ?? (botOnlineQuery.data !== false);
@@ -321,7 +323,7 @@ export function ConsoleComunicadoOrgPage({
       if (modo === 'publicar') {
         await definirStatusComunicadoConsole(comunicadoId, 'publicado');
         let extras = 'Mensagem publicada no app e portal.';
-        if (enviarAposPublicar) {
+        if (WHATSAPP_ENABLED && enviarAposPublicar) {
           try {
             let total = 0;
             if (destinosWhatsApp.length === 0) {
@@ -729,6 +731,7 @@ export function ConsoleComunicadoOrgPage({
                       onChange={(event) => setRascunho((atual) => ({ ...atual, publicarEm: event.target.value }))}
                     />
                   </label>
+                  {WHATSAPP_ENABLED && <>
                   <WhatsAppDestinationPicker
                     destinations={destinosDisponiveis}
                     selectedIds={destinosWhatsApp}
@@ -743,13 +746,14 @@ export function ConsoleComunicadoOrgPage({
                     />
                     Disparar pelo bot ao publicar
                   </label>
+                  </>}
                   <div className="flex flex-wrap gap-2">
                     <Button type="submit" variant="outline">Salvar rascunho</Button>
                     <Button type="button" onClick={() => void enviarMensagem('publicar')}>Publicar agora</Button>
                     <Button type="button" variant="outline" onClick={() => void enviarMensagem('agendar')}>Agendar</Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    No app e portal a mensagem vai para todo o município; no WhatsApp, para os grupos e comunidades selecionados.
+                    A mensagem será publicada no app e no portal para o município selecionado.
                   </p>
                 </form>
               </CardContent>

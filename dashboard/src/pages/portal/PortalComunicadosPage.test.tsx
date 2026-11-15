@@ -8,6 +8,9 @@ import { axe } from 'vitest-axe';
 import { PortalComunicadosPage } from './PortalComunicadosPage';
 import type { Comunicado } from '@/lib/comunicados';
 
+const moduleState = vi.hoisted(() => ({ WHATSAPP_ENABLED: true }));
+vi.mock('@/config/modules', () => moduleState);
+
 const mocks = vi.hoisted(() => ({
   fetchComunicados: vi.fn(),
   fetchBairros: vi.fn(),
@@ -77,6 +80,7 @@ function renderPage() {
 
 describe('comunicados municipais do portal', () => {
   beforeEach(() => {
+    moduleState.WHATSAPP_ENABLED = true;
     mocks.fetchComunicados.mockReset().mockResolvedValue([comunicadoPublicado, comunicadoAgendado]);
     mocks.fetchBairros.mockReset().mockResolvedValue([
       { id: 'b-1', nome: 'Centro', ativo: true, emUso: true, podeGerenciar: true },
@@ -98,6 +102,18 @@ describe('comunicados municipais do portal', () => {
     mocks.can.mockReset().mockReturnValue(false);
   });
   afterEach(cleanup);
+
+  it('oculta configurações e consultas de WhatsApp quando desativado', async () => {
+    moduleState.WHATSAPP_ENABLED = false;
+    mocks.can.mockReturnValue(true);
+    renderPage();
+    await screen.findByRole('heading', { name: 'Comunicados' });
+    expect(screen.queryByText('Comunidades WhatsApp')).not.toBeInTheDocument();
+    expect(screen.queryByText('Números do bot')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /disparar pelo WhatsApp/i })).not.toBeInTheDocument();
+    expect(mocks.fetchBotChats).not.toHaveBeenCalled();
+    expect(mocks.fetchSessoesBot).not.toHaveBeenCalled();
+  });
 
   it('lista comunicados publicados com destino e leituras', async () => {
     renderPage();

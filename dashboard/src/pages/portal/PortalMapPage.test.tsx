@@ -47,6 +47,15 @@ describe('mapa operacional do portal', () => {
     expect(screen.getAllByRole('link', { name: 'Ver vistoria' })[0]).toHaveAttribute('href', expect.stringContaining('/portal/municipal/vistorias/1'));
   });
 
+  it.each(['r4', 'crítico'])('apresenta %s como Muito alto e mantém o filtro funcional', (risk) => {
+    mocks.query.data!.items[0].risk_level = risk;
+    renderPage();
+    expect(screen.getByRole('option', { name: 'Muito alto' })).toHaveValue(risk);
+    fireEvent.change(screen.getByLabelText('Filtrar mapa por risco'), { target: { value: risk } });
+    expect(screen.getByLabelText('Mapa de vistorias')).toHaveTextContent('TCS-001');
+    expect(screen.queryByText('TCS-002')).not.toBeInTheDocument();
+  });
+
   it('persiste busca e status na URL e aplica o mesmo filtro à lista e ao mapa', () => {
     renderPage();
     fireEvent.change(screen.getByPlaceholderText('Buscar vistoria ou endereço'), { target: { value: 'Rua B' } });

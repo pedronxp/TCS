@@ -4,6 +4,7 @@ export const TRAINING_ALLOWED_FORMS = [
   'vistoria_deslizamento_v3',
   'risco_estrutural_novo_v2',
   'avaliacao_arvore_cbmmg_v1',
+  'inspecao_ponte_passarela_v1',
 ] as const;
 
 export type TrainingStatus =

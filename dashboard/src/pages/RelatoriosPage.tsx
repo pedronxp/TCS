@@ -36,7 +36,7 @@ const RISCO_LABEL: Record<string, string> = {
   r1: 'R1 — Baixo',
   r2: 'R2 — Médio',
   r3: 'R3 — Alto',
-  r4: 'R4 — Crítico',
+  r4: 'R4 — Muito alto',
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

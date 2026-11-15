@@ -70,8 +70,34 @@ export async function listOwnerAdminSection(section: string): Promise<OwnerRecor
 
 export function ownerActionError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause);
+  const keyMessages: Record<string, string> = {
+    key_invalid: 'Chave não encontrada ou revogada. Confira o código recebido.',
+    key_unavailable: 'Esta chave venceu ou já foi usada por outra conta.',
+    key_rate_limit: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.',
+    individual_account_required: 'Use uma conta individual aprovada, com e-mail confirmado e sem vínculo com prefeitura.',
+    existing_subscription: 'Esta conta já tem uma assinatura ou bloqueio que precisa ser tratado antes de usar a chave. Contate o suporte.',
+    individual_plan_not_published: 'O plano individual ainda não está disponível. Contate o suporte.',
+    invalid_key_request: 'Confira o município, UF, prazo de resgate e dias de acesso.',
+  };
+  if (keyMessages[message]) return keyMessages[message];
+  if (message.includes('municipal_organization_not_found')) return 'O município selecionado ainda não tem uma organização habilitada. Cadastre ou ative a organização em Clientes e contas antes de criar o convite.';
+  if (message.includes('municipal_subscription_inactive')) return 'A organização deste município está sem assinatura ativa. Regularize o acesso em Clientes e contas antes de criar o convite.';
   if (message.includes('is ambiguous')) return 'O servidor não conseguiu concluir a consulta. Tente novamente após a correção do serviço.';
   if (message.includes('aal2')) return 'Confirme seu segundo fator em “Confirmar acesso administrativo” e repita a ação.';
   if (message.includes('42501') || message.includes('not_allowed') || message.includes('forbidden')) return 'O servidor não autorizou esta ação. Atualize sua sessão e confirme as permissões da conta.';
   return message;
+}
+
+/** Read-only preflight; the create RPC remains authoritative and checks again. */
+export async function checkInviteMunicipality(nome: string, uf: string): Promise<void> {
+  const { data: organizations, error } = await supabase.from('organizations')
+    .select('id,municipality_name,state_code,status,created_at')
+    .eq('state_code', uf).in('status', ['onboarding', 'pilot', 'active']).order('created_at');
+  if (error) throw new Error('Não foi possível verificar o município. Confira sua conexão e tente novamente.');
+  const organization = organizations?.find(item => item.municipality_name?.trim().toLocaleLowerCase('pt-BR') === nome.trim().toLocaleLowerCase('pt-BR'));
+  if (!organization) throw new Error('municipal_organization_not_found');
+  const { data: subscriptions, error: subscriptionError } = await supabase.from('subscriptions')
+    .select('id').eq('organization_id', organization.id).in('status', ['trial', 'active', 'grace']).limit(1);
+  if (subscriptionError) throw new Error('Não foi possível verificar o acesso da organização. Tente novamente.');
+  if (!subscriptions?.length) throw new Error('municipal_subscription_inactive');
 }

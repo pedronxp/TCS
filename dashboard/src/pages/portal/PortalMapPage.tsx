@@ -157,6 +157,8 @@ export function PortalMapPage() {
 }
 
 function humanize(value: string) {
+  const riskKey = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (['r4', 'critico', 'risco critico', 'muito alto', 'muito_alto', 'risco muito alto'].includes(riskKey)) return 'Muito alto';
   const normalized = value.replace(/_/g, ' ');
   return normalized.charAt(0).toLocaleUpperCase('pt-BR') + normalized.slice(1);
 }

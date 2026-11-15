@@ -108,7 +108,7 @@ const GUIDE_CONTENT: Record<string, GuideSection[]> = {
         {
           icon: 'alert-triangle',
           title: 'Alertas de Risco',
-          description: 'O dashboard exibe automaticamente alertas quando há vistorias R3/R4 críticas no município.',
+          description: 'O dashboard exibe automaticamente alertas quando há vistorias de risco alto ou muito alto (R3/R4) no município.',
         },
       ],
     },

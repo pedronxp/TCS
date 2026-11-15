@@ -167,7 +167,7 @@ export default function RelatoriosScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll} contentContainerStyle={styles.statsBar}>
         {[
           { label: 'Total', value: stats.total, tone: 'primary' as const },
-          { label: 'Crítico', value: stats.r4, tone: 'danger' as const },
+          { label: 'Muito alto', value: stats.r4, tone: 'danger' as const },
           { label: 'Alto', value: stats.r3, tone: 'danger' as const },
           { label: 'Médio', value: stats.r2, tone: 'warning' as const },
           { label: 'Baixo', value: stats.r1, tone: 'success' as const },

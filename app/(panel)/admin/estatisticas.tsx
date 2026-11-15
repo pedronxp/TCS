@@ -153,7 +153,7 @@ export default function EstatisticasScreen() {
         <View style={styles.kpiRow}>
           {[
             { label: 'Total', value: total, tone: 'primary' as const },
-            { label: 'Alto ou crítico', value: alto, tone: 'danger' as const },
+            { label: 'Alto ou muito alto', value: alto, tone: 'danger' as const },
             { label: 'Médio', value: medio, tone: 'warning' as const },
             { label: 'Baixo', value: baixo, tone: 'success' as const },
           ].map(k => (
@@ -165,7 +165,7 @@ export default function EstatisticasScreen() {
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Distribuição por Risco</Text>
         <View style={[styles.barCard, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
           {[
-            { label: 'Alto ou crítico', value: alto, color: theme.error },
+            { label: 'Alto ou muito alto', value: alto, color: theme.error },
             { label: 'Médio Risco', value: medio, color: theme.warning },
             { label: 'Baixo Risco', value: baixo, color: theme.success },
           ].map(item => {

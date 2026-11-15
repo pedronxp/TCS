@@ -3,6 +3,7 @@ import { Loader2, ShieldCheck } from 'lucide-react';
 
 interface TurnstileRenderOptions {
   sitekey: string;
+  action?: string;
   theme: 'auto';
   size: 'flexible';
   callback: (token: string) => void;
@@ -58,8 +59,10 @@ function loadTurnstileScript(): Promise<void> {
 
 export function TurnstileChallenge({
   onToken,
+  action,
 }: {
   onToken: (token: string | null) => void;
+  action?: string;
 }) {
   const container = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(turnstileEnabled);
@@ -75,6 +78,7 @@ export function TurnstileChallenge({
         if (!active || !container.current || !window.turnstile) return;
         widgetId = window.turnstile.render(container.current, {
           sitekey: siteKey,
+          action,
           theme: 'auto',
           size: 'flexible',
           callback: (token) => {
@@ -104,7 +108,7 @@ export function TurnstileChallenge({
       active = false;
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
     };
-  }, [onToken]);
+  }, [onToken, action]);
 
   if (!turnstileEnabled) return null;
 

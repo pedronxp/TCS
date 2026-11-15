@@ -302,7 +302,7 @@ export function OcorrenciasPage() {
 
   const riscos: { key: FiltroRisco; label: string }[] = [
     { key: 'todos', label: 'Todos' },
-    { key: 'r4', label: 'R4 — Crítico' },
+    { key: 'r4', label: 'R4 — Muito alto' },
     { key: 'r3', label: 'R3 — Alto' },
     { key: 'r2', label: 'R2 — Médio' },
     { key: 'r1', label: 'R1 — Baixo' },

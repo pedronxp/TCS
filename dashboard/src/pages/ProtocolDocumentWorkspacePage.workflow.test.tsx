@@ -44,6 +44,8 @@ describe('owner inspection web workflow', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('generate-inspection-laudo', expect.objectContaining({ body: expect.objectContaining({ issuance_status: 'preliminary', technical_signature_strokes: null }) }));
     expect(await screen.findByRole('link', { name: 'Abrir PDF preservado' })).toHaveAttribute('href', 'https://example.test/document.pdf');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Não gerado')).not.toBeInTheDocument();
+    expect(screen.getByText('Disponível')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Final —/ })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Coletar ciência desta versão' }));
     const link = await screen.findByRole('link', { name: 'Abrir coleta com morador' });

@@ -1,3 +1,4 @@
+import { WHATSAPP_ENABLED } from '@/config/modules';
 import { useCallback, useEffect, useState } from 'react';
 import { Bot, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -17,7 +18,13 @@ const runtimeCopy: Record<BotRuntimeState, { label: string; detail: string; vari
   banned: { label: 'Número banido', detail: 'Todos os números configurados precisam ser substituídos.', variant: 'destructive' },
 };
 
-export function BotServiceStatus({ workspace, hideWhenHealthy = false }: { workspace: 'internal' | 'organization'; hideWhenHealthy?: boolean }) {
+type BotServiceStatusProps = { workspace: 'internal' | 'organization'; hideWhenHealthy?: boolean };
+
+export function BotServiceStatus(props: BotServiceStatusProps) {
+  return WHATSAPP_ENABLED ? <EnabledBotServiceStatus {...props} /> : null;
+}
+
+function EnabledBotServiceStatus({ workspace, hideWhenHealthy = false }: BotServiceStatusProps) {
   const [online, setOnline] = useState<boolean | null>(null);
   const [runtime, setRuntime] = useState<BotOrganizationRuntime | null>(null);
   const [checking, setChecking] = useState(true);

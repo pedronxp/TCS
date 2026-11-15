@@ -57,7 +57,7 @@ export function TokensConsolePage() {
   const tokens = useTokenAnalytics(filterMunicipio, filterUf);
   const create = useAdministrativeMutation<{ draft: TokenDraft; reason: string }, CreateTokenResult>({
     mutationFn: async ({ draft: nextDraft, reason }, operationId) => {
-      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: CreateTokenResult | null; error: { message: string } | null }>)('create_console_invite_token', {
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: CreateTokenResult | null; error: { message: string } | null }>)('web_create_console_invite_token', {
         p_role: nextDraft.role,
         p_municipio: nextDraft.municipio.trim(),
         p_uf: nextDraft.uf.trim(),
@@ -72,7 +72,7 @@ export function TokensConsolePage() {
   });
   const revoke = useAdministrativeMutation<{ token: TokenRow; reason: string }, unknown>({
     mutationFn: async ({ token, reason }, operationId) => {
-      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>)('revoke_console_invite_token', {
+      const { data, error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>)('web_revoke_console_invite_token', {
         p_management_id: token.management_id,
         p_reason: reason,
         p_operation_id: operationId,
@@ -143,7 +143,7 @@ export function TokensConsolePage() {
           <AlertTitle>Código do token ativo</AlertTitle>
           <AlertDescription className="mt-2 flex flex-wrap items-center gap-3">
             <code className="rounded bg-muted px-2 py-1 font-mono font-semibold tracking-wider">{revealedToken.token}</code>
-            <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(revealedToken.token)}><Copy />Copiar</Button>
+            <Button size="sm" variant="outline" onClick={() => { void navigator.clipboard.writeText(revealedToken.token).catch(() => setRevealError('Não foi possível copiar automaticamente. Selecione o código e copie manualmente.')); }}><Copy />Copiar</Button>
             <Button size="sm" variant="ghost" onClick={forgetRevealedToken}>Remover desta aba</Button>
             <span className="text-xs">Disponível só nesta aba até expirar ou ser revogado.</span>
           </AlertDescription>
@@ -180,7 +180,7 @@ export function TokensConsolePage() {
         </CardContent>
       </Card>
 
-      <TokenDraftDialog draft={draft} onChange={setDraft} onClose={() => setDraft(null)} onContinue={() => setConfirmingCreate(true)} />
+      <TokenDraftDialog draft={confirmingCreate ? null : draft} onChange={setDraft} onClose={() => setDraft(null)} onContinue={() => setConfirmingCreate(true)} />
       {draft && <HighRiskDialog open={confirmingCreate} title="Confirmar geração do token" description={`O convite será vinculado à organização municipal ativa de ${draft.municipio} · ${draft.uf}. O token ficará disponível para copiar nesta aba até expirar ou ser revogado, com registro de auditoria.`} confirmLabel="Gerar token" onClose={() => setConfirmingCreate(false)} onConfirm={async (reason) => { const result = await create.mutateAsync({ draft, reason }); if (!result.ok) throw new Error(describeTokenCreationError(result.error, draft)); const token = result.data?.token; const managementId = result.data?.management_id; const expiresAt = result.data?.expires_at; if (token && managementId && expiresAt) { const nextToken = { token, managementId, expiresAt }; setRevealedToken(nextToken); saveRecoverableToken(nextToken); } setConfirmingCreate(false); setDraft(null); }} />}
       {tokenToRevoke && <HighRiskDialog open title="Revogar token de convite" description="O convite deixará de ser válido imediatamente. A revogação será auditada." confirmLabel="Revogar token" onClose={() => setTokenToRevoke(null)} onConfirm={async (reason) => { const result = await revoke.mutateAsync({ token: tokenToRevoke, reason }); if (!result.ok) throw new Error(result.error); if (revealedToken?.managementId === tokenToRevoke.management_id) forgetRevealedToken(); setTokenToRevoke(null); }} />}
     </section>

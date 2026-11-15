@@ -10,6 +10,9 @@ import { ConsoleComunicadosPage } from './ConsoleComunicadosPage';
 import { ConsoleComunicadoOrgPage } from './ConsoleComunicadoOrgPage';
 import { ConsoleWhatsAppCommunitiesPage } from './ConsoleWhatsAppCommunitiesPage';
 
+const moduleState = vi.hoisted(() => ({ WHATSAPP_ENABLED: true }));
+vi.mock('@/config/modules', () => moduleState);
+
 const mocks = vi.hoisted(() => ({
   fetchOrgsComunicadosConsole: vi.fn(),
   fetchComunicadosOrgConsole: vi.fn(),
@@ -90,6 +93,7 @@ function renderPage(entry: string) {
 
 describe('comunicados no console interno', () => {
   beforeEach(() => {
+    moduleState.WHATSAPP_ENABLED = true;
     mocks.fetchOrgsComunicadosConsole.mockReset().mockResolvedValue([orgResumo]);
     mocks.fetchComunicadosOrgConsole.mockReset().mockResolvedValue(orgDetalhe);
     mocks.fetchBotOnline.mockReset().mockResolvedValue(true);
@@ -198,6 +202,21 @@ describe('comunicados no console interno', () => {
     expect(screen.getByRole('button', { name: 'Criar sala de transmissão' })).toBeDisabled();
     expect(screen.queryByText('Comunidade Cataguases')).not.toBeInTheDocument();
     expect(screen.queryByText('Avisos do Centro')).not.toBeInTheDocument();
+  });
+
+  it('publica no app sem consultar ou disparar WhatsApp quando desativado', async () => {
+    moduleState.WHATSAPP_ENABLED = false;
+    const user = userEvent.setup();
+    renderPage('/app/comunicacoes/org-1');
+    await screen.findByRole('heading', { name: 'Nova mensagem' });
+    expect(screen.queryByRole('checkbox', { name: /disparar pelo bot/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /grupos e comunidades do WhatsApp/i })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Título'), 'Comunicado de QA');
+    await user.type(screen.getByLabelText('Mensagem'), 'Aviso publicado no aplicativo.');
+    await user.click(screen.getByRole('button', { name: 'Publicar agora' }));
+    await waitFor(() => expect(mocks.definirStatusComunicadoConsole).toHaveBeenCalled());
+    expect(mocks.dispararBotConsole).not.toHaveBeenCalled();
+    expect(mocks.fetchBotOnline).not.toHaveBeenCalled();
   });
 
   it('rota de comunicados mantém o editor sem repetir a operação do WhatsApp', async () => {

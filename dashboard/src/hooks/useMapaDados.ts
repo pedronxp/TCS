@@ -26,6 +26,14 @@ export type PinAgendamento = {
   status: string;
 };
 
+function normalizeMapRisk(value: string | null): PinVistoria['nivelRisco'] {
+  const key = (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (['r4', 'critico', 'risco_critico', 'muito_alto', 'risco_muito_alto', 'iminente', 'risco_iminente'].includes(key)) return 'r4';
+  if (key === 'r3' || key === 'alto') return 'r3';
+  if (key === 'r2' || key === 'medio') return 'r2';
+  return 'r1';
+}
+
 export function useMapaDados() {
   const { profile } = useAuth();
 
@@ -50,7 +58,7 @@ export function useMapaDados() {
         id: v.id,
         lat: v.latitude as number,
         lng: v.longitude as number,
-        nivelRisco: v.nivelRisco as PinVistoria['nivelRisco'],
+        nivelRisco: normalizeMapRisk(v.nivelRisco),
         endereco: v.endereco,
         municipio: v.municipio,
         agenteNome: v.agenteNome,

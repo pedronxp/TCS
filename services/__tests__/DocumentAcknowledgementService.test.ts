@@ -223,7 +223,7 @@ describe('DocumentAcknowledgementService', () => {
       vistoriaId: document.vistoriaId, documentType: 'report', templateVersion: 'report-v3',
       payload: { documentStatus: 'final', mediaRevision: 10 }, pdfUri: 'file:///source/final.pdf',
       previewHtml: '<html>Final</html>', createdBy: document.createdBy,
-    })).rejects.toThrow('media_revision_conflict');
+    })).rejects.toMatchObject({ name: 'DocumentPublicationError', cause: expect.objectContaining({ message: 'media_revision_conflict' }) });
     expect(databaseMock.saveGeneratedDocument).toHaveBeenCalled();
     expect(databaseMock.updateGeneratedDocumentRemote).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), 'available');
   });

@@ -14,7 +14,7 @@ export function StatusBadge({ value, fallback = 'Sem status' }: { value: string 
 }
 
 export function RiskBadge({ risk }: { risk: 'R1' | 'R2' | 'R3' | 'R4' | null | undefined }) {
-  const descriptions = { R1: 'Baixo', R2: 'Moderado', R3: 'Alto', R4: 'Crítico' } as const;
+  const descriptions = { R1: 'Baixo', R2: 'Moderado', R3: 'Alto', R4: 'Muito alto' } as const;
   if (!risk) return <Badge variant="secondary">Sem classificação</Badge>;
   const classes = { R1: 'border-transparent bg-risk-r1/12 text-risk-r1', R2: 'border-transparent bg-risk-r2/16 text-warning', R3: 'border-transparent bg-risk-r3/14 text-risk-r3', R4: 'border-transparent bg-risk-r4/12 text-risk-r4' };
   return <Badge className={classes[risk]}><span aria-hidden="true">{risk}</span><span className="mx-1" aria-hidden="true">•</span>{descriptions[risk]}</Badge>;
