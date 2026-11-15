@@ -63,6 +63,7 @@ describe('TrainingService helpers', () => {
       'vistoria_deslizamento_v3',
       'risco_estrutural_novo_v2',
       'avaliacao_arvore_cbmmg_v1',
+      'inspecao_ponte_passarela_v1',
     ]);
   });
 

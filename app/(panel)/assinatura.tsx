@@ -1,8 +1,9 @@
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Keyboard, ScrollView, TextInput, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ownerActionError } from '../../services/OwnerAdministrationService';
 import { useTheme } from '../../context/ThemeContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { needsSubscriptionConfirmation, usagePercent } from '../../utils/subscription';
@@ -62,6 +63,20 @@ export default function AssinaturaScreen() {
   const bottomPad = useBottomTabPadding();
   const { context, loading, error, refresh } = useSubscription();
   const needsConfirmation = needsSubscriptionConfirmation(context?.subscription);
+  const [individualKey, setIndividualKey] = React.useState('');
+  const [redeemingKey, setRedeemingKey] = React.useState(false);
+  const keyLock = React.useRef(false);
+  const [keyError, setKeyError] = React.useState<string | null>(null);
+  const redeemKey = async () => {
+    if (keyLock.current) return;
+    keyLock.current = true; setRedeemingKey(true); setKeyError(null); Keyboard.dismiss();
+    try {
+      const { data, error } = await supabase.rpc('redeem_individual_access_key', { p_code: individualKey.trim().toUpperCase() });
+      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'Falha ao ativar a chave.');
+      setIndividualKey(''); await refresh(); Alert.alert('Chave resgatada', data.access_until ? `Acesso liberado até ${new Date(data.access_until).toLocaleDateString('pt-BR')}.` : 'Esta chave já foi resgatada por você.');
+    } catch (cause) { setKeyError(ownerActionError(cause)); }
+    finally { keyLock.current = false; setRedeemingKey(false); }
+  };
   const [inviteToken, setInviteToken] = React.useState('');
   const canCoordinate = ['owner', 'coordinator', 'supervisor'].includes(context?.membership?.role || '');
   const usage = (context?.usage || []).filter(item => {
@@ -115,6 +130,7 @@ export default function AssinaturaScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {error ? (
@@ -128,6 +144,7 @@ export default function AssinaturaScreen() {
             />
           ) : null}
 
+          {!context?.organization ? <View style={{ padding: 16, gap: 12, borderWidth: 1, borderColor: theme.border, borderRadius: 16 }}><Text style={{ color: theme.text, fontSize: 18, fontWeight: '700' }}>Ativar acesso por chave</Text><Text style={{ color: theme.textSecondary }}>Recebeu uma chave IND-? Cole aqui para liberar sua conta individual pelo prazo autorizado. Não é um convite de prefeitura nem código de turma.</Text><TextInput accessibilityLabel="Chave de acesso individual" placeholder="IND-…" placeholderTextColor={theme.textSecondary} style={{ color: theme.text, borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14 }} value={individualKey} onChangeText={setIndividualKey} autoCapitalize="characters" autoCorrect={false} maxLength={36} />{keyError ? <Text accessibilityRole="alert" style={{ color: theme.error }}>{keyError}</Text> : null}<Button label={redeemingKey ? 'Ativando…' : 'Ativar chave'} disabled={redeemingKey || !/^IND-[A-F0-9]{32}$/i.test(individualKey.trim())} onPress={() => void redeemKey()} /></View> : null}
           <View style={[styles.hero, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.heroTop}>
               <View style={[styles.planIcon, { backgroundColor: theme.secondary }]}>

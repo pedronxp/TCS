@@ -21,7 +21,9 @@ ${body}
 ];
 `;
 
-const target = new URL('../dashboard/src/data/brazilianMunicipalities.ts', import.meta.url);
+for (const relativePath of ['../dashboard/src/data/brazilianMunicipalities.ts', '../constants/brazilianMunicipalities.ts']) {
+const target = new URL(relativePath, import.meta.url);
 await mkdir(new URL('.', target), { recursive: true });
 await writeFile(target, file);
-console.log(`${entries.length} municípios gravados em dashboard/src/data/brazilianMunicipalities.ts`);
+console.log(`${entries.length} municípios gravados em ${relativePath}`);
+}
