@@ -95,17 +95,37 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
     setReason(''); setActionError(null); setMfaCode(''); setMfaMessage(null);
     setAction({ title, rpc, args, operationId: generateUUID() });
   };
+  const tokenOperation = useRef<{ signature: string; id: string } | null>(null);
+  const mutateTokenDirectly = async (title: string, rpc: string, args: OwnerRecord) => {
+    if (mutationLock.current) return;
+    mutationLock.current = true; setSaving(true); setInviteError(null); Keyboard.dismiss();
+    const signature = JSON.stringify({ rpc, args });
+    if (tokenOperation.current?.signature !== signature) tokenOperation.current = { signature, id: generateUUID() };
+    try {
+      const result = await ownerMutation(rpc, args, `Solicitado pelo proprietário no aplicativo: ${title}.`, tokenOperation.current.id);
+      if (rpc === 'create_console_invite_token' || rpc === 'create_individual_access_key') {
+        if (!result?.token) throw new Error('A operação já pode ter sido concluída. Confira a lista; se perdeu o código, revogue e crie outro.');
+        setCreatedToken(result.token);
+      } else setCreatedToken(null);
+      tokenOperation.current = null;
+      await load();
+    } catch (cause) {
+      const message = ownerActionError(cause);
+      setInviteError(message);
+      Alert.alert('Não foi possível concluir', message);
+    } finally { mutationLock.current = false; setSaving(false); }
+  };
   const prepareInvite = async () => {
     if (!tokenCity || inviteCheckLock.current) return;
     inviteCheckLock.current = true;
     Keyboard.dismiss(); setCheckingInvite(true); setInviteError(null);
     try {
       if (inviteKind === 'individual') {
-        begin('Criar chave individual', 'create_individual_access_key', { p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_access_days: Number(accessDays), p_expires_in_minutes: Math.round(tokenMinutes) });
+        await mutateTokenDirectly('Criar chave individual', 'create_individual_access_key', { p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_access_days: Number(accessDays), p_expires_in_minutes: Math.round(tokenMinutes) });
         return;
       }
       await checkInviteMunicipality(tokenCity.nome, tokenCity.uf);
-      begin('Criar convite de conta', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_expires_in_minutes: Math.round(tokenMinutes) });
+      await mutateTokenDirectly('Criar convite de conta', 'create_console_invite_token', { p_role: tokenRole, p_municipio: tokenCity.nome.trim(), p_uf: tokenCity.uf, p_expires_in_minutes: Math.round(tokenMinutes) });
     } catch (cause) { setInviteError(ownerActionError(cause)); }
     finally { inviteCheckLock.current = false; setCheckingInvite(false); }
   };
@@ -199,6 +219,13 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
         <SectionHeader title="Histórico do cliente" />
         {(detail.audit || []).map((event: OwnerRecord, index: number) => <View style={[styles.card, card]} key={event.id || index}><Text style={textStyle}>{event.summary || event.event_type}</Text><Text style={muted}>{event.created_at}</Text></View>)}
       </> : null}
+      {section === 'tokens' && createdToken ? <View style={[styles.card, card]}>
+        <Text style={[styles.title, textStyle]}>Código do convite</Text>
+        <Text selectable style={textStyle}>{createdToken}</Text>
+        <Text style={muted}>{createdToken.startsWith('IND-') ? 'Envie à pessoa: abra Criar conta → Individual com token e cole esta chave. Quem já tem conta pode usar Minha assinatura → Ativar acesso por chave.' : 'Envie à pessoa para usar no cadastro de equipe municipal.'}</Text>
+        <Button label="Copiar código" onPress={() => { void Clipboard.setStringAsync(createdToken).then(() => Alert.alert('Copiado', 'Código copiado para compartilhar.'), () => Alert.alert('Não foi possível copiar', 'Toque e segure o código para copiar.')); }} />
+        <Button label="Fechar código" variant="secondary" onPress={() => setCreatedToken(null)} />
+      </View> : null}
       {!loading && !error && section === 'tokens' ? <View style={[styles.card, card]}>
         <Text style={[styles.title, textStyle]}>Códigos de treinamento e convites</Text>
         <Button label="Criar código de treinamento" onPress={() => router.push('/(panel)/master/treinamentos')} />
@@ -219,19 +246,12 @@ export function OwnerAdministration({ initialSection = 'home' }: { initialSectio
         <Text style={muted}>Disponível → usado no cadastro. Se o prazo terminar, fica vencido. Você também pode revogar um convite disponível. Para várias pessoas em treinamento, use “Criar código de treinamento” e defina as vagas da turma.</Text>
         {inviteError ? <StateBanner variant="warning" title="Convite ainda não disponível" description={inviteError} actionLabel="Ver clientes e contas" onAction={() => { setSearch(tokenCity?.nome || ''); setRows([]); setOffset(0); setSection('customers'); }} /> : null}
         <Text style={muted}>Equipe municipal exige organização e assinatura habilitadas. Individual por chave não exige organização. Treinamento tem vagas e prazo próprios.</Text>
-        <Button label={checkingInvite ? 'Verificando município…' : 'Continuar com convite'} disabled={checkingInvite || (inviteKind === 'individual' && (!Number.isInteger(Number(accessDays)) || Number(accessDays) < 1 || Number(accessDays) > 365)) || !tokenCity || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => void prepareInvite()} />
+        <Button label={saving ? 'Criando código…' : checkingInvite ? 'Verificando município…' : inviteKind === 'individual' ? 'Gerar chave individual' : 'Gerar convite municipal'} disabled={saving || checkingInvite || (inviteKind === 'individual' && (!Number.isInteger(Number(accessDays)) || Number(accessDays) < 1 || Number(accessDays) > 365)) || !tokenCity || !Number.isFinite(tokenMinutes) || tokenMinutes < 15 || tokenMinutes > 10080} onPress={() => void prepareInvite()} />
       </View> : null}
-      {section === 'tokens' && createdToken ? <View style={[styles.card, card]}>
-        <Text style={[styles.title, textStyle]}>Código do convite</Text>
-        <Text selectable style={textStyle}>{createdToken}</Text>
-        <Text style={muted}>{createdToken.startsWith('IND-') ? 'Envie à pessoa: abra Criar conta → Individual com token e cole esta chave. Quem já tem conta pode usar Minha assinatura → Ativar acesso por chave.' : 'Envie à pessoa para usar no cadastro de equipe municipal.'}</Text>
-        <Button label="Copiar código" onPress={() => { void Clipboard.setStringAsync(createdToken).then(() => Alert.alert('Copiado', 'Código copiado para compartilhar.'), () => Alert.alert('Não foi possível copiar', 'Toque e segure o código para copiar.')); }} />
-        <Button label="Fechar código" variant="secondary" onPress={() => setCreatedToken(null)} />
-      </View> : null}
-      {section === 'tokens' ? individualKeys.map(key => <View key={key.id} style={[styles.card, card]}><Text style={[styles.title, textStyle]}>Chave individual</Text>{line('Localização', `${key.municipality} – ${key.uf}`)}{line('Dias de acesso', key.access_days)}{line('Usar até', new Date(key.expires_at).toLocaleString('pt-BR'))}{line('Situação', key.revoked_at ? 'Revogada' : key.used_at ? 'Usada' : new Date(key.expires_at).getTime() <= Date.now() ? 'Vencida' : 'Disponível')}{!key.revoked_at && !key.used_at ? link('Revogar chave', () => begin('Revogar chave individual', 'revoke_individual_access_key', { p_id: key.id })) : null}</View>) : null}
+      {section === 'tokens' ? individualKeys.map(key => <View key={key.id} style={[styles.card, card]}><Text style={[styles.title, textStyle]}>Chave individual</Text>{line('Localização', `${key.municipality} – ${key.uf}`)}{line('Dias de acesso', key.access_days)}{line('Usar até', new Date(key.expires_at).toLocaleString('pt-BR'))}{line('Situação', key.revoked_at ? 'Revogada' : key.used_at ? 'Usada' : new Date(key.expires_at).getTime() <= Date.now() ? 'Vencida' : 'Disponível')}{!key.revoked_at && !key.used_at ? link('Revogar chave', () => void mutateTokenDirectly('Revogar chave individual', 'revoke_individual_access_key', { p_id: key.id })) : null}</View>) : null}
       {!loading && !error && section === 'tokens' ? rows.map(token => <View key={token.management_id} style={[styles.card, card]}>
         {line('Perfil', ({ agent: 'Agente', supervisor: 'Supervisor', admin: 'Administrador' } as Record<string, string>)[token.role] || token.role)}{line('Município', token.municipio)}{line('Situação', ({ active: 'Disponível', used: 'Usado', expired: 'Vencido', revoked: 'Revogado' } as Record<string, string>)[token.status])}{line('Validade', token.expires_at ? new Date(token.expires_at).toLocaleString('pt-BR') : 'Sem data informada')}
-        {token.status === 'active' ? link('Revogar token', () => begin('Revogar token de acesso', 'revoke_console_invite_token', { p_management_id: token.management_id })) : null}
+        {token.status === 'active' ? link('Revogar token', () => void mutateTokenDirectly('Revogar token de acesso', 'revoke_console_invite_token', { p_management_id: token.management_id })) : null}
       </View>) : null}
       {section === 'campaigns' ? <View style={[styles.card, card]}>
         <Text style={[styles.title, textStyle]}>Criar aviso</Text>
