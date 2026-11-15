@@ -1,3 +1,4 @@
+import { WHATSAPP_ENABLED } from '@/config/modules';
 import {
   Activity,
   Boxes,
@@ -149,7 +150,7 @@ export function resolveNavigation(
   return (role === 'developer' ? DEVELOPER_NAVIGATION : OWNER_NAVIGATION)
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => allowed.has(item.permission)),
+      items: group.items.filter((item) => allowed.has(item.permission) && (WHATSAPP_ENABLED || !item.permission.startsWith('whatsapp.'))),
     }))
     .filter((group) => group.items.length > 0);
 }

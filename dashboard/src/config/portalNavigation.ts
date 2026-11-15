@@ -1,3 +1,4 @@
+import { WHATSAPP_ENABLED } from '@/config/modules';
 import {
   CalendarDays,
   ChartNoAxesCombined,
@@ -69,7 +70,7 @@ export function getPortalNavigation(access: PortalAccessContext): PortalNavigati
       group: 'work',
     },
     ...modules
-      .filter(([, , , permission]) => allowed.has(permission))
+      .filter(([, , , permission]) => allowed.has(permission) && (WHATSAPP_ENABLED || permission !== 'whatsapp.read'))
       .map(([label, path, icon, permission, group]) => ({
         label,
         path: `${root}/${path}`,

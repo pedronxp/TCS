@@ -1,3 +1,4 @@
+import { WHATSAPP_ENABLED } from '@/config/modules';
 import { Navigate, useLocation } from 'react-router-dom';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import type { PortalAccountKind, PortalPermission } from '@/types/portal';
@@ -32,6 +33,7 @@ export function PortalRoute({
   if (kind === 'organization' && access.membershipStatus !== 'active') {
     return <Navigate to="/entrar?status=vinculo-inativo" replace />;
   }
+  if (!WHATSAPP_ENABLED && permission === 'whatsapp.read') return <Navigate to={portalHome(access.accountKind)} replace />;
   if (permission && !can(permission)) return <Navigate to={portalHome(access.accountKind)} replace />;
   return children;
 }

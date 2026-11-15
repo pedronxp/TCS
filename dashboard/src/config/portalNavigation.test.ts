@@ -27,6 +27,10 @@ function access(overrides: Partial<PortalAccessContext> = {}): PortalAccessConte
 }
 
 describe('navegação do portal', () => {
+  it('oculta WhatsApp desativado mesmo com permissão', () => {
+    const items = getPortalNavigation(access({ accountKind: 'organization', permissions: ['dashboard.read', 'whatsapp.read'] }));
+    expect(items.some(item => item.path.endsWith('/whatsapp'))).toBe(false);
+  });
   it('mantém destinos individuais e agrupa somente módulos permitidos', () => {
     const items = getPortalNavigation(access({
       permissions: ['dashboard.read', 'inspection.read', 'billing.read', 'support.read'],
